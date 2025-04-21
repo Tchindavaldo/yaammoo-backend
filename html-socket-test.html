@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Test Socket.IO</title>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+</head>
+
+<body>
+    <h2>Console Socket.IO</h2>
+    <p>Ouvre la console (F12) pour voir les logs.</p>
+
+    <script>
+        const socket = io("http://localhost:5000");
+
+        socket.on("connect", () => {
+            console.log("🟢 Connecté avec l’ID :", socket.id);
+        });
+
+        // fastfoodId est unique pour chaque fastfood
+        socket.emit("join_fastfood", "BQZK3Shkp7ECUGMpWI2w");
+
+        socket.on("newOrder", (data) => {
+            console.log("🍔 Nouvelle commande reçue :", data);
+        });
+
+        socket.on("disconnect", () => {
+            console.log("🔴 Déconnecté");
+        });
+    </script>
+</body>
+
+</html>

@@ -1,17 +1,17 @@
 // src/routes/userRoutes.js
 const express = require('express');
-const { getUsers, createUser, updateUser } = require('../controllers/userController');
 const firebaseAuth = require('../middlewares/authMiddleware');
+const { createFastfood } = require('../controllers/fastfood/createFastfood');
 
-const router = express.Router();
+const route = express.Router();
 
 // Route publique pour récupérer la liste des utilisateurs
-router.get('', getUsers);
+// router.get('', getUsers);
 
 // Route protégée pour créer un utilisateur
-router.post('', firebaseAuth, createUser);
+route.post('', createFastfood);
 
 // Route protégée pour mettre à jour un utilisateur existant
-router.put('/:id', firebaseAuth, updateUser);
+// route.put('/:id', firebaseAuth, updateUser);
 
-module.exports = router;
+module.exports = route;
