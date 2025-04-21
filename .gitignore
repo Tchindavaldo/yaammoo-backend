@@ -1,0 +1,45 @@
+# Node.js
+node_modules/
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+
+# Logs
+logs/
+*.log
+*.log.*
+
+# Env files
+.env
+.env.local
+.env.*.local
+
+# Firebase
+/serviceAccountKey.json
+firebase-debug.log
+
+# Dossier de build (si applicable)
+build/
+dist/
+
+# Dossiers de cache
+.cache/
+*.cache
+
+# IDEs/Editors
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Other temporary files
+*.swp
+*~
+
+# Miscellaneous
+*.tgz
+*.bak
