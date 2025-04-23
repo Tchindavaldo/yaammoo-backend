@@ -1,7 +1,9 @@
 // src/routes/userRoutes.js
 const express = require('express');
 const firebaseAuth = require('../middlewares/authMiddleware');
-const { createFastfood } = require('../controllers/fastfood/createFastfood');
+const 
+{
+    createFastfood } = require('../controllers/fastfood/createFastfood');
 
 const route = express.Router();
 

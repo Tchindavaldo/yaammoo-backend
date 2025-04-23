@@ -1,6 +1,8 @@
 // src/routes/userRoutes.js
 const express = require('express');
-const { getUsers, createUser, updateUser } = require('../controllers/userController');
+const 
+{
+    getUsers, createUser, updateUser } = require('../controllers/userController');
 const firebaseAuth = require('../middlewares/authMiddleware');
 
 const router = express.Router();

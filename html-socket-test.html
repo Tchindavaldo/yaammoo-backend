@@ -12,7 +12,9 @@
     <p>Ouvre la console (F12) pour voir les logs.</p>
 
     <script>
-        const socket = io("http://localhost:5000");
+
+        // const socket = io("http://localhost:5000");
+        const socket = io("https://yaammoo-backend-production.up.railway.app");
 
         socket.on("connect", () => {
             console.log("🟢 Connecté avec l’ID :", socket.id);
