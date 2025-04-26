@@ -1,7 +1,7 @@
 const { db } = require('../../config/firebase');
 
-exports.createOrderService = async (fastfoodId, order) => {
+exports.createOrderService = async order => {
   const orderData = { ...order, createdAt: new Date() };
-  const orderRef = await db.collection('fastfoods').doc(fastfoodId).collection('orders').add(orderData);
+  const orderRef = await db.collection('orders').add(orderData);
   return { id: orderRef.id, ...orderData };
 };
