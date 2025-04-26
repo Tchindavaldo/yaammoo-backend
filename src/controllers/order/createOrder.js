@@ -13,7 +13,7 @@ exports.createOrder = async (req, res) => {
       });
     }
 
-    const orderData = await createOrderService(fastfoodId, { clientName, items, total, status: status || 'pending' });
+    const orderData = await createOrderService({ clientName, items, total, status: status || 'pending' });
 
     io.to(fastfoodId).emit('newOrder', { message: 'Nouvelle commande ajoutée', data: orderData });
 
