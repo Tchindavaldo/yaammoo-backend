@@ -20,7 +20,7 @@ exports.updateOrderService = async (orderId, updateData) => {
     throw error;
   }
 
-  await orderRef.update({ ...updateData, updatedAt: new Date() });
+  await orderRef.update({ ...updateData, updatedAt: new Date().toISOString() });
 
   const updatedDoc = await orderRef.get();
   return { id: updatedDoc.id, ...updatedDoc.data() };
