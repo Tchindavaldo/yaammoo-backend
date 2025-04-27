@@ -5,8 +5,6 @@ exports.getOrders = async (req, res) => {
     const { fastfoodId } = req.params;
     if (!fastfoodId) return res.status(400).json({ success: false, message: 'ID du fastfood requis.' });
 
-    if (!loaded) return null;
-
     const orders = await getOrdersService(fastfoodId);
     return res.status(200).json({ success: true, message: 'Commandes récupérées avec succès.', data: orders });
   } catch (error) {

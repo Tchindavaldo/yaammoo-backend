@@ -4,8 +4,7 @@ const { getIO } = require('../../socket');
 exports.createOrder = async (req, res) => {
   try {
     const io = getIO();
-    const { fastfoodId } = req.params;
-    const { clientName, items, total, status } = req.body;
+    const { fastfoodId, clientName, items, total, status } = req.body;
 
     if (!clientName || !items || !Array.isArray(items) || !total) {
       return res.status(400).json({
@@ -13,15 +12,9 @@ exports.createOrder = async (req, res) => {
       });
     }
 
-    const orderData = await createOrderService({ clientName, items, total, status: status || 'pending' });
-
+    const orderData = await createOrderService({ ...req.body, status: status || 'pending' });
     io.to(fastfoodId).emit('newOrder', { message: 'Nouvelle commande ajoutée', data: orderData });
-
-    res.status(201).json({
-      message: 'Commande ajoutée avec succès.',
-
-      data: orderData,
-    });
+    res.status(201).json({ message: 'Commande ajoutée avec succès.', data: orderData });
   } catch (error) {
     console.error('Erreur ajout commande :', error);
     res.status(500).json({

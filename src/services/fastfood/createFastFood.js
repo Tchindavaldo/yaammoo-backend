@@ -1,16 +1,19 @@
 const { admin, db } = require('../../config/firebase');
+const { validateFastfood } = require('../../utils/validator/validateFastfood');
 
 const createFastfood = async data => {
-  const dataSend = {
-    namefasfood: 'fastfood from api',
-  };
-  const time = admin.firestore.FieldValue.serverTimestamp();
+  const errors = validateFastfood(data);
+  if (errors.length > 0) {
+    const formattedErrors = errors.map(err => `${err.field}: ${err.message}`).join(', ');
+    const error = new Error(`Erreur de validation: ${formattedErrors}`);
+    error.code = 400;
+    throw error;
+  }
 
-  const fastfoodData = { ...dataSend, createdAt: time };
+  const fastfoodData = { ...data, createdAt: new Date() };
   const docRef = await db.collection('fastfoods').add(fastfoodData);
-  const data1 = { id: docRef.id, ...fastfoodData };
-  const dataFinal = { data1, data2: docRef };
-  return { dataFinal };
+  const dataFinal = { id: docRef.id, ...fastfoodData };
+  return dataFinal;
 };
 
 module.exports = createFastfood;
