@@ -1,10 +1,10 @@
 // src/controllers/userController.js
 
-const createFastfood = require('../../services/fastfood/createFastFood');
+const { createFastfoodService } = require('../../services/fastfood/createFastFood');
 
-exports.createFastfood = async (req, res) => {
+exports.createFastfoodController = async (req, res) => {
   try {
-    const data = await createFastfood(req.body);
+    const data = await createFastfoodService(req.body);
     res.status(201).json({
       data,
       message: 'fastfood créé avec succès.',

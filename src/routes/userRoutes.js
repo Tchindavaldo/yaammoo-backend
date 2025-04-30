@@ -1,14 +1,13 @@
 // src/routes/userRoutes.js
 const express = require('express');
-const 
-{
-    getUsers, createUser, updateUser } = require('../controllers/userController');
+const { getUsers, getOneUserByIdController, createUser, updateUser } = require('../controllers/user/userController');
 const firebaseAuth = require('../middlewares/authMiddleware');
 
 const router = express.Router();
 
 // Route publique pour récupérer la liste des utilisateurs
 router.get('', getUsers);
+router.get('/:id', getOneUserByIdController);
 
 // Route protégée pour créer un utilisateur
 router.post('', firebaseAuth, createUser);
