@@ -1,6 +1,7 @@
 const { admin, db } = require('../../config/firebase');
 const { getIO } = require('../../socket');
 const { validateFastfood } = require('../../utils/validator/validateFastfood');
+const { getUserById, updateUser } = require('../user/userService');
 
 exports.createFastfoodService = async data => {
   const io = getIO();
@@ -13,6 +14,10 @@ exports.createFastfoodService = async data => {
   }
   const fastfoodData = { ...data, createdAt: new Date().toISOString() };
   const docRef = await db.collection('fastfoods').add(fastfoodData);
+
+  const user = await getUserById(fastfoodData.userId);
+  await updateUser(fastfoodData.userId, { fastFoodId: docRef.id });
+
   const dataFinal = { id: docRef.id, ...fastfoodData };
   io.emit('newFastfood', { message: 'Nouveau fastfood', fastFood: dataFinal });
 

@@ -1,5 +1,5 @@
-// utils/validateOrderUpdate.js
 const { OrderFields } = require('../../interface/orderFields');
+const { validatePostMenu } = require('./validatePostMenu'); // adapte le chemin si besoin
 
 exports.validateOrderCreation = data => {
   const errors = [];
@@ -29,6 +29,19 @@ exports.validateOrderCreation = data => {
         field,
         message: `Valeur invalide pour "${field}": doit être l'un de [${fieldRules.allowedValues.join(', ')}]`,
       });
+    }
+
+    // Cas particulier : validation du champ menu
+    if (field === 'menu') {
+      const menuErrors = validatePostMenu(data.menu);
+      if (menuErrors.length > 0) {
+        menuErrors.forEach(err => {
+          errors.push({
+            field: `menu.${err.field}`,
+            message: err.message,
+          });
+        });
+      }
     }
   }
 

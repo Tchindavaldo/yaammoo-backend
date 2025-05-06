@@ -4,7 +4,6 @@ const { menuFields } = require('../../interface/menuFields');
 exports.validatePostMenu = data => {
   const errors = [];
 
-  // Vérifier tous les champs envoyés
   for (const field in data) {
     const fieldRules = menuFields[field];
     if (!fieldRules) {
@@ -22,6 +21,33 @@ exports.validatePostMenu = data => {
         message: `Type invalide pour "${field}": attendu "${fieldRules.type}", reçu "${actualType}"`,
       });
       continue;
+    }
+
+    // Cas particulier : validation des objets dans le tableau `prices`
+    if (field === 'prices' && Array.isArray(data.prices)) {
+      data.prices.forEach((item, index) => {
+        if (typeof item !== 'object') {
+          errors.push({
+            field: `prices[${index}]`,
+            message: `Chaque élément de "prices" doit être un objet`,
+          });
+          return;
+        }
+
+        if (typeof item.price !== 'number') {
+          errors.push({
+            field: `prices[${index}].price`,
+            message: `"price" doit être un nombre`,
+          });
+        }
+
+        if (item.description && typeof item.description !== 'string') {
+          errors.push({
+            field: `prices[${index}].description`,
+            message: `"description" doit être une chaîne de caractères`,
+          });
+        }
+      });
     }
 
     if (fieldRules.allowedValues && !fieldRules.allowedValues.includes(data[field])) {

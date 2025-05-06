@@ -13,6 +13,6 @@ router.get('/:id', getOneUserByIdController);
 router.post('', firebaseAuth, createUser);
 
 // Route protégée pour mettre à jour un utilisateur existant
-router.put('/:id', firebaseAuth, updateUser);
+router.put('/:id', updateUser);
 
 module.exports = router;

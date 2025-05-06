@@ -15,7 +15,7 @@ exports.postMenuService = async data => {
   }
 
   const menuData = { ...data, createdAt: new Date().toISOString() };
-  const fastFood = await getFastFoodService(menuData.fastfoodId);
+  const fastFood = await getFastFoodService(menuData.fastFoodId);
 
   const docRef = await db.collection('menus').add(menuData);
   const fastFoodMenu = await getMenuService(fastFood.id);

@@ -1,12 +1,12 @@
 // services/order/getOrdersService.js
 const { db } = require('../../config/firebase');
 
-exports.getOrdersService = async fastfoodId => {
+exports.getOrdersService = async fastFoodId => {
   try {
-    const fastfoodDoc = await db.collection('fastfoods').doc(fastfoodId).get();
+    const fastfoodDoc = await db.collection('fastfoods').doc(fastFoodId).get();
     if (!fastfoodDoc.exists) throw new Error('Fastfood non trouvé');
 
-    const ordersSnapshot = await db.collection('orders').where('fastfoodId', '==', fastfoodId).orderBy('createdAt', 'desc').get();
+    const ordersSnapshot = await db.collection('orders').where('fastFoodId', '==', fastFoodId).orderBy('createdAt', 'desc').get();
     return ordersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   } catch (error) {
     console.error('Erreur dans getOrdersService:', error);

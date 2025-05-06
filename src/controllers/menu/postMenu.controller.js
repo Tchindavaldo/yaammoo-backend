@@ -6,7 +6,7 @@ exports.postMenuController = async (req, res) => {
     const io = getIO();
     const menuData = await postMenuService(req.body);
 
-    io.to(menuData.fastfoodId).emit('newMenu', { message: 'Nouveau menu ajoutée', data: menuData });
+    io.to(menuData.fastFoodId).emit('newMenu', { message: 'Nouveau menu ajoutée', data: menuData });
     res.status(201).json({ message: 'menu ajoutée avec succès.', data: menuData });
   } catch (error) {
     console.error('Erreur ajout menu :', error);

@@ -1,10 +1,18 @@
-// interfaces/order.js
 exports.menuFields = {
   id: { type: 'string', required: false },
-  fastfoodId: { type: 'string', required: true },
-  Name: { type: 'string', required: true },
+  fastFoodId: { type: 'string', required: true },
+  name: { type: 'string', required: true },
   createdAt: { type: 'string', required: false },
-  // items: { type: 'array', required: false },
-  price: { type: 'number', required: false },
+  prices: {
+    type: 'array',
+    required: false,
+    items: {
+      type: 'object',
+      properties: {
+        price: { type: 'number', required: true },
+        description: { type: 'string', required: false },
+      },
+    },
+  },
   status: { type: 'string', required: false, allowedValues: ['avaible', 'unAvaible'] },
 };

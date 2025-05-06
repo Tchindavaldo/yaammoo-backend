@@ -3,6 +3,7 @@
 const cors = require('cors');
 const express = require('express');
 
+const imageRoutes = require('./routes/imageRoutes');
 const smsRoutes = require('./routes/smsRoutes');
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
@@ -21,6 +22,8 @@ app.use(
     credentials: true,
   })
 );
+
+app.use('/image', imageRoutes);
 
 app.use('/sms', smsRoutes);
 

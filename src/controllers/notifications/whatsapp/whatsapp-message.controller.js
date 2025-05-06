@@ -1,4 +1,4 @@
-const { postSmsWhatsapp } = require('../../../services/sms/whatsapp/post-sms.service');
+const { postSmsWhatsapp } = require('../../../services/notification/whatsapp/post-sms.service');
 
 exports.postWhatsappMessageController = async (req, res) => {
   try {

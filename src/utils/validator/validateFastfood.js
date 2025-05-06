@@ -1,4 +1,3 @@
-// utils/validateOrderUpdate.js
 const { FastfoodFields } = require('../../interface/fastfoodFields');
 
 exports.validateFastfood = data => {
@@ -16,12 +15,20 @@ exports.validateFastfood = data => {
     }
 
     const actualType = Array.isArray(data[field]) ? 'array' : typeof data[field];
-    if (actualType !== fieldRules.type) {
+
+    // Adaptation pour le type booléen
+    if (fieldRules.type === 'bool') {
+      if (actualType !== 'boolean') {
+        errors.push({
+          field,
+          message: `Type invalide pour "${field}": attendu "boolean", reçu "${actualType}"`,
+        });
+      }
+    } else if (actualType !== fieldRules.type) {
       errors.push({
         field,
         message: `Type invalide pour "${field}": attendu "${fieldRules.type}", reçu "${actualType}"`,
       });
-      continue;
     }
 
     if (fieldRules.allowedValues && !fieldRules.allowedValues.includes(data[field])) {

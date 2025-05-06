@@ -6,7 +6,7 @@ const { validateOrderCreation } = require('../../utils/validator/validateOrderCr
 exports.createOrder = async (req, res) => {
   try {
     const io = getIO();
-    const { fastfoodId, userId, status } = req.body;
+    const { fastFoodId, userId, status } = req.body;
 
     const errors = validateOrderCreation(req.body);
     if (errors.length > 0) {
@@ -18,11 +18,11 @@ exports.createOrder = async (req, res) => {
       });
     }
 
-    const fastfood = await getFastFoodService(fastfoodId);
+    const fastfood = await getFastFoodService(fastFoodId);
     const orderData = await createOrderService({ ...req.body, status: status || 'pendingToBuy' });
 
-    io.to(userId).emit('newOrder', { message: 'Nouvelle commande ajoutée', data: orderData });
-    if (orderData.status !== 'pendingToBuy') io.to(fastfood.userId).emit('newOrder', { message: 'Nouvelle commande ajoutée', data: orderData });
+    io.to(userId).emit('newUserOrder', { message: 'Nouvelle commande user  ajoutée', data: orderData });
+    if (orderData.status !== 'pendingToBuy') io.to(fastfood.userId).emit('newFastFoodOrder', { message: 'Nouvelle commande fastfood ajoutée', data: orderData });
     res.status(201).json({ message: 'Commande ajoutée avec succès.', data: orderData });
   } catch (error) {
     // console.error('Erreur ajout commande :', error);
