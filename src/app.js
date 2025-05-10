@@ -3,7 +3,9 @@
 const cors = require('cors');
 const express = require('express');
 
+const bonusRoutes = require('./routes/bonusRoute');
 const imageRoutes = require('./routes/imageRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 const smsRoutes = require('./routes/smsRoutes');
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
@@ -27,6 +29,8 @@ app.use('/image', imageRoutes);
 
 app.use('/sms', smsRoutes);
 
+app.use('/bonus', bonusRoutes);
+
 app.use('/auth', authRoutes);
 
 app.use('/user', userRoutes);
@@ -38,5 +42,7 @@ app.use('/menu', menuRoutes);
 app.use('/users', userRoutes);
 
 app.use('/fastFood', fastfoodRoutes);
+
+app.use('/notification', notificationRoutes);
 
 module.exports = app;
