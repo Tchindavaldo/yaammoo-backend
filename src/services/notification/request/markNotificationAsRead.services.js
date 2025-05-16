@@ -3,7 +3,7 @@ const { getNotificationByIdService } = require('./getNotificationById.services')
 
 exports.markNotificationAsReadService = async data => {
   try {
-    const { userId, notificationIdGroup, notificationId } = data;
+    const { userId, notificationIdGroup, notificationId, io } = data;
 
     if (!userId || !notificationIdGroup || !notificationId) return { success: false, message: 'param manquant userId || notificationIdGroup || notificationId' };
 
@@ -37,6 +37,8 @@ exports.markNotificationAsReadService = async data => {
     // Mettre à jour allNotif dans Firestore
     await db.collection('notification').doc(notificationIdGroup).update({ allNotif: notifList });
 
+    // console.log('appeler du iooo', io ? true : false);
+    io.to(userId).emit('isRead', { notificationId, userId });
     return { success: true, message: 'Notification marquée comme lue' };
   } catch (error) {
     console.error('Erreur dans markNotificationAsRead:', error);

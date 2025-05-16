@@ -1,4 +1,5 @@
 const { db } = require('../../../config/firebase');
+const { getIO } = require('../../../socket');
 const { flattenNotifications } = require('../../../utils/flattenNotifications');
 const { validateNotificationData } = require('../../../utils/validator/validateNotificationData');
 const sendPushNotification = require('../FCM/sendPushNotification.service');

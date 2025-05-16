@@ -1,4 +1,4 @@
-const { markNotificationAsReadService } = require('./services/notification/request/markNotificationAsRead.services');
+const notificationHandler = require('./services/notification/socket/notificationHandler');
 
 // src/socket.js
 let io;
@@ -25,14 +25,8 @@ module.exports = {
         // console.log('🔴 Client déconnecté :', socket.id);
       });
 
-      socket.on('isReadNotification', async ({ userId, notificationId, notificationIdGroup }) => {
-        console.log('Notification lue par :', userId);
-        console.log({ userId, notificationId, notificationIdGroup });
-        readNotificationsBuffer.push({ userId, notificationId, notificationIdGroup });
-
-        // Si tu veux ensuite appeler un service :
-        // await markNotificationAsReadService({ userId, notificationId, notificationIdGroup });
-      });
+      // ➕ Utilise le handler ici
+      notificationHandler(socket, io);
     });
 
     return io;
