@@ -1,4 +1,4 @@
-export function flattenNotifications(nestedNotifs) {
+function flattenNotifications(nestedNotifs) {
   const flat = [];
 
   nestedNotifs.forEach(parent => {
@@ -16,3 +16,5 @@ export function flattenNotifications(nestedNotifs) {
 
   return flat;
 }
+
+module.exports = { flattenNotifications };
