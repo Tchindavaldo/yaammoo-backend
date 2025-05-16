@@ -1,7 +1,7 @@
 // src/routes/userRoutes.js
 const express = require('express');
 const { getBonusController } = require('../controllers/bonus/getBonus.controller');
-const { postBonusController } = require('../controllers/bonus/createFastfood');
+const { postBonusController } = require('../controllers/bonus/postBonus.controller');
 
 const route = express.Router();
 

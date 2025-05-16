@@ -27,10 +27,7 @@ const sendPushNotification = async ({ token, title, body, data = {} }) => {
         },
       },
     },
-    data: {
-      click_action: 'FLUTTER_NOTIFICATION_CLICK',
-      customData: 'any',
-    },
+    data,
   };
 
   // const message = {
