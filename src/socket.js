@@ -25,13 +25,13 @@ module.exports = {
         // console.log('🔴 Client déconnecté :', socket.id);
       });
 
-      socket.on('isReadNotification', async ({ userId, notificationId, notificationCreatedAt }) => {
+      socket.on('isReadNotification', async ({ userId, notificationId, notificationIdGroup }) => {
         console.log('Notification lue par :', userId);
-        console.log({ userId, notificationId, notificationCreatedAt });
-        readNotificationsBuffer.push({ userId, notificationId, notificationCreatedAt });
+        console.log({ userId, notificationId, notificationIdGroup });
+        readNotificationsBuffer.push({ userId, notificationId, notificationIdGroup });
 
         // Si tu veux ensuite appeler un service :
-        // await markNotificationAsReadService({ userId, notificationId, notificationCreatedAt });
+        // await markNotificationAsReadService({ userId, notificationId, notificationIdGroup });
       });
     });
 

@@ -3,12 +3,11 @@ const { getNotificationByIdService } = require('./getNotificationById.services')
 
 exports.markNotificationAsReadService = async data => {
   try {
-    const { userId, notificationId, notificationCreatedAt } = data;
-    console.log(userId, notificationId, notificationCreatedAt);
+    const { userId, notificationIdGroup, notificationId } = data;
 
-    if (!userId || !notificationId || !notificationCreatedAt) return { success: false, message: 'param manquant userId || notificationId || notificationCreatedAt' };
+    if (!userId || !notificationIdGroup || !notificationId) return { success: false, message: 'param manquant userId || notificationIdGroup || notificationId' };
 
-    const notificationData = await getNotificationByIdService(notificationId);
+    const notificationData = await getNotificationByIdService(notificationIdGroup);
 
     if (!notificationData.success) {
       return { success: false, message: notificationData.message };
@@ -17,7 +16,7 @@ exports.markNotificationAsReadService = async data => {
     const notification = notificationData.data;
     const notifList = notification.allNotif || [];
 
-    const targetNotifIndex = notifList.findIndex(notif => notif.createdAt === notificationCreatedAt);
+    const targetNotifIndex = notifList.findIndex(notif => notif.id === notificationId);
 
     if (targetNotifIndex === -1) {
       return { success: false, message: 'Notification non trouvée dans allNotif' };
@@ -36,7 +35,7 @@ exports.markNotificationAsReadService = async data => {
     }
 
     // Mettre à jour allNotif dans Firestore
-    await db.collection('notification').doc(notificationId).update({ allNotif: notifList });
+    await db.collection('notification').doc(notificationIdGroup).update({ allNotif: notifList });
 
     return { success: true, message: 'Notification marquée comme lue' };
   } catch (error) {

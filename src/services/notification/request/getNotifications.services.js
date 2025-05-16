@@ -9,7 +9,7 @@ exports.getNotificationsService = async (userId, fastFoodId) => {
     const userNotifsSnap = await db.collection('notification').where('target', '==', 'all').orderBy('updatedAt', 'desc').get();
     const allNotifsSnap = await db.collection('notification').where('userId', '==', userId).orderBy('updatedAt', 'desc').get();
 
-    allNotif = [...userNotifsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })), ...allNotifsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }))];
+    allNotif = [...userNotifsSnap.docs.map(doc => ({ idGroup: doc.id, ...doc.data() })), ...allNotifsSnap.docs.map(doc => ({ idGroup: doc.id, ...doc.data() }))];
     allNotif.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
 
     if (fastFoodId !== undefined) allNotif = allNotif.filter(doc => doc.fastFoodId !== fastFoodId);
