@@ -14,6 +14,7 @@ const menuRoutes = require('./routes/menuRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const fastfoodRoutes = require('./routes/fastfoodRoutes');
 const bonusRequest = require('./routes/bonusRequestRoute');
+const transactionRoutes = require('./routes/transactionRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 
 const app = express();
@@ -34,6 +35,7 @@ app.use('/bonus', bonusRoutes);
 app.use('/order', orderRoutes);
 app.use('/fastFood', fastfoodRoutes);
 app.use('/bonusRequest', bonusRequest);
+app.use('/transaction', transactionRoutes);
 app.use('/notification', notificationRoutes);
 
 module.exports = app;

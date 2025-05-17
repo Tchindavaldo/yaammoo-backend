@@ -19,7 +19,7 @@ exports.postMenuService = async data => {
 
   const docRef = await db.collection('menus').add(menuData);
   const fastFoodMenu = await getMenuService(fastFood.id);
-  const finalData = { ...fastFood, menus: fastFoodMenu };
+  const finalData = { ...fastFood, menus: { ...fastFoodMenu, fastFoodId: fastFood.id } };
   io.emit('newMenu', { message: 'Nouveau menu', fastFood: finalData, menu: finalData.menus });
 
   return finalData;

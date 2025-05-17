@@ -14,5 +14,5 @@ exports.menuFields = {
       },
     },
   },
-  status: { type: 'string', required: false, allowedValues: ['avaible', 'unAvaible'] },
+  status: { type: 'string', required: false, allowedValues: ['available', 'unavailable'] },
 };

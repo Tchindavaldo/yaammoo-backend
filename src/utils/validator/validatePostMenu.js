@@ -24,30 +24,42 @@ exports.validatePostMenu = data => {
     }
 
     // Cas particulier : validation des objets dans le tableau `prices`
-    if (field === 'prices' && Array.isArray(data.prices)) {
-      data.prices.forEach((item, index) => {
-        if (typeof item !== 'object') {
-          errors.push({
-            field: `prices[${index}]`,
-            message: `Chaque élément de "prices" doit être un objet`,
-          });
-          return;
-        }
+    if (field === 'prices') {
+      if (!Array.isArray(data.prices)) {
+        errors.push({
+          field: 'prices',
+          message: `"prices" doit être un tableau`,
+        });
+      } else if (data.prices.length === 0) {
+        errors.push({
+          field: 'prices',
+          message: `Le tableau "prices" doit contenir au moins un élément`,
+        });
+      } else {
+        data.prices.forEach((item, index) => {
+          if (typeof item !== 'object') {
+            errors.push({
+              field: `prices[${index}]`,
+              message: `Chaque élément de "prices" doit être un objet`,
+            });
+            return;
+          }
 
-        if (typeof item.price !== 'number') {
-          errors.push({
-            field: `prices[${index}].price`,
-            message: `"price" doit être un nombre`,
-          });
-        }
+          if (typeof item.price !== 'number') {
+            errors.push({
+              field: `prices[${index}].price`,
+              message: `"price" doit être un nombre`,
+            });
+          }
 
-        if (item.description && typeof item.description !== 'string') {
-          errors.push({
-            field: `prices[${index}].description`,
-            message: `"description" doit être une chaîne de caractères`,
-          });
-        }
-      });
+          if (item.description && typeof item.description !== 'string') {
+            errors.push({
+              field: `prices[${index}].description`,
+              message: `"description" doit être une chaîne de caractères`,
+            });
+          }
+        });
+      }
     }
 
     if (fieldRules.allowedValues && !fieldRules.allowedValues.includes(data[field])) {
