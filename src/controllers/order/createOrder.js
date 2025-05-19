@@ -1,20 +1,18 @@
 const { getIO } = require('../../socket');
 const { createOrderService } = require('../../services/order/createOrder');
 const { getFastFoodService } = require('../../services/fastfood/getFastFood');
-const { validateOrderCreation } = require('../../utils/validator/validateOrderCreation');
+const { validateOrder } = require('../../utils/validator/validateOrder');
 
 exports.createOrder = async (req, res) => {
   try {
     const io = getIO();
     const { fastFoodId, userId, status } = req.body;
 
-    const errors = validateOrderCreation(req.body);
+    const errors = validateOrder(req.body);
     if (errors.length > 0) {
-      const formattedErrors = errors.map(err => `${err.field}: ${err.message}`).join(', ');
-      const error = new Error(`Erreur de validation: ${formattedErrors}`);
       return res.status(400).json({
-        code: error.code,
-        message: error.message,
+        code: 400,
+        message: errors,
       });
     }
 

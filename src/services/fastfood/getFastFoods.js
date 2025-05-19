@@ -14,7 +14,11 @@ exports.getFastFoodsService = async () => {
         return { ...fastfood, menus };
       })
     );
-    return fastfoodsWithMenus;
+
+    // Filtrer pour ne retourner que les fastfoods avec au moins un menu
+    const filteredFastfoods = fastfoodsWithMenus.filter(fastfood => Array.isArray(fastfood.menus) && fastfood.menus.length > 0);
+
+    return filteredFastfoods;
   } catch (error) {
     console.error('Erreur dans getFastfood:', error);
     throw new Error(error.message || 'Erreur lors de la récupération du fastfood');

@@ -4,13 +4,11 @@ const { getIO } = require('../../socket');
 
 exports.updateOrder = async (req, res) => {
   try {
-    const io = getIO();
     const { id, userId } = req.body;
     const updateData = req.body;
 
     const updatedOrder = await updateOrderService(id, updateData);
     res.status(200).json({ message: 'success.', data: updatedOrder });
-    io.to(userId).emit('updateOrder', { message: 'Nouvelle commande Modifier', data: updatedOrder });
   } catch (error) {
     console.error('Erreur mise à jour commande :', error.message);
     res.status(error.code || 500).json({

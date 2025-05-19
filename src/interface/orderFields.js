@@ -12,4 +12,21 @@ exports.OrderFields = {
   items: { type: 'array', required: false },
   total: { type: 'number', required: false },
   status: { type: 'string', required: false, allowedValues: ['pending', 'pendingToBuy', 'processing', 'finished'] },
+  delivery: {
+    type: 'object',
+    required: false,
+    properties: {
+      status: { type: 'boolean', required: true },
+      type: {
+        type: 'string',
+        required: false,
+        allowedValues: ['express', 'time'],
+      },
+      time: {
+        type: 'string',
+        required: false,
+        // Validation supplémentaire pour le format d'heure peut être ajoutée dans le validateur
+      },
+    },
+  },
 };

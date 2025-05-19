@@ -1,6 +1,6 @@
 const { db } = require('../../config/firebase');
 const { getIO } = require('../../socket');
-const { validateOrderUpdate } = require('../../utils/validator/validateOrderUpdate');
+const { validateOrderUpdate } = require('../../utils/validator/validateOrder');
 const { getFastFoodService } = require('../fastfood/getFastFood');
 
 exports.updatePendingToBuyOrders = async orders => {
