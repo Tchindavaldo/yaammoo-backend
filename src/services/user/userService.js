@@ -18,6 +18,6 @@ exports.createUser = async data => {
 };
 
 exports.updateUser = async (id, data) => {
-  console.log('data update', data);
+  // console.log('data update', data);
   await db.collection('users').doc(id).update(data);
 };

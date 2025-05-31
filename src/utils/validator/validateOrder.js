@@ -58,7 +58,8 @@ const validateObject = (data, rules, parentField = '', checkRequired = true) => 
 
     // Validation récursive pour les objets imbriqués
     if (fieldRules.properties && value && typeof value === 'object' && !Array.isArray(value)) {
-      const nestedErrors = validateObject(value, fieldRules.properties, fullField);
+      // Transmettre le paramètre checkRequired à la validation des objets imbriqués
+      const nestedErrors = validateObject(value, fieldRules.properties, fullField, checkRequired);
       errors.push(...nestedErrors);
     }
   }
@@ -79,13 +80,25 @@ exports.validateOrder = (data, checkRequired = true, formatErrors = true) => {
 
   // Validation personnalisée pour le champ delivery
   if (data.delivery) {
-    const { status, type, time } = data.delivery;
+    const { status, type, time, location } = data.delivery;
 
+    // Ne pas vérifier les champs requis si checkRequired est false
+    if (!checkRequired) {
+      // Ne rien faire, on saute les validations de champs requis
+    }
     // Si delivery.status est true, vérifier que le type est fourni
-    if (status === true && !type) {
+    else if (status === true && !type) {
       errors.push({
         field: 'delivery.type',
         message: 'Le type de livraison est requis lorsque la livraison est activée',
+      });
+    }
+    
+    // Vérifier que l'adresse de livraison est fournie lorsque la livraison est activée
+    if (status === true && checkRequired && (!location || location.trim() === '')) {
+      errors.push({
+        field: 'delivery.location',
+        message: "L'adresse de livraison est requise lorsque la livraison est activée",
       });
     }
 

@@ -29,8 +29,8 @@ exports.updateOrderService = async (orderId, updateData) => {
     const fastFood = await getFastFoodService(updatedOrder.fastFoodId);
 
     const io = getIO();
-    io.to(updatedOrder.userId).emit('userOrderUpdated', { order: updatedOrder });
-    io.to(fastFood.userId).emit('fastFoodOrderUpdated', { order: updatedOrder });
+    io.to(updatedOrder.userId).emit('userOrderUpdated', { data: updatedOrder });
+    io.to(fastFood.userId).emit('fastFoodOrderUpdated', { data: updatedOrder });
 
     return { success: true, message: 'Commande mise à jour avec succès', data: updatedOrder };
   } catch (error) {

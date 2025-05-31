@@ -9,7 +9,7 @@ module.exports = (socket, io) => {
       const result = await markNotificationAsReadService({ userId, notificationId, notificationIdGroup, io });
       // console.log('Résultat du service :', result);
     } catch (err) {
-      console.error('Erreur dans isReadNotification handler :', err.message);
+      // console.error('Erreur dans isReadNotification handler :', err.message);
     }
   });
 };

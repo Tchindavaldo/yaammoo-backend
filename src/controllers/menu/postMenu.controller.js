@@ -4,12 +4,16 @@ const { postMenuService } = require('../../services/menu/postMenu.service');
 exports.postMenuController = async (req, res) => {
   try {
     const io = getIO();
-    const menuData = await postMenuService(req.body);
+    const result = await postMenuService(req.body);
 
-    io.to(menuData.fastFoodId).emit('newMenu', { message: 'Nouveau menu ajoutée', data: menuData });
-    res.status(201).json({ message: 'menu ajoutée avec succès.', data: menuData });
+    if (!result.success) {
+      return res.status(400).json({ message: result.message, success: false });
+    }
+
+    io.to(result.data.fastFoodId).emit('newMenu', { message: 'Nouveau menu ajouté', data: result.data });
+    res.status(201).json({ message: result.message, data: result.data, success: true });
   } catch (error) {
-    console.error('Erreur ajout menu :', error);
-    res.status(error.statusCode || 500).json({ message: error.message || "Erreur serveur lors de l'ajout de la menu." });
+    // console.error('Erreur ajout menu :', error);
+    res.status(500).json({ message: error.message || "Erreur serveur lors de l'ajout du menu", success: false });
   }
 };

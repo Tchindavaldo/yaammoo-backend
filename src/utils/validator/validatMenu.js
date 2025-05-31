@@ -94,6 +94,84 @@ exports.validateMenu = (data, checkRequired = true, formatErrors = false) => {
         });
       }
     }
+    
+    // Cas particulier : validation des éléments dans le tableau `extra`
+    if (field === 'extra') {
+      if (!Array.isArray(data.extra)) {
+        errors.push({
+          field: 'extra',
+          message: `"extra" doit être un tableau`,
+        });
+      } else if (data.extra.length === 0 && checkRequired) {
+        errors.push({
+          field: 'extra',
+          message: `Le tableau "extra" doit contenir au moins un élément`,
+        });
+      } else if (data.extra.length > 0) {
+        data.extra.forEach((item, index) => {
+          if (typeof item !== 'object') {
+            errors.push({
+              field: `extra[${index}]`,
+              message: `Chaque élément de "extra" doit être un objet`,
+            });
+            return;
+          }
+          
+          if (!item.name || typeof item.name !== 'string') {
+            errors.push({
+              field: `extra[${index}].name`,
+              message: `"name" est obligatoire et doit être une chaîne de caractères`,
+            });
+          }
+          
+          if (item.status === undefined || typeof item.status !== 'boolean') {
+            errors.push({
+              field: `extra[${index}].status`,
+              message: `"status" est obligatoire et doit être un booléen`,
+            });
+          }
+        });
+      }
+    }
+    
+    // Cas particulier : validation des éléments dans le tableau `drink`
+    if (field === 'drink') {
+      if (!Array.isArray(data.drink)) {
+        errors.push({
+          field: 'drink',
+          message: `"drink" doit être un tableau`,
+        });
+      } else if (data.drink.length === 0 && checkRequired) {
+        errors.push({
+          field: 'drink',
+          message: `Le tableau "drink" doit contenir au moins un élément`,
+        });
+      } else if (data.drink.length > 0) {
+        data.drink.forEach((item, index) => {
+          if (typeof item !== 'object') {
+            errors.push({
+              field: `drink[${index}]`,
+              message: `Chaque élément de "drink" doit être un objet`,
+            });
+            return;
+          }
+          
+          if (!item.name || typeof item.name !== 'string') {
+            errors.push({
+              field: `drink[${index}].name`,
+              message: `"name" est obligatoire et doit être une chaîne de caractères`,
+            });
+          }
+          
+          if (item.status === undefined || typeof item.status !== 'boolean') {
+            errors.push({
+              field: `drink[${index}].status`,
+              message: `"status" est obligatoire et doit être un booléen`,
+            });
+          }
+        });
+      }
+    }
 
     if (fieldRules.allowedValues && !fieldRules.allowedValues.includes(data[field])) {
       errors.push({

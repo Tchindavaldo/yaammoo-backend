@@ -31,7 +31,7 @@ exports.deleteMenuService = async menuId => {
 
     return { success: true, message: 'Menu supprimé', data: finalData };
   } catch (error) {
-    console.error('Erreur dans deleteMenuService:', error);
+    // console.error('Erreur dans deleteMenuService:', error);
     return { success: false, message: error.message || 'Erreur lors de la suppression du menu' };
   }
 };

@@ -3,7 +3,7 @@ const { getOrders } = require('../controllers/order/getOrders');
 const { updateOrder } = require('../controllers/order/updateOrder');
 const { createOrder } = require('../controllers/order/createOrder');
 const { getUsersOrders } = require('../controllers/order/getUsersOrders');
-const { updatePendingToBuyOrdersConstroller } = require('../controllers/order/updatePendingToBuyOrders.controller');
+const { updateOrdersConstroller } = require('../controllers/order/updateOrdersConstroller.controller');
 const { updateOrdersField } = require('../controllers/order/updateOrdersField.controller');
 
 const router = express.Router();
@@ -16,7 +16,7 @@ router.post('', createOrder);
 
 // Route PUT pour modifier une commande
 router.put('', updateOrder);
-router.put('/pending-toBuy', updatePendingToBuyOrdersConstroller);
+router.put('/tabs/:userId', updateOrdersConstroller);
 
 // Route PUT pour mettre à jour un champ spécifique sur plusieurs commandes
 router.put('/update-field', updateOrdersField);

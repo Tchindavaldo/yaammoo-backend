@@ -56,11 +56,6 @@ exports.updateOrdersFieldService = async params => {
       };
     }
 
-    // Préparation de la mise à jour
-    const updateData = {};
-    updateData[fieldName] = fieldValue;
-    updateData.updatedAt = new Date().toISOString();
-
     // Validation de la mise à jour pour un seul champ
     const validationData = {};
     validationData[fieldName] = fieldValue;
@@ -77,10 +72,30 @@ exports.updateOrdersFieldService = async params => {
     const batch = db.batch();
     const updatedOrders = [];
 
+    // Pour chaque document, on fusionne les données existantes avec les nouvelles valeurs
     snapshot.forEach(doc => {
       const orderRef = db.collection('orders').doc(doc.id);
+      const currentData = doc.data();
+      
+      // Préparer l'objet de mise à jour
+      const updateData = {
+        updatedAt: new Date().toISOString()
+      };
+      
+      // Si le champ cible est un objet, on le fusionne avec les données existantes
+      if (fieldValue && typeof fieldValue === 'object' && !Array.isArray(fieldValue)) {
+        const currentFieldValue = currentData[fieldName] || {};
+        updateData[fieldName] = { ...currentFieldValue, ...fieldValue };
+      } else {
+        // Pour les champs simples, on écrase simplement la valeur
+        updateData[fieldName] = fieldValue;
+      }
+      
+      // Ajouter la mise à jour au batch
       batch.update(orderRef, updateData);
-      updatedOrders.push({ ...doc.data(), ...updateData, id: doc.id });
+      
+      // Ajouter la commande mise à jour au tableau des résultats
+      updatedOrders.push({ ...currentData, ...updateData, id: doc.id });
     });
 
     await batch.commit();
@@ -118,7 +133,7 @@ exports.updateOrdersFieldService = async params => {
           });
         }
       } catch (err) {
-        console.warn(`Erreur lors de l'émission pour fastFoodId ${ffId}: ${err.message}`);
+        // console.warn(`Erreur lors de l'émission pour fastFoodId ${ffId}: ${err.message}`);
       }
     }
 
@@ -138,7 +153,7 @@ exports.updateOrdersFieldService = async params => {
       data: updatedOrders,
     };
   } catch (error) {
-    console.error('Erreur dans updateOrdersFieldService:', error);
+    // console.error('Erreur dans updateOrdersFieldService:', error);
     return {
       success: false,
       message: error.message || 'Erreur lors de la mise à jour des commandes',

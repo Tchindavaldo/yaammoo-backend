@@ -36,7 +36,7 @@ exports.updateMenuService = async (menuId, updateData) => {
 
     return { success: true, message: 'Menu mis à jour avec succès', data: updatedMenu };
   } catch (error) {
-    console.error('Erreur dans updateMenuService:', error);
+    // console.error('Erreur dans updateMenuService:', error);
     return {
       success: false,
       message: error.message || 'Erreur lors de la mise à jour du menu',
