@@ -78,6 +78,40 @@ exports.validateOrder = (data, checkRequired = true, formatErrors = true) => {
   // Valider d'abord la structure de base
   const errors = validateObject(data, OrderFields, '', checkRequired);
 
+  // Validation personnalisée pour le champ userData
+  if (data.userData) {
+    const { firstName, lastName, email, phoneNumber } = data.userData;
+    
+    // Vérification des champs obligatoires de userData si checkRequired est true
+    if (checkRequired) {
+      if (!firstName || firstName.trim() === '') {
+        errors.push({
+          field: 'userData.firstName',
+          message: 'Le prénom du client est requis',
+        });
+      }
+      
+      if (!lastName || lastName.trim() === '') {
+        errors.push({
+          field: 'userData.lastName',
+          message: 'Le nom du client est requis',
+        });
+      }
+      
+      if (!email || email.trim() === '') {
+        errors.push({
+          field: 'userData.email',
+          message: "L'email du client est requis",
+        });
+      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        errors.push({
+          field: 'userData.email',
+          message: "Format d'email invalide",
+        });
+      }
+    }
+  }
+
   // Validation personnalisée pour le champ delivery
   if (data.delivery) {
     const { status, type, time, location } = data.delivery;
@@ -100,6 +134,17 @@ exports.validateOrder = (data, checkRequired = true, formatErrors = true) => {
         field: 'delivery.location',
         message: "L'adresse de livraison est requise lorsque la livraison est activée",
       });
+    }
+
+    // Vérifier que le numéro de téléphone est fourni lorsque la livraison est activée
+    if (status === true && checkRequired && data.userData) {
+      const { phoneNumber } = data.userData;
+      if (phoneNumber === undefined || phoneNumber === null) {
+        errors.push({
+          field: 'userData.phoneNumber',
+          message: "Le numéro de téléphone est requis lorsque la livraison est activée",
+        });
+      }
     }
 
     // Si le type est 'time', vérifier que l'heure est fournie et au bon format
