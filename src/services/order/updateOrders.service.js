@@ -2,6 +2,7 @@ const { db, admin } = require('../../config/firebase');
 const { getIO } = require('../../socket');
 const { validateOrder } = require('../../utils/validator/validateOrder');
 const { getFastFoodService } = require('../fastfood/getFastFood');
+const { updateOrdersRank } = require('./uppdateOrdersRank.service'); // Ajout de l'import
 
 exports.updateOrders = async (orders, userId) => {
   try {
@@ -91,7 +92,17 @@ exports.updateOrders = async (orders, userId) => {
         status: newStatus,
         updatedAt: new Date().toISOString(),
       };
+      // Si le nouveau statut est 'pending', ajouter un rank
+      if (newStatus === 'pending') {
+        const currentData = doc.data();
+        const deliveryDate = currentData.delivery?.date || new Date().toISOString().split('T')[0];
 
+        // Compter le nombre de commandes avec statut 'pending' ou 'processing' pour la même date
+        const pendingSnapshot = await db.collection('orders').where('fastFoodId', '==', fastFoodId).where('status', 'in', ['pending', 'processing']).where('delivery.date', '==', deliveryDate).get();
+
+        // Le rank est le nombre total de commandes pour cette date + 1
+        setData.rank = pendingSnapshot.size + 1;
+      }
       // Only delete clientId and periodKey if they exist and status is 'finished'
       if (newStatus === 'finished') {
         if (doc.data().hasOwnProperty('clientId')) {
@@ -149,6 +160,7 @@ exports.updateOrders = async (orders, userId) => {
         let shouldUpdatePeriodKey = false;
         let shouldUpdateClientId = false;
         let currentOrderId = null;
+        const finishedOrdersForRank = [];
         groupedByFastFood[fastFoodId].forEach(order => {
           currentOrderId = order.id;
           if (order.status === 'pending') {
@@ -223,6 +235,14 @@ exports.updateOrders = async (orders, userId) => {
               });
             }
           }
+
+          if (order.status === 'finished') {
+            finishedOrdersForRank.push({ rank: order.rank, date: order.delivery?.date });
+          }
+        });
+        // Execute rank updates after all emits for this fastFoodId
+        finishedOrdersForRank.forEach(({ rank, date }) => {
+          updateOrdersRank(fastFoodId, rank, date, fastfood.userId);
         });
       } catch (err) {
         console.error(`Erreur lors de l'émission pour fastFoodId ${fastFoodId}:`, err.message);
