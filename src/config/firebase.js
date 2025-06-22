@@ -1,6 +1,35 @@
 require('dotenv').config();
+const fs = require('fs');
 const admin = require('firebase-admin');
-const serviceAccount = require('./serviceAccountKey.js');
+
+// Créer le fichier de credentials à partir du secret Fly.io
+let serviceAccount;
+if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+  try {
+    // Créer le fichier dans le container
+    fs.writeFileSync('./serviceAccountKey.json', process.env.FIREBASE_SERVICE_ACCOUNT);
+
+    // Charger le JSON
+    serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+
+    // Dire à Firebase où trouver le fichier
+    process.env.GOOGLE_APPLICATION_CREDENTIALS = './serviceAccountKey.json';
+
+    console.log('✅ Fichier Firebase credentials créé depuis le secret');
+  } catch (error) {
+    console.error('❌ Erreur création fichier Firebase:', error);
+    throw error;
+  }
+} else {
+  // Fallback pour le développement local
+  try {
+    serviceAccount = require('../../yaammoo.json');
+    console.log('📁 Utilisation du fichier local serviceAccountKey.js');
+  } catch (error) {
+    console.error('❌ Aucun credentials Firebase trouvé');
+    throw new Error('Credentials Firebase manquants');
+  }
+}
 
 // Configuration pour forcer l'utilisation de REST uniquement
 process.env.FIRESTORE_EMULATOR_HOST = undefined;
