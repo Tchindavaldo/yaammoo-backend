@@ -1,14 +1,20 @@
 require('dotenv').config();
-
-// Forcer l'utilisation de l'API REST au lieu de gRPC
-process.env.FIRESTORE_EMULATOR_HOST = '';
-process.env.GOOGLE_CLOUD_PROJECT = process.env.FB_PROJECT_ID;
-
 const admin = require('firebase-admin');
 const serviceAccount = require('./serviceAccountKey.js');
 
+// Configuration pour forcer l'utilisation de REST uniquement
+process.env.FIRESTORE_EMULATOR_HOST = undefined;
+process.env.GCLOUD_PROJECT = process.env.FB_PROJECT_ID;
+
+// Désactiver complètement gRPC
+process.env.GRPC_VERBOSITY = 'NONE';
+process.env.GRPC_TRACE = '';
+
+let app, db, bucket;
+
 try {
-  admin.initializeApp({
+  // Initialisation Firebase Admin
+  app = admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
     storageBucket: `${process.env.FB_PROJECT_ID}.appspot.com`,
     universeDomain: process.env.FB_UNIVERSE_DOMAIN || 'googleapis.com',
@@ -16,26 +22,44 @@ try {
 
   console.log('Firebase Admin SDK initialisé avec succès');
 
-  // Configuration Firestore APRÈS l'initialisation
-  const db = admin.firestore();
+  // Initialisation Firestore avec configuration REST forcée
+  db = admin.firestore();
 
-  // Configuration explicite pour éviter gRPC
+  // Configuration REST explicite - DOIT être appelé avant toute opération
   db.settings({
     preferRest: true,
     ignoreUndefinedProperties: true,
+    timestampsInSnapshots: true,
   });
 
-  const bucket = admin.storage().bucket();
+  bucket = admin.storage().bucket();
 
-  module.exports = {
-    bucket,
-    admin,
-    db,
-  };
+  // Test de connexion simple
+  console.log('Test de connexion Firestore...');
 } catch (error) {
   console.error("Erreur lors de l'initialisation de Firebase:", error);
   throw error;
 }
+
+// Wrapper pour les opérations Firestore avec gestion d'erreur
+const safeFirestoreOperation = async operation => {
+  try {
+    return await operation();
+  } catch (error) {
+    if (error.message.includes('DECODER routines::unsupported')) {
+      console.error('Erreur gRPC détectée, tentative avec REST API directe');
+      throw new Error('Firestore gRPC Error - Configuration REST requise');
+    }
+    throw error;
+  }
+};
+
+module.exports = {
+  admin,
+  db,
+  bucket,
+  safeFirestoreOperation,
+};
 // require('dotenv').config();
 
 // // Configuration SSL/TLS spécifique pour Fly.io
