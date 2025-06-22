@@ -15,7 +15,7 @@ ENV NODE_ENV="production"
 # Throw-away build stage to reduce size of final image
 FROM base AS build
 
-# Install packages needed to build node modules + CA certificates
+# Install packages needed to build node modules + CA certificates + gRPC dependencies
 RUN apt-get update -qq && \
     apt-get install --no-install-recommends -y \
     build-essential \
@@ -23,7 +23,13 @@ RUN apt-get update -qq && \
     pkg-config \
     python-is-python3 \
     ca-certificates \
-    openssl && \
+    openssl \
+    curl \
+    gnupg \
+    libssl-dev \
+    libgrpc-dev \
+    libgrpc++-dev \
+    protobuf-compiler-grpc && \
     rm -rf /var/lib/apt/lists/* && \
     update-ca-certificates
 
@@ -37,11 +43,21 @@ COPY . .
 # Final stage for app image
 FROM base
 
-# Install CA certificates in final image
+# Install CA certificates and SSL libraries in final image
 RUN apt-get update -qq && \
-    apt-get install --no-install-recommends -y ca-certificates && \
+    apt-get install --no-install-recommends -y \
+    ca-certificates \
+    openssl \
+    curl \
+    libssl3 && \
     rm -rf /var/lib/apt/lists/* && \
     update-ca-certificates
+
+# Configure SSL environment variables for gRPC
+ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+ENV SSL_CERT_DIR=/etc/ssl/certs
+ENV GRPC_SSL_CIPHER_SUITES=ECDHE+AESGCM:ECDHE+CHACHA20:DHE+AESGCM:DHE+CHACHA20:!aNULL:!MD5:!DSS
+ENV NODE_TLS_REJECT_UNAUTHORIZED=1
 
 # Copy built application
 COPY --from=build /app /app
