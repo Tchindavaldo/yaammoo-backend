@@ -5,6 +5,7 @@ exports.menuFields = {
   createdAt: { type: 'string', required: false },
   updatedAt: { type: 'string', required: false },
   coverImage: { type: 'string', required: true },
+  coverImageHasBackground: { type: 'boolean', required: true },
   images: {
     type: 'array',
     required: true,
