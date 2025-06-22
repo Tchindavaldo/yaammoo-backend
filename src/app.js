@@ -41,15 +41,46 @@ app.use('/notification', notificationRoutes);
 
 // Ajouter l'endpoint de diagnostic Firebase
 app.get('/debug-firebase', (req, res) => {
+  // Obtenir toutes les informations des credentials
+  let credentialsInfo = {};
+  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+    try {
+      const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+      credentialsInfo = {
+        method: 'secret',
+        ...serviceAccount, // Afficher toutes les données
+      };
+    } catch (error) {
+      credentialsInfo = {
+        method: 'secret',
+        error: 'Impossible de parser FIREBASE_SERVICE_ACCOUNT',
+        raw_length: process.env.FIREBASE_SERVICE_ACCOUNT.length,
+        raw_content: process.env.FIREBASE_SERVICE_ACCOUNT,
+      };
+    }
+  } else {
+    credentialsInfo = {
+      method: 'local_file',
+      file_path: '../../yaammoo.json',
+    };
+  }
+
   res.json({
-    credentials_method: process.env.FIREBASE_SERVICE_ACCOUNT ? 'secret' : 'local_file',
+    credentials: credentialsInfo,
     grpc_config: {
       verbosity: process.env.GRPC_VERBOSITY,
       trace: process.env.GRPC_TRACE,
       emulator_host: process.env.FIRESTORE_EMULATOR_HOST,
     },
-    firestore_settings: 'preferRest: true',
+    environment_vars: {
+      FB_PROJECT_ID: process.env.FB_PROJECT_ID,
+      GOOGLE_CLOUD_PROJECT: process.env.GOOGLE_CLOUD_PROJECT,
+      GCLOUD_PROJECT: process.env.GCLOUD_PROJECT,
+      GOOGLE_APPLICATION_CREDENTIALS: process.env.GOOGLE_APPLICATION_CREDENTIALS,
+    },
+    firestore_settings: 'preferRest: true, host: firestore.googleapis.com, ssl: true',
     firebase_initialized: !!admin.apps.length,
+    firebase_project_id: admin.apps.length > 0 ? admin.apps[0].options.projectId : 'Non initialisé',
   });
 });
 
