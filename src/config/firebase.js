@@ -7,13 +7,6 @@ process.env.GOOGLE_CLOUD_PROJECT = process.env.FB_PROJECT_ID;
 const admin = require('firebase-admin');
 const serviceAccount = require('./serviceAccountKey.js');
 
-// Configuration spécifique pour éviter gRPC sur Fly.io
-const firestoreSettings = {
-  preferRest: true, // Force l'utilisation de REST
-  ssl: true,
-  ignoreUndefinedProperties: true,
-};
-
 try {
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
@@ -23,8 +16,8 @@ try {
 
   console.log('Firebase Admin SDK initialisé avec succès');
 
-  // Configuration Firestore avec REST
-  const db = admin.firestore(firestoreSettings);
+  // Configuration Firestore APRÈS l'initialisation
+  const db = admin.firestore();
 
   // Configuration explicite pour éviter gRPC
   db.settings({
