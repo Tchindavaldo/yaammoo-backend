@@ -2,6 +2,7 @@
 
 const cors = require('cors');
 const express = require('express');
+const { admin, db } = require('./config/firebase');
 
 const smsRoutes = require('./routes/smsRoutes');
 const bonusRoutes = require('./routes/bonusRoute');
@@ -37,5 +38,19 @@ app.use('/fastFood', fastfoodRoutes);
 app.use('/bonusRequest', bonusRequest);
 app.use('/transaction', transactionRoutes);
 app.use('/notification', notificationRoutes);
+
+// Ajouter l'endpoint de diagnostic Firebase
+app.get('/debug-firebase', (req, res) => {
+  res.json({
+    credentials_method: process.env.FIREBASE_SERVICE_ACCOUNT ? 'secret' : 'local_file',
+    grpc_config: {
+      verbosity: process.env.GRPC_VERBOSITY,
+      trace: process.env.GRPC_TRACE,
+      emulator_host: process.env.FIRESTORE_EMULATOR_HOST,
+    },
+    firestore_settings: 'preferRest: true',
+    firebase_initialized: !!admin.apps.length,
+  });
+});
 
 module.exports = app;
