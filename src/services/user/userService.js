@@ -1,5 +1,5 @@
 // src/services/userService.js
-const { db, admin } = require('../../config/firebase');
+const { db } = require('../../config/firebase');
 
 exports.getAllUsers = async () => {
   const snapshot = await db.collection('users').get();
