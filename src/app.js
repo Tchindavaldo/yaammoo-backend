@@ -2,6 +2,8 @@
 
 const cors = require('cors');
 const express = require('express');
+const swaggerUi = require('swagger-ui-express');
+const swaggerSpecs = require('./config/swagger');
 const { admin, db } = require('./config/firebase');
 
 const smsRoutes = require('./routes/smsRoutes');
@@ -22,6 +24,9 @@ const app = express();
 
 app.use(express.json());
 app.use(cors({ origin: '*', methods: '*', allowedHeaders: '*', credentials: true }));
+
+// Swagger documentation
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpecs, { explorer: true }));
 
 app.use('/sms', smsRoutes);
 
