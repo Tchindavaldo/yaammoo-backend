@@ -18,7 +18,7 @@ if (!process.env.FB_PROJECT_ID || !process.env.FB_PRIVATE_KEY || !process.env.FB
 try {
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
-    storageBucket: `${process.env.FB_PROJECT_ID}.appspot.com`,
+    storageBucket: process.env.FB_STORAGE_BUCKET || `${process.env.FB_PROJECT_ID}.firebasestorage.app`,
     universeDomain: process.env.FB_UNIVERSE_DOMAIN,
   });
   console.log('Firebase Admin SDK initialisé avec succès');

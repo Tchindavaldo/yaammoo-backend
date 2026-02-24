@@ -1,4 +1,4 @@
-const { TransactionFields } = require('../../interface/fastfoodFields');
+const { TransactionFields } = require('../../interface/transactionFields');
 
 exports.validateTransactionCreation = data => {
   const errors = [];

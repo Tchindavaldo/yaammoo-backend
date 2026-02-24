@@ -6,11 +6,13 @@ exports.createFastfoodController = async (req, res) => {
   try {
     const data = await createFastfoodService(req.body);
     res.status(201).json({
+      success: true,
       data,
       message: 'fastfood créé avec succès.',
     });
   } catch (error) {
     res.status(500).json({
+      success: false,
       error: error.message,
     });
   }

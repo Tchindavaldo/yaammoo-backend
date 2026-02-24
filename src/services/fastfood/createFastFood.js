@@ -13,10 +13,18 @@ exports.createFastfoodService = async data => {
     throw error;
   }
   const fastfoodData = { ...data, createdAt: new Date().toISOString() };
+
+  const existingFastFood = await db.collection('fastfoods').where('userId', '==', data.userId).get();
+  if (!existingFastFood.empty) {
+    const error = new Error('Cet utilisateur possède déjà un fastfood.');
+    error.code = 400;
+    throw error;
+  }
+
   const docRef = await db.collection('fastfoods').add(fastfoodData);
 
   const user = await getUserById(fastfoodData.userId);
-  await updateUser(fastfoodData.userId, { fastFoodId: docRef.id });
+  await updateUser(fastfoodData.userId, { fastFoodId: docRef.id, isMarchand: true });
 
   const dataFinal = { id: docRef.id, ...fastfoodData };
   io.emit('newFastfood', { message: 'Nouveau fastfood', fastFood: dataFinal });
