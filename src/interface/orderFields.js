@@ -62,13 +62,15 @@ exports.OrderFields = {
       time: {
         type: 'string',
         required: false,
-        // Validation supplémentaire pour le format d'heure peut être ajoutée dans le validateur
       },
       location: {
         type: 'string',
         required: true,
-        // Adresse de livraison
       },
+      phone: { type: 'string', required: false },
+      voiceNoteUri: { type: 'string', required: false },
+      record: { type: 'string', required: false },
+      note: { type: 'string', required: false },
     },
   },
 };
