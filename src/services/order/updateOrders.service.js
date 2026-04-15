@@ -16,8 +16,8 @@ exports.updateOrders = async (orders, userId) => {
     const results = [];
 
     for (const updateData of updates) {
-      const errors = validateOrder(updateData, false, true);
-      if (errors.length > 0) {
+      const errors = validateOrder(updateData, false, false); // false = return array
+      if (errors && errors.length > 0) {
         const formattedErrors = errors.map(err => `${err.field}: ${err.message}`).join(', ');
         return {
           success: false,
@@ -156,84 +156,69 @@ exports.updateOrders = async (orders, userId) => {
           continue;
         }
 
-        // Parcourir chaque commande du fastfood
-        let shouldUpdatePeriodKey = false;
-        let shouldUpdateClientId = false;
-        let currentOrderId = null;
+        // Group orders by notification type for this fastFoodId
+        const pendingOrders = [];
+        const otherUpdates = [];
         const finishedOrdersForRank = [];
-        groupedByFastFood[fastFoodId].forEach(order => {
-          currentOrderId = order.id;
-          if (order.status === 'pending') {
-            io.to(fastfood.userId).emit('newFastFoodOrders', {
-              message: 'Nouvelle commande',
-              data: order,
-            });
-            io.to(order.userId).emit('userOrderUpdated', {
-              data: order,
-            });
-          }
 
+        groupedByFastFood[fastFoodId].forEach(order => {
+          if (order.status === 'pending') {
+            pendingOrders.push(order);
+          } else {
+            otherUpdates.push(order);
+          }
+        });
+
+        // 1. Notify Merchant of NEW orders (Grouped)
+        if (pendingOrders.length > 0) {
+          // Emit grouped event
+          io.to(fastfood.userId).emit('newFastFoodOrders', {
+            message: pendingOrders.length > 1 ? 'Nouvelles commandes' : 'Nouvelle commande',
+            data: pendingOrders, // Array of orders
+          });
+
+          // Also notify users (Individual for now, but linked to their specific order)
+          pendingOrders.forEach(order => {
+            io.to(order.userId).emit('userOrderUpdated', { data: order });
+          });
+        }
+
+        // 2. Handle specific delivery status tracking
+        groupedByFastFood[fastFoodId].forEach(order => {
           if (fastfood.userId === userId && order.periodKey !== undefined && order.status === 'delivering') {
-            // console.log('periode emission emit', 'userid', order.userId, 'fastfoodid', fastfood.userId, order.periodKey);
-            io.to(order.userId).emit('newPeriodKeyDelivering', {
-              periodKey: order.periodKey,
-            });
-            io.to(fastfood.userId).emit('newPeriodKeyDelivering', {
-              periodKey: order.periodKey,
-            });
+            io.to(order.userId).emit('newPeriodKeyDelivering', { periodKey: order.periodKey });
+            io.to(fastfood.userId).emit('newPeriodKeyDelivering', { periodKey: order.periodKey });
             hasNewDelivery = true;
           }
 
           if (fastfood.userId === userId && removedOrders.length > 0 && order.status === 'finished') {
-            // console.log('periode emission removal', 'userid', order.userId, 'fastfoodid', fastfood.userId, order.periodKey);
             const removedOrder = removedOrders.find(removed => removed.orderId === order.id);
             if (removedOrder && removedOrder.periodKey) {
-              io.to(order.userId).emit('removePeriodKeyDelivering', {
-                periodKey: removedOrder.periodKey,
-              });
-              io.to(fastfood.userId).emit('removePeriodKeyDelivering', {
-                periodKey: removedOrder.periodKey,
-              });
-              shouldUpdatePeriodKey = true;
+              io.to(order.userId).emit('removePeriodKeyDelivering', { periodKey: removedOrder.periodKey });
+              io.to(fastfood.userId).emit('removePeriodKeyDelivering', { periodKey: removedOrder.periodKey });
               hasRemoval = true;
             }
           }
 
           if (fastfood.userId === userId && order.clientId !== undefined && order.status === 'delivering') {
-            // console.log('time emission emit', 'userid', order.userId, 'fastfoodid', fastfood.userId, order.periodKey);
-            io.to(order.userId).emit('newClientIdDelivering', {
-              clientId: order.clientId,
-            });
-            io.to(fastfood.userId).emit('newClientIdDelivering', {
-              clientId: order.clientId,
-            });
+            io.to(order.userId).emit('newClientIdDelivering', { clientId: order.clientId });
+            io.to(fastfood.userId).emit('newClientIdDelivering', { clientId: order.clientId });
             hasNewDelivery = true;
           }
 
           if (fastfood.userId === userId && removedOrders.length > 0 && order.status === 'finished') {
-            // console.log('time emission removal', 'userid', order.userId, 'fastfoodid', fastfood.userId, order.periodKey);
             const removedOrder = removedOrders.find(removed => removed.orderId === order.id);
             if (removedOrder && removedOrder.clientId) {
-              io.to(order.userId).emit('removeClientIdDelivering', {
-                clientId: removedOrder.clientId,
-              });
-              io.to(fastfood.userId).emit('removeClientIdDelivering', {
-                clientId: removedOrder.clientId,
-              });
-              shouldUpdateClientId = true;
+              io.to(order.userId).emit('removeClientIdDelivering', { clientId: removedOrder.clientId });
+              io.to(fastfood.userId).emit('removeClientIdDelivering', { clientId: removedOrder.clientId });
               hasRemoval = true;
             }
           }
 
-          if (fastfood.userId === userId) {
-            if (!shouldUpdatePeriodKey && !shouldUpdateClientId) {
-              io.to(order.userId).emit('userOrderUpdated', {
-                data: order,
-              });
-              io.to(fastfood.userId).emit('fastFoodOrderUpdated', {
-                data: order,
-              });
-            }
+          // General update notification for other status changes
+          if (fastfood.userId === userId && order.status !== 'pending') {
+            io.to(order.userId).emit('userOrderUpdated', { data: order });
+            io.to(fastfood.userId).emit('fastFoodOrderUpdated', { data: order });
           }
 
           if (order.status === 'finished') {
