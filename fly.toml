@@ -6,7 +6,7 @@ primary_region = 'cdg'
 
 [env]
   NODE_ENV = "production"
-  PORT = "3000"
+  PORT = "8080"
   # Configuration SSL/TLS pour gRPC
   GRPC_SSL_CIPHER_SUITES = "ECDHE+AESGCM:ECDHE+CHACHA20:DHE+AESGCM:DHE+CHACHA20:!aNULL:!MD5:!DSS"
   NODE_TLS_REJECT_UNAUTHORIZED = "1"
@@ -20,7 +20,7 @@ primary_region = 'cdg'
   FIREBASE_AUTH_EMULATOR_HOST = ""
 
 [http_service]
-  internal_port = 3000
+  internal_port = 8080
   force_https = true
   auto_stop_machines = 'stop'
   auto_start_machines = true
