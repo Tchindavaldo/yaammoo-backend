@@ -2,6 +2,8 @@
 const express = require('express');
 const { createFastfoodController } = require('../controllers/fastfood/createFastfood');
 const { getfastfoodController } = require('../controllers/fastfood/getFastFoods');
+const { getfastfood } = require('../controllers/fastfood/getFastFood');
+const { updateFastfoodController } = require('../controllers/fastfood/updateFastfood');
 
 const route = express.Router();
 
@@ -78,5 +80,58 @@ route.post('', createFastfoodController);
  *                     $ref: '#/components/schemas/FastFood'
  */
 route.get('/all', getfastfoodController);
+
+/**
+ * @swagger
+ * /fastFood/{fastFoodId}:
+ *   get:
+ *     summary: Get a specific fastfood restaurant by ID
+ *     tags:
+ *       - FastFood
+ *     parameters:
+ *       - in: path
+ *         name: fastFoodId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: FastFood details
+ *   post:
+ *     summary: Update a fastfood restaurant
+ *     tags:
+ *       - FastFood
+ *     parameters:
+ *       - in: path
+ *         name: fastFoodId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               number:
+ *                 type: string
+ *               openTime:
+ *                 type: string
+ *               closeTime:
+ *                 type: string
+ *               image:
+ *                 type: string
+ *               deliveryHours:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *     responses:
+ *       200:
+ *         description: FastFood successfully updated
+ */
+route.get('/:fastFoodId', getfastfood);
+route.post('/:fastFoodId', updateFastfoodController);
 
 module.exports = route;

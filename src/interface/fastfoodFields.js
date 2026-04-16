@@ -7,4 +7,9 @@ exports.FastfoodFields = {
   number: { type: 'string', required: false },
   openTime: { type: 'string', required: false },
   closeTime: { type: 'string', required: false },
+  deliveryHours: {
+    type: 'array',
+    required: false,
+    items: { type: 'string' }
+  },
 };
