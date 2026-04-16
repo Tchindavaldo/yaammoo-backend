@@ -13,6 +13,7 @@ exports.OrderFields = {
   total: { type: 'number', required: true },
   clientId: { type: 'string', required: false },
   periodKey: { type: 'string', required: false },
+  selectedPriceIndex: { type: 'number', required: false },
   quantity: { type: 'number', required: true },
   userData: {
     type: 'object',
