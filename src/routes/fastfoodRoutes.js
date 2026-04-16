@@ -123,6 +123,8 @@ route.get('/all', getfastfoodController);
  *                 type: string
  *               image:
  *                 type: string
+ *               orderLeadTime:
+ *                 type: number
  *               deliveryHours:
  *                 type: array
  *                 items:

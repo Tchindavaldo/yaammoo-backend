@@ -21,6 +21,7 @@ exports.updateFastFoodService = async (fastFoodId, data) => {
   if (data.openTime !== undefined) updateData.openTime = data.openTime;
   if (data.closeTime !== undefined) updateData.closeTime = data.closeTime;
   if (data.image !== undefined) updateData.image = data.image;
+  if (data.orderLeadTime !== undefined) updateData.orderLeadTime = data.orderLeadTime;
   if (data.deliveryHours !== undefined) updateData.deliveryHours = data.deliveryHours;
 
   // Add timestamp

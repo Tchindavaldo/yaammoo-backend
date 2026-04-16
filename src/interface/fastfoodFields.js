@@ -12,4 +12,5 @@ exports.FastfoodFields = {
     required: false,
     items: { type: 'string' }
   },
+  orderLeadTime: { type: 'number', required: false },
 };
