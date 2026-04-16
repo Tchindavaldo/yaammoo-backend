@@ -33,6 +33,7 @@ exports.OrderFields = {
       properties: {
         name: { type: 'string', required: true },
         status: { type: 'boolean', required: true },
+        prix: { type: 'number', required: false },
       },
     },
   },
@@ -44,6 +45,7 @@ exports.OrderFields = {
       properties: {
         name: { type: 'string', required: true },
         status: { type: 'boolean', required: true },
+        prix: { type: 'number', required: false },
       },
     },
   },
