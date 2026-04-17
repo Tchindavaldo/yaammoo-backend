@@ -32,6 +32,7 @@ exports.menuFields = {
       properties: {
         name: { type: 'string', required: true },
         status: { type: 'boolean', required: true },
+        prix: { type: 'number', required: false },
       },
     },
   },
@@ -43,6 +44,8 @@ exports.menuFields = {
       properties: {
         name: { type: 'string', required: true },
         status: { type: 'boolean', required: true },
+        prix: { type: 'number', required: false },
+        quantite: { type: 'number', required: false },
       },
     },
   },
