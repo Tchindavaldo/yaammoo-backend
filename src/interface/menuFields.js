@@ -50,4 +50,5 @@ exports.menuFields = {
     },
   },
   status: { type: 'string', required: false, allowedValues: ['available', 'unavailable'] },
+  stock: { type: 'number', required: false },
 };
