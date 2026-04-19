@@ -2,23 +2,27 @@ const { db, admin } = require('../../config/firebase');
 const { getIO } = require('../../socket');
 const { validateOrder } = require('../../utils/validator/validateOrder');
 const { getFastFoodService } = require('../fastfood/getFastFood');
-const { updateOrdersRank } = require('./uppdateOrdersRank.service'); // Ajout de l'import
+const { assignRank, reindexQueue } = require('./rankQueue.service');
+
+const isRankedStatus = s => s === 'pending' || s === 'processing';
+const isCancelStatus = s => s === 'cancelByUser' || s === 'cancelByFastFood';
 
 exports.updateOrders = async (orders, userId) => {
   try {
     const io = getIO();
     console.log('🔵 updateOrders called with userId:', userId);
-    console.log('📋 Orders to update:', JSON.stringify(orders, null, 2));
 
-    // Initialize array to store clientId and periodKey for removal notifications
     const removedOrders = [];
-    // Force orders à être un tableau
     const updates = Array.isArray(orders) ? orders : [orders];
     const groupedByFastFood = {};
     const results = [];
 
+    // Collect reindexing operations to run after all order updates
+    // shape: { fastFoodId, deliveryDate, status, removedRank }
+    const reindexOps = [];
+
     for (const updateData of updates) {
-      const errors = validateOrder(updateData, false, false); // false = return array
+      const errors = validateOrder(updateData, false, false);
       if (errors && errors.length > 0) {
         const formattedErrors = errors.map(err => `${err.field}: ${err.message}`).join(', ');
         return {
@@ -30,236 +34,202 @@ exports.updateOrders = async (orders, userId) => {
 
       const { id, status, fastFoodId } = updateData;
 
-      if (!id) {
-        return {
-          success: false,
-          message: 'ID de commande manquant pour une mise à jour.',
-          data: null,
-        };
-      }
-      if (!userId) {
-        return {
-          success: false,
-          message: 'userId manquant pour une mise à jour.',
-          data: null,
-        };
-      }
-
-      if (!fastFoodId) {
-        return {
-          success: false,
-          message: 'fastFoodId manquant pour une mise à jour.',
-          data: null,
-        };
-      }
+      if (!id) return { success: false, message: 'ID de commande manquant pour une mise à jour.', data: null };
+      if (!userId) return { success: false, message: 'userId manquant pour une mise à jour.', data: null };
+      if (!fastFoodId) return { success: false, message: 'fastFoodId manquant pour une mise à jour.', data: null };
 
       const orderRef = db.collection('orders').doc(id);
       const doc = await orderRef.get();
 
       if (!doc.exists) {
-        return {
-          success: false,
-          message: `Commande non trouvée pour l'ID ${id}`,
-          data: null,
-        };
+        return { success: false, message: `Commande non trouvée pour l'ID ${id}`, data: null };
       }
 
-      // Définition de la logique de transition des statuts
-      let newStatus = status;
+      const prevData = doc.data();
+      const prevStatus = prevData.status;
+      const prevRank = prevData.rank;
+      const deliveryDate = prevData.delivery?.date || new Date().toISOString().split('T')[0];
 
-      switch (status) {
-        case 'pendingToBuy':
-          newStatus = 'pending';
-          break;
-        case 'pending':
-          newStatus = 'processing';
-          break;
-        case 'processing':
-          newStatus = 'finished';
-          break;
-        case 'finished':
-          newStatus = 'delivering';
-          break;
-        case 'delivering':
-          newStatus = 'delivered';
-          break;
-        // 'finished' reste 'finished'
-        default:
-          newStatus = status;
+      // Transition autoritaire basée sur le VRAI status courant lu en DB (prevStatus).
+      // Le backend ignore la valeur de status envoyée par le client pour les transitions
+      // linéaires — seuls les cancels explicites passent tels quels.
+      let newStatus;
+      if (isCancelStatus(status)) {
+        newStatus = status;
+      } else {
+        switch (prevStatus) {
+          case 'pendingToBuy':
+            newStatus = 'pending';
+            break;
+          case 'pending':
+            newStatus = 'processing';
+            break;
+          case 'processing':
+            newStatus = 'finished';
+            break;
+          case 'finished':
+            newStatus = 'delivering';
+            break;
+          case 'delivering':
+            newStatus = 'delivered';
+            break;
+          default:
+            newStatus = prevStatus;
+        }
       }
 
-      // Prepare update data
       const setData = {
         ...updateData,
         status: newStatus,
         updatedAt: new Date().toISOString(),
       };
-      // Si le nouveau statut est 'pending', ajouter un rank
-      if (newStatus === 'pending') {
-        const currentData = doc.data();
-        const deliveryDate = currentData.delivery?.date || new Date().toISOString().split('T')[0];
 
-        // Compter le nombre de commandes avec statut 'pending' ou 'processing' pour la même date
-        const pendingSnapshot = await db.collection('orders').where('fastFoodId', '==', fastFoodId).where('status', 'in', ['pending', 'processing']).where('delivery.date', '==', deliveryDate).get();
+      console.log(`🟡 order ${id} transition: ${prevStatus} (rank ${prevRank}) → ${newStatus}`);
 
-        // Le rank est le nombre total de commandes pour cette date + 1
-        setData.rank = pendingSnapshot.size + 1;
+      // Ranks handling
+      // 1) Order leaving a ranked queue → schedule reindex + clear rank
+      if (isRankedStatus(prevStatus) && prevStatus !== newStatus && typeof prevRank === 'number') {
+        console.log(`📌 scheduling reindex of '${prevStatus}' queue at rank ${prevRank} (date ${deliveryDate})`);
+        reindexOps.push({
+          fastFoodId,
+          deliveryDate,
+          status: prevStatus,
+          removedRank: prevRank,
+        });
+        setData.rank = admin.firestore.FieldValue.delete();
+      } else {
+        console.log(`⏭️ no reindex scheduled (prevRanked=${isRankedStatus(prevStatus)}, statusChanged=${prevStatus !== newStatus}, rankType=${typeof prevRank})`);
       }
-      // Only delete clientId and periodKey if they exist and status is 'finished'
+
+      // 2) Cleanup delivery tracking fields on finished
       if (newStatus === 'finished') {
-        if (doc.data().hasOwnProperty('clientId')) {
-          setData.clientId = admin.firestore.FieldValue.delete();
-          // console.log('Deleted clientId for order ID:', id);
-        }
-        if (doc.data().hasOwnProperty('periodKey')) {
-          setData.periodKey = admin.firestore.FieldValue.delete();
-          // console.log('Deleted periodKey for order ID:', id);
-        }
-        // Store the values for notification only if at least one field is being deleted
-        if (doc.data().hasOwnProperty('clientId') || doc.data().hasOwnProperty('periodKey')) {
+        if (prevData.hasOwnProperty('clientId')) setData.clientId = admin.firestore.FieldValue.delete();
+        if (prevData.hasOwnProperty('periodKey')) setData.periodKey = admin.firestore.FieldValue.delete();
+        if (prevData.hasOwnProperty('clientId') || prevData.hasOwnProperty('periodKey')) {
           removedOrders.push({
             orderId: id,
-            clientId: doc.data().clientId || null,
-            periodKey: doc.data().periodKey || null,
+            clientId: prevData.clientId || null,
+            periodKey: prevData.periodKey || null,
           });
         }
       }
 
-      // Update the order
-      await orderRef.update(setData);
+      // 3) Order entering a ranked queue → assign new rank atomically via counter
+      //    We persist setData first (without rank), then call assignRank which
+      //    also updates the doc with the rank + updatedAt.
+      if (isRankedStatus(newStatus)) {
+        // Make sure any "rank" field inside updateData does not leak: assignRank sets it
+        delete setData.rank;
+        await orderRef.update(setData);
+        await assignRank({
+          fastFoodId,
+          deliveryDate,
+          status: newStatus,
+          orderRef,
+        });
+      } else {
+        await orderRef.update(setData);
+      }
 
       const updatedDoc = await orderRef.get();
-      // console.log('Updated order data:', updatedDoc.data());
       const updatedOrder = { id: updatedDoc.id, ...updatedDoc.data() };
       results.push(updatedOrder);
 
-      // Regrouper par fastFoodId
-      if (!groupedByFastFood[fastFoodId]) {
-        groupedByFastFood[fastFoodId] = [];
-      }
+      if (!groupedByFastFood[fastFoodId]) groupedByFastFood[fastFoodId] = [];
       groupedByFastFood[fastFoodId].push(updatedOrder);
     }
 
-    // console.log('groupedByFastFood', groupedByFastFood);
-
-    let message = updates.some(order => order.status === 'cancelByFastFood')
+    let message = updates.some(o => o.status === 'cancelByFastFood')
       ? 'Commande annulée avec succès'
-      : updates.some(order => order.status === 'cancelByUser')
+      : updates.some(o => o.status === 'cancelByUser')
         ? 'Commande retirée du panier avec succès'
         : 'Commande(s) mise(s) à jour avec succès';
+
     let hasRemoval = false;
     let hasNewDelivery = false;
 
     for (const fastFoodId in groupedByFastFood) {
       try {
         const fastfood = await getFastFoodService(fastFoodId);
-        if (!fastfood.userId) {
-          // console.warn(`userId manquant pour le fastfood ${fastFoodId}`);
-          continue;
-        }
+        if (!fastfood.userId) continue;
 
-        // Group orders by notification type for this fastFoodId
         const pendingOrders = [];
-        const otherUpdates = [];
-        const finishedOrdersForRank = [];
-
         groupedByFastFood[fastFoodId].forEach(order => {
-          if (order.status === 'pending') {
-            pendingOrders.push(order);
-          } else {
-            otherUpdates.push(order);
-          }
+          if (order.status === 'pending') pendingOrders.push(order);
         });
 
-        // 1. Notify Merchant of NEW orders (Grouped)
         if (pendingOrders.length > 0) {
-          console.log(`🟢 Sending newFastFoodOrders to merchant ${fastfood.userId} for ${pendingOrders.length} orders`);
-          // Emit grouped event
           io.to(fastfood.userId).emit('newFastFoodOrders', {
             message: pendingOrders.length > 1 ? 'Nouvelles commandes' : 'Nouvelle commande',
-            data: pendingOrders, // Array of orders
+            data: pendingOrders,
           });
-
-          // Also notify users (Individual for now, but linked to their specific order)
           pendingOrders.forEach(order => {
-            console.log(`📤 Sending userOrderUpdated to user ${order.userId}`);
             io.to(order.userId).emit('userOrderUpdated', { data: order });
           });
         }
 
-        // 2. Handle specific delivery status tracking
         groupedByFastFood[fastFoodId].forEach(order => {
-          console.log(`🔍 Processing order ${order.id} with status ${order.status}, fastfood.userId=${fastfood.userId}, param userId=${userId}`);
-
           if (fastfood.userId === userId && order.periodKey !== undefined && order.status === 'delivering') {
-            console.log(`📍 Sending periodKey delivering notifications for order ${order.id}`);
             io.to(order.userId).emit('newPeriodKeyDelivering', { periodKey: order.periodKey });
             io.to(fastfood.userId).emit('newPeriodKeyDelivering', { periodKey: order.periodKey });
             hasNewDelivery = true;
           }
 
           if (fastfood.userId === userId && removedOrders.length > 0 && order.status === 'finished') {
-            const removedOrder = removedOrders.find(removed => removed.orderId === order.id);
-            if (removedOrder && removedOrder.periodKey) {
-              console.log(`🗑️ Sending removePeriodKey notifications for order ${order.id}`);
-              io.to(order.userId).emit('removePeriodKeyDelivering', { periodKey: removedOrder.periodKey });
-              io.to(fastfood.userId).emit('removePeriodKeyDelivering', { periodKey: removedOrder.periodKey });
+            const r = removedOrders.find(x => x.orderId === order.id);
+            if (r && r.periodKey) {
+              io.to(order.userId).emit('removePeriodKeyDelivering', { periodKey: r.periodKey });
+              io.to(fastfood.userId).emit('removePeriodKeyDelivering', { periodKey: r.periodKey });
               hasRemoval = true;
             }
           }
 
           if (fastfood.userId === userId && order.clientId !== undefined && order.status === 'delivering') {
-            console.log(`👤 Sending clientId delivering notifications for order ${order.id}`);
             io.to(order.userId).emit('newClientIdDelivering', { clientId: order.clientId });
             io.to(fastfood.userId).emit('newClientIdDelivering', { clientId: order.clientId });
             hasNewDelivery = true;
           }
 
           if (fastfood.userId === userId && removedOrders.length > 0 && order.status === 'finished') {
-            const removedOrder = removedOrders.find(removed => removed.orderId === order.id);
-            if (removedOrder && removedOrder.clientId) {
-              console.log(`🗑️ Sending removeClientId notifications for order ${order.id}`);
-              io.to(order.userId).emit('removeClientIdDelivering', { clientId: removedOrder.clientId });
-              io.to(fastfood.userId).emit('removeClientIdDelivering', { clientId: removedOrder.clientId });
+            const r = removedOrders.find(x => x.orderId === order.id);
+            if (r && r.clientId) {
+              io.to(order.userId).emit('removeClientIdDelivering', { clientId: r.clientId });
+              io.to(fastfood.userId).emit('removeClientIdDelivering', { clientId: r.clientId });
               hasRemoval = true;
             }
           }
 
-          // General update notification for other status changes
           if (order.status !== 'pending') {
-            console.log(`✅ Sending general update notifications for order ${order.id} with status ${order.status}`);
             io.to(order.userId).emit('userOrderUpdated', { data: order });
             io.to(fastfood.userId).emit('fastFoodOrderUpdated', { data: order });
           }
+        });
 
-          if (order.status === 'finished') {
-            finishedOrdersForRank.push({ rank: order.rank, date: order.delivery?.date });
-          }
-        });
-        // Execute rank updates after all emits for this fastFoodId
-        finishedOrdersForRank.forEach(({ rank, date }) => {
-          updateOrdersRank(fastFoodId, rank, date, fastfood.userId);
-        });
+        // Execute scheduled reindex operations for this fastFood
+        const opsForFF = reindexOps.filter(op => op.fastFoodId === fastFoodId);
+        for (const op of opsForFF) {
+          await reindexQueue({
+            fastFoodId: op.fastFoodId,
+            deliveryDate: op.deliveryDate,
+            status: op.status,
+            removedRank: op.removedRank,
+            fastFoodUserId: fastfood.userId,
+          });
+        }
       } catch (err) {
         console.error(`Erreur lors de l'émission pour fastFoodId ${fastFoodId}:`, err.message);
         continue;
       }
     }
 
-    // Set message based on the type of update
-    if (results.some(order => order.status === 'finished') && hasRemoval) {
+    if (results.some(o => o.status === 'finished') && hasRemoval) {
       message = 'Livraison annulée avec succès';
     } else if (hasNewDelivery) {
       message = 'Nouvelle livraison lancée avec succès';
     }
 
-    return {
-      success: true,
-      message: message,
-      data: results,
-    };
+    return { success: true, message, data: results };
   } catch (error) {
-    // console.error('Erreur dans updateOrders:', error);
     return {
       success: false,
       message: error.message || 'Erreur lors de la mise à jour des commandes',

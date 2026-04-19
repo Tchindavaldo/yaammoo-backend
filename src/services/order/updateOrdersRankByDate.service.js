@@ -1,20 +1,22 @@
 const { db } = require('../../config/firebase');
 const { getIO } = require('../../socket');
+const { resetCounter } = require('./rankQueue.service');
 
 /**
- * Met à jour le rang des commandes en fonction de leur date de création
- * Attribue des rangs en commençant par 1 pour chaque jour différent
- * @param {string} fastFoodId - ID du fastFood
- * @returns {Promise<Object>} - Résultat de la mise à jour
+ * Réindexe complètement les files pending et processing d'un fastFood,
+ * en attribuant des rangs 1..N par (status, delivery.date), triés par createdAt ASC.
+ * Réinitialise les compteurs atomiques en conséquence.
  */
 exports.updateOrdersRankByDate = async fastFoodId => {
   try {
-    if (!fastFoodId) {
-      return { success: false, message: 'fastFoodId est requis' };
-    }
+    if (!fastFoodId) return { success: false, message: 'fastFoodId est requis' };
 
-    // Récupérer toutes les commandes en pending ou processing
-    const snapshot = await db.collection('orders').where('fastFoodId', '==', fastFoodId).where('status', 'in', ['pending', 'processing']).orderBy('createdAt', 'asc').get();
+    const snapshot = await db
+      .collection('orders')
+      .where('fastFoodId', '==', fastFoodId)
+      .where('status', 'in', ['pending', 'processing'])
+      .orderBy('createdAt', 'asc')
+      .get();
 
     if (snapshot.empty) {
       return { success: true, message: 'Aucune commande en pending ou processing trouvée', count: 0 };
@@ -22,13 +24,11 @@ exports.updateOrdersRankByDate = async fastFoodId => {
 
     const batch = db.batch();
     const updatedOrders = [];
-    const ordersByDate = {};
+    // Group by (status, date) → separate queues
+    const groups = {};
 
-    // Regrouper les commandes par date de création (jour)
     snapshot.forEach(doc => {
       const data = doc.data();
-
-      // Utiliser la date de livraison si disponible, sinon créer une date de livraison par défaut
       if (!data.delivery) {
         data.delivery = {
           status: true,
@@ -37,50 +37,35 @@ exports.updateOrdersRankByDate = async fastFoodId => {
           date: new Date().toISOString().split('T')[0],
         };
       }
-
-      const dateKey = data.delivery.date;
-
-      if (!ordersByDate[dateKey]) {
-        ordersByDate[dateKey] = [];
-      }
-
-      ordersByDate[dateKey].push({
-        id: doc.id,
-        data: data,
-      });
+      const key = `${data.status}__${data.delivery.date}`;
+      if (!groups[key]) groups[key] = { status: data.status, date: data.delivery.date, orders: [] };
+      groups[key].orders.push({ id: doc.id, data });
     });
 
-    // Pour chaque date, attribuer des rangs commençant à 1
-    for (const dateKey in ordersByDate) {
+    for (const key in groups) {
+      const { orders } = groups[key];
       let rank = 1;
-
-      for (const order of ordersByDate[dateKey]) {
+      for (const order of orders) {
         const orderRef = db.collection('orders').doc(order.id);
-        const currentData = order.data;
-        const currentRank = rank;
-
-        // Mettre à jour le rang et la date de mise à jour
         batch.update(orderRef, {
-          rank: currentRank,
+          rank,
           updatedAt: new Date().toISOString(),
           delivery: order.data.delivery,
         });
-
-        // Ajouter la commande mise à jour au tableau des résultats
-        updatedOrders.push({
-          ...currentData,
-          rank: currentRank,
-          updatedAt: new Date().toISOString(),
-          id: order.id,
-        });
-
+        updatedOrders.push({ ...order.data, rank, updatedAt: new Date().toISOString(), id: order.id });
         rank++;
       }
     }
 
     await batch.commit();
 
-    // Émettre les notifications via socket.io
+    // Reset counters to the new max rank for each (status, date)
+    await Promise.all(
+      Object.values(groups).map(g =>
+        resetCounter({ fastFoodId, deliveryDate: g.date, status: g.status, value: g.orders.length })
+      )
+    );
+
     const io = getIO();
     io.to(fastFoodId).emit('ordersRankUpdated', {
       message: `${updatedOrders.length} commandes ont eu leur rang mis à jour`,

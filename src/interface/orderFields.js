@@ -68,7 +68,7 @@ exports.OrderFields = {
       },
       location: {
         type: 'string',
-        required: true,
+        required: false,
       },
       phone: { type: 'string', required: false },
       voiceNoteUri: { type: 'string', required: false },
