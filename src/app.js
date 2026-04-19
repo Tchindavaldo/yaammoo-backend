@@ -23,6 +23,7 @@ const notificationRoutes = require('./routes/notificationRoutes');
 const app = express();
 
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(cors({ origin: '*', methods: '*', allowedHeaders: '*', credentials: true }));
 
 // Swagger documentation

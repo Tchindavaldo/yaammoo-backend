@@ -6,6 +6,9 @@ const { validateOrder } = require('../../utils/validator/validateOrder');
 exports.createOrder = async (req, res) => {
   try {
     const io = getIO();
+    if (!req.body || typeof req.body !== 'object') {
+      return res.status(400).json({ code: 400, message: 'Corps de requête manquant ou invalide. Assurez-vous d\'envoyer Content-Type: application/json.' });
+    }
     const { fastFoodId, userId, status } = req.body;
 
     const errors = validateOrder(req.body);
@@ -18,6 +21,10 @@ exports.createOrder = async (req, res) => {
 
     const fastfood = await getFastFoodService(fastFoodId);
     const orderData = await createOrderService({ ...req.body, status: status || 'pendingToBuy' });
+
+    if (orderData?.error) {
+      return res.status(400).json({ code: 400, message: orderData.error });
+    }
 
     io.to(userId).emit('newUserOrder', { message: 'Nouvelle commande user  ajoutée', data: orderData });
     if (orderData.status !== 'pendingToBuy') io.to(fastfood.userId).emit('newFastFoodOrder', { message: 'Nouvelle commande fastfood ajoutée', data: orderData });

@@ -114,6 +114,32 @@ exports.updateOrders = async (orders, userId) => {
         }
       }
 
+      // 2b) Stock decrement — uniquement sur la transition pendingToBuy → pending
+      if (prevStatus === 'pendingToBuy' && newStatus === 'pending') {
+        const menuId = prevData.menu?.id;
+        const qty = Number(updateData.quantity ?? prevData.quantity) || 1;
+        if (menuId) {
+          const menuRef = db.collection('menus').doc(menuId);
+          const menuDoc = await menuRef.get();
+          if (menuDoc.exists) {
+            const menuData = menuDoc.data();
+            if (typeof menuData.stock === 'number') {
+              if (menuData.stock < qty) {
+                return {
+                  success: false,
+                  message: `Stock insuffisant pour "${menuData.name || menuData.titre || 'ce menu'}". Stock disponible : ${menuData.stock}`,
+                  data: null,
+                };
+              }
+              const newStock = menuData.stock - qty;
+              await menuRef.update({ stock: newStock, updatedAt: new Date().toISOString() });
+              const updatedMenu = { id: menuDoc.id, ...menuData, stock: newStock };
+              io.emit('globalMenuUpdated', { message: 'Stock mis à jour', menuId: menuDoc.id, menu: updatedMenu });
+            }
+          }
+        }
+      }
+
       // 3) Order entering a ranked queue → assign new rank atomically via counter
       //    We persist setData first (without rank), then call assignRank which
       //    also updates the doc with the rank + updatedAt.
