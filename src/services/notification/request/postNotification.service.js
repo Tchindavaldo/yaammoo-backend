@@ -5,6 +5,16 @@ const { validateNotificationData } = require('../../../utils/validator/validateN
 const sendPushNotification = require('../FCM/sendPushNotification.service');
 const { getNotificationService } = require('./getNotification.services');
 
+const isStaleTokenError = (result) => {
+  if (!result || result.success) return false;
+  const err = String(result.error || '');
+  if (err.includes('registration-token-not-registered')) return true;
+  if (err.includes('not a valid FCM registration token')) return true;
+  if (err.includes('DeviceNotRegistered')) return true;
+  if (err.includes('InvalidCredentials')) return false;
+  return false;
+};
+
 exports.postNotificationService = async dataGet => {
   try {
     const { data, userId, fastFoodId, token, tokens, extraFcmData = {} } = dataGet;
@@ -13,9 +23,22 @@ exports.postNotificationService = async dataGet => {
       : (token ? [token] : []);
     const sendPushToAll = async (title, body, pushData) => {
       if (targetTokens.length === 0) return;
-      await Promise.allSettled(
+      const results = await Promise.allSettled(
         targetTokens.map(t => sendPushNotification({ token: t, title, body, data: pushData }))
       );
+      if (userId) {
+        const staleTokens = [];
+        results.forEach((r, i) => {
+          const value = r.status === 'fulfilled' ? r.value : null;
+          if (isStaleTokenError(value)) staleTokens.push(targetTokens[i]);
+        });
+        if (staleTokens.length > 0) {
+          try {
+            const { cleanStaleTokens } = require('../helpers/notifyOrderEvent');
+            await cleanStaleTokens(userId, staleTokens);
+          } catch (e) {}
+        }
+      }
     };
     // ✅ Valider les données
     const errors = validateNotificationData(data);

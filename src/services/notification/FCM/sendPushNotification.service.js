@@ -1,8 +1,13 @@
 // services/sendPushNotification.js
 
 const { admin } = require('../../../config/firebase');
+const sendExpoPushNotification = require('./sendExpoPushNotification.service');
 
 const sendPushNotification = async ({ token, title, body, data = {} }) => {
+  if (typeof token === 'string' && token.startsWith('ExponentPushToken[')) {
+    return sendExpoPushNotification({ token, title, body, data });
+  }
+
   const message = {
     token,
     notification: {
