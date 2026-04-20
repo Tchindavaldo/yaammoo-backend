@@ -1,5 +1,6 @@
 // src/services/userService.js
 const { db } = require('../../config/firebase');
+const admin = require('firebase-admin');
 
 exports.getAllUsers = async () => {
   const snapshot = await db.collection('users').get();
@@ -56,8 +57,26 @@ exports.saveUser = async (id, data) => {
 };
 
 exports.updateUser = async (id, data) => {
-  // console.log('data update', data);
-  await db.collection('users').doc(id).set(data, { merge: true });
+  const { fcmToken, ...rest } = data || {};
+  const ref = db.collection('users').doc(id);
+
+  if (Object.keys(rest).length > 0) {
+    await ref.set(rest, { merge: true });
+  }
+
+  if (fcmToken && typeof fcmToken === 'string') {
+    await ref.set(
+      { fcmTokens: admin.firestore.FieldValue.arrayUnion(fcmToken) },
+      { merge: true }
+    );
+  }
+};
+
+exports.removeFcmToken = async (id, token) => {
+  if (!token) return;
+  await db.collection('users').doc(id).update({
+    fcmTokens: admin.firestore.FieldValue.arrayRemove(token),
+  });
 };
 
 exports.getUserByEmail = async email => {

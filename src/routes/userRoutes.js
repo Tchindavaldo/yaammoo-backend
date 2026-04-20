@@ -1,6 +1,6 @@
 // src/routes/userRoutes.js
 const express = require('express');
-const { getUsers, getOneUserByIdController, createUser, updateUser, getUserByEmail, getUserByPhone } = require('../controllers/user/userController');
+const { getUsers, getOneUserByIdController, createUser, updateUser, getUserByEmail, getUserByPhone, removeFcmToken } = require('../controllers/user/userController');
 const firebaseAuth = require('../middlewares/authMiddleware');
 
 const router = express.Router();
@@ -173,6 +173,7 @@ router.post('', firebaseAuth, createUser);
  *         description: Invalid input
  */
 router.put('/:id', updateUser);
+router.delete('/fcmToken', removeFcmToken);
 router.get('/email/:email', getUserByEmail);
 router.get('/phone/:phone', getUserByPhone);
 

@@ -2,6 +2,7 @@ const { db } = require('../../config/firebase');
 const { getIO } = require('../../socket');
 const { postTransactionService } = require('../transaction/postTransaction.service');
 const { reserveRank } = require('./rankQueue.service');
+const { notifyOrderEvent } = require('../notification/helpers/notifyOrderEvent');
 
 exports.createOrderService = async order => {
   const orderData = { ...order, createdAt: new Date().toISOString() };
@@ -51,6 +52,25 @@ exports.createOrderService = async order => {
   };
 
   await postTransactionService(transaction);
+
+  if (order.status === 'pending') {
+    try {
+      const fastFoodDoc = await db.collection('fastfoods').doc(order.fastFoodId).get();
+      const merchantUserId = fastFoodDoc.exists ? fastFoodDoc.data()?.userId : null;
+      if (merchantUserId) {
+        await notifyOrderEvent({
+          targetUserId: merchantUserId,
+          type: 'order_new',
+          title: 'Nouvelle commande',
+          body: `${order.menu?.name || 'Menu'} x${order.quantity || 1} — ${order.total} FCFA`,
+          orderId: orderRef.id,
+          route: '/(tabs)/boutique',
+        });
+      }
+    } catch (e) {
+      console.warn('[createOrder] notify merchant error:', e.message);
+    }
+  }
 
   return { id: orderRef.id, ...orderData };
 };

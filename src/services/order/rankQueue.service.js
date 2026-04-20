@@ -1,6 +1,7 @@
 const { db } = require('../../config/firebase');
 const { getIO } = require('../../socket');
 const sendPushNotification = require('../notification/FCM/sendPushNotification.service');
+const { notifyOrderEvent } = require('../notification/helpers/notifyOrderEvent');
 
 const FCM_NOTIFY_MAX_QUEUE_SIZE = 20;
 
@@ -171,40 +172,28 @@ exports.reindexQueue = async ({ fastFoodId, deliveryDate, status, removedRank, f
     console.error('reindexQueue: socket emit failed', e.message);
   }
 
-  // FCM push notifications (anti-spam: skip if queue is too large)
+  // Notifications : uniquement top 5 (et titre spécial pour rank 1)
   if (updatedOrders.length <= FCM_NOTIFY_MAX_QUEUE_SIZE) {
     try {
-      const userIds = [...new Set(updatedOrders.map(o => o.userId).filter(Boolean))];
-      if (userIds.length > 0) {
-        const tokenMap = {};
-        // Firestore `in` operator accepts up to 30 values per query
-        const chunks = [];
-        for (let i = 0; i < userIds.length; i += 30) chunks.push(userIds.slice(i, i + 30));
-
-        for (const chunk of chunks) {
-          const usersSnap = await db.collection('users').where('uid', 'in', chunk).get();
-          usersSnap.forEach(u => {
-            const d = u.data();
-            if (d.fcmToken) tokenMap[d.uid] = d.fcmToken;
+      const fileLabel = status === 'pending' ? "d'attente" : 'de préparation';
+      const topOrders = updatedOrders.filter(o => typeof o.rank === 'number' && o.rank <= 5);
+      await Promise.all(
+        topOrders.map(order => {
+          const isFirst = order.rank === 1;
+          return notifyOrderEvent({
+            targetUserId: order.userId,
+            type: 'order_rank_top',
+            title: isFirst ? '🎉 Vous êtes le prochain !' : 'Votre commande avance',
+            body: isFirst
+              ? 'Votre commande va être traitée.'
+              : `Position ${order.rank} dans la file ${fileLabel}.`,
+            orderId: order.id,
+            route: '/(tabs)/cart',
           });
-        }
-
-        const fileLabel = status === 'pending' ? "d'attente" : 'de préparation';
-        await Promise.all(
-          updatedOrders.map(order => {
-            const token = tokenMap[order.userId];
-            if (!token) return null;
-            return sendPushNotification({
-              token,
-              title: 'Votre commande avance !',
-              body: `Vous êtes en position ${order.rank} dans la file ${fileLabel}.`,
-              data: { orderId: order.id, rank: String(order.rank), status: order.status },
-            });
-          })
-        );
-      }
+        })
+      );
     } catch (e) {
-      console.error('reindexQueue: FCM notification failed', e.message);
+      console.error('reindexQueue: notification failed', e.message);
     }
   }
 

@@ -3,6 +3,37 @@ const { getIO } = require('../../socket');
 const { validateOrder } = require('../../utils/validator/validateOrder');
 const { getFastFoodService } = require('../fastfood/getFastFood');
 const { assignRank, reindexQueue } = require('./rankQueue.service');
+const { notifyOrderEvent } = require('../notification/helpers/notifyOrderEvent');
+
+const buildTransitionNotif = ({ prevStatus, newStatus, order, merchantUserId }) => {
+  const menuName = order.menu?.name || order.menu?.titre || 'Menu';
+  const qty = order.quantity || 1;
+  const total = order.total || 0;
+  const bodyBase = `${menuName} x${qty} — ${total} FCFA`;
+
+  if (prevStatus === 'pendingToBuy' && newStatus === 'pending' && merchantUserId) {
+    return { targetUserId: merchantUserId, type: 'order_new', title: 'Nouvelle commande', body: bodyBase, orderId: order.id, route: '/(tabs)/boutique' };
+  }
+  if (prevStatus === 'pending' && newStatus === 'processing') {
+    return { targetUserId: order.userId, type: 'order_status', title: 'Commande acceptée', body: bodyBase, orderId: order.id, route: '/(tabs)/cart' };
+  }
+  if (prevStatus === 'processing' && newStatus === 'finished') {
+    return { targetUserId: order.userId, type: 'order_status', title: 'Commande prête', body: bodyBase, orderId: order.id, route: '/(tabs)/cart' };
+  }
+  if (prevStatus === 'finished' && newStatus === 'delivering') {
+    return { targetUserId: order.userId, type: 'order_delivering', title: 'En livraison', body: bodyBase, orderId: order.id, route: '/(tabs)/cart' };
+  }
+  if (prevStatus === 'delivering' && newStatus === 'delivered') {
+    return { targetUserId: order.userId, type: 'order_status', title: 'Livrée', body: bodyBase, orderId: order.id, route: '/(tabs)/cart' };
+  }
+  if (newStatus === 'cancelByUser' && merchantUserId) {
+    return { targetUserId: merchantUserId, type: 'order_cancel_by_user', title: 'Commande annulée par le client', body: bodyBase, orderId: order.id, route: '/(tabs)/boutique' };
+  }
+  if (newStatus === 'cancelByFastFood') {
+    return { targetUserId: order.userId, type: 'order_cancel_by_merchant', title: 'Commande annulée par le resto', body: bodyBase, orderId: order.id, route: '/(tabs)/cart' };
+  }
+  return null;
+};
 
 const isRankedStatus = s => s === 'pending' || s === 'processing';
 const isCancelStatus = s => s === 'cancelByUser' || s === 'cancelByFastFood';
@@ -16,6 +47,7 @@ exports.updateOrders = async (orders, userId) => {
     const updates = Array.isArray(orders) ? orders : [orders];
     const groupedByFastFood = {};
     const results = [];
+    const transitions = [];
 
     // Collect reindexing operations to run after all order updates
     // shape: { fastFoodId, deliveryDate, status, removedRank }
@@ -161,6 +193,10 @@ exports.updateOrders = async (orders, userId) => {
       const updatedOrder = { id: updatedDoc.id, ...updatedDoc.data() };
       results.push(updatedOrder);
 
+      if (prevStatus !== newStatus) {
+        transitions.push({ prevStatus, newStatus, order: updatedOrder, fastFoodId });
+      }
+
       if (!groupedByFastFood[fastFoodId]) groupedByFastFood[fastFoodId] = [];
       groupedByFastFood[fastFoodId].push(updatedOrder);
     }
@@ -230,6 +266,20 @@ exports.updateOrders = async (orders, userId) => {
             io.to(fastfood.userId).emit('fastFoodOrderUpdated', { data: order });
           }
         });
+
+        // Dispatch transition notifications for this fastFood
+        const ffTransitions = transitions.filter(t => t.fastFoodId === fastFoodId);
+        for (const t of ffTransitions) {
+          const notif = buildTransitionNotif({
+            prevStatus: t.prevStatus,
+            newStatus: t.newStatus,
+            order: t.order,
+            merchantUserId: fastfood.userId,
+          });
+          if (notif) {
+            notifyOrderEvent(notif).catch(e => console.warn('[updateOrders] notify error:', e.message));
+          }
+        }
 
         // Execute scheduled reindex operations for this fastFood
         const opsForFF = reindexOps.filter(op => op.fastFoodId === fastFoodId);

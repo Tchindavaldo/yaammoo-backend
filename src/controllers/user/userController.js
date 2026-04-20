@@ -59,6 +59,19 @@ exports.getUserByEmail = async (req, res) => {
   }
 };
 
+exports.removeFcmToken = async (req, res) => {
+  try {
+    const { userId, token } = req.body;
+    if (!userId || !token) {
+      return res.status(400).json({ error: 'userId et token requis.' });
+    }
+    await userService.removeFcmToken(userId, token);
+    res.status(200).json({ message: 'Token retiré.' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 exports.getUserByPhone = async (req, res) => {
   const { phone } = req.params;
   try {

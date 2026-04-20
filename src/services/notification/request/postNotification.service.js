@@ -7,7 +7,16 @@ const { getNotificationService } = require('./getNotification.services');
 
 exports.postNotificationService = async dataGet => {
   try {
-    const { data, userId, fastFoodId, token } = dataGet;
+    const { data, userId, fastFoodId, token, tokens, extraFcmData = {} } = dataGet;
+    const targetTokens = Array.isArray(tokens) && tokens.length > 0
+      ? tokens
+      : (token ? [token] : []);
+    const sendPushToAll = async (title, body, pushData) => {
+      if (targetTokens.length === 0) return;
+      await Promise.allSettled(
+        targetTokens.map(t => sendPushNotification({ token: t, title, body, data: pushData }))
+      );
+    };
     // ✅ Valider les données
     const errors = validateNotificationData(data);
     if (errors.length > 0) return { success: false, message: errors };
@@ -28,7 +37,12 @@ exports.postNotificationService = async dataGet => {
       const docRef = await db.collection('notification').add(notificationData);
       const newUserNotif = { ...notificationData1, idGroup: docRef.id, ...newNotif, isRead: JSON.stringify(newNotif.isRead) };
 
-      if (token) await sendPushNotification({ token, title: newNotif.title, body: newNotif.body, data: newUserNotif });
+      await sendPushToAll(newNotif.title, newNotif.body, { ...newUserNotif, ...extraFcmData });
+      try {
+        const io = getIO();
+        const target = userId || fastFoodId;
+        if (target) io.to(target).emit('newNotification', { notification: { ...newUserNotif, ...extraFcmData } });
+      } catch (e) {}
       return { success: true, data: { id: docRef.id, ...notificationData }, message: 'Notification ajoutée avec succès' };
     } else {
       const notifDoc = response.data[0];
@@ -43,7 +57,12 @@ exports.postNotificationService = async dataGet => {
       await db.collection('notification').doc(notifDoc.id).update({ allNotif: updatedAllNotifArray, updatedAt: new Date().toISOString() });
 
       const newUserNotif = { ...notificationData1, idGroup: notifDoc.id, ...newNotif, isRead: JSON.stringify(newNotif.isRead) };
-      if (token) await sendPushNotification({ token, title: newNotif.title, body: newNotif.body, data: newUserNotif });
+      await sendPushToAll(newNotif.title, newNotif.body, { ...newUserNotif, ...extraFcmData });
+      try {
+        const io = getIO();
+        const target = userId || fastFoodId;
+        if (target) io.to(target).emit('newNotification', { notification: { ...newUserNotif, ...extraFcmData } });
+      } catch (e) {}
 
       return { success: true, data: { ...notifDoc, allNotif: updatedAllNotifArray }, message: 'Notification ajoutée avec succès' };
     }
