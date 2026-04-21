@@ -88,14 +88,19 @@ Retour unifié : `{ success: boolean, response?, error? }`.
 
 ## Types de notifications
 
-| Type | Source (service) | Destination | Route deep-link |
+| Type | Source (service) | Destination | Route deep-link (section-aware) |
 |---|---|---|---|
 | `order_new` | `createOrder.js` | marchand | `/(tabs)/boutique` |
-| `order_status` | `updateOrders.service.js` | user | `/(tabs)/cart` |
-| `order_cancel_by_user` | `updateOrders.service.js` | marchand | `/(tabs)/boutique` |
-| `order_cancel_by_merchant` | `updateOrders.service.js` | user | `/(tabs)/cart` |
-| `order_rank_top` | `rankQueue.service.js` (top 5) | user | `/(tabs)/cart` |
-| `order_delivering` | `updateOrders.service.js` | user | `/(tabs)/cart` |
+| `order_status` (→ processing) | `updateOrders.service.js` | user | `/(tabs)/cart?section=active` |
+| `order_status` (→ finished / delivered) | `updateOrders.service.js` | user | `/(tabs)/cart?section=finished` |
+| `order_delivering` | `updateOrders.service.js` | user | `/(tabs)/cart?section=finished` |
+| `order_cancel_by_user` | `updateOrders.service.js` | marchand | `/(tabs)/notifications` |
+| `order_cancel_by_merchant` | `updateOrders.service.js` | user | `/(tabs)/notifications` |
+| `order_rank_top` (file pending) | `rankQueue.service.js` (top 5) | user | `/(tabs)/cart?section=pending` |
+| `order_rank_top` (file processing) | `rankQueue.service.js` (top 5) | user | `/(tabs)/cart?section=active` |
+| `bonus` | *(à émettre par le service bonus)* | user | `/(tabs)/cart?section=bonus` |
+
+**Convention query param** : `route` précis calculé côté backend dans `buildTransitionNotif()` / `rankQueue`. Le frontend consomme via `useLocalSearchParams()` dans `app/(tabs)/cart.tsx` pour basculer sur la bonne section.
 
 ## Transitions de statut → notifications (updateOrders.service.js)
 
