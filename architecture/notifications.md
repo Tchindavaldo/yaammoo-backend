@@ -67,7 +67,7 @@ Retour unifié : `{ success: boolean, response?, error? }`.
    - `Promise.allSettled(targetTokens.map(t => sendPushNotification({token: t, ...})))`.
    - Collecte les tokens stales (`registration-token-not-registered`, `DeviceNotRegistered`, `not a valid FCM registration token`).
    - Appelle `cleanStaleTokens(userId, stale)` → `arrayRemove` dans `users/{uid}.fcmTokens`.
-7. `io.to(userId || fastFoodId).emit('newNotification', { notification })` — pour sync UI en temps réel.
+7. `io.to(userId || fastFoodId).emit('newNotification', { notification })` — pour sync UI en temps réel (le client injecte via `addFromSocket` sans refetch).
 8. Retourne `{ success, data, message }`.
 
 ## postNotification.controller.js
@@ -132,10 +132,19 @@ curl -X POST http://localhost:5000/notification/add \
 
 **`utils/validator/validateNotificationData.js`** — retourne `errors[]`. Champs requis typiques : `title`, `body`.
 
+## Format `isRead` en Firestore
+
+Le champ `isRead` d'une notif est stocké comme **array de `userId`** (`string[]`) — pas un boolean. Permet :
+- notifs de groupe (fastFood avec `target: 'all'`) lues indépendamment par chaque marchand ;
+- MAJ atomique `arrayUnion(userId)` dans `markNotificationAsRead.services.js` ;
+- émission socket `isRead` vers la room du user pour sync multi-device.
+
+Le frontend tolère encore boolean/string pour rétro-compat mais écrit toujours en array.
+
 ## Clés de design
 
 1. **Dual Channel** : FCM pour OS-level + Socket pour sync in-app temps réel.
-2. **Multi-device** : `fcmTokens` array + `arrayUnion` côté user service.
+2. **Multi-device** : `fcmTokens` array + `arrayUnion` côté user service. `isRead` array permet à chaque device de sync son état via l'event socket `isRead`.
 3. **Stale cleanup** : détection automatique + `arrayRemove`.
 4. **Dispatcher hybride** : un seul code path Expo Go / Dev build / Prod.
 5. **Deep-link par type** : `extraFcmData.route` calculé côté backend, consommé par le hook `useNotificationSetup` côté client.

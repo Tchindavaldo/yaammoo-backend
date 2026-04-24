@@ -88,7 +88,6 @@ exports.postNotificationService = async dataGet => {
 
       await sendPushToAll(newNotif.title, newNotif.body, { ...newUserNotif, ...extraFcmData });
 
-      console.log(`📡 Émission socket newNotification → userId=${userId || fastFoodId}`);
       try {
         const io = getIO();
         const target = userId || fastFoodId;
@@ -96,7 +95,6 @@ exports.postNotificationService = async dataGet => {
       } catch (e) {
         console.error('❌ Erreur socket:', e.message);
       }
-      console.log(`✅ Notification ajoutée avec succès\n`);
       return { success: true, data: { id: docRef.id, ...notificationData }, message: 'Notification ajoutée avec succès' };
     } else {
       const notifDoc = response.data[0];
@@ -113,7 +111,6 @@ exports.postNotificationService = async dataGet => {
       const newUserNotif = { ...notificationData1, idGroup: notifDoc.id, ...newNotif, isRead: JSON.stringify(newNotif.isRead) };
       await sendPushToAll(newNotif.title, newNotif.body, { ...newUserNotif, ...extraFcmData });
 
-      console.log(`📡 Émission socket newNotification → userId=${userId || fastFoodId}`);
       try {
         const io = getIO();
         const target = userId || fastFoodId;
@@ -121,7 +118,6 @@ exports.postNotificationService = async dataGet => {
       } catch (e) {
         console.error('❌ Erreur socket:', e.message);
       }
-      console.log(`✅ Notification ajoutée avec succès\n`);
 
       return { success: true, data: { ...notifDoc, allNotif: updatedAllNotifArray }, message: 'Notification ajoutée avec succès' };
     }

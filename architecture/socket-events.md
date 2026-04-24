@@ -4,7 +4,7 @@
 
 - **Serveur** : `BACKEND/src/socket.js` — singleton `getIO()` retourne l'instance Socket.io
 - **Init** : `BACKEND/src/server.js` crée le `http.Server` et wrappe Socket.io dessus
-- **Rooms** : chaque utilisateur (client ou marchand) rejoint sa propre room `socket.join(userId)` à la connexion
+- **Rooms** : chaque utilisateur (client ou marchand) rejoint sa propre room via `socket.on('join_user', userId => socket.join(userId))`. Le marchand utilise le même `userId` que son compte user (stocké dans `fastfoods.userId`) — pas de room `fastFoodId` séparée.
 
 ---
 
