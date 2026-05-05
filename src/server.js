@@ -11,7 +11,7 @@ const server = http.createServer(app);
 
 // Configuration de Socket.io
 socket.init(server);
-// Lancement du Keep-Alive pour Supabase (2-3 fois par semaine)
-startKeepAlive(72);
+// Lancement du Keep-Alive pour Supabase (toutes les 4h)
+startKeepAlive(4);
 
 server.listen(PORT, HOST, () => console.log(`🚀 Serveur lancé sur http://localhost:${PORT}`));
