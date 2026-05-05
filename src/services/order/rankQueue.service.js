@@ -188,7 +188,7 @@ exports.reindexQueue = async ({ fastFoodId, deliveryDate, status, removedRank, f
               ? 'Votre commande va être traitée.'
               : `Position ${order.rank} dans la file ${fileLabel}.`,
             orderId: order.id,
-            route: '/(tabs)/cart',
+            route: status === 'pending' ? '/(tabs)/cart?section=pending' : '/(tabs)/cart?section=active',
           });
         })
       );
