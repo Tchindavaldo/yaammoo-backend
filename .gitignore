@@ -44,3 +44,6 @@ Thumbs.db
 # Miscellaneous
 *.tgz
 *.bak
+
+secrets/
+*.p8

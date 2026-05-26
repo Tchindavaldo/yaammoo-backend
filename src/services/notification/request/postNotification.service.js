@@ -17,44 +17,40 @@ const isStaleTokenError = (result) => {
 
 exports.postNotificationService = async dataGet => {
   try {
-    const { data, userId, fastFoodId, token, tokens, extraFcmData = {} } = dataGet;
-    const targetTokens = Array.isArray(tokens) && tokens.length > 0
+    const { data, userId, fastFoodId, token, tokens, apnsTokens, extraFcmData = {} } = dataGet;
+    const fcmTargets = Array.isArray(tokens) && tokens.length > 0
       ? tokens
       : (token ? [token] : []);
+    const apnsTargets = Array.isArray(apnsTokens) ? apnsTokens.filter(Boolean) : [];
+
     const sendPushToAll = async (title, body, pushData) => {
-      if (targetTokens.length === 0) {
+      if (fcmTargets.length === 0 && apnsTargets.length === 0) {
         console.log('⚠️  Pas de tokens à envoyer');
-        return;
+        return { tokensToDelete: [] };
       }
 
-      console.log(`\n📊 Envoi push à ${targetTokens.length} token(s):`);
-      targetTokens.forEach((t, i) => {
-        const shortToken = t.substring(0, 40) + '...';
-        const type = t.startsWith('ExponentPushToken[') ? '(EXPO)' : '(FCM)';
-        console.log(`   [${i + 1}/${targetTokens.length}] ${type} ${shortToken}`);
+      console.log(`\n📊 Envoi push : ${fcmTargets.length} FCM/Expo + ${apnsTargets.length} APNs`);
+
+      const result = await sendPushNotification({
+        tokens: fcmTargets,
+        apnsTokens: apnsTargets,
+        title,
+        body,
+        data: pushData,
       });
 
-      const results = await Promise.allSettled(
-        targetTokens.map(t => sendPushNotification({ token: t, title, body, data: pushData }))
-      );
-
-      if (userId) {
-        const staleTokens = [];
-        results.forEach((r, i) => {
-          const value = r.status === 'fulfilled' ? r.value : null;
-          if (isStaleTokenError(value)) staleTokens.push(targetTokens[i]);
-        });
-        if (staleTokens.length > 0) {
-          console.log(`\n🧹 ${staleTokens.length} token(s) stale détecté(s), nettoyage...`);
-          try {
-            const { cleanStaleTokens } = require('../helpers/notifyOrderEvent');
-            await cleanStaleTokens(userId, staleTokens);
-            console.log('✅ Tokens stales retirés de Firestore');
-          } catch (e) {
-            console.error('❌ Erreur lors du nettoyage:', e.message);
-          }
+      const tokensToDelete = result?.tokensToDelete || [];
+      if (userId && tokensToDelete.length > 0) {
+        console.log(`\n🧹 ${tokensToDelete.length} token(s) stale détecté(s), nettoyage...`);
+        try {
+          const { cleanStaleTokens } = require('../helpers/notifyOrderEvent');
+          await cleanStaleTokens(userId, tokensToDelete);
+          console.log('✅ Tokens stales retirés de Firestore');
+        } catch (e) {
+          console.error('❌ Erreur lors du nettoyage:', e.message);
         }
       }
+      return { tokensToDelete };
     };
     console.log(`\n📱 [postNotificationService] userId=${userId || fastFoodId}`);
     console.log(`   Titre: "${data.title}" | Corps: "${data.body}" | Type: ${data.type}`);

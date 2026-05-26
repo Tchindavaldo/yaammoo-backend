@@ -72,6 +72,34 @@ exports.removeFcmToken = async (req, res) => {
   }
 };
 
+exports.addPushToken = async (req, res) => {
+  try {
+    const userId = req.user?.uid || req.body?.userId;
+    const { token, platform, deviceId } = req.body || {};
+    if (!userId) {
+      return res.status(400).json({ success: false, error: 'userId requis (via token Firebase ou body)' });
+    }
+    const result = await userService.addPushToken(userId, { token, platform, deviceId });
+    res.status(200).json({ success: true, ...result });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+};
+
+exports.removePushToken = async (req, res) => {
+  try {
+    const userId = req.user?.uid || req.body?.userId;
+    const { deviceId } = req.body || {};
+    if (!userId) {
+      return res.status(400).json({ success: false, error: 'userId requis (via token Firebase ou body)' });
+    }
+    const result = await userService.removePushToken(userId, { deviceId });
+    res.status(200).json({ success: true, ...result });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+};
+
 exports.getUserByPhone = async (req, res) => {
   const { phone } = req.params;
   try {

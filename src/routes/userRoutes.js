@@ -1,6 +1,6 @@
 // src/routes/userRoutes.js
 const express = require('express');
-const { getUsers, getOneUserByIdController, createUser, updateUser, getUserByEmail, getUserByPhone, removeFcmToken } = require('../controllers/user/userController');
+const { getUsers, getOneUserByIdController, createUser, updateUser, getUserByEmail, getUserByPhone, removeFcmToken, addPushToken, removePushToken } = require('../controllers/user/userController');
 const firebaseAuth = require('../middlewares/authMiddleware');
 
 const router = express.Router();
@@ -174,6 +174,11 @@ router.post('', firebaseAuth, createUser);
  */
 router.put('/:id', updateUser);
 router.delete('/fcmToken', removeFcmToken);
+
+// Push tokens multi-device
+router.post('/push-token/add', firebaseAuth, addPushToken);
+router.post('/push-token/remove', firebaseAuth, removePushToken);
+
 router.get('/email/:email', getUserByEmail);
 router.get('/phone/:phone', getUserByPhone);
 
