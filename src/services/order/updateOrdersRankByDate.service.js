@@ -1,68 +1,64 @@
-const { db } = require('../../config/firebase');
+// ============================================================================
+// updateOrdersRankByDate — Façade vers l'orchestrateur
+// ============================================================================
+// Réindexe complètement les files pending et processing d'un fastFood :
+// rangs 1..N par (status, delivery.date) triés par createdAt ASC.
+// Réinitialise les compteurs en conséquence.
+// ============================================================================
+
+const repos = require('../../repositories');
 const { getIO } = require('../../socket');
 const { resetCounter } = require('./rankQueue.service');
 
-/**
- * Réindexe complètement les files pending et processing d'un fastFood,
- * en attribuant des rangs 1..N par (status, delivery.date), triés par createdAt ASC.
- * Réinitialise les compteurs atomiques en conséquence.
- */
-exports.updateOrdersRankByDate = async fastFoodId => {
+exports.updateOrdersRankByDate = async (fastFoodId) => {
   try {
     if (!fastFoodId) return { success: false, message: 'fastFoodId est requis' };
 
-    const snapshot = await db
-      .collection('orders')
-      .where('fastFoodId', '==', fastFoodId)
-      .where('status', 'in', ['pending', 'processing'])
-      .orderBy('createdAt', 'asc')
-      .get();
+    const orders = await repos.orders.query({
+      fastFoodId,
+      status: ['pending', 'processing'],
+      orderByCreated: 'asc',
+    });
 
-    if (snapshot.empty) {
+    if (!orders || orders.length === 0) {
       return { success: true, message: 'Aucune commande en pending ou processing trouvée', count: 0 };
     }
 
-    const batch = db.batch();
-    const updatedOrders = [];
-    // Group by (status, date) → separate queues
+    // Groupage par (status, deliveryDate)
     const groups = {};
-
-    snapshot.forEach(doc => {
-      const data = doc.data();
-      if (!data.delivery) {
-        data.delivery = {
-          status: true,
-          type: 'time',
-          time: '13:45',
-          date: new Date().toISOString().split('T')[0],
-        };
+    orders.forEach((order) => {
+      const deliveryDate = order.delivery?.date || new Date().toISOString().split('T')[0];
+      // Garantit une structure delivery minimale
+      if (!order.delivery) {
+        order.delivery = { status: true, type: 'time', time: '13:45', date: deliveryDate };
       }
-      const key = `${data.status}__${data.delivery.date}`;
-      if (!groups[key]) groups[key] = { status: data.status, date: data.delivery.date, orders: [] };
-      groups[key].orders.push({ id: doc.id, data });
+      const key = `${order.status}__${deliveryDate}`;
+      if (!groups[key]) groups[key] = { status: order.status, date: deliveryDate, orders: [] };
+      groups[key].orders.push(order);
     });
 
+    const updatedOrders = [];
     for (const key in groups) {
-      const { orders } = groups[key];
+      const { orders: groupOrders } = groups[key];
       let rank = 1;
-      for (const order of orders) {
-        const orderRef = db.collection('orders').doc(order.id);
-        batch.update(orderRef, {
+      for (const order of groupOrders) {
+        const updated = await repos.orders.update(order.id, {
           rank,
-          updatedAt: new Date().toISOString(),
-          delivery: order.data.delivery,
+          delivery: order.delivery,
         });
-        updatedOrders.push({ ...order.data, rank, updatedAt: new Date().toISOString(), id: order.id });
+        updatedOrders.push(updated);
         rank++;
       }
     }
 
-    await batch.commit();
-
-    // Reset counters to the new max rank for each (status, date)
     await Promise.all(
-      Object.values(groups).map(g =>
-        resetCounter({ fastFoodId, deliveryDate: g.date, status: g.status, value: g.orders.length })
+      Object.values(groups).map((g) =>
+        resetCounter({
+          fastFoodId,
+          deliveryDate: g.date,
+          status: g.status,
+          value: g.orders.length,
+        })
       )
     );
 
@@ -80,9 +76,6 @@ exports.updateOrdersRankByDate = async fastFoodId => {
     };
   } catch (error) {
     console.error('Erreur dans updateOrdersRankByDate:', error);
-    return {
-      success: false,
-      message: error.message || 'Erreur lors de la mise à jour des rangs',
-    };
+    return { success: false, message: error.message || 'Erreur lors de la mise à jour des rangs' };
   }
 };

@@ -1,0 +1,385 @@
+// ============================================================================
+// Mappers Firestore <-> Supabase
+// ============================================================================
+// Conventions :
+//   - Firestore: camelCase, infos.nested, ISO strings, arrays d'objets
+//   - Supabase : snake_case, colonnes plates, TIMESTAMPTZ, JSONB
+//
+// Ces mappers permettent à l'API REST de toujours renvoyer un format
+// compatible avec l'app mobile (Firestore-like) quel que soit le backend.
+// ============================================================================
+
+const toIso = (v) => {
+  if (!v) return null;
+  if (typeof v === 'string') return v;
+  if (v instanceof Date) return v.toISOString();
+  return null;
+};
+
+const toDate = (v) => {
+  if (!v) return null;
+  if (typeof v === 'string') {
+    // 'YYYY-MM-DD' ou ISO complet
+    return v.length >= 10 ? v.substring(0, 10) : null;
+  }
+  if (v instanceof Date) return v.toISOString().substring(0, 10);
+  return null;
+};
+
+// ---------------------------------------------------------------------------
+// USERS
+// ---------------------------------------------------------------------------
+const userToSupabase = (data) => {
+  const { infos = {}, fcmToken, fcmTokens, pushTokens, createdAt, updatedAt, ...rest } = data;
+  const known = ['id', 'uid', 'fastFoodId', 'isMarchand', 'statistique', 'cmd'];
+  const extra = {};
+  for (const k of Object.keys(rest)) {
+    if (!known.includes(k)) extra[k] = rest[k];
+  }
+  return {
+    id: data.id || data.uid,
+    uid: data.uid || data.id,
+    nom: infos.nom ?? null,
+    prenom: infos.prenom ?? null,
+    age: infos.age ?? null,
+    numero: infos.numero != null ? Number(infos.numero) : null,
+    email: infos.email ?? null,
+    password: infos.password ?? null,
+    fastfood_id: data.fastFoodId ?? null,
+    is_marchand: !!data.isMarchand,
+    statistique: data.statistique ?? 0,
+    cmd: data.cmd ?? [],
+    extra_data: extra,
+    created_at: toIso(createdAt),
+    updated_at: toIso(updatedAt) || toIso(createdAt),
+  };
+};
+
+const userFromSupabase = (row, pushTokens = [], fcmTokens = []) => {
+  if (!row) return null;
+  return {
+    id: row.id,
+    uid: row.uid || row.id,
+    infos: {
+      nom: row.nom,
+      prenom: row.prenom,
+      age: row.age,
+      numero: row.numero,
+      email: row.email,
+      password: row.password,
+    },
+    fastFoodId: row.fastfood_id,
+    isMarchand: row.is_marchand,
+    statistique: row.statistique,
+    cmd: row.cmd || [],
+    pushTokens: (pushTokens || []).map((t) => ({
+      token: t.token,
+      platform: t.platform,
+      deviceId: t.device_id,
+      lastSeen: t.last_seen,
+    })),
+    fcmTokens: (fcmTokens || []).map((t) => t.token),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    ...(row.extra_data || {}),
+  };
+};
+
+// ---------------------------------------------------------------------------
+// FASTFOODS
+// ---------------------------------------------------------------------------
+const fastfoodToSupabase = (data) => {
+  const { createdAt, updatedAt, ...rest } = data;
+  const known = ['id', 'userId', 'name', 'number', 'openTime', 'closeTime',
+    'image', 'orderLeadTime', 'deliveryHours'];
+  const extra = {};
+  for (const k of Object.keys(rest)) {
+    if (!known.includes(k)) extra[k] = rest[k];
+  }
+  return {
+    id: data.id,
+    user_id: data.userId,
+    name: data.name ?? null,
+    number: data.number ?? null,
+    open_time: data.openTime ?? null,
+    close_time: data.closeTime ?? null,
+    image: data.image ?? null,
+    order_lead_time: data.orderLeadTime ?? null,
+    delivery_hours: data.deliveryHours ?? [],
+    extra_data: extra,
+    created_at: toIso(createdAt),
+    updated_at: toIso(updatedAt) || toIso(createdAt),
+  };
+};
+
+const fastfoodFromSupabase = (row) => {
+  if (!row) return null;
+  return {
+    id: row.id,
+    userId: row.user_id,
+    name: row.name,
+    number: row.number,
+    openTime: row.open_time,
+    closeTime: row.close_time,
+    image: row.image,
+    orderLeadTime: row.order_lead_time,
+    deliveryHours: row.delivery_hours || [],
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    ...(row.extra_data || {}),
+  };
+};
+
+// ---------------------------------------------------------------------------
+// MENUS
+// ---------------------------------------------------------------------------
+const menuToSupabase = (data) => {
+  const { createdAt, updatedAt, ...rest } = data;
+  const known = ['id', 'fastFoodId', 'titre', 'name', 'prix1', 'prix2', 'prix3',
+    'optionPrix1', 'optionPrix2', 'optionPrix3', 'image', 'coverImage', 'images',
+    'disponibilite', 'status', 'stock', 'extra', 'drink'];
+  const extra_data = {};
+  for (const k of Object.keys(rest)) {
+    if (!known.includes(k)) extra_data[k] = rest[k];
+  }
+  return {
+    id: data.id,
+    fastfood_id: data.fastFoodId,
+    titre: data.titre ?? null,
+    name: data.name ?? null,
+    prix1: data.prix1 ?? null,
+    prix2: data.prix2 ?? null,
+    prix3: data.prix3 ?? null,
+    option_prix1: data.optionPrix1 ?? null,
+    option_prix2: data.optionPrix2 ?? null,
+    option_prix3: data.optionPrix3 ?? null,
+    image: data.image ?? null,
+    cover_image: data.coverImage ?? null,
+    images: data.images ?? [],
+    disponibilite: data.disponibilite ?? null,
+    status: data.status ?? null,
+    stock: data.stock ?? 0,
+    extra: data.extra ?? [],
+    drink: data.drink ?? [],
+    extra_data,
+    created_at: toIso(createdAt),
+    updated_at: toIso(updatedAt) || toIso(createdAt),
+  };
+};
+
+const menuFromSupabase = (row) => {
+  if (!row) return null;
+  return {
+    id: row.id,
+    fastFoodId: row.fastfood_id,
+    titre: row.titre,
+    name: row.name,
+    prix1: row.prix1 != null ? Number(row.prix1) : null,
+    prix2: row.prix2 != null ? Number(row.prix2) : null,
+    prix3: row.prix3 != null ? Number(row.prix3) : null,
+    optionPrix1: row.option_prix1,
+    optionPrix2: row.option_prix2,
+    optionPrix3: row.option_prix3,
+    image: row.image,
+    coverImage: row.cover_image,
+    images: row.images || [],
+    disponibilite: row.disponibilite,
+    status: row.status,
+    stock: row.stock ?? 0,
+    extra: row.extra || [],
+    drink: row.drink || [],
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    ...(row.extra_data || {}),
+  };
+};
+
+// ---------------------------------------------------------------------------
+// ORDERS
+// ---------------------------------------------------------------------------
+const orderToSupabase = (data) => {
+  const { createdAt, updatedAt, menu, ...rest } = data;
+  const known = ['id', 'userId', 'fastFoodId', 'quantity', 'extra', 'drink',
+    'delivery', 'total', 'status', 'rank', 'clientId', 'periodKey'];
+  const extra_data = {};
+  for (const k of Object.keys(rest)) {
+    if (!known.includes(k)) extra_data[k] = rest[k];
+  }
+  return {
+    id: data.id,
+    user_id: data.userId,
+    fastfood_id: data.fastFoodId,
+    menu_id: menu?.id ?? data.menuId ?? null,
+    menu_snapshot: menu ?? null,
+    quantity: data.quantity ?? 1,
+    extra: data.extra ?? [],
+    drink: data.drink ?? [],
+    delivery: data.delivery ?? {},
+    delivery_date: toDate(data.delivery?.date) || toDate(createdAt) || new Date().toISOString().substring(0, 10),
+    total: data.total ?? null,
+    status: data.status,
+    rank: data.rank ?? null,
+    client_id: data.clientId ?? null,
+    period_key: data.periodKey ?? null,
+    extra_data,
+    created_at: toIso(createdAt),
+    updated_at: toIso(updatedAt) || toIso(createdAt),
+  };
+};
+
+const orderFromSupabase = (row) => {
+  if (!row) return null;
+  return {
+    id: row.id,
+    userId: row.user_id,
+    fastFoodId: row.fastfood_id,
+    menu: row.menu_snapshot,
+    quantity: row.quantity ?? 1,
+    extra: row.extra || [],
+    drink: row.drink || [],
+    delivery: row.delivery || {},
+    total: row.total != null ? Number(row.total) : null,
+    status: row.status,
+    rank: row.rank ?? undefined,
+    clientId: row.client_id ?? undefined,
+    periodKey: row.period_key ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    ...(row.extra_data || {}),
+  };
+};
+
+// ---------------------------------------------------------------------------
+// TRANSACTIONS
+// ---------------------------------------------------------------------------
+const transactionToSupabase = (data) => {
+  const { createdAt, ...rest } = data;
+  const known = ['id', 'userId', 'type', 'amount', 'currentAmount', 'payBy',
+    'name', 'remainingAmount'];
+  const extra_data = {};
+  for (const k of Object.keys(rest)) {
+    if (!known.includes(k)) extra_data[k] = rest[k];
+  }
+  return {
+    id: data.id,
+    user_id: data.userId,
+    type: data.type ?? null,
+    amount: data.amount ?? null,
+    current_amount: data.currentAmount ?? null,
+    pay_by: data.payBy ?? null,
+    name: data.name ?? null,
+    remaining_amount: data.remainingAmount ?? null,
+    extra_data,
+    created_at: toIso(createdAt),
+  };
+};
+
+const transactionFromSupabase = (row) => {
+  if (!row) return null;
+  return {
+    id: row.id,
+    userId: row.user_id,
+    type: row.type,
+    amount: row.amount != null ? Number(row.amount) : null,
+    currentAmount: row.current_amount != null ? Number(row.current_amount) : null,
+    payBy: row.pay_by,
+    name: row.name,
+    remainingAmount: row.remaining_amount != null ? Number(row.remaining_amount) : null,
+    createdAt: row.created_at,
+    ...(row.extra_data || {}),
+  };
+};
+
+// ---------------------------------------------------------------------------
+// BONUS
+// ---------------------------------------------------------------------------
+const bonusToSupabase = (data) => {
+  const { id, createdAt, ...rest } = data;
+  return {
+    id,
+    data: rest,
+    created_at: toIso(createdAt),
+  };
+};
+
+const bonusFromSupabase = (row) => {
+  if (!row) return null;
+  return { id: row.id, ...(row.data || {}), createdAt: row.created_at };
+};
+
+// ---------------------------------------------------------------------------
+// BONUS REQUESTS
+// ---------------------------------------------------------------------------
+const bonusRequestToSupabase = (data) => {
+  const { createdAt, updatedAt, ...rest } = data;
+  const known = ['id', 'userId', 'bonusId', 'bonusType', 'status'];
+  const extra_data = {};
+  for (const k of Object.keys(rest)) {
+    if (!known.includes(k)) extra_data[k] = rest[k];
+  }
+  return {
+    id: data.id,
+    user_id: data.userId,
+    bonus_id: data.bonusId,
+    bonus_type: data.bonusType ?? null,
+    status: data.status ?? [],
+    extra_data,
+    created_at: toIso(createdAt),
+    updated_at: toIso(updatedAt) || toIso(createdAt),
+  };
+};
+
+const bonusRequestFromSupabase = (row) => {
+  if (!row) return null;
+  return {
+    id: row.id,
+    userId: row.user_id,
+    bonusId: row.bonus_id,
+    bonusType: row.bonus_type,
+    status: row.status || [],
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    ...(row.extra_data || {}),
+  };
+};
+
+// ---------------------------------------------------------------------------
+// NOTIFICATIONS
+// ---------------------------------------------------------------------------
+const notificationToSupabase = (data) => {
+  return {
+    id: data.id,
+    user_id: data.userId ?? null,
+    fastfood_id: data.fastFoodId ?? null,
+    target: data.target ?? null,
+    all_notif: data.allNotif ?? [],
+    created_at: toIso(data.createdAt),
+    updated_at: toIso(data.updatedAt) || toIso(data.createdAt),
+  };
+};
+
+const notificationFromSupabase = (row) => {
+  if (!row) return null;
+  return {
+    id: row.id,
+    userId: row.user_id,
+    fastFoodId: row.fastfood_id,
+    target: row.target,
+    allNotif: row.all_notif || [],
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+};
+
+module.exports = {
+  toIso,
+  toDate,
+  user: { toSupabase: userToSupabase, fromSupabase: userFromSupabase },
+  fastfood: { toSupabase: fastfoodToSupabase, fromSupabase: fastfoodFromSupabase },
+  menu: { toSupabase: menuToSupabase, fromSupabase: menuFromSupabase },
+  order: { toSupabase: orderToSupabase, fromSupabase: orderFromSupabase },
+  transaction: { toSupabase: transactionToSupabase, fromSupabase: transactionFromSupabase },
+  bonus: { toSupabase: bonusToSupabase, fromSupabase: bonusFromSupabase },
+  bonusRequest: { toSupabase: bonusRequestToSupabase, fromSupabase: bonusRequestFromSupabase },
+  notification: { toSupabase: notificationToSupabase, fromSupabase: notificationFromSupabase },
+};

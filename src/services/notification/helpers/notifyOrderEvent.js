@@ -1,17 +1,18 @@
-const admin = require('firebase-admin');
-const { db } = require('../../../config/firebase');
-const { postNotificationService } = require('../request/postNotification.service');
-const userService = require('../../user/userService');
+// ============================================================================
+// notifyOrderEvent — Helper de notification pour les events de commande
+// ============================================================================
+// Récupère les tokens push d'un user (FCM Android + APNs iOS), envoie la notif,
+// nettoie automatiquement les tokens stales détectés par FCM.
+// ============================================================================
 
-/**
- * Récupère les tokens push d'un utilisateur en split FCM / APNs.
- * Lit en priorité user.pushTokens (nouveau format) avec fallback legacy fcmTokens.
- */
+const repos = require('../../../repositories');
+const { postNotificationService } = require('../request/postNotification.service');
+
 const getUserTokens = async (userId) => {
   try {
-    const doc = await db.collection('users').doc(userId).get();
-    if (!doc.exists) return { fcm: [], apns: [] };
-    return userService.collectUserTokens(doc.data() || {});
+    const user = await repos.users.getUserByIdSafe(userId);
+    if (!user) return { fcm: [], apns: [] };
+    return repos.users.collectUserTokens(user);
   } catch (e) {
     console.warn('[notifyOrderEvent] getUserTokens error:', e.message);
     return { fcm: [], apns: [] };
@@ -21,19 +22,7 @@ const getUserTokens = async (userId) => {
 const cleanStaleTokens = async (userId, staleTokens) => {
   if (!staleTokens || staleTokens.length === 0) return;
   try {
-    const userRef = db.collection('users').doc(userId);
-    const snap = await userRef.get();
-    if (!snap.exists) return;
-    const data = snap.data() || {};
-    // Nettoie pushTokens (objets)
-    if (Array.isArray(data.pushTokens)) {
-      const filtered = data.pushTokens.filter((e) => e && !staleTokens.includes(e.token));
-      await userRef.update({ pushTokens: filtered });
-    }
-    // Nettoie fcmTokens legacy
-    await userRef.update({
-      fcmTokens: admin.firestore.FieldValue.arrayRemove(...staleTokens),
-    });
+    await repos.users.cleanStaleTokens(userId, staleTokens);
   } catch (e) {
     console.warn('[notifyOrderEvent] cleanStaleTokens error:', e.message);
   }
@@ -56,7 +45,6 @@ exports.notifyOrderEvent = async ({ targetUserId, type, title, body, orderId, ro
       extraFcmData,
     });
 
-    // Cleanup tokens invalides détectés lors de l'envoi
     if (result?.tokensToDelete && result.tokensToDelete.length > 0) {
       await cleanStaleTokens(targetUserId, result.tokensToDelete);
     }

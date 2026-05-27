@@ -1,21 +1,19 @@
-const { db } = require('../../../config/firebase');
+// ============================================================================
+// postNotificationService — Façade vers l'orchestrateur
+// ============================================================================
+// Logique conservée à l'identique :
+//   1. Append (ou crée) un groupe de notifications pour le user/fastfood
+//   2. Envoie push (FCM Android/Expo + APNs iOS)
+//   3. Cleanup des tokens stales détectés par FCM
+//   4. Emet socket 'newNotification' au target
+// ============================================================================
+
+const repos = require('../../../repositories');
 const { getIO } = require('../../../socket');
-const { flattenNotifications } = require('../../../utils/flattenNotifications');
 const { validateNotificationData } = require('../../../utils/validator/validateNotificationData');
 const sendPushNotification = require('../FCM/sendPushNotification.service');
-const { getNotificationService } = require('./getNotification.services');
 
-const isStaleTokenError = (result) => {
-  if (!result || result.success) return false;
-  const err = String(result.error || '');
-  if (err.includes('registration-token-not-registered')) return true;
-  if (err.includes('not a valid FCM registration token')) return true;
-  if (err.includes('DeviceNotRegistered')) return true;
-  if (err.includes('InvalidCredentials')) return false;
-  return false;
-};
-
-exports.postNotificationService = async dataGet => {
+exports.postNotificationService = async (dataGet) => {
   try {
     const { data, userId, fastFoodId, token, tokens, apnsTokens, extraFcmData = {} } = dataGet;
     const fcmTargets = Array.isArray(tokens) && tokens.length > 0
@@ -23,14 +21,20 @@ exports.postNotificationService = async dataGet => {
       : (token ? [token] : []);
     const apnsTargets = Array.isArray(apnsTokens) ? apnsTokens.filter(Boolean) : [];
 
+    if (fastFoodId && userId) {
+      return { success: false, message: 'notification ne doit pas avoir userId et fastFoodId' };
+    }
+
+    const errors = validateNotificationData(data);
+    if (errors.length > 0) {
+      console.log(`Validation échouée: ${errors.join(', ')}`);
+      return { success: false, message: errors };
+    }
+
     const sendPushToAll = async (title, body, pushData) => {
       if (fcmTargets.length === 0 && apnsTargets.length === 0) {
-        console.log('⚠️  Pas de tokens à envoyer');
         return { tokensToDelete: [] };
       }
-
-      console.log(`\n📊 Envoi push : ${fcmTargets.length} FCM/Expo + ${apnsTargets.length} APNs`);
-
       const result = await sendPushNotification({
         tokens: fcmTargets,
         apnsTokens: apnsTargets,
@@ -38,89 +42,68 @@ exports.postNotificationService = async dataGet => {
         body,
         data: pushData,
       });
-
       const tokensToDelete = result?.tokensToDelete || [];
       if (userId && tokensToDelete.length > 0) {
-        console.log(`\n🧹 ${tokensToDelete.length} token(s) stale détecté(s), nettoyage...`);
         try {
-          const { cleanStaleTokens } = require('../helpers/notifyOrderEvent');
-          await cleanStaleTokens(userId, tokensToDelete);
-          console.log('✅ Tokens stales retirés de Firestore');
+          await repos.users.cleanStaleTokens(userId, tokensToDelete);
         } catch (e) {
-          console.error('❌ Erreur lors du nettoyage:', e.message);
+          console.error('Erreur lors du nettoyage des tokens stales:', e.message);
         }
       }
       return { tokensToDelete };
     };
-    console.log(`\n📱 [postNotificationService] userId=${userId || fastFoodId}`);
-    console.log(`   Titre: "${data.title}" | Corps: "${data.body}" | Type: ${data.type}`);
 
-    // ✅ Valider les données
-    const errors = validateNotificationData(data);
-    if (errors.length > 0) {
-      console.log(`❌ Validation échouée: ${errors.join(', ')}`);
-      return { success: false, message: errors };
+    const newNotif = {
+      id: repos.notifications.generateNotifId(),
+      title: data.title,
+      body: data.body,
+      type: data.type,
+      isRead: [],
+      createdAt: new Date().toISOString(),
+    };
+
+    // Append (ou crée) le groupe de notifications
+    const target = userId ? null : (fastFoodId ? 'all' : null);
+    const groupDoc = await repos.notifications.appendNotification({
+      userId: userId || null,
+      fastFoodId: fastFoodId || null,
+      target,
+      notif: newNotif,
+    });
+
+    const baseUserNotif = {};
+    if (groupDoc.userId) baseUserNotif.userId = groupDoc.userId;
+    if (groupDoc.target) baseUserNotif.target = groupDoc.target;
+    if (groupDoc.fastFoodId) baseUserNotif.fastFoodId = groupDoc.fastFoodId;
+
+    const newUserNotif = {
+      ...baseUserNotif,
+      idGroup: groupDoc.id,
+      ...newNotif,
+      isRead: JSON.stringify(newNotif.isRead),
+    };
+
+    await sendPushToAll(newNotif.title, newNotif.body, { ...newUserNotif, ...extraFcmData });
+
+    try {
+      const io = getIO();
+      const ioTarget = userId || fastFoodId;
+      if (ioTarget) {
+        io.to(ioTarget).emit('newNotification', {
+          notification: { ...newUserNotif, ...extraFcmData },
+        });
+      }
+    } catch (e) {
+      console.error('Erreur socket:', e.message);
     }
 
-    console.log(`📊 Tokens chargés: ${targetTokens.length} token(s)`);
-
-    const response = await getNotificationService(userId || undefined, fastFoodId || undefined);
-    const newNotif = { id: db.collection('notification').doc().id, title: data.title, body: data.body, type: data.type, isRead: [], createdAt: new Date().toISOString() };
-
-    console.log(`💾 Création notif Firestore...`);
-
-    if (!response.data || response.data.length === 0) {
-      const notificationData1 = {};
-      if (fastFoodId && userId) return { success: false, message: 'notification ne doit pas avoir userId et fastFoodId' };
-
-      if (userId) notificationData1.userId = userId;
-      if (fastFoodId) notificationData1.target = 'all';
-      if (fastFoodId) notificationData1.fastFoodId = fastFoodId;
-
-      const notificationData = { ...notificationData1, updatedAt: new Date().toISOString(), allNotif: [newNotif] };
-
-      const docRef = await db.collection('notification').add(notificationData);
-      const newUserNotif = { ...notificationData1, idGroup: docRef.id, ...newNotif, isRead: JSON.stringify(newNotif.isRead) };
-
-      await sendPushToAll(newNotif.title, newNotif.body, { ...newUserNotif, ...extraFcmData });
-
-      try {
-        const io = getIO();
-        const target = userId || fastFoodId;
-        if (target) io.to(target).emit('newNotification', { notification: { ...newUserNotif, ...extraFcmData } });
-      } catch (e) {
-        console.error('❌ Erreur socket:', e.message);
-      }
-      return { success: true, data: { id: docRef.id, ...notificationData }, message: 'Notification ajoutée avec succès' };
-    } else {
-      const notifDoc = response.data[0];
-      const updatedAllNotifArray = [newNotif, ...notifDoc.allNotif];
-
-      const notificationData1 = {};
-      if (notifDoc.userId) notificationData1.userId = notifDoc.userId;
-      if (notifDoc.target) notificationData1.target = notifDoc.target;
-      if (notifDoc.fastFoodId) notificationData1.fastFoodId = notifDoc.fastFoodId;
-      notificationData1.updatedAt = new Date().toISOString();
-
-      await db.collection('notification').doc(notifDoc.id).update({ allNotif: updatedAllNotifArray, updatedAt: new Date().toISOString() });
-
-      const newUserNotif = { ...notificationData1, idGroup: notifDoc.id, ...newNotif, isRead: JSON.stringify(newNotif.isRead) };
-      await sendPushToAll(newNotif.title, newNotif.body, { ...newUserNotif, ...extraFcmData });
-
-      try {
-        const io = getIO();
-        const target = userId || fastFoodId;
-        if (target) io.to(target).emit('newNotification', { notification: { ...newUserNotif, ...extraFcmData } });
-      } catch (e) {
-        console.error('❌ Erreur socket:', e.message);
-      }
-
-      return { success: true, data: { ...notifDoc, allNotif: updatedAllNotifArray }, message: 'Notification ajoutée avec succès' };
-    }
+    return {
+      success: true,
+      data: { ...groupDoc },
+      message: 'Notification ajoutée avec succès',
+    };
   } catch (error) {
     console.error('Erreur dans postNotificationService:', error);
     return { success: false, message: error.message };
   }
 };
-
-// io.emit('newbonus', { message: 'Nouveau bonus', data: docRef });

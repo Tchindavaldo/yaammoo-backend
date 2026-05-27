@@ -1,18 +1,14 @@
-// services/order/updateOrder.js
-const { db } = require('../../config/firebase');
+// ============================================================================
+// updateOrderService — Façade vers l'orchestrateur
+// ============================================================================
+const repos = require('../../repositories');
 const { getIO } = require('../../socket');
 const { validateOrder } = require('../../utils/validator/validateOrder');
 const { getFastFoodService } = require('../fastfood/getFastFood');
 const { updateOrders } = require('./updateOrders.service');
 
 const RANKED_STATUSES = new Set(['pending', 'processing']);
-const RANK_IMPACTING = new Set([
-  'pendingToBuy',
-  'pending',
-  'processing',
-  'cancelByUser',
-  'cancelByFastFood',
-]);
+const RANK_IMPACTING = new Set(['pendingToBuy', 'pending', 'processing', 'cancelByUser', 'cancelByFastFood']);
 
 exports.updateOrderService = async (orderId, updateData) => {
   if (!orderId) return { success: false, message: 'ID de la commande est requis' };
@@ -21,17 +17,13 @@ exports.updateOrderService = async (orderId, updateData) => {
   }
 
   try {
-    const orderRef = db.collection('orders').doc(orderId);
-    const doc = await orderRef.get();
+    const prevData = await repos.orders.getById(orderId);
+    if (!prevData) return { success: false, message: 'Commande non trouvée' };
 
-    if (!doc.exists) return { success: false, message: 'Commande non trouvée' };
-
-    const prevData = doc.data();
     const prevStatus = prevData.status;
     const newStatus = updateData.status;
 
-    // If the update touches a rank-impacting status transition, delegate to
-    // updateOrders so rank assignment/reindexing runs consistently.
+    // Si transition impactant le rank, on délègue à updateOrders pour cohérence
     const isRankedTransition =
       newStatus &&
       newStatus !== prevStatus &&
@@ -49,17 +41,13 @@ exports.updateOrderService = async (orderId, updateData) => {
       return { success: true, message: result.message, data: result.data?.[0] || null };
     }
 
-    // Fallback: simple field update (no rank impact).
+    // Fallback : simple update sans rank impact
     const errors = validateOrder(updateData, false, true);
     if (errors) return { success: false, message: `Erreur de validation lors de la mise à jour de la commande: ${errors}` };
 
-    await orderRef.update({ ...updateData, updatedAt: new Date().toISOString() });
-
-    const updatedDoc = await orderRef.get();
-    const updatedOrder = { id: updatedDoc.id, ...updatedDoc.data() };
+    const updatedOrder = await repos.orders.update(orderId, updateData);
 
     const fastFood = await getFastFoodService(updatedOrder.fastFoodId);
-
     const io = getIO();
     io.to(updatedOrder.userId).emit('userOrderUpdated', { data: updatedOrder });
     if (fastFood?.userId) {
@@ -69,9 +57,6 @@ exports.updateOrderService = async (orderId, updateData) => {
     return { success: true, message: 'Commande mise à jour avec succès', data: updatedOrder };
   } catch (error) {
     console.error('Erreur dans updateOrderService:', error);
-    return {
-      success: false,
-      message: error.message || 'Erreur lors de la mise à jour de la commande',
-    };
+    return { success: false, message: error.message || 'Erreur lors de la mise à jour de la commande' };
   }
 };

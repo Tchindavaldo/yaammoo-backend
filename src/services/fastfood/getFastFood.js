@@ -1,14 +1,14 @@
-// services/order/getOrdersService.js
-const { db } = require('../../config/firebase');
+// ============================================================================
+// getFastFoodService — Façade vers l'orchestrateur
+// ============================================================================
+const repos = require('../../repositories');
 
-exports.getFastFoodService = async fastFoodId => {
+exports.getFastFoodService = async (fastFoodId) => {
   try {
-    const fastfoodDoc = await db.collection('fastfoods').doc(fastFoodId).get();
-    if (!fastfoodDoc.exists) throw new Error('Fastfood non trouvé');
-
-    return { id: fastfoodDoc.id, ...fastfoodDoc.data() };
+    const fastfood = await repos.fastfoods.getById(fastFoodId);
+    if (!fastfood) throw new Error('Fastfood non trouvé');
+    return fastfood;
   } catch (error) {
-    // console.error('Erreur dans getFastfood:', error);
     throw new Error(error.message || 'Erreur lors de la récupération du fastfood');
   }
 };

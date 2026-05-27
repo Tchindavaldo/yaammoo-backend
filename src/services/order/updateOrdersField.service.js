@@ -1,143 +1,76 @@
-// services/order/updateOrdersField.service.js
-const { db } = require('../../config/firebase');
+// ============================================================================
+// updateOrdersFieldService — Façade vers l'orchestrateur
+// ============================================================================
+// Met à jour un champ spécifique pour toutes les commandes d'un fastFood ou
+// d'un user, avec un filtrage optionnel par status.
+// ============================================================================
+
+const repos = require('../../repositories');
 const { getIO } = require('../../socket');
 const { validateOrder } = require('../../utils/validator/validateOrder');
 const { getFastFoodService } = require('../fastfood/getFastFood');
 
-/**
- * Met à jour un champ spécifique pour toutes les commandes d'un fastFood ou d'un utilisateur
- * @param {Object} params - Paramètres de mise à jour
- * @param {string} params.fastFoodId - ID du fastFood (optionnel si userId est fourni)
- * @param {string} params.userId - ID de l'utilisateur (optionnel si fastFoodId est fourni)
- * @param {string} params.fieldName - Nom du champ à mettre à jour
- * @param {any} params.fieldValue - Nouvelle valeur du champ
- * @param {string} [params.filterStatus] - Statut pour filtrer les commandes (optionnel)
- * @returns {Promise<Object>} - Résultat de l'opération
- */
-exports.updateOrdersFieldService = async params => {
+exports.updateOrdersFieldService = async (params) => {
   const { fastFoodId, userId, fieldName, fieldValue, filterStatus } = params;
 
-  // Vérification des paramètres
-  if (!fieldName) {
-    return { success: false, message: 'Le nom du champ à mettre à jour est requis' };
-  }
-
-  if (fieldValue === undefined) {
-    return { success: false, message: 'La valeur du champ à mettre à jour est requise' };
-  }
-
-  if (!fastFoodId && !userId) {
-    return { success: false, message: 'Vous devez fournir soit un fastFoodId, soit un userId' };
-  }
+  if (!fieldName) return { success: false, message: 'Le nom du champ à mettre à jour est requis' };
+  if (fieldValue === undefined) return { success: false, message: 'La valeur du champ à mettre à jour est requise' };
+  if (!fastFoodId && !userId) return { success: false, message: 'Vous devez fournir soit un fastFoodId, soit un userId' };
 
   try {
-    let query = db.collection('orders');
-
-    if (fastFoodId) {
-      query = query.where('fastFoodId', '==', fastFoodId);
-    }
-
-    if (userId) {
-      query = query.where('userId', '==', userId);
-    }
-
-    if (filterStatus) {
-      query = query.where('status', '==', filterStatus);
-    }
-
-    // Exécution de la requête
-    const snapshot = await query.get();
-
-    if (snapshot.empty) {
-      return {
-        success: true,
-        message: 'Aucune commande trouvée correspondant aux critères',
-        count: 0,
-      };
-    }
-
-    // Validation de la mise à jour pour un seul champ
-    const validationData = {};
-    validationData[fieldName] = fieldValue;
-
-    const errors = validateOrder(validationData, false, true);
-    if (errors) {
-      return {
-        success: false,
-        message: `Erreur de validation: ${errors}`,
-      };
-    }
-
-    // Mise à jour des documents
-    const batch = db.batch();
-    const updatedOrders = [];
-
-    // Pour chaque document, on fusionne les données existantes avec les nouvelles valeurs
-    snapshot.forEach(doc => {
-      const orderRef = db.collection('orders').doc(doc.id);
-      const currentData = doc.data();
-      
-      // Préparer l'objet de mise à jour
-      const updateData = {
-        updatedAt: new Date().toISOString()
-      };
-      
-      // Si le champ cible est un objet, on le fusionne avec les données existantes
-      if (fieldValue && typeof fieldValue === 'object' && !Array.isArray(fieldValue)) {
-        const currentFieldValue = currentData[fieldName] || {};
-        updateData[fieldName] = { ...currentFieldValue, ...fieldValue };
-      } else {
-        // Pour les champs simples, on écrase simplement la valeur
-        updateData[fieldName] = fieldValue;
-      }
-      
-      // Ajouter la mise à jour au batch
-      batch.update(orderRef, updateData);
-      
-      // Ajouter la commande mise à jour au tableau des résultats
-      updatedOrders.push({ ...currentData, ...updateData, id: doc.id });
+    const orders = await repos.orders.query({
+      fastFoodId,
+      userId,
+      status: filterStatus,
+      orderByCreated: null,
     });
 
-    await batch.commit();
+    if (!orders || orders.length === 0) {
+      return { success: true, message: 'Aucune commande trouvée correspondant aux critères', count: 0 };
+    }
 
-    // Notifications via socket.io
+    // Validation
+    const validationData = { [fieldName]: fieldValue };
+    const errors = validateOrder(validationData, false, true);
+    if (errors) return { success: false, message: `Erreur de validation: ${errors}` };
+
+    // Mise à jour séquentielle (compatible dual-write)
+    const updatedOrders = [];
+    for (const order of orders) {
+      let updateValue = fieldValue;
+      // Si objet : merger avec l'existant
+      if (fieldValue && typeof fieldValue === 'object' && !Array.isArray(fieldValue)) {
+        const current = order[fieldName] || {};
+        updateValue = { ...current, ...fieldValue };
+      }
+      const updated = await repos.orders.update(order.id, { [fieldName]: updateValue });
+      updatedOrders.push(updated);
+    }
+
+    // Notifications socket
     const io = getIO();
-
-    // Regroupement par fastFood pour les notifications
     const groupedByFastFood = {};
     const groupedByUser = {};
-
-    updatedOrders.forEach(order => {
-      // Grouper par fastFood
-      if (!groupedByFastFood[order.fastFoodId]) {
-        groupedByFastFood[order.fastFoodId] = [];
-      }
+    updatedOrders.forEach((order) => {
+      if (!groupedByFastFood[order.fastFoodId]) groupedByFastFood[order.fastFoodId] = [];
       groupedByFastFood[order.fastFoodId].push(order);
-
-      // Grouper par utilisateur
-      if (!groupedByUser[order.userId]) {
-        groupedByUser[order.userId] = [];
-      }
+      if (!groupedByUser[order.userId]) groupedByUser[order.userId] = [];
       groupedByUser[order.userId].push(order);
     });
 
-    // Envoyer des notifications aux fastFoods
     for (const ffId in groupedByFastFood) {
       try {
         const fastFood = await getFastFoodService(ffId);
-        if (fastFood && fastFood.userId) {
+        if (fastFood?.userId) {
           io.to(fastFood.userId).emit('fastFoodOrdersUpdated', {
             message: `Mise à jour du champ ${fieldName} pour ${groupedByFastFood[ffId].length} commandes`,
             field: fieldName,
             orders: groupedByFastFood[ffId],
           });
         }
-      } catch (err) {
-        // console.warn(`Erreur lors de l'émission pour fastFoodId ${ffId}: ${err.message}`);
-      }
+      } catch (_) { /* ignore */ }
     }
 
-    // Envoyer des notifications aux utilisateurs
     for (const uid in groupedByUser) {
       io.to(uid).emit('userOrdersUpdated', {
         message: `Mise à jour du champ ${fieldName} pour ${groupedByUser[uid].length} commandes`,
@@ -153,10 +86,6 @@ exports.updateOrdersFieldService = async params => {
       data: updatedOrders,
     };
   } catch (error) {
-    // console.error('Erreur dans updateOrdersFieldService:', error);
-    return {
-      success: false,
-      message: error.message || 'Erreur lors de la mise à jour des commandes',
-    };
+    return { success: false, message: error.message || 'Erreur lors de la mise à jour des commandes' };
   }
 };

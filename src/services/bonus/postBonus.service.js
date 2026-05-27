@@ -1,18 +1,8 @@
-const { admin, db } = require('../../config/firebase');
+// ============================================================================
+// postBonusService — Façade vers l'orchestrateur
+// ============================================================================
+const repos = require('../../repositories');
 
-exports.postBonusService = async data => {
-  // const io = getIO();
-  // const errors = validateFastfood(data);
-  // if (errors.length > 0) {
-  //   const formattedErrors = errors.map(err => `${err.field}: ${err.message}`).join(', ');
-  //   const error = new Error(`Erreur de validation: ${formattedErrors}`);
-  //   error.code = 400;
-  //   throw error;
-  // }
-  const bonusData = { ...data, createdAt: new Date().toISOString() };
-  const docRef = await db.collection('bonus').add(data);
-
-  // io.emit('newbonus', { message: 'Nouveau bonus', data: docRef });
-
-  return bonusData;
+exports.postBonusService = async (data) => {
+  return repos.bonus.create(data);
 };

@@ -1,14 +1,15 @@
-const { db } = require('../../../config/firebase');
+// ============================================================================
+// getNotificationByIdService — Façade vers l'orchestrateur
+// ============================================================================
+const repos = require('../../../repositories');
 
-exports.getNotificationByIdService = async id => {
+exports.getNotificationByIdService = async (id) => {
   try {
-    const docRef = await db.collection('notification').doc(id).get();
-    if (!docRef.exists) return { success: false, message: 'Notification non trouvée' };
-
-    const doc = { id: docRef.id, ...docRef.data() };
+    const doc = await repos.notifications.getById(id);
+    if (!doc) return { success: false, message: 'Notification non trouvée' };
     return { success: true, data: doc, message: 'Notification récupérée avec succès' };
   } catch (error) {
-    console.error('Erreur dans getNotificationService:', error);
+    console.error('Erreur dans getNotificationByIdService:', error);
     return { success: false, message: error.message };
   }
 };

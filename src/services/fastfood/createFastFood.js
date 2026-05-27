@@ -1,33 +1,32 @@
-const { admin, db } = require('../../config/firebase');
+// ============================================================================
+// createFastfoodService — Façade vers l'orchestrateur
+// ============================================================================
+const repos = require('../../repositories');
 const { getIO } = require('../../socket');
 const { validateFastfood } = require('../../utils/validator/validateFastfood');
-const { getUserById, updateUser } = require('../user/userService');
 
-exports.createFastfoodService = async data => {
+exports.createFastfoodService = async (data) => {
   const io = getIO();
   const errors = validateFastfood(data);
   if (errors.length > 0) {
-    const formattedErrors = errors.map(err => `${err.field}: ${err.message}`).join(', ');
+    const formattedErrors = errors.map((err) => `${err.field}: ${err.message}`).join(', ');
     const error = new Error(`Erreur de validation: ${formattedErrors}`);
     error.code = 400;
     throw error;
   }
-  const fastfoodData = { ...data, createdAt: new Date().toISOString() };
 
-  const existingFastFood = await db.collection('fastfoods').where('userId', '==', data.userId).get();
-  if (!existingFastFood.empty) {
+  // Vérification d'unicité par userId
+  const existing = await repos.fastfoods.getByUserId(data.userId);
+  if (existing) {
     const error = new Error('Cet utilisateur possède déjà un fastfood.');
     error.code = 400;
     throw error;
   }
 
-  const docRef = await db.collection('fastfoods').add(fastfoodData);
+  const dataFinal = await repos.fastfoods.create(data);
 
-  const user = await getUserById(fastfoodData.userId);
-  await updateUser(fastfoodData.userId, { fastFoodId: docRef.id, isMarchand: true });
+  await repos.users.updateUser(data.userId, { fastFoodId: dataFinal.id, isMarchand: true });
 
-  const dataFinal = { id: docRef.id, ...fastfoodData };
   io.emit('newFastfood', { message: 'Nouveau fastfood', fastFood: dataFinal });
-
   return dataFinal;
 };

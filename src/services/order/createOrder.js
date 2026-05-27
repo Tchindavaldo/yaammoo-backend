@@ -1,69 +1,66 @@
-const { db } = require('../../config/firebase');
+// ============================================================================
+// createOrderService — Façade vers l'orchestrateur
+// ============================================================================
+// Étapes :
+//   1. createWithStockCheck (atomique côté Supabase, séquentiel côté Firestore)
+//      → réserve un rank si pending, vérifie/décrémente le stock
+//   2. Émet socket 'globalMenuUpdated' si stock modifié
+//   3. Crée la transaction associée
+//   4. Notifie le marchand si pending
+// ============================================================================
+
+const repos = require('../../repositories');
 const { getIO } = require('../../socket');
 const { postTransactionService } = require('../transaction/postTransaction.service');
-const { reserveRank } = require('./rankQueue.service');
 const { notifyOrderEvent } = require('../notification/helpers/notifyOrderEvent');
 
-exports.createOrderService = async order => {
-  const orderData = { ...order, createdAt: new Date().toISOString() };
+exports.createOrderService = async (order) => {
+  const result = await repos.orders.createWithStockCheck(order);
 
-  if (order.status === 'pending') {
-    const deliveryDate = order.delivery?.date || new Date().toISOString().split('T')[0];
-    orderData.rank = await reserveRank({
-      fastFoodId: order.fastFoodId,
-      deliveryDate,
-      status: 'pending',
-    });
-  }
+  if (result?.error) return { error: result.error };
 
-  const orderRef = await db.collection('orders').add(orderData);
+  const createdOrder = result.order;
+  const newStock = result.newStock;
 
-  // Décrémentation du stock — uniquement pour les commandes 'pending'
-  if (order.status === 'pending' && order.menu?.id) {
-    const menuRef = db.collection('menus').doc(order.menu.id);
-    // Re-lire le stock réel en DB pour éviter les race conditions
-    const menuDoc = await menuRef.get();
-    if (menuDoc.exists) {
-      const menuData = menuDoc.data();
-      if (typeof menuData.stock === 'number') {
-        const qty = Number(order.quantity) || 1;
-        if (menuData.stock < qty) {
-          // Rollback : supprimer la commande créée
-          await db.collection('orders').doc(orderRef.id).delete();
-          return { error: `Stock insuffisant. Stock disponible : ${menuData.stock}` };
-        }
-        const newStock = menuData.stock - qty;
-        await menuRef.update({ stock: newStock, updatedAt: new Date().toISOString() });
-        // Notifier tous les appareils en temps réel
-        const io = getIO();
-        const updatedMenu = { id: menuDoc.id, ...menuData, stock: newStock };
-        io.emit('globalMenuUpdated', { message: 'Stock mis à jour', menuId: menuDoc.id, menu: updatedMenu });
+  // Socket : si stock modifié, prévenir tout le monde
+  if (typeof newStock === 'number' && order.menu?.id) {
+    try {
+      const io = getIO();
+      const fullMenu = await repos.menus.getById(order.menu.id);
+      if (fullMenu) {
+        io.emit('globalMenuUpdated', {
+          message: 'Stock mis à jour',
+          menuId: order.menu.id,
+          menu: { ...fullMenu, stock: newStock },
+        });
       }
+    } catch (e) {
+      console.warn('[createOrder] socket emit menu update failed:', e.message);
     }
   }
 
-  const transaction = {
+  // Transaction
+  await postTransactionService({
     type: 'order',
     userId: order.userId,
-    name: order.menu.name,
+    name: order.menu?.name || order.menu?.titre,
     amount: order.total,
     payBy: 'OM',
     currentAmount: 0,
-  };
+  });
 
-  await postTransactionService(transaction);
-
+  // Notification au marchand (si pending uniquement)
   if (order.status === 'pending') {
     try {
-      const fastFoodDoc = await db.collection('fastfoods').doc(order.fastFoodId).get();
-      const merchantUserId = fastFoodDoc.exists ? fastFoodDoc.data()?.userId : null;
+      const fastFood = await repos.fastfoods.getById(order.fastFoodId);
+      const merchantUserId = fastFood?.userId;
       if (merchantUserId) {
         await notifyOrderEvent({
           targetUserId: merchantUserId,
           type: 'order_new',
           title: 'Nouvelle commande',
           body: `${order.menu?.name || 'Menu'} x${order.quantity || 1} — ${order.total} FCFA`,
-          orderId: orderRef.id,
+          orderId: createdOrder.id,
           route: '/(tabs)/boutique',
         });
       }
@@ -72,5 +69,5 @@ exports.createOrderService = async order => {
     }
   }
 
-  return { id: orderRef.id, ...orderData };
+  return createdOrder;
 };

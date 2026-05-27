@@ -1,20 +1,21 @@
-const { db } = require('../../config/firebase');
+// ============================================================================
+// getBonusRequestService — Façade vers l'orchestrateur
+// ============================================================================
+const repos = require('../../repositories');
 
 exports.getBonusRequestService = async (data, id) => {
   try {
     if (data === undefined && id) {
-      const doc = await db.collection('bonusRequest').doc(id).get();
-      if (!doc.exists) return { found: false };
-      return { found: true, data: { id: doc.id, ...doc.data() } };
+      const found = await repos.bonusRequests.getById(id);
+      if (!found) return { found: false };
+      return { found: true, data: found };
     }
 
     if (id === undefined && data) {
       const { bonusId, userId, bonusType } = data;
-      const snapshot = await db.collection('bonusRequest').where('bonusId', '==', bonusId).where('userId', '==', userId).where('bonusType', '==', bonusType).limit(1).get();
-      if (snapshot.empty) return { found: false };
-
-      const doc = snapshot.docs[0];
-      return { found: true, data: { id: doc.id, ...doc.data() } };
+      const found = await repos.bonusRequests.findByUserBonus({ bonusId, userId, bonusType });
+      if (!found) return { found: false };
+      return { found: true, data: found };
     }
 
     return { found: false, error: 'Aucun paramètre valide fourni.' };
