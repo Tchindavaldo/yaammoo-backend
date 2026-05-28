@@ -19,6 +19,12 @@ exports.create = async (data) => {
   return m.bonusRequest.fromSupabase(row);
 };
 
+exports.getById = async (id) => {
+  const { data, error } = await supabase.from(TABLE).select('*').eq('id', id).maybeSingle();
+  if (error) throw error;
+  return data ? m.bonusRequest.fromSupabase(data) : null;
+};
+
 exports.getAll = async () => {
   const { data, error } = await supabase.from(TABLE).select('*');
   if (error) throw error;

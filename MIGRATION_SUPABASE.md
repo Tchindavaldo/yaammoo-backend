@@ -212,3 +212,34 @@ Chaque table a une colonne JSONB `extra_data` qui capture les champs Firestore n
 
 **Une écriture échoue en mode dual**
 → Si le primary (selon `DB_READ_FROM`) échoue, l'erreur remonte. Si le secondary échoue, c'est juste un warn dans les logs — le primary réussit quand même.
+
+---
+
+## TODO — Bugs à corriger avant la suppression complète de Firestore
+
+À tester en condition réelle dans l'app, puis corriger côté Supabase si reproduits :
+
+### RPC `reindex_queue` — notifications dupliquées
+- **Fichier** : [src/db/schema.sql](src/db/schema.sql) lignes ~310-368
+- **Symptôme** : à l'annulation d'une commande au milieu de la file, les commandes suivantes sont retournées 2× (via `WITH updated` puis `RETURN QUERY`) → notifications push envoyées en double aux clients qui changent de position.
+- **Fix** : supprimer la duplication dans le RETURN QUERY de la fonction.
+
+### RPC `append_notification` — groupes fragmentés
+- **Fichiers** : [src/db/schema.sql](src/db/schema.sql) lignes ~483-527 et [src/repositories/supabase/notifications.repo.js:62-73](src/repositories/supabase/notifications.repo.js)
+- **Symptôme** : `p_group_id` est généré côté Node à chaque appel au lieu de réutiliser le `group_id` existant du user/fastfood → un user peut accumuler N groupes au lieu d'1 seul.
+- **Fix** : faire générer le `group_id` par la fonction PL/pgSQL quand aucun groupe existant n'est trouvé.
+
+### RPC `create_order_with_stock_check` — `new_stock` absent en cas d'erreur
+- **Fichier** : [src/db/schema.sql](src/db/schema.sql) lignes ~401-474
+- **Symptôme** : quand le stock est insuffisant, le retour JSONB contient `error` mais pas `new_stock` → le frontend reçoit `newStock: undefined`.
+- **Fix** : inclure `new_stock` dans le payload d'erreur.
+
+### Read-modify-write côté Supabase (race condition possible)
+- **Fichiers** : [supabase/orders.repo.js:109-133](src/repositories/supabase/orders.repo.js), `menus.update()`, `users.saveUser()`, `fastfoods.update()`
+- **Symptôme** : `update()` fait un `getById` puis merge en mémoire → sous concurrence, deux updates parallèles peuvent perdre des champs.
+- **Fix** : faire un `UPDATE` direct sans relecture quand le payload n'a pas besoin du précédent état.
+
+### Recherche user par email — utilisateurs legacy
+- **Fichier** : [supabase/users.repo.js:153-163](src/repositories/supabase/users.repo.js)
+- **Symptôme** : Firestore stockait `infos.email` nested ; Supabase utilise la colonne plate `email`. Si la migration n'a pas dénormalisé tous les users legacy, ils ne pourront pas se reconnecter.
+- **Fix** : vérifier que tous les users migrés ont bien `email` rempli, ou ajouter un fallback de recherche.
