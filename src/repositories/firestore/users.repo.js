@@ -2,7 +2,6 @@
 // Users Repository — Firestore (wrapper sur le code existant)
 // ============================================================================
 const { db } = require('../../config/firebase');
-const admin = require('firebase-admin');
 
 const TABLE = 'users';
 
@@ -59,22 +58,8 @@ exports.saveUser = async (id, data) => {
 };
 
 exports.updateUser = async (id, data) => {
-  const { fcmToken, ...rest } = data || {};
-  const ref = db.collection(TABLE).doc(id);
-  if (Object.keys(rest).length > 0) await ref.set(rest, { merge: true });
-  if (fcmToken && typeof fcmToken === 'string') {
-    await ref.set(
-      { fcmTokens: admin.firestore.FieldValue.arrayUnion(fcmToken) },
-      { merge: true }
-    );
-  }
-};
-
-exports.removeFcmToken = async (id, token) => {
-  if (!token) return;
-  await db.collection(TABLE).doc(id).update({
-    fcmTokens: admin.firestore.FieldValue.arrayRemove(token),
-  });
+  if (!data || Object.keys(data).length === 0) return;
+  await db.collection(TABLE).doc(id).set(data, { merge: true });
 };
 
 exports.addPushToken = async (userId, { token, platform, deviceId }) => {
@@ -117,9 +102,6 @@ exports.cleanStaleTokens = async (userId, staleTokens) => {
       const filtered = data.pushTokens.filter((e) => e && !staleTokens.includes(e.token));
       await userRef.update({ pushTokens: filtered });
     }
-    await userRef.update({
-      fcmTokens: admin.firestore.FieldValue.arrayRemove(...staleTokens),
-    });
   } catch (e) {
     console.warn('[users.firestore] cleanStaleTokens error:', e.message);
   }

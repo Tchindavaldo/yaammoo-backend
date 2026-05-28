@@ -30,7 +30,7 @@ const toDate = (v) => {
 // USERS
 // ---------------------------------------------------------------------------
 const userToSupabase = (data) => {
-  const { infos = {}, fcmToken, fcmTokens, pushTokens, createdAt, updatedAt, ...rest } = data;
+  const { infos = {}, pushTokens, createdAt, updatedAt, ...rest } = data;
   const known = ['id', 'uid', 'fastFoodId', 'isMarchand', 'statistique', 'cmd'];
   const extra = {};
   for (const k of Object.keys(rest)) {
@@ -55,7 +55,7 @@ const userToSupabase = (data) => {
   };
 };
 
-const userFromSupabase = (row, pushTokens = [], fcmTokens = []) => {
+const userFromSupabase = (row, pushTokens = []) => {
   if (!row) return null;
   return {
     id: row.id,
@@ -78,7 +78,6 @@ const userFromSupabase = (row, pushTokens = [], fcmTokens = []) => {
       deviceId: t.device_id,
       lastSeen: t.last_seen,
     })),
-    fcmTokens: (fcmTokens || []).map((t) => t.token),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     ...(row.extra_data || {}),

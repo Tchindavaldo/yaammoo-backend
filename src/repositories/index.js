@@ -105,8 +105,6 @@ const users = {
     dualWrite(() => fs.users.saveUser(id, data), () => sb.users.saveUser(id, data)),
   updateUser: (id, data) =>
     dualWrite(() => fs.users.updateUser(id, data), () => sb.users.updateUser(id, data)),
-  removeFcmToken: (id, token) =>
-    dualWrite(() => fs.users.removeFcmToken(id, token), () => sb.users.removeFcmToken(id, token)),
   addPushToken: (userId, payload) =>
     dualWrite(() => fs.users.addPushToken(userId, payload), () => sb.users.addPushToken(userId, payload)),
   removePushToken: (userId, payload) =>
@@ -121,11 +119,6 @@ const users = {
         if (!e || !e.token) return;
         if (e.platform === 'ios') apns.push(e.token);
         else if (e.platform === 'android') fcm.push(e.token);
-      });
-    }
-    if (Array.isArray(userData.fcmTokens)) {
-      userData.fcmTokens.forEach((t) => {
-        if (t && !fcm.includes(t) && !apns.includes(t)) fcm.push(t);
       });
     }
     return { fcm, apns };

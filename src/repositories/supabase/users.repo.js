@@ -6,20 +6,17 @@ const m = require('../mappers');
 
 const TABLE = 'users';
 const PUSH = 'user_push_tokens';
-const FCM = 'user_fcm_tokens';
 
 const fetchUserBundle = async (userId) => {
   if (!userId) return null;
-  const [{ data: userRow, error: e1 }, { data: pushRows, error: e2 }, { data: fcmRows, error: e3 }] = await Promise.all([
+  const [{ data: userRow, error: e1 }, { data: pushRows, error: e2 }] = await Promise.all([
     supabase.from(TABLE).select('*').eq('id', userId).maybeSingle(),
     supabase.from(PUSH).select('*').eq('user_id', userId),
-    supabase.from(FCM).select('*').eq('user_id', userId),
   ]);
   if (e1) throw e1;
   if (e2) throw e2;
-  if (e3) throw e3;
   if (!userRow) return null;
-  return m.user.fromSupabase(userRow, pushRows || [], fcmRows || []);
+  return m.user.fromSupabase(userRow, pushRows || []);
 };
 
 exports.getAllUsers = async () => {
@@ -27,15 +24,11 @@ exports.getAllUsers = async () => {
   if (error) throw error;
   if (!users || users.length === 0) return [];
   const ids = users.map((u) => u.id);
-  const [{ data: pushRows }, { data: fcmRows }] = await Promise.all([
-    supabase.from(PUSH).select('*').in('user_id', ids),
-    supabase.from(FCM).select('*').in('user_id', ids),
-  ]);
+  const { data: pushRows } = await supabase.from(PUSH).select('*').in('user_id', ids);
   return users.map((row) =>
     m.user.fromSupabase(
       row,
-      (pushRows || []).filter((t) => t.user_id === row.id),
-      (fcmRows || []).filter((t) => t.user_id === row.id)
+      (pushRows || []).filter((t) => t.user_id === row.id)
     )
   );
 };
@@ -64,7 +57,7 @@ exports.saveUser = async (id, data) => {
   // Équivalent set(..., {merge:true}). On lit, on merge en mémoire, on réécrit
   // pour préserver les champs non envoyés.
   const existing = await supabase.from(TABLE).select('*').eq('id', id).maybeSingle();
-  const current = existing.data ? m.user.fromSupabase(existing.data, [], []) : { id };
+  const current = existing.data ? m.user.fromSupabase(existing.data, []) : { id };
   const merged = { ...current, ...data, id };
   const payload = m.user.toSupabase({
     ...merged,
@@ -75,24 +68,8 @@ exports.saveUser = async (id, data) => {
 };
 
 exports.updateUser = async (id, data) => {
-  const { fcmToken, ...rest } = data || {};
-
-  if (Object.keys(rest).length > 0) {
-    await exports.saveUser(id, rest);
-  }
-
-  if (fcmToken && typeof fcmToken === 'string') {
-    const { error } = await supabase
-      .from(FCM)
-      .upsert({ user_id: id, token: fcmToken }, { onConflict: 'user_id,token' });
-    if (error) throw error;
-  }
-};
-
-exports.removeFcmToken = async (id, token) => {
-  if (!token) return;
-  const { error } = await supabase.from(FCM).delete().eq('user_id', id).eq('token', token);
-  if (error) throw error;
+  if (!data || Object.keys(data).length === 0) return;
+  await exports.saveUser(id, data);
 };
 
 // ===== Push tokens multi-device =====
@@ -144,10 +121,7 @@ exports.removePushToken = async (userId, { deviceId }) => {
 
 exports.cleanStaleTokens = async (userId, staleTokens) => {
   if (!staleTokens || staleTokens.length === 0) return;
-  await Promise.all([
-    supabase.from(PUSH).delete().eq('user_id', userId).in('token', staleTokens),
-    supabase.from(FCM).delete().eq('user_id', userId).in('token', staleTokens),
-  ]);
+  await supabase.from(PUSH).delete().eq('user_id', userId).in('token', staleTokens);
 };
 
 exports.getUserByEmail = async (email) => {

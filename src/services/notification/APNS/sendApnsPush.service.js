@@ -62,8 +62,15 @@ const sendApnsPush = async ({ tokens, title, body, data = {} }) => {
     const failedTokens = [];
     response.failed.forEach((fail) => {
       const reason = fail.response?.reason || fail.error?.message || 'unknown';
-      console.error(`❌ [APNS] Échec ${fail.device.substring(0, 16)}... :`, reason);
-      if (reason === 'BadDeviceToken' || reason === 'Unregistered' || reason === 'DeviceTokenNotForTopic') {
+      const status = fail.status || fail.response?.status || 'n/a';
+      console.error(`❌ [APNS] Échec ${fail.device.substring(0, 16)}... : status=${status} reason=${reason}`);
+      if (fail.error) {
+        console.error(`   ↳ error details:`, fail.error);
+      }
+      // On ne marque comme stale QUE Unregistered (token vraiment invalide).
+      // BadDeviceToken / DeviceTokenNotForTopic peuvent être des erreurs de
+      // config (mauvais bundle, mauvais env sandbox/prod) — on ne supprime pas.
+      if (reason === 'Unregistered') {
         failedTokens.push(fail.device);
       }
     });

@@ -67,29 +67,24 @@ exports.reindexQueue = async ({ fastFoodId, deliveryDate, status, removedRank, f
     console.error('reindexQueue: socket emit failed', e.message);
   }
 
-  // Notifications push (top 5 uniquement)
-  if (updatedOrders.length <= FCM_NOTIFY_MAX_QUEUE_SIZE) {
-    try {
-      const fileLabel = status === 'pending' ? "d'attente" : 'de préparation';
-      const topOrders = updatedOrders.filter((o) => typeof o.rank === 'number' && o.rank <= 5);
-      await Promise.all(
-        topOrders.map((order) => {
-          const isFirst = order.rank === 1;
-          return notifyOrderEvent({
-            targetUserId: order.userId,
-            type: 'order_rank_top',
-            title: isFirst ? '🎉 Vous êtes le prochain !' : 'Votre commande avance',
-            body: isFirst
-              ? 'Votre commande va être traitée.'
-              : `Position ${order.rank} dans la file ${fileLabel}.`,
-            orderId: order.id,
-            route: status === 'pending' ? '/(tabs)/cart?section=pending' : '/(tabs)/cart?section=active',
-          });
+  // Notification push : uniquement aux clients qui passent en tête de file (rank=1).
+  // Les autres changements de rank ne déclenchent pas de notification — éviter le spam.
+  try {
+    const firstOrders = updatedOrders.filter((o) => o.rank === 1);
+    await Promise.all(
+      firstOrders.map((order) =>
+        notifyOrderEvent({
+          targetUserId: order.userId,
+          type: 'order_rank_top',
+          title: '🎉 Vous êtes le prochain !',
+          body: 'Votre commande va être traitée.',
+          orderId: order.id,
+          route: status === 'pending' ? '/(tabs)/cart?section=pending' : '/(tabs)/cart?section=active',
         })
-      );
-    } catch (e) {
-      console.error('reindexQueue: notification failed', e.message);
-    }
+      )
+    );
+  } catch (e) {
+    console.error('reindexQueue: notification failed', e.message);
   }
 
   return { updatedOrders };

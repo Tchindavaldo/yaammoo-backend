@@ -13,22 +13,27 @@ exports.postBonuRequestsService = async (data, totalBonus) => {
 
     const response = await getBonusRequestService(data, undefined);
 
-    const buildNotif = () => ({
-      data: {
-        title: 'Bonus',
-        body: 'votre demande de bonus a ete soumis avec success',
-        type: 'Bonus',
-      },
-      token: data.fcmToken,
-      userId: data.userId,
-    });
+    const buildNotif = async () => {
+      const user = await repos.users.getUserByIdSafe(data.userId);
+      const { fcm, apns } = user ? repos.users.collectUserTokens(user) : { fcm: [], apns: [] };
+      return {
+        data: {
+          title: 'Bonus',
+          body: 'votre demande de bonus a ete soumis avec success',
+          type: 'Bonus',
+        },
+        tokens: fcm,
+        apnsTokens: apns,
+        userId: data.userId,
+      };
+    };
 
     if (!response.found) {
       const created = await repos.bonusRequests.create({
         ...data,
         status: [{ status: 'pending', totalBonus, createdAt: new Date().toISOString() }],
       });
-      await postNotificationService(buildNotif());
+      await postNotificationService(await buildNotif());
       return { success: true, data: created, message: 'Bonus soumis avec success' };
     }
 
@@ -41,7 +46,7 @@ exports.postBonuRequestsService = async (data, totalBonus) => {
     const newStatus = { status: 'pending', totalBonus, createdAt: new Date().toISOString() };
     const updatedStatusArray = [...existingStatusArray, newStatus];
     const updated = await repos.bonusRequests.updateStatus(response.data.id, updatedStatusArray);
-    await postNotificationService(buildNotif());
+    await postNotificationService(await buildNotif());
     return { success: true, data: updated };
   } catch (error) {
     console.error('Erreur dans postBonuRequestsService:', error);

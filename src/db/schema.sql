@@ -61,16 +61,12 @@ CREATE INDEX IF NOT EXISTS idx_user_push_tokens_user ON user_push_tokens(user_id
 CREATE INDEX IF NOT EXISTS idx_user_push_tokens_token ON user_push_tokens(token);
 
 -- ============================================================================
--- TABLE: user_fcm_tokens (legacy)
+-- TABLE: user_fcm_tokens — SUPPRIMÉE
 -- ============================================================================
--- Remplace l'array users.fcmTokens[] (tokens sans métadonnées).
--- Gardée pour compatibilité avec l'ancien code.
-CREATE TABLE IF NOT EXISTS user_fcm_tokens (
-  user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  token       TEXT NOT NULL,
-  created_at  TIMESTAMPTZ DEFAULT NOW(),
-  PRIMARY KEY (user_id, token)
-);
+-- Remplacée intégralement par user_push_tokens (qui contient le device_id et
+-- la platform). Le code applicatif ne référence plus cette table.
+-- À DROP en prod après vérification :
+--   DROP TABLE IF EXISTS user_fcm_tokens;
 
 -- ============================================================================
 -- TABLE: fastfoods
@@ -313,11 +309,11 @@ CREATE OR REPLACE FUNCTION reindex_queue(
   p_status        TEXT,
   p_removed_ranks INTEGER[]
 ) RETURNS TABLE (
-  id         TEXT,
-  user_id    TEXT,
-  rank       INTEGER,
-  status     TEXT,
-  delivery   JSONB
+  out_id         TEXT,
+  out_user_id    TEXT,
+  out_rank       INTEGER,
+  out_status     TEXT,
+  out_delivery   JSONB
 ) AS $$
 DECLARE
   v_counter_id  TEXT := p_fastfood_id || '_' || p_delivery_date::text || '_' || p_status;
@@ -333,21 +329,18 @@ BEGIN
 
   -- Mise à jour des ranks : pour chaque commande, décrémenter du nombre
   -- de ranks supprimés qui sont strictement inférieurs au rank courant.
-  WITH updated AS (
-    UPDATE orders o
-       SET rank = o.rank - (
-             SELECT COUNT(*) FROM unnest(v_sorted) r WHERE r < o.rank
-           ),
-           updated_at = NOW()
-     WHERE o.fastfood_id = p_fastfood_id
-       AND o.status = p_status
-       AND o.delivery_date = p_delivery_date
-       AND o.rank IS NOT NULL
-       AND o.rank > v_sorted[1]
-       AND (SELECT COUNT(*) FROM unnest(v_sorted) r WHERE r < o.rank) > 0
-    RETURNING o.id, o.user_id, o.rank, o.status, o.delivery
-  )
-  SELECT * FROM updated;
+  -- On retourne directement les commandes mises à jour (une seule fois).
+  UPDATE orders o
+     SET rank = o.rank - (
+           SELECT COUNT(*) FROM unnest(v_sorted) r WHERE r < o.rank
+         ),
+         updated_at = NOW()
+   WHERE o.fastfood_id = p_fastfood_id
+     AND o.status = p_status
+     AND o.delivery_date = p_delivery_date
+     AND o.rank IS NOT NULL
+     AND o.rank > v_sorted[1]
+     AND (SELECT COUNT(*) FROM unnest(v_sorted) r WHERE r < o.rank) > 0;
 
   -- Décrémenter le compteur de la file (mais jamais en dessous de 0)
   UPDATE rank_counters
@@ -355,9 +348,11 @@ BEGIN
          updated_at = NOW()
    WHERE id = v_counter_id;
 
+  -- Retourner les commandes encore présentes dans la file à partir du
+  -- premier rank affecté, pour que Node puisse notifier les clients.
   RETURN QUERY
-    SELECT o.id, o.user_id, o.rank, o.status, o.delivery
-      FROM orders o
+    SELECT o.id::TEXT, o.user_id::TEXT, o.rank::INTEGER, o.status::TEXT, o.delivery::JSONB
+      FROM orders AS o
      WHERE o.fastfood_id = p_fastfood_id
        AND o.status = p_status
        AND o.delivery_date = p_delivery_date

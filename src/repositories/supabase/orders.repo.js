@@ -172,13 +172,13 @@ exports.reindexQueue = async ({ fastFoodId, deliveryDate, status, removedRanks }
     p_removed_ranks: cleaned,
   });
   if (error) throw error;
-  // data: tableau de { id, user_id, rank, status, delivery }
+  // data: tableau de { out_id, out_user_id, out_rank, out_status, out_delivery }
   return (data || []).map((row) => ({
-    id: row.id,
-    userId: row.user_id,
-    rank: row.rank,
-    status: row.status,
-    delivery: row.delivery,
+    id: row.out_id,
+    userId: row.out_user_id,
+    rank: row.out_rank,
+    status: row.out_status,
+    delivery: row.out_delivery,
   }));
 };
 
