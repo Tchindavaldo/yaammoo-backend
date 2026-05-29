@@ -96,3 +96,27 @@ exports.getUserByPhone = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+// Suppression complète du compte (RGPD / Apple Guideline 5.1.1(v))
+exports.deleteOwnAccount = async (req, res) => {
+  try {
+    const uid = req.user?.uid;
+    if (!uid) {
+      return res.status(401).json({ success: false, error: 'Utilisateur non authentifié' });
+    }
+
+    const result = await userService.deleteUserAccount(uid);
+
+    res.status(200).json({
+      success: true,
+      message: 'Votre compte et toutes vos données ont été supprimés.',
+      data: result,
+    });
+  } catch (error) {
+    console.error('❌ [DELETE-OWN-ACCOUNT] Erreur:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+};

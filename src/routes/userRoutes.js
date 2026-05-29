@@ -1,9 +1,26 @@
 // src/routes/userRoutes.js
 const express = require('express');
-const { getUsers, getOneUserByIdController, createUser, updateUser, getUserByEmail, getUserByPhone, addPushToken, removePushToken } = require('../controllers/user/userController');
+const { getUsers, getOneUserByIdController, createUser, updateUser, getUserByEmail, getUserByPhone, addPushToken, removePushToken, deleteOwnAccount } = require('../controllers/user/userController');
 const firebaseAuth = require('../middlewares/authMiddleware');
 
 const router = express.Router();
+
+/**
+ * @swagger
+ * /user/delete-account:
+ *   delete:
+ *     summary: Supprimer définitivement son propre compte (RGPD / Apple 5.1.1(v))
+ *     tags:
+ *       - Users
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Compte supprimé
+ *       401:
+ *         description: Non authentifié
+ */
+router.delete('/delete-account', firebaseAuth, deleteOwnAccount);
 
 /**
  * @swagger
