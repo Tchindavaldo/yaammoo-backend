@@ -4,6 +4,7 @@ const router = express.Router();
 const { getTransactions, getTransactionById } = require('../controllers/transaction/getTransaction.controller');
 const { postTransactionController } = require('../controllers/transaction/postTransaction.controller');
 const { updateTransactionController } = require('../controllers/transaction/updateTransaction.controller');
+const { webhookMobilewalletController } = require('../controllers/transaction/webhookMobilewallet.controller');
 
 /**
  * @swagger
@@ -161,5 +162,11 @@ router.get('/:id', getTransactionById);
  *         description: Transaction not found
  */
 router.put('/:id', updateTransactionController);
+
+// Webhook entrant ai_browser2 (raw body pour HMAC)
+router.post('/webhook/mobilewallet',
+  express.raw({ type: 'application/json' }),
+  webhookMobilewalletController
+);
 
 module.exports = router;
