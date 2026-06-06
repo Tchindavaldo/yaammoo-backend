@@ -18,7 +18,7 @@ exports.getAllUsers = async () => {
   return snapshot.docs.map((doc) => {
     const rawData = doc.data();
     const uid = rawData.uid || rawData.infos?.uid || doc.id;
-    return { id: doc.id, uid, ...rawData };
+    return { id: doc.id, uid, ...rawData, isMarchand: !!rawData.fastFoodId };
   });
 };
 
@@ -27,7 +27,7 @@ exports.getUserById = async (id) => {
   if (!doc.exists) throw new Error(`Aucun utilisateur trouvé avec l'ID : ${id}`);
   const rawData = doc.data();
   const uid = rawData.uid || rawData.infos?.uid || doc.id;
-  return { id: doc.id, uid, ...rawData };
+  return { id: doc.id, uid, ...rawData, isMarchand: !!rawData.fastFoodId };
 };
 
 exports.getUserByIdSafe = async (id) => {
@@ -35,7 +35,7 @@ exports.getUserByIdSafe = async (id) => {
   if (!doc.exists) return null;
   const rawData = doc.data();
   const uid = rawData.uid || rawData.infos?.uid || doc.id;
-  return { id: doc.id, uid, ...rawData };
+  return { id: doc.id, uid, ...rawData, isMarchand: !!rawData.fastFoodId };
 };
 
 exports.createUser = async (data) => {

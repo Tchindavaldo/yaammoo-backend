@@ -69,7 +69,7 @@ const userFromSupabase = (row, pushTokens = []) => {
       password: row.password,
     },
     fastFoodId: row.fastfood_id,
-    isMarchand: row.is_marchand,
+    isMarchand: !!row.fastfood_id,
     statistique: row.statistique,
     cmd: row.cmd || [],
     pushTokens: (pushTokens || []).map((t) => ({
