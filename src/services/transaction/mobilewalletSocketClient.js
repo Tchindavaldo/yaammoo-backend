@@ -120,7 +120,7 @@ function initMobileWalletSocket() {
 
       // Traiter via le service (idempotence garantie)
       log.info(`${logPrefix} → Appel webhookMobilewalletService...`);
-      await webhookMobilewalletService(webhookPayload);
+      await webhookMobilewalletService(webhookPayload, 'socket');
       log.info(`${logPrefix} ✓ Événement traité`);
     } catch (error) {
       log.error(`${logPrefix} ❌ Erreur traitement: ${error.message}`, error);

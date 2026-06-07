@@ -19,7 +19,7 @@ const log = console;
  *   4. Émettre socket au client + créer commande si succès
  *   5. Log de fin
  */
-exports.webhookMobilewalletService = async (payload) => {
+exports.webhookMobilewalletService = async (payload, source = 'webhook') => {
   const { type, data } = payload;
   const { transaction_id, status, end_user_ref, amount } = data;
 
@@ -49,16 +49,16 @@ exports.webhookMobilewalletService = async (payload) => {
 
     const reserved = await repos.transactions.reserveSettlement(
       transaction_id,
-      'webhook', // ← marque que c'est le webhook qui l'a traité
+      source, // ← 'webhook' ou 'socket' selon la source
       status
     );
 
     if (!reserved) {
-      log.warn(`${logPrefix} ✓ Verdict déjà traité par socket (ou un autre webhook) → skip`);
+      log.warn(`${logPrefix} ✓ Verdict déjà traité par ${source === 'socket' ? 'webhook' : 'socket'} → skip`);
       return;
     }
 
-    log.info(`${logPrefix} ✓ Réservation réussie (webhook = premier chemin)`);
+    log.info(`${logPrefix} ✓ Réservation réussie (${source} = premier chemin)`);
 
     // ========================================================================
     // TRAITEMENT DU VERDICT

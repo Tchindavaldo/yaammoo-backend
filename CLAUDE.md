@@ -175,7 +175,7 @@ try {
 
 ```javascript
 // ✅ BON
-const url = process.env.BACKEND_URL || 'http://localhost:5000';
+const url = process.env.BACKEND_URL;
 
 // ❌ MAUVAIS
 const url = 'http://localhost:5000'; // hardcodé!

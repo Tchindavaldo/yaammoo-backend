@@ -13,7 +13,7 @@ const mobilewalletClient = axios.create({
   baseURL: MOBILEWALLET_URL,
   timeout: 30000,
   headers: {
-    'Authorization': `Bearer ${MOBILEWALLET_YAAMMOO_KEY}`,
+    Authorization: `Bearer ${MOBILEWALLET_YAAMMOO_KEY}`,
     'Content-Type': 'application/json',
   },
 });
@@ -40,7 +40,7 @@ exports.pay = async ({ amount, phone, network, email, mode, userId }) => {
   const finalMode = mode || 'replay';
 
   // Construire l'URL du callback webhook (depuis env)
-  const backendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
+  const backendUrl = process.env.BACKEND_URL;
   const callbackUrl = `${backendUrl}/transaction/webhook/mobilewallet`;
 
   const logPrefix = `[MobileWallet API] ${network} amount=${amount}`;
@@ -56,9 +56,7 @@ exports.pay = async ({ amount, phone, network, email, mode, userId }) => {
       callback_url: callbackUrl,
     };
 
-    log.info(
-      `${logPrefix} → POST ${MOBILEWALLET_URL}/pay (timeout=30s, userId=${userId}, phone=${phone})`
-    );
+    log.info(`${logPrefix} → POST ${MOBILEWALLET_URL}/pay (timeout=30s, userId=${userId}, phone=${phone})`);
     log.debug(`${logPrefix} Payload:`, JSON.stringify(payload, null, 2));
 
     const startTime = Date.now();
@@ -67,9 +65,7 @@ exports.pay = async ({ amount, phone, network, email, mode, userId }) => {
 
     const { success, status, transaction_id, message, code } = response.data;
 
-    log.info(
-      `${logPrefix} ✓ HTTP ${response.status} reçu en ${duration}ms: status=${status}, tx_id=${transaction_id}`
-    );
+    log.info(`${logPrefix} ✓ HTTP ${response.status} reçu en ${duration}ms: status=${status}, tx_id=${transaction_id}`);
     log.debug(`${logPrefix} Réponse complète:`, JSON.stringify(response.data, null, 2));
 
     return {
@@ -83,9 +79,7 @@ exports.pay = async ({ amount, phone, network, email, mode, userId }) => {
     const status = error.response?.status;
     const data = error.response?.data;
 
-    log.error(
-      `${logPrefix} ❌ Erreur HTTP ${status || 'UNKNOWN'}: ${error.message}`
-    );
+    log.error(`${logPrefix} ❌ Erreur HTTP ${status || 'UNKNOWN'}: ${error.message}`);
 
     if (error.response) {
       log.error(`${logPrefix} Réponse erreur:`, JSON.stringify(data, null, 2));
