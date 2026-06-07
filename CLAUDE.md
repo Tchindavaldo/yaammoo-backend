@@ -25,17 +25,21 @@ Ne lance un agent Explore que si tu cherches quelque chose d'ultra-précis intro
 L'architecture doit rester **propre, moderne, modulaire**. Règles non négociables :
 
 ### Taille de fichier
+
 - **Viser ~400 lignes, 500 = plafond DUR**
 - Au-delà de 500, découper obligatoirement (un service par domaine métier, pas de fourre-tout)
 
 ### Responsabilités claires
+
 - **Controllers** : validation HTTP + transformation requête → service
 - **Services** : orchestration logique métier + appels repos (jamais DB direct)
 - **Repositories** : accès DB abstrait, implémentations Firestore/Supabase interchangeables
 - **Mappers** : conversions Firestore ↔ Supabase (dans `repositories/mappers.js`)
 
 ### Features isolées
+
 Chaque domaine (users, merchants, orders, payments, notifications) :
+
 - Controllers séparés
 - Services séparés
 - Routes séparées
@@ -56,11 +60,13 @@ const user = await db.collection('users').doc(id).get();
 ```
 
 **DB Provider** :
+
 - Variable d'env `DB_PROVIDER` : `'firestore'` ou `'supabase'`
 - `repositories/index.js` route vers la bonne implémentation
 - Mappers convertissent automatiquement en read/write
 
 **Mappers** (`repositories/mappers.js`) :
+
 - `user.toSupabase()` : Firestore → Supabase (camelCase → snake_case, etc.)
 - `user.fromSupabase()` : Supabase → Firestore (reverse)
 - **Logique métier calculée ici** : ex. `isMarchand: !!fastfood_id` (jamais stocké)
@@ -73,17 +79,19 @@ const user = await db.collection('users').doc(id).get();
 
 ```javascript
 // ❌ MAUVAIS : retourner le champ stocké
-isMarchand: row.is_marchand
+isMarchand: row.is_marchand;
 
 // ✅ BON : calculer basé sur fastFoodId
-isMarchand: !!row.fastfood_id
+isMarchand: !!row.fastfood_id;
 ```
 
 **Où appliquer** :
+
 - `repositories/firestore/users.repo.js` : line 30, 38, 21 (getUserById, getUserByIdSafe, getAllUsers)
 - `repositories/mappers.js` (userFromSupabase) : line 72
 
 **Résultat** :
+
 - Ancien compte avec fastFoodId mais `isMarchand: false` stocké → reconnu comme marchand ✅
 - Nouveau compte sans fastFoodId → `isMarchand: false` ✅
 - Boutique créée → `fastFoodId` assigné → `isMarchand: true` instantanément ✅
@@ -102,13 +110,15 @@ isMarchand: !!row.fastfood_id
 ## Authentication & Authorization
 
 **Middleware** : `firebaseAuth` (src/middlewares/authMiddleware.js)
+
 - Valide Bearer token Firebase → extrait `req.user.uid`
 - Routes protected : ajouter `firebaseAuth` en paramètre du router
 
 **Example** :
+
 ```javascript
-router.post('/user', firebaseAuth, createUser);  // Protected
-router.get('/user/:id', getOneUserByIdController);  // Public (TODO: protect?)
+router.post('/user', firebaseAuth, createUser); // Protected
+router.get('/user/:id', getOneUserByIdController); // Public (TODO: protect?)
 ```
 
 ---
@@ -116,11 +126,13 @@ router.get('/user/:id', getOneUserByIdController);  // Public (TODO: protect?)
 ## Socket.io & Realtime
 
 **Rooms** :
+
 - `app:<appId>` : broadcast à toute l'app (système)
 - `user:<userId>` : notifications/commandes pour UN utilisateur
 - `fastfood:<fastFoodId>` : commandes reçues par UN marchand
 
 **Événements clés** :
+
 - `payment.settled` : verdict paiement (broadcast user room)
 - `order.status_changed` : statut commande (broadcast concernés)
 - `newFastfoodOrders` : nouvelle(s) commande(s) (broadcast fastfood room)
@@ -133,10 +145,12 @@ Voir `architecture/socket-events.md` pour la liste complète.
 ## Validation & Erreurs
 
 **Validation** : `src/utils/validator/` — chaque domaine a son validateur
+
 - Lancer les validates AVANT logique métier
 - Retourner 400 + message clair si validation échoue
 
 **Erreurs**:
+
 ```javascript
 try {
   // logique
@@ -149,19 +163,26 @@ try {
 
 ---
 
-## Payments & MobileWallet
+## Variables d'environnement
 
-**Clé API** :
-- Variable d'env `MOBILEWALLET_API_KEY`
-- Jamais exposée au frontend
-- Tous les appels `/payment` passent par ce backend
+**Règle d'or:**
 
-**Numéros** :
-- **Payment number** : Généré par MobileWallet (unique par transaction)
-- **OM number** : Numéro Orange Money du marchand (static, dans fastfood)
-- **Livraison number** : (TODO : clarifier)
+- Besoin d'une valeur? Soit elle est dans `.env`, soit tu l'ajoutes dans `.env`
+- **JAMAIS** de valeurs en dur dans le code (URLs, clés, secrets, etc.)
+- Toujours utiliser `process.env.VAR_NAME`
 
-Voir `architecture/payment.md` pour le flux complet.
+**Exemple:**
+
+```javascript
+// ✅ BON
+const url = process.env.BACKEND_URL || 'http://localhost:5000';
+
+// ❌ MAUVAIS
+const url = 'http://localhost:5000'; // hardcodé!
+const url = process.env.BACKEND_URL || 'http://localhost:5000';
+```
+
+Voir `.env` pour la liste complète des variables.
 
 ---
 
@@ -180,6 +201,7 @@ Toujours préfixer selon la nature :
 ## Documentation
 
 Après toute modif des services/routes/features, **mettre à jour** :
+
 - `architecture/README.md` : index + patterns clés
 - `architecture/<feature>.md` : routes, structures, flux, services
 
@@ -193,40 +215,6 @@ Après toute modif des services/routes/features, **mettre à jour** :
 - **Webhooks** : Tester MobileWallet avec sandbox keys
 
 ---
-
-## MobileWallet Integration (IMPORTANT)
-
-**Endpoint `/pay` DOIT envoyer à MobileWallet:**
-- Les 5 champs de base: `amount`, `phone`, `network`, `email`, `mode`
-- **`end_user_ref`**: l'ID du user (depuis `/transaction`)
-  - MobileWallet le retourne dans le verdict Socket.io
-  - Permet de retrouver le user quand le webhook arrive
-- **`callback_url`**: l'URL où MobileWallet envoie le webhook HTTP
-  - Construite depuis `process.env.BACKEND_URL`
-  - Format: `${BACKEND_URL}/transaction/webhook/mobilewallet`
-
-**Variables d'env requises:**
-```env
-BACKEND_URL=http://localhost:5000  # (ou domaine prod)
-MOBILEWALLET_URL=http://localhost:7332
-MOBILEWALLET_YAAMMOO_KEY=sk_test_...
-MOBILEWALLET_WEBHOOK_SECRET=7Cm_rR-...
-```
-
-**Ne pas inventer de nouvelles URLs!** Utiliser toujours `process.env.BACKEND_URL` pour les callbacks.
-
----
-
-## Secrets & Configuration
-
-- `.env` est gitignoré, ne jamais commiter
-- Configuration centralisée : `src/config/` (firebase, supabase, multer, swagger, db provider)
-- Variables d'env clés :
-  - `DB_PROVIDER` : 'firestore' ou 'supabase'
-  - `FIREBASE_PROJECT_ID`, `FIREBASE_PRIVATE_KEY`, etc.
-  - `SUPABASE_URL`, `SUPABASE_KEY`
-  - `BACKEND_URL` : URL du backend (pour webhooks, callbacks)
-  - `MOBILEWALLET_URL`, `MOBILEWALLET_YAAMMOO_KEY`, `MOBILEWALLET_WEBHOOK_SECRET`
 
 ---
 
