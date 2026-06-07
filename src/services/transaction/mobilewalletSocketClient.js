@@ -7,7 +7,7 @@ let mobilewalletSocket = null;
 let reconnectTimer = null;
 
 const MOBILEWALLET_URL = process.env.MOBILEWALLET_URL || 'http://localhost:7332';
-const MOBILEWALLET_ADMIN_KEY = process.env.MOBILEWALLET_ADMIN_KEY;
+const MOBILEWALLET_YAAMMOO_KEY = process.env.MOBILEWALLET_YAAMMOO_KEY;
 
 /**
  * Initialiser la connexion Socket.io vers MobileWallet en tant que client.
@@ -24,17 +24,17 @@ function initMobileWalletSocket() {
     return;
   }
 
-  if (!MOBILEWALLET_ADMIN_KEY) {
-    log.warn('⚠️ MOBILEWALLET_ADMIN_KEY non configurée. Les événements Socket de MobileWallet ne seront pas reçus.');
+  if (!MOBILEWALLET_YAAMMOO_KEY) {
+    log.warn('⚠️ MOBILEWALLET_YAAMMOO_KEY non configurée. Les événements Socket de MobileWallet ne seront pas reçus.');
     return;
   }
 
   log.info(`[MobileWallet Socket] Initialisation connexion vers ${MOBILEWALLET_URL}`);
-  log.info(`[MobileWallet Socket] Auth avec MOBILEWALLET_ADMIN_KEY: ${MOBILEWALLET_ADMIN_KEY.substring(0, 15)}...`);
+  log.info(`[MobileWallet Socket] Auth avec Bearer token: ${MOBILEWALLET_YAAMMOO_KEY.substring(0, 15)}...`);
 
   mobilewalletSocket = io(MOBILEWALLET_URL, {
     auth: {
-      token: MOBILEWALLET_ADMIN_KEY,
+      token: MOBILEWALLET_YAAMMOO_KEY,
     },
     reconnection: true,
     reconnectionDelay: 1000,

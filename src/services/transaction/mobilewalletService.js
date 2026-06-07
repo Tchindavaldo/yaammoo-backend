@@ -3,17 +3,17 @@ const axios = require('axios');
 const log = console;
 
 const MOBILEWALLET_URL = process.env.MOBILEWALLET_URL || 'http://localhost:7332';
-const MOBILEWALLET_ADMIN_KEY = process.env.MOBILEWALLET_ADMIN_KEY;
+const MOBILEWALLET_YAAMMOO_KEY = process.env.MOBILEWALLET_YAAMMOO_KEY;
 
-if (!MOBILEWALLET_ADMIN_KEY) {
-  log.warn('⚠️ MOBILEWALLET_ADMIN_KEY non configurée. Les paiements Mobile Money échoueront.');
+if (!MOBILEWALLET_YAAMMOO_KEY) {
+  log.warn('⚠️ MOBILEWALLET_YAAMMOO_KEY non configurée. Les paiements Mobile Money échoueront.');
 }
 
 const mobilewalletClient = axios.create({
   baseURL: MOBILEWALLET_URL,
   timeout: 30000,
   headers: {
-    'X-Admin-Key': MOBILEWALLET_ADMIN_KEY,
+    'Authorization': `Bearer ${MOBILEWALLET_YAAMMOO_KEY}`,
     'Content-Type': 'application/json',
   },
 });
