@@ -204,6 +204,18 @@ const transactions = {
   getByUser: (userId) =>
     read(() => fs.transactions.getByUser(userId), () => sb.transactions.getByUser(userId)),
   create: (data) => dualWrite(() => fs.transactions.create(data), () => sb.transactions.create(data)),
+
+  // Idempotence webhook + socket
+  reserveSettlement: (txId, settledBy, status) =>
+    dualWrite(
+      () => fs.transactions.reserveSettlement(txId, settledBy, status),
+      () => sb.transactions.reserveSettlement(txId, settledBy, status)
+    ),
+  getSettlement: (txId) =>
+    read(
+      () => fs.transactions.getSettlement(txId),
+      () => sb.transactions.getSettlement(txId)
+    ),
 };
 
 // ===========================================================================

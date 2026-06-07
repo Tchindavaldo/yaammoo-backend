@@ -27,3 +27,49 @@ exports.getByUser = async (userId) => {
     .get();
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 };
+
+// ===== Idempotence (Webhook + Socket) =====
+
+/**
+ * Réserve le règlement d'une transaction (atomique via Firestore transaction).
+ * Retourne true si cette entrée a été créée (c'est le premier chemin).
+ * Retourne false si déjà présent (l'autre chemin a déjà traité).
+ */
+exports.reserveSettlement = async (transactionId, settledBy, status) => {
+  const settlementRef = db.collection('transactionSettlements').doc(transactionId);
+
+  return db.runTransaction(async (t) => {
+    const snap = await t.get(settlementRef);
+    if (snap.exists) {
+      // Déjà réglée par l'autre chemin
+      return false;
+    }
+    // Première fois → créer
+    t.set(settlementRef, {
+      transactionId,
+      settledBy,
+      status,
+      settledAt: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+    });
+    return true;
+  });
+};
+
+/**
+ * Récupère le statut de règlement d'une transaction.
+ * Retourne { settledBy, status, settledAt } ou null si pas encore réglée.
+ */
+exports.getSettlement = async (transactionId) => {
+  const snap = await db
+    .collection('transactionSettlements')
+    .doc(transactionId)
+    .get();
+  if (!snap.exists) return null;
+  const data = snap.data();
+  return {
+    settledBy: data.settledBy,
+    status: data.status,
+    settledAt: data.settledAt,
+  };
+};

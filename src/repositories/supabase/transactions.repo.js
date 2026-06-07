@@ -34,3 +34,46 @@ exports.getByUser = async (userId) => {
   if (error) throw error;
   return (data || []).map(m.transaction.fromSupabase);
 };
+
+// ===== Idempotence (Webhook + Socket) =====
+
+/**
+ * Réserve le règlement d'une transaction (atomique).
+ * Retourne true si cette entrée a été créée (c'est le premier chemin).
+ * Retourne false si déjà présent (l'autre chemin a déjà traité).
+ * Idempotent: ne crée qu'UNE FOIS même si appelé 2 fois.
+ */
+exports.reserveSettlement = async (transactionId, settledBy, status) => {
+  const { data, error } = await supabase
+    .from('transaction_settlements')
+    .insert({ transaction_id: transactionId, settled_by: settledBy, status })
+    .select()
+    .single();
+
+  // Succès = insertion réussie = c'est le premier chemin
+  if (!error) return true;
+
+  // Erreur 23505 = UNIQUE violation (déjà existe)
+  // → l'autre chemin a déjà traité, skip
+  if (error.code === '23505') {
+    return false;
+  }
+
+  // Autre erreur → lance l'exception
+  throw error;
+};
+
+/**
+ * Récupère le statut de règlement d'une transaction.
+ * Retourne { settled_by, status, settled_at } ou null si pas encore réglée.
+ */
+exports.getSettlement = async (transactionId) => {
+  const { data, error } = await supabase
+    .from('transaction_settlements')
+    .select('settled_by, status, settled_at')
+    .eq('transaction_id', transactionId)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
+};
