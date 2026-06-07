@@ -55,7 +55,17 @@ exports.webhookMobilewalletController = async (req, res) => {
     }
 
     // Récupérer le raw body (string, pas JSON parsé)
-    const rawBody = req.rawBody || Buffer.from(req.body).toString();
+    let rawBody;
+    if (req.rawBody) {
+      // Si express.raw() a capturé le body brut (Buffer)
+      rawBody = typeof req.rawBody === 'string' ? req.rawBody : req.rawBody.toString();
+    } else if (typeof req.body === 'string') {
+      // Si le body est déjà une string
+      rawBody = req.body;
+    } else {
+      // Si le body est un objet JSON, le convertir en string
+      rawBody = JSON.stringify(req.body);
+    }
 
     // Recalculer HMAC
     log.debug(`${logPrefix} Calcul HMAC: ts=${ts}, rawBody length=${rawBody.length}`);

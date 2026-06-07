@@ -34,7 +34,11 @@ const mobilewalletClient = axios.create({
  * @param {string} params.userId - uid Firebase de l'utilisateur
  * @returns {Promise<{success, status, transaction_id, message, code}>}
  */
-exports.pay = async ({ amount, phone, network, email, userId }) => {
+exports.pay = async ({ amount, phone, network, email, mode, userId }) => {
+  // Valeurs par défaut (peuvent être overridées par le frontend)
+  const finalEmail = email || 'yaammoo@rauval.com';
+  const finalMode = mode || 'replay';
+
   const logPrefix = `[MobileWallet API] ${network} amount=${amount}`;
 
   try {
@@ -42,12 +46,8 @@ exports.pay = async ({ amount, phone, network, email, userId }) => {
       amount,
       phone,
       network,
-      email,
-      sender_name: 'Yaammoo',
-      aggregator: 'digikuntz',
-      mode: 'auto',
-      fallback_browser: true,
-      end_user_ref: userId,
+      email: finalEmail,
+      mode: finalMode,
     };
 
     log.info(

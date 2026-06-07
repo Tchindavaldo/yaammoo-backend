@@ -88,17 +88,26 @@ Transaction {
 
 ## Services & Repositories
 
-**postTransactionService.js** (ou `transactionService.js`)
-- `createTransaction(data)` — crée + met à jour balance
-- `getTransactions(userId)` — historique user
-- `updateTransaction(id, updates)` — change statut
-- `calculateBalance(userId)` — solde actuel
+**postTransactionService.js**
+- `createTransaction(data)` — crée transaction + appelle MobileWallet si `payBy === 'mobilemoney'`
+- `getMwTransactionMap()` — mappe `mw_transaction_id` → `userId` pour webhook
+
+**mobilewalletService.js**
+- `pay({ amount, phone, network, email, mode })` — appelle POST /pay sur MobileWallet
+
+**webhookMobilewalletService.js**
+- `webhookMobilewalletService(payload)` — traite verdict + émet socket
+
+**mobilewalletSocketClient.js**
+- `initMobileWalletSocket()` — connexion Socket.io vers MobileWallet
+- Écoute `transaction.update` → appelle webhookMobilewalletService
 
 **repos.transactions** : Implémentés Firestore/Supabase
 - `create(data)`
 - `getById(id)`
 - `getByUserId(userId)`
 - `update(id, data)`
+- `reserveSettlement(tx_id, source, status)` — atomique idempotence
 
 ---
 
@@ -123,24 +132,81 @@ Backend appelle MobileWallet /pay
   ├─→ Réponse immédiate: status=ussd_sent, transaction_id
   │   (Frontend reçoit et affiche code USSD)
   │
-  └─→ MobileWallet envoie verdict via 2 CANAUX:
-      1. Socket.IO (push temps réel)
-      2. Webhook HTTP (callback signé)
+  └─→ MobileWallet envoie verdict via 2 CANAUX EN PARALLÈLE:
+      
+      CANAL 1: Socket.IO (push temps réel)
+      ────────────────────────────────────
+      • Backend = client Socket.io (connecté à MobileWallet)
+      • Écoute événement 'transaction.update' sur room app:{app_id}
+      • Payload:
+        {
+          "type": "transaction.successful",
+          "data": {
+            "transaction_id": "...",
+            "status": "successful|failed|cancelled",
+            "end_user_ref": "user_id",
+            "amount": 10000,
+            ...
+          }
+        }
+      
+      CANAL 2: Webhook HTTP (callback signé)
+      ───────────────────────────────────────
+      • POST /transaction/webhook/mobilewallet
+      • Header: X-MobileWallet-Signature: t=<ts>,v1=<hmac>
+      • Payload: {type, data} (même format Socket.io)
       
       Les deux arrivent asynchronement (ordre aléatoire!)
       ↓
       IDEMPOTENCE GARANTIE:
       - Réservation atomique dans BD (transactionSettlements)
-      - Un seul chemin (socket OU webhook) traite le verdict
-      - L'autre voit "déjà traité" et s'abstient
+      - Un seul chemin (Socket.IO OU Webhook HTTP) traite le verdict
+      - L'autre voit "déjà traité" (UNIQUE constraint) et s'abstient
       ↓
-POST /transaction/webhook/mobilewallet (ou Socket.IO)
+webhookMobilewalletService() — Traitement du verdict (idempotent)
   ↓
-Service valide signature HMAC, réserve verdict
-  ↓
-Émet Socket "payment.settled" au client
+Émet Socket "payment.settled" au client (room user:{userId})
   ↓
 Frontend redirige vers /orders, affiche succès/échec
+```
+
+---
+
+## Backend comme Client Socket.io (MobileWallet)
+
+**Fichier:** `src/services/transaction/mobilewalletSocketClient.js`
+
+Le backend yaammoo se connecte **en tant que client** à MobileWallet via Socket.io pour recevoir les verdicts de paiement en temps réel.
+
+### Flux de connexion
+
+1. **Initialisation** (`server.js` au démarrage)
+   - `initMobileWalletSocket()` crée une connexion Socket.io
+   - Auth : header `auth: { token: MOBILEWALLET_API_KEY }`
+   - Target : `MOBILEWALLET_SOCKET_URL` (env var)
+
+2. **Authentification**
+   - MobileWallet valide la clé API
+   - Si valide : backend entre dans les rooms :
+     - `app:{APP_ID}` → reçoit les transactions de l'app
+     - `dev:{developer_id}` → reçoit les événements du compte
+
+3. **Écoute d'événements**
+   - Écoute `transaction.update` sur la room `app:{APP_ID}`
+   - Format payload : voir section "Workflow complet" ci-dessus
+
+### Reconnexion automatique
+
+- En cas de déconnexion : reconnexion auto avec délai exponential
+- Reconnexion infinie (jamais d'abandon)
+- Logs détaillés : `[MobileWallet Socket]` dans les traces
+
+### Variables d'env requises
+
+```env
+MOBILEWALLET_SOCKET_URL=http://localhost:7332  # URL Socket.io du serveur MobileWallet
+MOBILEWALLET_API_KEY=sk_...                    # Clé API pour authentification
+APP_ID=app_xyz123                              # ID de l'app (reçu de MobileWallet)
 ```
 
 ---
@@ -182,7 +248,7 @@ io.to(`user:${userId}`).emit('payment.settled', { status, transaction_id });
 
 ## Logs détaillés
 
-Chaque appel MobileWallet est loggé:
+### Initiation du paiement
 
 ```
 [Transaction] userId=user-123 → Création transaction: payBy=mobilemoney, amount=15000
@@ -190,7 +256,26 @@ Chaque appel MobileWallet est loggé:
 [MobileWallet API] Orangemoney amount=15000 → POST http://localhost:7332/pay (timeout=30s, userId=user-123, phone=674123456)
 [MobileWallet API] Orangemoney amount=15000 ✓ HTTP 200 reçu en 1234ms: status=ussd_sent, tx_id=mw-tx-999
 [Transaction] userId=user-123 ✓ MobileWallet status=ussd_sent, transaction_id=mw-tx-999
+```
 
+### Réception du verdict via Socket.io (CANAL 1 — plus rapide généralement)
+
+```
+[MobileWallet Socket] transaction.update → Événement reçu: type=transaction.successful, tx_id=mw-tx-999, status=successful
+[MobileWallet Socket] → Appel webhookMobilewalletService...
+[Webhook MobileWallet] tx=mw-tx-999 → Verdict reçu: status=successful, amount=15000
+[Webhook MobileWallet] tx=mw-tx-999 userId=user-123
+[Webhook MobileWallet] tx=mw-tx-999 Tentative réservation du verdict en BD...
+[Webhook MobileWallet] tx=mw-tx-999 ✓ Réservation réussie (socket = premier chemin)
+[Webhook MobileWallet] tx=mw-tx-999 → Émission socket payment.settled vers user:user-123
+[Webhook MobileWallet] tx=mw-tx-999 ✓ Socket émis
+[Webhook MobileWallet] tx=mw-tx-999 ✓ Webhook traité avec succès
+[MobileWallet Socket] ✓ Événement traité
+```
+
+### OU Réception du verdict via Webhook HTTP (CANAL 2 — fallback fiable)
+
+```
 [Webhook Controller] → Webhook reçu de MobileWallet
 [Webhook Controller] ✓ Signature HMAC valide
 [Webhook Controller] Payload: type=transaction.successful, tx_id=mw-tx-999, status=successful
@@ -201,6 +286,15 @@ Chaque appel MobileWallet est loggé:
 [Webhook MobileWallet] tx=mw-tx-999 → Émission socket payment.settled vers user:user-123
 [Webhook MobileWallet] tx=mw-tx-999 ✓ Socket émis
 [Webhook MobileWallet] tx=mw-tx-999 ✓ Webhook traité avec succès
+```
+
+### Cas: Webhook arrive après Socket (idempotence en action)
+
+```
+[Webhook Controller] → Webhook reçu de MobileWallet
+[Webhook Controller] ✓ Signature HMAC valide
+[Webhook MobileWallet] tx=mw-tx-999 Tentative réservation du verdict en BD...
+[Webhook MobileWallet] tx=mw-tx-999 ✓ Verdict déjà traité par socket (ou un autre webhook) → skip
 ```
 
 ---
