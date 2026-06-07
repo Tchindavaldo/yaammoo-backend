@@ -194,6 +194,29 @@ Après toute modif des services/routes/features, **mettre à jour** :
 
 ---
 
+## MobileWallet Integration (IMPORTANT)
+
+**Endpoint `/pay` DOIT envoyer à MobileWallet:**
+- Les 5 champs de base: `amount`, `phone`, `network`, `email`, `mode`
+- **`end_user_ref`**: l'ID du user (depuis `/transaction`)
+  - MobileWallet le retourne dans le verdict Socket.io
+  - Permet de retrouver le user quand le webhook arrive
+- **`callback_url`**: l'URL où MobileWallet envoie le webhook HTTP
+  - Construite depuis `process.env.BACKEND_URL`
+  - Format: `${BACKEND_URL}/transaction/webhook/mobilewallet`
+
+**Variables d'env requises:**
+```env
+BACKEND_URL=http://localhost:5000  # (ou domaine prod)
+MOBILEWALLET_URL=http://localhost:7332
+MOBILEWALLET_YAAMMOO_KEY=sk_test_...
+MOBILEWALLET_WEBHOOK_SECRET=7Cm_rR-...
+```
+
+**Ne pas inventer de nouvelles URLs!** Utiliser toujours `process.env.BACKEND_URL` pour les callbacks.
+
+---
+
 ## Secrets & Configuration
 
 - `.env` est gitignoré, ne jamais commiter
@@ -202,7 +225,8 @@ Après toute modif des services/routes/features, **mettre à jour** :
   - `DB_PROVIDER` : 'firestore' ou 'supabase'
   - `FIREBASE_PROJECT_ID`, `FIREBASE_PRIVATE_KEY`, etc.
   - `SUPABASE_URL`, `SUPABASE_KEY`
-  - `MOBILEWALLET_API_KEY`
+  - `BACKEND_URL` : URL du backend (pour webhooks, callbacks)
+  - `MOBILEWALLET_URL`, `MOBILEWALLET_YAAMMOO_KEY`, `MOBILEWALLET_WEBHOOK_SECRET`
 
 ---
 

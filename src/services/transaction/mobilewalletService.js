@@ -39,6 +39,10 @@ exports.pay = async ({ amount, phone, network, email, mode, userId }) => {
   const finalEmail = email || 'yaammoo@rauval.com';
   const finalMode = mode || 'replay';
 
+  // Construire l'URL du callback webhook (depuis env)
+  const backendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
+  const callbackUrl = `${backendUrl}/transaction/webhook/mobilewallet`;
+
   const logPrefix = `[MobileWallet API] ${network} amount=${amount}`;
 
   try {
@@ -48,6 +52,8 @@ exports.pay = async ({ amount, phone, network, email, mode, userId }) => {
       network,
       email: finalEmail,
       mode: finalMode,
+      end_user_ref: userId,
+      callback_url: callbackUrl,
     };
 
     log.info(
