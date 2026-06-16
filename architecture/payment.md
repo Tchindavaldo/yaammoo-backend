@@ -273,8 +273,13 @@ Réponse type renvoyée au frontend pour un `retry_too_soon` (HTTP 409) :
 
 ## Fait récemment
 
-- [x] **Création de commande** branchée sur paiement réussi via `createOrderService`
-      (`webhookMobilewallet.service.js`).
+- [x] **Confirmation de commande** au verdict : `items` (tableau de commandes complètes), routage
+      par item — `id` → `updateOrders` (panier `pendingToBuy → pending`), sinon `createOrderService`
+      (achat direct). Gère le panier multi-fastfood. Échec partiel toléré.
+- [x] **Pré-check stock avant `/pay`** (somme par `menu.id`, stock null = illimité) → 409
+      `insufficient_stock` sans débiter le client.
+- [x] **Erreur MobileWallet** : lecture du payload imbriqué `detail`, propagation
+      `code`/`message`/`retry_after_s`/`last_status` + status HTTP réel (409/503/502).
 - [x] **Contexte de paiement persisté** en BD Supabase (`pending_payments`), fin de la Map mémoire.
 
 ## TODO / Améliorations futures
@@ -282,3 +287,10 @@ Réponse type renvoyée au frontend pour un `retry_too_soon` (HTTP 409) :
 - [ ] Vérification de signature sur le webhook entrant.
 - [ ] Retry logic si MobileWallet timeout côté `/pay`.
 - [ ] Purge périodique des `pending_payments` réglés/anciens (cron).
+- [ ] **Échec commande APRÈS paiement réussi** (stock vidé entre pré-check et verdict, ou erreur
+      DB) : aujourd'hui seulement loggué, le client a payé sans commande. À durcir (alerte /
+      remboursement / marquage à retraiter).
+- [ ] **Replay/retry même `transaction_id`** : `reserveSettlement` skiperait en croyant « déjà
+      traité » même si aucune commande n'a été créée. Vérifier le statut réel avant skip.
+- [ ] Aligner la sémantique « stock null = illimité » entre `updateOrders` (via `getById`,
+      null→0) et `create_order_with_stock_check` (SQL, null = illimité).
