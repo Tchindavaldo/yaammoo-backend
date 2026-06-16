@@ -25,6 +25,19 @@ exports.getById = async (id) => {
   return m.menu.fromSupabase(data);
 };
 
+/**
+ * Lit le stock BRUT d'un menu (sans le mapping `?? 0` de fromSupabase).
+ * Sert au pré-check stock avant un paiement.
+ * @returns {Promise<{ exists: boolean, stock: number|null }>}
+ *   stock === null → menu sans gestion de stock (illimité, cf. create_order_with_stock_check).
+ */
+exports.getRawStock = async (id) => {
+  const { data, error } = await supabase.from(TABLE).select('stock').eq('id', id).maybeSingle();
+  if (error) throw error;
+  if (!data) return { exists: false, stock: null };
+  return { exists: true, stock: data.stock };
+};
+
 exports.getByFastFood = async (fastFoodId) => {
   const { data, error } = await supabase
     .from(TABLE)

@@ -48,7 +48,7 @@ exports.validateTransactionCreation = data => {
   // une commande. Sans ces champs, le paiement réussit mais aucune commande
   // n'est créée (cf. webhookMobilewallet.service.js) → paiement orphelin.
   if (data.payBy === 'mobilemoney') {
-    const required = ['phone', 'network', 'fastFoodId', 'items'];
+    const required = ['phone', 'network', 'items'];
     for (const field of required) {
       const value = data[field];
       const missing = value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0);
@@ -58,6 +58,19 @@ exports.validateTransactionCreation = data => {
           message: `Champ obligatoire pour un paiement mobilemoney : ${field}`,
         });
       }
+    }
+
+    // Chaque item doit être une commande complète portant son propre fastFoodId
+    // (le webhook crée une commande par item — cas individuel ET panier global).
+    if (Array.isArray(data.items)) {
+      data.items.forEach((item, i) => {
+        if (!item || typeof item !== 'object' || !item.fastFoodId) {
+          errors.push({
+            field: `items[${i}]`,
+            message: `Chaque commande de "items" doit contenir un "fastFoodId"`,
+          });
+        }
+      });
     }
   }
 

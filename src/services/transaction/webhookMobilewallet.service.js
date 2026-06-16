@@ -1,6 +1,7 @@
 const { getIO } = require('../../socket');
 const repos = require('../../repositories');
 const { createOrderService } = require('../order/createOrder');
+const { updateOrders } = require('../order/updateOrders.service');
 
 const log = console;
 
@@ -47,8 +48,8 @@ exports.webhookMobilewalletService = async (payload, source = 'webhook') => {
       return;
     }
 
-    const { userId, orderId, fastFoodId, items, orderCtx } = ctx;
-    log.info(`${logPrefix} userId=${userId}, orderId=${orderId}`);
+    const { userId, items } = ctx;
+    log.info(`${logPrefix} userId=${userId}, nbCommandes=${Array.isArray(items) ? items.length : 0}`);
 
     // ========================================================================
     // 2. Réserver le verdict (atomique) — garantit un seul traitement
@@ -83,23 +84,49 @@ exports.webhookMobilewalletService = async (payload, source = 'webhook') => {
     // 4. Si succès : confirmer la commande via le service existant
     // ========================================================================
     if (status === 'successful') {
-      const order = orderCtx || (orderId && fastFoodId && items
-        ? { id: orderId, userId, fastFoodId, items }
-        : null);
+      // `items` = tableau d'objets-commande complets, chacun avec son fastFoodId.
+      // Routage par item (les deux services existaient avant le module paiement) :
+      //   - item AVEC `id` → commande déjà en base (panier pendingToBuy) →
+      //     `updateOrders` qui applique la transition pendingToBuy → pending.
+      //   - item SANS `id` → commande nouvelle (achat direct) → `createOrderService`.
+      const orders = Array.isArray(items) ? items : [];
+      const toUpdate = orders.filter(o => o && o.id);
+      const toCreate = orders.filter(o => o && !o.id);
 
-      if (!order) {
-        log.warn(`${logPrefix} ⚠️ Contexte commande incomplet → commande non créée (orderId=${orderId}, fastFoodId=${fastFoodId}, items=${!!items})`);
-      } else {
+      if (orders.length === 0) {
+        log.warn(`${logPrefix} ⚠️ Aucune commande dans le contexte → rien à faire (items vide)`);
+      }
+
+      // 1) Commandes existantes (panier) → transition pendingToBuy → pending.
+      // updateOrders gère le tableau, le groupe par fastfood (multi-fastfood OK),
+      // le stock check, le rank et la notif marchand.
+      if (toUpdate.length > 0) {
+        log.info(`${logPrefix} status=successful → Transition de ${toUpdate.length} commande(s) existante(s) pour ${userId}`);
         try {
-          log.info(`${logPrefix} status=successful → Création/confirmation commande pour ${userId}`);
-          const created = await createOrderService({ ...order, userId });
-          if (created?.error) {
-            log.error(`${logPrefix} ❌ createOrderService a renvoyé une erreur: ${created.error}`);
+          const res = await updateOrders(toUpdate, userId);
+          if (res?.success) {
+            log.info(`${logPrefix} ✓ ${toUpdate.length} commande(s) confirmée(s) (pendingToBuy → pending)`);
           } else {
-            log.info(`${logPrefix} ✓ Commande confirmée (id=${created?.id || order.id})`);
+            log.error(`${logPrefix} ❌ Échec transition commandes: ${res?.message}`);
           }
         } catch (e) {
-          log.error(`${logPrefix} ❌ Erreur création commande: ${e.message}`);
+          log.error(`${logPrefix} ❌ Exception transition commandes: ${e.message}`);
+        }
+      }
+
+      // 2) Commandes nouvelles (achat direct) → création.
+      // Échec partiel toléré : on crée tout ce qui peut l'être, on logue les échecs.
+      for (const [i, order] of toCreate.entries()) {
+        const label = `nouvelle commande ${i + 1}/${toCreate.length} (fastFoodId=${order?.fastFoodId})`;
+        try {
+          const created = await createOrderService({ ...order, userId });
+          if (created?.error) {
+            log.error(`${logPrefix} ❌ ${label} échouée: ${created.error}`);
+          } else {
+            log.info(`${logPrefix} ✓ ${label} confirmée (id=${created?.id || order.id})`);
+          }
+        } catch (e) {
+          log.error(`${logPrefix} ❌ ${label} exception: ${e.message}`);
         }
       }
     }

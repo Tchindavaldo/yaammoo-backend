@@ -13,10 +13,7 @@ const fromRow = (row) =>
     ? {
         mwTransactionId: row.mw_transaction_id,
         userId: row.user_id,
-        orderId: row.order_id,
-        fastFoodId: row.fastfood_id,
         items: row.items,
-        orderCtx: row.order_ctx,
         amount: row.amount,
         network: row.network,
         phone: row.phone,
@@ -28,16 +25,14 @@ const fromRow = (row) =>
 /**
  * Enregistre (ou écrase) le contexte d'un paiement en attente.
  * @param {string} mwTransactionId
- * @param {object} ctx { userId, orderId, fastFoodId, items, orderCtx, amount, network, phone, email }
+ * @param {object} ctx { userId, items, amount, network, phone, email }
+ *   items = tableau de commandes complètes (chacune avec son fastFoodId).
  */
 exports.save = async (mwTransactionId, ctx) => {
   const payload = {
     mw_transaction_id: mwTransactionId,
     user_id: ctx.userId,
-    order_id: ctx.orderId || null,
-    fastfood_id: ctx.fastFoodId || null,
     items: ctx.items || null,
-    order_ctx: ctx.orderCtx || null,
     amount: ctx.amount ?? null,
     network: ctx.network || null,
     phone: ctx.phone || null,

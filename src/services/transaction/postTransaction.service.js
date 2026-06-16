@@ -10,7 +10,7 @@ const log = console;
 
 exports.postTransactionService = async data => {
   const io = getIO();
-  const { amount, currentAmount, payBy, userId, phone, email, network, orderId, fastFoodId, items } = data;
+  const { amount, currentAmount, payBy, userId, phone, email, network, items } = data;
 
   const logPrefix = `[Transaction] userId=${userId}`;
 
@@ -44,6 +44,39 @@ exports.postTransactionService = async data => {
         email,
         userId,
       };
+
+      // =======================================================================
+      // Pré-check stock AVANT de débiter le client (UX : échouer tôt).
+      // On somme les quantités par menu.id (gère le même plat en double + les
+      // restos différents), puis on compare au stock BRUT du menu.
+      // stock === null → menu illimité → on laisse passer (comme le SQL).
+      // Le check atomique au verdict (create/update) reste le garde-fou final.
+      // =======================================================================
+      const qtyByMenu = {};
+      for (const it of (Array.isArray(items) ? items : [])) {
+        const menuId = it?.menu?.id;
+        if (!menuId) continue;
+        qtyByMenu[menuId] = (qtyByMenu[menuId] || 0) + (Number(it.quantity) || 1);
+      }
+
+      for (const [menuId, qty] of Object.entries(qtyByMenu)) {
+        const { exists, stock } = await repos.menus.getRawStock(menuId);
+        if (!exists) {
+          log.warn(`${logPrefix} ❌ Pré-check stock: menu introuvable (${menuId})`);
+          return { success: false, httpStatus: 409, code: 'insufficient_stock', message: `Menu introuvable : ${menuId}` };
+        }
+        // stock null = illimité → OK
+        if (stock !== null && stock < qty) {
+          log.warn(`${logPrefix} ❌ Pré-check stock insuffisant: menu=${menuId}, demandé=${qty}, dispo=${stock}`);
+          return {
+            success: false,
+            httpStatus: 409,
+            code: 'insufficient_stock',
+            message: `Stock insuffisant. Stock disponible : ${stock} (demandé : ${qty})`,
+          };
+        }
+      }
+      log.info(`${logPrefix} ✓ Pré-check stock OK (${Object.keys(qtyByMenu).length} menu(s))`);
 
       log.info(`${logPrefix} → Appel MobileWallet /pay: amount=${amount}, network=${networkName}, phone=${phone}`);
 
@@ -90,16 +123,14 @@ exports.postTransactionService = async data => {
       try {
         await repos.pendingPayments.save(mw_transaction_id, {
           userId,
-          orderId,
-          fastFoodId,
+          // items = tableau de commandes complètes, chacune avec son fastFoodId.
           items,
-          orderCtx: data.orderCtx || null,
           amount,
           phone,
           network: network || 'Orangemoney',
           email,
         });
-        log.debug(`${logPrefix} Contexte persisté mw_tx=${mw_transaction_id} → userId=${userId}, orderId=${orderId}`);
+        log.debug(`${logPrefix} Contexte persisté mw_tx=${mw_transaction_id} → userId=${userId}, nbCommandes=${Array.isArray(items) ? items.length : 0}`);
       } catch (e) {
         log.error(`${logPrefix} ❌ Échec persistance pending_payment: ${e.message}`);
         throw e;

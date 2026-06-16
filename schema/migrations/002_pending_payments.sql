@@ -19,10 +19,9 @@
 CREATE TABLE IF NOT EXISTS pending_payments (
   mw_transaction_id VARCHAR(255) PRIMARY KEY,
   user_id           VARCHAR(255) NOT NULL,
-  order_id          VARCHAR(255),
-  fastfood_id       VARCHAR(255),
+  -- items = tableau de commandes complètes (chacune avec son fastFoodId).
+  -- Suffit à recréer toutes les commandes au verdict (cas individuel + panier global).
   items             JSONB,
-  order_ctx         JSONB,
   amount            NUMERIC,
   network           VARCHAR(50),
   phone             VARCHAR(50),
