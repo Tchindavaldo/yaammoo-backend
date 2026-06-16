@@ -163,10 +163,7 @@ router.get('/:id', getTransactionById);
  */
 router.put('/:id', updateTransactionController);
 
-// Webhook entrant ai_browser2 (raw body pour HMAC)
-router.post('/webhook/mobilewallet',
-  express.raw({ type: 'application/json' }),
-  webhookMobilewalletController
-);
+// Webhook entrant MobileWallet
+router.post('/webhook/mobilewallet', webhookMobilewalletController);
 
 module.exports = router;

@@ -59,16 +59,20 @@ const user = await repos.users.getUserById(id);
 const user = await db.collection('users').doc(id).get();
 ```
 
-**DB Provider** :
+**DB = Supabase uniquement** (la migration Firestore → Supabase est TERMINÉE pour la
+couche données pures) :
 
-- Variable d'env `DB_PROVIDER` : `'firestore'` ou `'supabase'`
-- `repositories/index.js` route vers la bonne implémentation
-- Mappers convertissent automatiquement en read/write
+- `DB_PROVIDER=supabase` (seule valeur supportée ; toute autre est ignorée avec un warn)
+- `repositories/index.js` délègue directement à `repositories/supabase/*`
+- La couche `repositories/firestore/` a été **supprimée**
+
+> ⚠️ **Firebase reste utilisé hors BD pure** : Auth (`admin.auth()`), Push notifications
+> (`admin.messaging()`), Storage (`admin.storage()` / bucket). Voir `config/firebase.js` —
+> ne PAS le supprimer. `admin.firestore()` n'est plus exposé.
 
 **Mappers** (`repositories/mappers.js`) :
 
-- `user.toSupabase()` : Firestore → Supabase (camelCase → snake_case, etc.)
-- `user.fromSupabase()` : Supabase → Firestore (reverse)
+- `user.toSupabase()` / `user.fromSupabase()` : conversions camelCase ↔ snake_case
 - **Logique métier calculée ici** : ex. `isMarchand: !!fastfood_id` (jamais stocké)
 
 ---
@@ -87,8 +91,8 @@ isMarchand: !!row.fastfood_id;
 
 **Où appliquer** :
 
-- `repositories/firestore/users.repo.js` : line 30, 38, 21 (getUserById, getUserByIdSafe, getAllUsers)
-- `repositories/mappers.js` (userFromSupabase) : line 72
+- `repositories/supabase/users.repo.js` (lectures user)
+- `repositories/mappers.js` (`userFromSupabase`)
 
 **Résultat** :
 
@@ -128,8 +132,10 @@ router.get('/user/:id', getOneUserByIdController); // Public (TODO: protect?)
 **Rooms** :
 
 - `app:<appId>` : broadcast à toute l'app (système)
-- `user:<userId>` : notifications/commandes pour UN utilisateur
-- `fastfood:<fastFoodId>` : commandes reçues par UN marchand
+- **`<userId>`** (room nommée par l'uid, SANS préfixe) : notifications/commandes pour UN
+  utilisateur. ⚠️ Le frontend rejoint via `join_user` → `socket.join(userId)` (cf. `socket.js`),
+  donc TOUJOURS émettre avec `io.to(userId)` — pas `io.to(\`user:${userId}\`)`.
+- `<fastFoodId>` (room nommée par l'id boutique) : commandes reçues par UN marchand
 
 **Événements clés** :
 

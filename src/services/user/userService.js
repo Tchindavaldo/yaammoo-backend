@@ -34,56 +34,22 @@ exports.getUserByPhone = (phone) => repos.users.getUserByPhone(phone);
 
 // ============================================================================
 // Suppression complète du compte (RGPD / Apple Guideline 5.1.1(v))
-// Supprime : compte Firebase Auth + document users + données liées
+// Supprime : données liées + ligne users (Supabase) + compte Firebase Auth.
+// ⚠️ Firebase Auth reste géré ici (admin.auth) — c'est de l'auth, pas de la BD.
 // ============================================================================
-const { db, admin } = require('../../config/firebase');
+const { admin } = require('../../config/firebase');
 
 exports.deleteUserAccount = async (uid) => {
   if (!uid) throw new Error('UID requis pour la suppression');
 
   console.log(`🗑️  [DELETE-ACCOUNT] Début suppression pour UID: ${uid}`);
 
-  // Collections liées à supprimer (best-effort)
-  const collectionsLiees = [
-    { name: 'orders', field: 'userId' },
-    { name: 'orders', field: 'fastFoodId' },
-    { name: 'transaction', field: 'userId' },
-    { name: 'notification', field: 'userId' },
-    { name: 'bonus', field: 'userId' },
-    { name: 'bonusRequest', field: 'userId' },
-    { name: 'menus', field: 'userId' },
-    { name: 'fastfoods', field: 'userId' },
-  ];
-
-  for (const { name, field } of collectionsLiees) {
-    try {
-      const snapshot = await db.collection(name).where(field, '==', uid).get();
-      if (snapshot.empty) continue;
-
-      const batch = db.batch();
-      snapshot.forEach((doc) => batch.delete(doc.ref));
-      await batch.commit();
-      console.log(`✅ [DELETE-ACCOUNT] ${snapshot.size} doc(s) supprimé(s) dans ${name} (${field})`);
-    } catch (err) {
-      console.warn(`⚠️  [DELETE-ACCOUNT] Erreur sur ${name}: ${err.message}`);
-    }
-  }
-
-  // Supprimer le document utilisateur (par ID doc OU par champ uid)
+  // Données BD (Supabase) via le repository — cascade géré côté repo
   try {
-    const userDoc = await db.collection('users').doc(uid).get();
-    if (userDoc.exists) {
-      await db.collection('users').doc(uid).delete();
-      console.log(`✅ [DELETE-ACCOUNT] Document users/${uid} supprimé`);
-    } else {
-      const snap = await db.collection('users').where('uid', '==', uid).get();
-      const batch = db.batch();
-      snap.forEach((d) => batch.delete(d.ref));
-      await batch.commit();
-      console.log(`✅ [DELETE-ACCOUNT] ${snap.size} doc(s) users supprimé(s) via champ uid`);
-    }
+    await repos.users.deleteCascade(uid);
+    console.log(`✅ [DELETE-ACCOUNT] Données Supabase supprimées pour ${uid}`);
   } catch (err) {
-    console.warn(`⚠️  [DELETE-ACCOUNT] Erreur suppression users: ${err.message}`);
+    console.warn(`⚠️  [DELETE-ACCOUNT] Erreur suppression données Supabase: ${err.message}`);
   }
 
   // Supprimer le compte Firebase Auth

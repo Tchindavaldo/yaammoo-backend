@@ -1,4 +1,3 @@
-const { admin, db } = require('../../config/firebase');
 const { getBonusRequestService } = require('./getBonusRequest.service');
 
 exports.getBonusRequestStatus = async (id, totalBonus) => {

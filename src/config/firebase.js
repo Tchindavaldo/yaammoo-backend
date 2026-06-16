@@ -27,11 +27,12 @@ try {
   throw error;
 }
 
-const db = admin.firestore();
+// ⚠️ Firebase est conservé UNIQUEMENT pour l'auth, le storage et les push
+// notifications. La BD de données pures est désormais Supabase (Firestore a été
+// retiré de la couche repositories). On n'expose donc plus admin.firestore().
 const bucket = admin.storage().bucket();
 
 module.exports = {
   bucket,
   admin,
-  db,
 };

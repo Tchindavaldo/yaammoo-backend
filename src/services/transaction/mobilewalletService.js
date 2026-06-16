@@ -35,7 +35,6 @@ const mobilewalletClient = axios.create({
  * @returns {Promise<{success, status, transaction_id, message, code}>}
  */
 exports.pay = async ({ amount, phone, network, email, mode, userId }) => {
-  // Valeurs par défaut (peuvent être overridées par le frontend)
   const finalEmail = email || 'yaammoo@rauval.com';
   const finalMode = mode || 'replay';
 
@@ -63,21 +62,25 @@ exports.pay = async ({ amount, phone, network, email, mode, userId }) => {
     const response = await mobilewalletClient.post('/pay', payload);
     const duration = Date.now() - startTime;
 
-    const { success, status, transaction_id, message, code } = response.data;
+    const { success, status, transaction_id, message, code, payment_number } = response.data;
 
-    log.info(`${logPrefix} ✓ HTTP ${response.status} reçu en ${duration}ms: status=${status}, tx_id=${transaction_id}`);
+    log.info(`${logPrefix} ✓ HTTP ${response.status} reçu en ${duration}ms: success=${success}, status=${status}, tx_id=${transaction_id}`);
     log.debug(`${logPrefix} Réponse complète:`, JSON.stringify(response.data, null, 2));
 
     return {
-      success: success !== false,
+      success,
       status,
       transaction_id,
-      message: message || 'Paiement initié',
+      message,
       code,
+      payment_number,
     };
   } catch (error) {
     const status = error.response?.status;
     const data = error.response?.data;
+    // FastAPI (MobileWallet) imbrique la charge d'erreur sous `detail`.
+    // On retombe sur `data` à plat si jamais le format change. Anti-corruption layer.
+    const detail = data?.detail || data;
 
     log.error(`${logPrefix} ❌ Erreur HTTP ${status || 'UNKNOWN'}: ${error.message}`);
 
@@ -89,13 +92,15 @@ exports.pay = async ({ amount, phone, network, email, mode, userId }) => {
 
     // 409 : doublon (pending_exists, retry_too_soon)
     if (status === 409) {
-      log.warn(`${logPrefix} → Doublon détecté: code=${data?.error}, retry_after=${data?.retry_after_s}s`);
+      log.warn(`${logPrefix} → Doublon détecté: code=${detail?.error}, retry_after=${detail?.retry_after_s}s`);
       return {
         success: false,
         status: 'error',
-        code: data?.error || 'duplicate',
-        message: data?.message || 'Paiement en cours ou trop rapproché',
-        retry_after_s: data?.retry_after_s,
+        httpStatus: 409,
+        code: detail?.error || 'duplicate',
+        message: detail?.message || 'Paiement en cours ou trop rapproché',
+        retry_after_s: detail?.retry_after_s,
+        last_status: detail?.last_status,
       };
     }
 
@@ -105,8 +110,9 @@ exports.pay = async ({ amount, phone, network, email, mode, userId }) => {
       return {
         success: false,
         status: 'error',
-        code: data?.code || 'unavailable',
-        message: data?.message || 'Opérateur ou réseau indisponible',
+        httpStatus: 503,
+        code: detail?.code || detail?.error || 'unavailable',
+        message: detail?.message || 'Opérateur ou réseau indisponible',
       };
     }
 
@@ -114,8 +120,9 @@ exports.pay = async ({ amount, phone, network, email, mode, userId }) => {
     return {
       success: false,
       status: 'error',
-      code: data?.code || 'server_error',
-      message: error.message || 'Erreur serveur MobileWallet',
+      httpStatus: 502,
+      code: detail?.code || detail?.error || 'server_error',
+      message: detail?.message || error.message || 'Erreur serveur MobileWallet',
     };
   }
 };

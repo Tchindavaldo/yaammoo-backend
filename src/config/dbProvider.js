@@ -1,53 +1,38 @@
 // ============================================================================
-// DB Provider — Feature flag pour migration Firestore → Supabase
+// DB Provider — Supabase uniquement
 // ============================================================================
-// Trois modes pilotés par la variable d'environnement DB_PROVIDER :
+// La migration Firestore → Supabase est terminée pour la couche DONNÉES PURES.
+// La BD du backend est désormais **Supabase** exclusivement (repositories).
 //
-//   firestore        → uniquement Firestore (mode actuel, défaut)
-//   supabase         → uniquement Supabase (post-migration)
-//   dual             → écritures sur les deux, lectures depuis DB_READ_FROM
-//                      (utile pendant la phase de migration pour valider)
+// ⚠️ Firebase reste utilisé pour ce qui N'EST PAS de la BD pure :
+//    - Auth (admin.auth().verifyIdToken / deleteUser)
+//    - Push notifications (admin.messaging())
+//    - Storage (admin.storage() / bucket)
+// Voir config/firebase.js — ne pas supprimer.
 //
-// Variable secondaire DB_READ_FROM (uniquement en mode dual) :
-//   firestore (défaut) → reads depuis Firestore
-//   supabase            → reads depuis Supabase
-//
-// Cette logique permet de basculer en production sans modifier le code des
-// services métier — on change juste la variable d'environnement.
+// L'ancien système dual-write / DB_PROVIDER=firestore|dual a été retiré.
+// La variable DB_PROVIDER est conservée pour compat mais seule 'supabase' est
+// supportée ; toute autre valeur est ignorée avec un avertissement.
 // ============================================================================
 
-const provider = (process.env.DB_PROVIDER || 'firestore').toLowerCase();
-const readFrom = (process.env.DB_READ_FROM || 'firestore').toLowerCase();
+const provider = (process.env.DB_PROVIDER || 'supabase').toLowerCase();
 
-const VALID_PROVIDERS = ['firestore', 'supabase', 'dual'];
-const VALID_READ_SOURCES = ['firestore', 'supabase'];
-
-if (!VALID_PROVIDERS.includes(provider)) {
-  throw new Error(
-    `[dbProvider] DB_PROVIDER invalide: "${provider}". Valeurs autorisées: ${VALID_PROVIDERS.join(', ')}`
-  );
-}
-
-if (provider === 'dual' && !VALID_READ_SOURCES.includes(readFrom)) {
-  throw new Error(
-    `[dbProvider] DB_READ_FROM invalide: "${readFrom}". Valeurs autorisées: ${VALID_READ_SOURCES.join(', ')}`
+if (provider !== 'supabase') {
+  console.warn(
+    `[dbProvider] DB_PROVIDER="${provider}" ignoré — la BD est désormais Supabase uniquement ` +
+    `(Firestore a été retiré de la couche données). Mets DB_PROVIDER=supabase dans .env.`
   );
 }
 
 const config = {
-  provider,
-  readFrom: provider === 'dual' ? readFrom : provider,
-
-  useFirestoreRead: provider === 'firestore' || (provider === 'dual' && readFrom === 'firestore'),
-  useSupabaseRead: provider === 'supabase' || (provider === 'dual' && readFrom === 'supabase'),
-
-  useFirestoreWrite: provider === 'firestore' || provider === 'dual',
-  useSupabaseWrite: provider === 'supabase' || provider === 'dual',
+  provider: 'supabase',
+  readFrom: 'supabase',
+  useFirestoreRead: false,
+  useSupabaseRead: true,
+  useFirestoreWrite: false,
+  useSupabaseWrite: true,
 };
 
-console.log(
-  `[dbProvider] mode=${config.provider} reads=${config.readFrom} ` +
-  `writes={firestore:${config.useFirestoreWrite}, supabase:${config.useSupabaseWrite}}`
-);
+console.log('[dbProvider] mode=supabase (Firestore retiré de la couche données)');
 
 module.exports = config;

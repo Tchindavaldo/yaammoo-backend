@@ -44,5 +44,22 @@ exports.validateTransactionCreation = data => {
     }
   }
 
+  // Validation conditionnelle : un paiement Mobile Money DOIT pouvoir devenir
+  // une commande. Sans ces champs, le paiement réussit mais aucune commande
+  // n'est créée (cf. webhookMobilewallet.service.js) → paiement orphelin.
+  if (data.payBy === 'mobilemoney') {
+    const required = ['phone', 'network', 'fastFoodId', 'items'];
+    for (const field of required) {
+      const value = data[field];
+      const missing = value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0);
+      if (missing) {
+        errors.push({
+          field,
+          message: `Champ obligatoire pour un paiement mobilemoney : ${field}`,
+        });
+      }
+    }
+  }
+
   return errors;
 };

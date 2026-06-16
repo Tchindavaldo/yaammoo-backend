@@ -1,95 +1,119 @@
 const { getIO } = require('../../socket');
-const { getMwTransactionMap } = require('./postTransaction.service');
 const repos = require('../../repositories');
+const { createOrderService } = require('../order/createOrder');
 
 const log = console;
 
 /**
- * Traite un webhook entrant d'ai_browser2 (verdict du paiement).
+ * Traite un verdict de paiement MobileWallet.
+ *
+ * ⚠️ APPELÉ PAR LES DEUX CANAUX :
+ *   - le webhook HTTP   (webhookMobilewallet.controller → source='webhook')
+ *   - le socket entrant (mobilewalletSocketClient        → source='socket')
+ * MobileWallet envoie le verdict par les deux en parallèle. Ce service est le
+ * point de convergence : peu importe le canal qui arrive en premier.
  *
  * IDEMPOTENCE GARANTIE :
- *   - Réserve atomiquement le verdict en BD (transactionSettlements)
- *   - Si socket et webhook arrivent en parallèle, un seul traite
- *   - Synchronisation via table transactionSettlements
+ *   - reserveSettlement réserve atomiquement le verdict (UNIQUE en BD)
+ *   - le 1er canal arrivé réserve et traite ; le 2e est détecté comme doublon → skip
  *
  * FLUX :
- *   1. Log d'arrivée du webhook
- *   2. Réserve le verdict (atomique DB)
- *   3. Si déjà traité (par socket/webhook précédent) → skip avec log
- *   4. Émettre socket au client + créer commande si succès
- *   5. Log de fin
+ *   1. Retrouve le contexte de commande (Supabase pending_payments)
+ *   2. Réserve le verdict (atomique) — un seul canal continue
+ *   3. Émet socket payment.settled vers le client
+ *   4. Si successful → confirme la commande via createOrderService
  */
 exports.webhookMobilewalletService = async (payload, source = 'webhook') => {
-  const { type, data } = payload;
+  const { data } = payload;
   const { transaction_id, status, end_user_ref, amount } = data;
 
-  const logPrefix = `[Webhook MobileWallet] tx=${transaction_id}`;
+  const logPrefix = `[Verdict MobileWallet:${source}] tx=${transaction_id}`;
 
   try {
     log.info(`${logPrefix} → Verdict reçu: status=${status}, amount=${amount}`);
 
-    // Retrouver le userId via la map (mw_transaction_id → userId)
-    const mwMap = getMwTransactionMap();
-    const userId = end_user_ref || mwMap.get(transaction_id);
+    // ========================================================================
+    // 1. Retrouver le contexte persisté (Supabase)
+    // ========================================================================
+    let ctx = await repos.pendingPayments.getById(transaction_id);
 
-    if (!userId) {
-      log.error(`${logPrefix} ❌ userId introuvable (pas en map, end_user_ref absent)`);
+    // Fallback : MobileWallet peut renvoyer un tx_id différent → chercher par user
+    if (!ctx && end_user_ref) {
+      ctx = await repos.pendingPayments.getLatestByUser(end_user_ref);
+    }
+
+    if (!ctx) {
+      log.error(`${logPrefix} ❌ Contexte introuvable (tx_id=${transaction_id}, userId=${end_user_ref})`);
       return;
     }
 
-    log.info(`${logPrefix} userId=${userId}`);
+    const { userId, orderId, fastFoodId, items, orderCtx } = ctx;
+    log.info(`${logPrefix} userId=${userId}, orderId=${orderId}`);
 
     // ========================================================================
-    // ÉTAPE CRITIQUE : Réserve le verdict (atomique)
+    // 2. Réserver le verdict (atomique) — garantit un seul traitement
     // ========================================================================
-    // Si socket a déjà réservé → cette insertion échouera (UNIQUE constraint)
-    // et reserveSettlement retournera false.
-    // Si webhook est le premier → retourne true, on continue.
     log.info(`${logPrefix} Tentative réservation du verdict en BD...`);
-
-    const reserved = await repos.transactions.reserveSettlement(
-      transaction_id,
-      source, // ← 'webhook' ou 'socket' selon la source
-      status
-    );
+    const reserved = await repos.transactions.reserveSettlement(transaction_id, source, status);
 
     if (!reserved) {
-      log.warn(`${logPrefix} ✓ Verdict déjà traité par ${source === 'socket' ? 'webhook' : 'socket'} → skip`);
+      const other = source === 'socket' ? 'webhook' : 'socket';
+      log.warn(`${logPrefix} ✓ Verdict déjà traité par ${other} → skip`);
       return;
     }
-
     log.info(`${logPrefix} ✓ Réservation réussie (${source} = premier chemin)`);
 
     // ========================================================================
-    // TRAITEMENT DU VERDICT
+    // 3. Émettre socket vers le frontend
     // ========================================================================
     const io = getIO();
-
-    // 1. Émettre socket vers le frontend
-    log.info(`${logPrefix} → Émission socket payment.settled vers user:${userId}`);
-    io.to(`user:${userId}`).emit('payment.settled', {
+    // ⚠️ Le frontend rejoint la room `userId` SANS préfixe (socket.js: join_user
+    // → socket.join(userId)). Tout le reste du code émet aussi vers io.to(userId).
+    // On garde la même convention ici, sinon le client ne reçoit jamais le verdict.
+    log.info(`${logPrefix} → Émission socket payment.settled vers ${userId}`);
+    io.to(userId).emit('payment.settled', {
       status,
       transaction_id,
       amount,
-      source: 'webhook', // ← utile pour debugging
+      source,
     });
     log.info(`${logPrefix} ✓ Socket émis`);
 
-    // 2. Si succès : créer la commande
+    // ========================================================================
+    // 4. Si succès : confirmer la commande via le service existant
+    // ========================================================================
     if (status === 'successful') {
-      try {
-        log.info(`${logPrefix} status=successful → Création commande lancée pour ${userId}`);
-        // TODO: appeler le service order existant
-        // await orderService.createFromPayment(transactionData);
-        log.info(`${logPrefix} ✓ Commande créée`);
-      } catch (error) {
-        log.error(`${logPrefix} ❌ Erreur création commande: ${error.message}`);
+      const order = orderCtx || (orderId && fastFoodId && items
+        ? { id: orderId, userId, fastFoodId, items }
+        : null);
+
+      if (!order) {
+        log.warn(`${logPrefix} ⚠️ Contexte commande incomplet → commande non créée (orderId=${orderId}, fastFoodId=${fastFoodId}, items=${!!items})`);
+      } else {
+        try {
+          log.info(`${logPrefix} status=successful → Création/confirmation commande pour ${userId}`);
+          const created = await createOrderService({ ...order, userId });
+          if (created?.error) {
+            log.error(`${logPrefix} ❌ createOrderService a renvoyé une erreur: ${created.error}`);
+          } else {
+            log.info(`${logPrefix} ✓ Commande confirmée (id=${created?.id || order.id})`);
+          }
+        } catch (e) {
+          log.error(`${logPrefix} ❌ Erreur création commande: ${e.message}`);
+        }
       }
     }
 
-    log.info(`${logPrefix} ✓ Webhook traité avec succès`);
+    // Marquer le pending_payment comme réglé (audit / purge ultérieure)
+    try {
+      await repos.pendingPayments.markSettled(ctx.mwTransactionId || transaction_id, status);
+    } catch (e) {
+      log.warn(`${logPrefix} markSettled non critique: ${e.message}`);
+    }
+
+    log.info(`${logPrefix} ✓ Verdict traité avec succès`);
   } catch (error) {
-    log.error(`${logPrefix} ❌ Erreur traitement webhook: ${error.message}`, error);
-    // Ne pas relancer (le webhook controller capture déjà)
+    log.error(`${logPrefix} ❌ Erreur traitement verdict: ${error.message}`, error);
+    // Ne pas relancer (controller/socket capturent déjà)
   }
 };

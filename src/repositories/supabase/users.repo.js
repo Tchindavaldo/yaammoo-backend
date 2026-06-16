@@ -147,3 +147,46 @@ exports.getUserByPhone = async (phone) => {
   if (!data) return null;
   return fetchUserBundle(data.id);
 };
+
+// ============================================================================
+// Suppression complète des données d'un utilisateur (RGPD / Apple 5.1.1(v)).
+// Supprime la ligne users + toutes les données liées en BD. NE TOUCHE PAS à
+// Firebase Auth (géré par le service, qui reste responsable de admin.auth()).
+// user_push_tokens et menus se suppriment en cascade via FK ON DELETE CASCADE.
+// ============================================================================
+exports.deleteCascade = async (uid) => {
+  if (!uid) throw new Error('uid requis');
+
+  // Récupérer les fastfoods possédés pour supprimer leurs commandes/menus liés
+  const { data: ffs } = await supabase.from('fastfoods').select('id').eq('user_id', uid);
+  const fastFoodIds = (ffs || []).map((f) => f.id);
+
+  // Données liées directement à l'utilisateur
+  const byUser = [
+    { table: 'orders', col: 'user_id' },
+    { table: 'transactions', col: 'user_id' },
+    { table: 'notifications', col: 'user_id' },
+    { table: 'bonus_requests', col: 'user_id' },
+    { table: 'pending_payments', col: 'user_id' },
+  ];
+  for (const { table, col } of byUser) {
+    const { error } = await supabase.from(table).delete().eq(col, uid);
+    if (error) console.warn(`[users.deleteCascade] ${table}: ${error.message}`);
+  }
+
+  // Données liées aux boutiques possédées (commandes reçues, notifs marchand)
+  if (fastFoodIds.length) {
+    for (const table of ['orders', 'notifications']) {
+      const { error } = await supabase.from(table).delete().in('fastfood_id', fastFoodIds);
+      if (error) console.warn(`[users.deleteCascade] ${table}(fastfood): ${error.message}`);
+    }
+    // menus se suppriment en cascade quand on supprime les fastfoods
+    const { error: ffErr } = await supabase.from('fastfoods').delete().eq('user_id', uid);
+    if (ffErr) console.warn(`[users.deleteCascade] fastfoods: ${ffErr.message}`);
+  }
+
+  // Enfin l'utilisateur (user_push_tokens en cascade)
+  const { error } = await supabase.from(TABLE).delete().eq('id', uid);
+  if (error) throw error;
+  return { uid };
+};

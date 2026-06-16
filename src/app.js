@@ -4,7 +4,7 @@ const cors = require('cors');
 const express = require('express');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpecs = require('./config/swagger');
-const { admin, db } = require('./config/firebase');
+const { admin } = require('./config/firebase');
 
 const smsRoutes = require('./routes/smsRoutes');
 const bonusRoutes = require('./routes/bonusRoute');

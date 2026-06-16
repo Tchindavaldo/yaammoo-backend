@@ -1,6 +1,7 @@
 # Architecture — BACKEND (Yaammoo API)
 
-Documentation d'architecture du backend Node.js / Express / Firestore-Supabase / Socket.io.
+Documentation d'architecture du backend Node.js / Express / Supabase / Socket.io.
+(Firebase conservé pour auth, push, storage uniquement.)
 
 > **Convention** : mettre à jour le fichier concerné dès qu'un service/route/controller est modifié.
 > Pour la doc frontend, voir [`yaammoo/architecture/README.md`](../../yaammoo/architecture/README.md).
@@ -18,7 +19,7 @@ Documentation d'architecture du backend Node.js / Express / Firestore-Supabase /
 | [menus-detailed.md](./menus-detailed.md) | Menus — catalogue produits, stock, extras, boissons | ✅ |
 | [orders.md](./orders.md) | Commandes — routes `/order`, rank queue, stock, transitions statut | ✅ |
 | [deliveries.md](./deliveries.md) | Livraisons — tracking, livreur assignation, GPS, statuts | ✅ |
-| [payment.md](./payment.md) | Paiements — MobileWallet, routes `/payment`, webhook, numéro paiement | ✅ |
+| [payment.md](./payment.md) | Paiements — MobileWallet, `/transaction` → `/pay`, verdict double canal (webhook HTTP + socket), idempotence | ✅ |
 | [transactions.md](./transactions.md) | Transactions — historique paiements, portefeuille marchand, remboursements | ✅ |
 | [bonus.md](./bonus.md) | Bonus & Referrals — codes promo, système parrainage, validations | ✅ |
 | [notifications.md](./notifications.md) | Notifications — FCM/Expo dispatcher, routes `/notification` | ✅ |
@@ -40,11 +41,11 @@ Documentation d'architecture du backend Node.js / Express / Firestore-Supabase /
 ## Stack
 
 - **Runtime** : Node.js + Express
-- **DB** : Firestore (Firebase) — migrable vers Supabase via mappers
-- **DB Supabase** : Alternative complète avec mismo mapper pattern
+- **DB** : **Supabase** (PostgreSQL) — couche données pures. Firestore retiré.
+- **Auth** : Firebase Auth (`admin.auth()`) — conservé
 - **Push** : Dispatcher hybride — `firebase-admin.messaging()` (FCM) + Expo Push API
 - **Realtime** : Socket.io (rooms par `userId` et `fastFoodId`)
-- **Storage** : Supabase (images via Multer)
+- **Storage** : Firebase Storage (bucket) + Supabase (images via Multer)
 - **Doc API** : Swagger (`/api-docs`)
 - **Deploy** : Docker + Fly.io
 
@@ -64,11 +65,10 @@ BACKEND/
 │   ├── routes/                         # Déclaration routes Express
 │   ├── controllers/                    # Entrées HTTP (validation → service)
 │   ├── services/                       # Logique métier orchestratrice
-│   ├── repositories/                   # Accès DB (Firestore/Supabase abstrait par mappers)
-│   │   ├── firestore/                  # Impl. Firestore
-│   │   ├── supabase/                   # Impl. Supabase
-│   │   ├── index.js                    # Router vers bonne impl. (DB_PROVIDER)
-│   │   └── mappers.js                  # Conversions Firestore ↔ Supabase
+│   ├── repositories/                   # Accès DB (Supabase, abstrait par mappers)
+│   │   ├── supabase/                   # Impl. Supabase (seule impl.)
+│   │   ├── index.js                    # Point d'entrée stable repos.*
+│   │   └── mappers.js                  # Conversions camelCase ↔ snake_case
 │   ├── interface/                      # Définitions champs/schémas
 │   └── utils/                          # validator/, helpers, supabaseKeepAlive
 └── scripts/                            # Migration, cleanup, etc.
@@ -76,7 +76,7 @@ BACKEND/
 
 ## Patterns clés
 
-**Repository Pattern** : Services appellent `repos.users.getById()` → router vers Firestore/Supabase selon `DB_PROVIDER`  
-**Mapper Pattern** : Conversions automatiques Firestore ↔ Supabase en read/write  
+**Repository Pattern** : Services appellent `repos.users.getById()` → Supabase (impl. unique)  
+**Mapper Pattern** : Conversions automatiques camelCase ↔ snake_case en read/write  
 **Controller → Service** : Controllers valident + transforment ; Services orchestrent logique métier + appels repo  
 **Socket Rooms** : `app:<appId>`, `user:<userId>`, `fastfood:<fastFoodId>`
