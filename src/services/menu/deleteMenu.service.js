@@ -5,8 +5,9 @@ const repos = require('../../repositories');
 const { getIO } = require('../../socket');
 const { getFastFoodService } = require('../fastfood/getFastFood');
 const { getMenuService } = require('./getMenu.services');
+const { reliableEmit } = require('../../utils/reliableEmit');
 
-exports.deleteMenuService = async (menuId) => {
+exports.deleteMenuService = async menuId => {
   if (!menuId) return { success: false, message: 'ID du menu est requis' };
 
   try {
@@ -21,8 +22,12 @@ exports.deleteMenuService = async (menuId) => {
     const finalData = { ...fastFood, menus: { ...updatedMenus } };
 
     const io = getIO();
+    // Broadcast catalogue public : rechargé par re-fetch à la reconnexion (non persisté).
     io.emit('globalMenuDeleted', { message: 'Menu supprimé', fastFood: finalData, menuId });
-    io.to(fastFood.userId).emit('fastFoodMenuDeleted', { message: 'Menu supprimé', fastFood: finalData, menuId });
+    // Ciblé marchand propriétaire : émission fiable (rejouée si hors ligne).
+    if (fastFood?.userId) {
+      await reliableEmit(io, fastFood.userId, 'fastFoodMenuDeleted', { message: 'Menu supprimé', fastFood: finalData, menuId });
+    }
 
     return { success: true, message: 'Menu supprimé', data: finalData };
   } catch (error) {

@@ -33,12 +33,7 @@ exports.create = async ({ userId, event, payload }) => {
 
 /** Events non encore délivrés d'un user, plus anciens d'abord. */
 exports.getUndelivered = async userId => {
-  const { data, error } = await supabase
-    .from(TABLE)
-    .select('*')
-    .eq('user_id', userId)
-    .is('delivered_at', null)
-    .order('created_at', { ascending: true });
+  const { data, error } = await supabase.from(TABLE).select('*').eq('user_id', userId).is('delivered_at', null).order('created_at', { ascending: true });
   if (error) throw error;
   return (data || []).map(fromRow);
 };
@@ -47,10 +42,7 @@ exports.getUndelivered = async userId => {
 exports.markDelivered = async ids => {
   const list = Array.isArray(ids) ? ids : [ids];
   if (list.length === 0) return;
-  const { error } = await supabase
-    .from(TABLE)
-    .update({ delivered_at: new Date().toISOString() })
-    .in('id', list);
+  const { error } = await supabase.from(TABLE).update({ delivered_at: new Date().toISOString() }).in('id', list);
   if (error) throw error;
 };
 

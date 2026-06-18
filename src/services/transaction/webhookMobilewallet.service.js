@@ -3,6 +3,7 @@ const repos = require('../../repositories');
 const { createOrderService } = require('../order/createOrder');
 const { updateOrders } = require('../order/updateOrders.service');
 const { creditMerchantForItem } = require('./creditMerchant.service');
+const { reliableEmit } = require('../../utils/reliableEmit');
 
 const log = console;
 
@@ -73,7 +74,7 @@ exports.webhookMobilewalletService = async (payload, source = 'webhook') => {
     // → socket.join(userId)). Tout le reste du code émet aussi vers io.to(userId).
     // On garde la même convention ici, sinon le client ne reçoit jamais le verdict.
     log.info(`${logPrefix} → Émission socket payment.settled vers ${userId}`);
-    io.to(userId).emit('payment.settled', {
+    await reliableEmit(io, userId, 'payment.settled', {
       status,
       transaction_id,
       amount,

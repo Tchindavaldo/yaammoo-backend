@@ -14,6 +14,7 @@
 const repos = require('../../repositories');
 const { getIO } = require('../../socket');
 const { computeNet } = require('../../utils/commission');
+const { reliableEmit } = require('../../utils/reliableEmit');
 
 /**
  * Crée la transaction de crédit marchand pour un item de commande payé.
@@ -58,17 +59,15 @@ exports.creditMerchantForItem = async ({ item, clientUserId }) => {
 
   console.info(`${logPrefix} ✓ Crédit marchand ${merchantUserId} : +${net} FCFA (brut=${gross}, mw=${mwCommission}, yaammoo=${yaammooFee})`);
 
-  // Notifier le marchand en temps réel (room = userId, cf. socket.js join_user)
+  // Notifier le marchand (émission FIABLE : rejouée si le marchand est hors ligne).
   try {
-    getIO()
-      .to(merchantUserId)
-      .emit('wallet.credited', {
-        amount: net,
-        grossAmount: gross,
-        fastFoodId,
-        relatedOrderId: item?.id || null,
-        transactionId: tx.id,
-      });
+    await reliableEmit(getIO(), merchantUserId, 'wallet.credited', {
+      amount: net,
+      grossAmount: gross,
+      fastFoodId,
+      relatedOrderId: item?.id || null,
+      transactionId: tx.id,
+    });
   } catch (e) {
     console.warn(`${logPrefix} émission socket wallet.credited non critique: ${e.message}`);
   }

@@ -6,6 +6,7 @@ const { getIO } = require('../../socket');
 const { validateOrder } = require('../../utils/validator/validateOrder');
 const { getFastFoodService } = require('../fastfood/getFastFood');
 const { updateOrders } = require('./updateOrders.service');
+const { reliableEmit } = require('../../utils/reliableEmit');
 
 const RANKED_STATUSES = new Set(['pending', 'processing']);
 const RANK_IMPACTING = new Set(['pendingToBuy', 'pending', 'processing', 'cancelByUser', 'cancelByFastFood']);
@@ -24,10 +25,7 @@ exports.updateOrderService = async (orderId, updateData) => {
     const newStatus = updateData.status;
 
     // Si transition impactant le rank, on délègue à updateOrders pour cohérence
-    const isRankedTransition =
-      newStatus &&
-      newStatus !== prevStatus &&
-      (RANKED_STATUSES.has(prevStatus) || RANK_IMPACTING.has(newStatus));
+    const isRankedTransition = newStatus && newStatus !== prevStatus && (RANKED_STATUSES.has(prevStatus) || RANK_IMPACTING.has(newStatus));
 
     if (isRankedTransition) {
       const payload = {
@@ -49,9 +47,9 @@ exports.updateOrderService = async (orderId, updateData) => {
 
     const fastFood = await getFastFoodService(updatedOrder.fastFoodId);
     const io = getIO();
-    io.to(updatedOrder.userId).emit('userOrderUpdated', { data: updatedOrder });
+    await reliableEmit(io, updatedOrder.userId, 'userOrderUpdated', { data: updatedOrder });
     if (fastFood?.userId) {
-      io.to(fastFood.userId).emit('fastFoodOrderUpdated', { data: updatedOrder });
+      await reliableEmit(io, fastFood.userId, 'fastFoodOrderUpdated', { data: updatedOrder });
     }
 
     return { success: true, message: 'Commande mise à jour avec succès', data: updatedOrder };

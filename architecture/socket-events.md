@@ -8,6 +8,55 @@
 
 ---
 
+## Émission FIABLE (reprise après déconnexion)
+
+Socket.io est fire-and-forget : un event émis pendant que l'utilisateur est hors ligne est
+**perdu**. Pour les events importants, on utilise une **outbox persistée + rejeu + ACK natif**.
+
+- **Helper** : `src/utils/reliableEmit.js` → `reliableEmit(io, userId, event, payload)`.
+  1. Persiste l'event dans `outbox_events` (`delivered_at = null`).
+  2. Émet avec l'**ACK natif Socket.io** (`io.to(userId).timeout(...).emit(event, body, cb)`).
+  3. Si le client appelle le callback → `delivered_at` renseigné. Sinon (hors ligne) → reste à rejouer.
+- **Rejeu** : au `join_user`, `replayUndelivered(io, userId)` ré-émet les events non délivrés
+  (cf. `src/socket.js`).
+- **Dédoublonnage côté front** : chaque payload porte `__eventId` (+ `__replay: true` au rejeu).
+  Le front **doit appeler le callback ACK** reçu en 2ᵉ argument du handler, et ignorer un
+  `__eventId` déjà traité (le live et le rejeu peuvent se chevaucher).
+- **Purge** : `repos.outboxEvents.purge()` (toutes les 6h) supprime les events délivrés et les
+  non délivrés > **7 jours** (`OUTBOX_PURGE_INTERVAL_MS`, TTL en dur 7j).
+- **Table** : `outbox_events` (migration `005_outbox_events.sql`).
+
+### Events fiabilisés (persistés + rejoués)
+
+| Event | Source | Cible |
+|---|---|---|
+| `wallet.credited` | `services/transaction/creditMerchant.service.js` | marchand |
+| `wallet.withdrawal` | `services/wallet/withdraw.service.js` | marchand |
+| `payment.settled` | `services/transaction/webhookMobilewallet.service.js` | client |
+| `newFastFoodOrders` | `services/order/updateOrders.service.js` | marchand |
+| `userOrderUpdated` | `updateOrders.service.js`, `updateOrder.js` | client |
+| `fastFoodOrderUpdated` | `updateOrders.service.js`, `updateOrder.js` | marchand |
+| `newFastFoodMenu` / `fastFoodMenuUpdated` / `fastFoodMenuDeleted` | `services/menu/*` | marchand |
+
+> Les broadcasts catalogue (`globalMenu*`) restent **fire-and-forget** : le front recharge le
+> catalogue (GET) à la reconnexion plutôt que de rejouer des events à tous. Les events de file
+> d'attente fins (`*Rank*`, `*PeriodKey*`, `*ClientId*`) restent aussi fire-and-forget
+> (recalculés au re-fetch).
+
+### Côté frontend (à implémenter)
+
+```js
+socket.on('wallet.credited', (data, ack) => {
+  if (seen.has(data.__eventId)) return ack?.();   // déjà traité (live/replay)
+  seen.add(data.__eventId);
+  // ... mettre à jour le store global (pas seulement la page courante)
+  ack?.();   // confirme la réception → le backend marque l'event délivré
+});
+```
+Le même pattern (`ack?.()` + dédoublonnage `__eventId`) s'applique à tous les events fiabilisés.
+
+---
+
 ## Événements émis par le backend
 
 ### Commandes — nouvelles

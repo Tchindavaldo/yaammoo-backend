@@ -13,6 +13,7 @@
 const repos = require('../../repositories');
 const { getIO } = require('../../socket');
 const { validateWithdrawal } = require('../../utils/validator/validateWithdrawal');
+const { reliableEmit } = require('../../utils/reliableEmit');
 
 /**
  * @param {object} params { userId, amount, phone, network }
@@ -79,9 +80,9 @@ exports.requestWithdrawal = async ({ userId, amount, phone, network }) => {
   //              + rembourser le solde (transaction merchant_credit compensatoire).
   // Pour l'instant, le retrait reste 'pending'.
 
-  // 5. Notifier le marchand
+  // 5. Notifier le marchand (émission FIABLE : rejouée si hors ligne)
   try {
-    getIO().to(userId).emit('wallet.withdrawal', {
+    await reliableEmit(getIO(), userId, 'wallet.withdrawal', {
       withdrawalId: withdrawal.id,
       amount: amt,
       status: withdrawal.status,
