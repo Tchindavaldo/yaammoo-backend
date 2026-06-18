@@ -2,6 +2,7 @@ const { getIO } = require('../../socket');
 const repos = require('../../repositories');
 const { createOrderService } = require('../order/createOrder');
 const { updateOrders } = require('../order/updateOrders.service');
+const { creditMerchantForItem } = require('./creditMerchant.service');
 
 const log = console;
 
@@ -127,6 +128,17 @@ exports.webhookMobilewalletService = async (payload, source = 'webhook') => {
           }
         } catch (e) {
           log.error(`${logPrefix} ❌ ${label} exception: ${e.message}`);
+        }
+      }
+
+      // 3) Crédit du portefeuille marchand (par item, net de commissions).
+      // Couvre achat direct + panier (tous les items portent fastFoodId + total).
+      // Échec partiel toléré : un crédit raté est logué, n'interrompt pas le reste.
+      for (const item of orders) {
+        try {
+          await creditMerchantForItem({ item, clientUserId: userId });
+        } catch (e) {
+          log.error(`${logPrefix} ❌ Crédit marchand (fastFoodId=${item?.fastFoodId}) échoué: ${e.message}`);
         }
       }
     }

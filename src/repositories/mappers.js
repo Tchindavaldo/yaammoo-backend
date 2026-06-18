@@ -9,14 +9,14 @@
 // compatible avec l'app mobile (Firestore-like) quel que soit le backend.
 // ============================================================================
 
-const toIso = (v) => {
+const toIso = v => {
   if (!v) return null;
   if (typeof v === 'string') return v;
   if (v instanceof Date) return v.toISOString();
   return null;
 };
 
-const toDate = (v) => {
+const toDate = v => {
   if (!v) return null;
   if (typeof v === 'string') {
     // 'YYYY-MM-DD' ou ISO complet
@@ -29,7 +29,7 @@ const toDate = (v) => {
 // ---------------------------------------------------------------------------
 // USERS
 // ---------------------------------------------------------------------------
-const userToSupabase = (data) => {
+const userToSupabase = data => {
   const { infos = {}, pushTokens, createdAt, updatedAt, ...rest } = data;
   const known = ['id', 'uid', 'fastFoodId', 'isMarchand', 'statistique', 'cmd'];
   const extra = {};
@@ -72,7 +72,7 @@ const userFromSupabase = (row, pushTokens = []) => {
     isMarchand: !!row.fastfood_id,
     statistique: row.statistique,
     cmd: row.cmd || [],
-    pushTokens: (pushTokens || []).map((t) => ({
+    pushTokens: (pushTokens || []).map(t => ({
       token: t.token,
       platform: t.platform,
       deviceId: t.device_id,
@@ -87,10 +87,9 @@ const userFromSupabase = (row, pushTokens = []) => {
 // ---------------------------------------------------------------------------
 // FASTFOODS
 // ---------------------------------------------------------------------------
-const fastfoodToSupabase = (data) => {
+const fastfoodToSupabase = data => {
   const { createdAt, updatedAt, ...rest } = data;
-  const known = ['id', 'userId', 'name', 'number', 'openTime', 'closeTime',
-    'image', 'orderLeadTime', 'deliveryHours'];
+  const known = ['id', 'userId', 'name', 'number', 'openTime', 'closeTime', 'image', 'orderLeadTime', 'deliveryHours'];
   const extra = {};
   for (const k of Object.keys(rest)) {
     if (!known.includes(k)) extra[k] = rest[k];
@@ -111,7 +110,7 @@ const fastfoodToSupabase = (data) => {
   };
 };
 
-const fastfoodFromSupabase = (row) => {
+const fastfoodFromSupabase = row => {
   if (!row) return null;
   return {
     id: row.id,
@@ -132,11 +131,9 @@ const fastfoodFromSupabase = (row) => {
 // ---------------------------------------------------------------------------
 // MENUS
 // ---------------------------------------------------------------------------
-const menuToSupabase = (data) => {
+const menuToSupabase = data => {
   const { createdAt, updatedAt, ...rest } = data;
-  const known = ['id', 'fastFoodId', 'titre', 'name', 'prix1', 'prix2', 'prix3',
-    'optionPrix1', 'optionPrix2', 'optionPrix3', 'image', 'coverImage', 'images',
-    'disponibilite', 'status', 'stock', 'extra', 'drink'];
+  const known = ['id', 'fastFoodId', 'titre', 'name', 'prix1', 'prix2', 'prix3', 'optionPrix1', 'optionPrix2', 'optionPrix3', 'image', 'coverImage', 'images', 'disponibilite', 'status', 'stock', 'extra', 'drink'];
   const extra_data = {};
   for (const k of Object.keys(rest)) {
     if (!known.includes(k)) extra_data[k] = rest[k];
@@ -166,7 +163,7 @@ const menuToSupabase = (data) => {
   };
 };
 
-const menuFromSupabase = (row) => {
+const menuFromSupabase = row => {
   if (!row) return null;
   return {
     id: row.id,
@@ -196,10 +193,9 @@ const menuFromSupabase = (row) => {
 // ---------------------------------------------------------------------------
 // ORDERS
 // ---------------------------------------------------------------------------
-const orderToSupabase = (data) => {
+const orderToSupabase = data => {
   const { createdAt, updatedAt, menu, ...rest } = data;
-  const known = ['id', 'userId', 'fastFoodId', 'quantity', 'extra', 'drink',
-    'delivery', 'total', 'status', 'rank', 'clientId', 'periodKey'];
+  const known = ['id', 'userId', 'fastFoodId', 'quantity', 'extra', 'drink', 'delivery', 'total', 'status', 'rank', 'clientId', 'periodKey'];
   const extra_data = {};
   for (const k of Object.keys(rest)) {
     if (!known.includes(k)) extra_data[k] = rest[k];
@@ -226,7 +222,7 @@ const orderToSupabase = (data) => {
   };
 };
 
-const orderFromSupabase = (row) => {
+const orderFromSupabase = row => {
   if (!row) return null;
   return {
     id: row.id,
@@ -251,10 +247,9 @@ const orderFromSupabase = (row) => {
 // ---------------------------------------------------------------------------
 // TRANSACTIONS
 // ---------------------------------------------------------------------------
-const transactionToSupabase = (data) => {
+const transactionToSupabase = data => {
   const { createdAt, ...rest } = data;
-  const known = ['id', 'userId', 'type', 'amount', 'currentAmount', 'payBy',
-    'name', 'remainingAmount'];
+  const known = ['id', 'userId', 'type', 'amount', 'currentAmount', 'payBy', 'name', 'remainingAmount'];
   const extra_data = {};
   for (const k of Object.keys(rest)) {
     if (!known.includes(k)) extra_data[k] = rest[k];
@@ -273,7 +268,7 @@ const transactionToSupabase = (data) => {
   };
 };
 
-const transactionFromSupabase = (row) => {
+const transactionFromSupabase = row => {
   if (!row) return null;
   return {
     id: row.id,
@@ -290,9 +285,42 @@ const transactionFromSupabase = (row) => {
 };
 
 // ---------------------------------------------------------------------------
+// WITHDRAWALS (retraits marchand)
+// ---------------------------------------------------------------------------
+const withdrawalToSupabase = data => ({
+  id: data.id,
+  user_id: data.userId,
+  fastfood_id: data.fastFoodId ?? null,
+  amount: data.amount ?? null,
+  phone: data.phone ?? null,
+  network: data.network ?? null,
+  status: data.status ?? 'pending',
+  mw_payout_id: data.mwPayoutId ?? null,
+  failure_reason: data.failureReason ?? null,
+  created_at: toIso(data.createdAt),
+});
+
+const withdrawalFromSupabase = row => {
+  if (!row) return null;
+  return {
+    id: row.id,
+    userId: row.user_id,
+    fastFoodId: row.fastfood_id,
+    amount: row.amount != null ? Number(row.amount) : null,
+    phone: row.phone,
+    network: row.network,
+    status: row.status,
+    mwPayoutId: row.mw_payout_id,
+    failureReason: row.failure_reason,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+};
+
+// ---------------------------------------------------------------------------
 // BONUS
 // ---------------------------------------------------------------------------
-const bonusToSupabase = (data) => {
+const bonusToSupabase = data => {
   const { id, createdAt, ...rest } = data;
   return {
     id,
@@ -301,7 +329,7 @@ const bonusToSupabase = (data) => {
   };
 };
 
-const bonusFromSupabase = (row) => {
+const bonusFromSupabase = row => {
   if (!row) return null;
   return { id: row.id, ...(row.data || {}), createdAt: row.created_at };
 };
@@ -309,7 +337,7 @@ const bonusFromSupabase = (row) => {
 // ---------------------------------------------------------------------------
 // BONUS REQUESTS
 // ---------------------------------------------------------------------------
-const bonusRequestToSupabase = (data) => {
+const bonusRequestToSupabase = data => {
   const { createdAt, updatedAt, ...rest } = data;
   const known = ['id', 'userId', 'bonusId', 'bonusType', 'status'];
   const extra_data = {};
@@ -328,7 +356,7 @@ const bonusRequestToSupabase = (data) => {
   };
 };
 
-const bonusRequestFromSupabase = (row) => {
+const bonusRequestFromSupabase = row => {
   if (!row) return null;
   return {
     id: row.id,
@@ -345,7 +373,7 @@ const bonusRequestFromSupabase = (row) => {
 // ---------------------------------------------------------------------------
 // NOTIFICATIONS
 // ---------------------------------------------------------------------------
-const notificationToSupabase = (data) => {
+const notificationToSupabase = data => {
   return {
     id: data.id,
     user_id: data.userId ?? null,
@@ -357,7 +385,7 @@ const notificationToSupabase = (data) => {
   };
 };
 
-const notificationFromSupabase = (row) => {
+const notificationFromSupabase = row => {
   if (!row) return null;
   return {
     id: row.id,
@@ -378,6 +406,7 @@ module.exports = {
   menu: { toSupabase: menuToSupabase, fromSupabase: menuFromSupabase },
   order: { toSupabase: orderToSupabase, fromSupabase: orderFromSupabase },
   transaction: { toSupabase: transactionToSupabase, fromSupabase: transactionFromSupabase },
+  withdrawal: { toSupabase: withdrawalToSupabase, fromSupabase: withdrawalFromSupabase },
   bonus: { toSupabase: bonusToSupabase, fromSupabase: bonusFromSupabase },
   bonusRequest: { toSupabase: bonusRequestToSupabase, fromSupabase: bonusRequestFromSupabase },
   notification: { toSupabase: notificationToSupabase, fromSupabase: notificationFromSupabase },

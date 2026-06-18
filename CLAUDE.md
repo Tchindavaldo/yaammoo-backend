@@ -192,7 +192,20 @@ Voir `.env` pour la liste complète des variables.
 
 ---
 
-## Conventions de branches
+## Conventions de branches Git
+
+> ⚠️ Cette section parle **exclusivement de branches Git** (`git checkout -b ...`).
+> Elle n'a rien à voir avec l'organisation des dossiers/modules dans le code.
+> Quand on dit "isoler un travail", on parle de **l'isoler sur sa propre branche Git**.
+
+**Règle d'or : tout travail de changement — moyen ou important — doit se faire sur
+une NOUVELLE branche Git créée AVANT de toucher au code.** Ne jamais coder
+directement sur `main`. Avant la moindre modification non triviale, créer la branche
+avec le bon préfixe, puis travailler dessus.
+
+Sont concernés (liste non exhaustive) : nouvelle fonctionnalité, refacto, ajout
+de route/contrôleur/service, modification d'un flux, correction de bug. Seules les
+retouches ultra-mineures (typo, commentaire, log) peuvent rester sur la branche courante.
 
 Toujours préfixer selon la nature :
 
@@ -200,7 +213,12 @@ Toujours préfixer selon la nature :
 - `feature/<sujet>` — nouvelle fonctionnalité ou durcissement
 - `backup/<sujet>` — sauvegarde d'un état (ne pas y travailler)
 
-**Règle** : tout work de debug commence sur une branche `debug/`, créée depuis la branche d'où vient le bug.
+Règles de création :
+- **Tout travail de debug** commence sur une branche `debug/`, créée depuis la
+  branche d'où vient le bug (pas depuis `main`).
+- **Tout travail de feature / changement moyen ou important** commence sur une
+  branche `feature/`, créée depuis `main` (sauf indication contraire).
+- Une branche = un sujet. Ne pas mélanger plusieurs travaux sur la même branche.
 
 ---
 
