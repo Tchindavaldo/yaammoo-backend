@@ -28,6 +28,33 @@ exports.getByUser = async userId => {
   return (data || []).map(m.withdrawal.fromSupabase);
 };
 
+exports.getById = async id => {
+  const { data, error } = await supabase.from(TABLE).select('*').eq('id', id).maybeSingle();
+  if (error) throw error;
+  return m.withdrawal.fromSupabase(data);
+};
+
+/** Dernier retrait (tous statuts) d'un marchand — pour le cooldown. */
+exports.getLatestByUser = async userId => {
+  const { data, error } = await supabase.from(TABLE).select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(1).maybeSingle();
+  if (error) throw error;
+  return m.withdrawal.fromSupabase(data);
+};
+
+/** Retrait en cours (pending) d'un marchand — pour bloquer les doublons. */
+exports.getPendingByUser = async userId => {
+  const { data, error } = await supabase.from(TABLE).select('*').eq('user_id', userId).eq('status', 'pending').limit(1).maybeSingle();
+  if (error) throw error;
+  return m.withdrawal.fromSupabase(data);
+};
+
+/** Retrouve un retrait par son id MobileWallet (mw_payout_id) — routage du verdict. */
+exports.getByPayoutId = async payoutId => {
+  const { data, error } = await supabase.from(TABLE).select('*').eq('mw_payout_id', payoutId).maybeSingle();
+  if (error) throw error;
+  return m.withdrawal.fromSupabase(data);
+};
+
 exports.updateStatus = async (id, { status, mwPayoutId, failureReason } = {}) => {
   const patch = { status, updated_at: new Date().toISOString() };
   if (mwPayoutId !== undefined) patch.mw_payout_id = mwPayoutId;

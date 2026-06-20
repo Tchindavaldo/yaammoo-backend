@@ -4,6 +4,7 @@ const { createOrderService } = require('../order/createOrder');
 const { updateOrders } = require('../order/updateOrders.service');
 const { creditMerchantForItem } = require('./creditMerchant.service');
 const { reliableEmit } = require('../../utils/reliableEmit');
+const { webhookPayoutVerdict } = require('./webhookPayout.service');
 
 const log = console;
 
@@ -36,7 +37,17 @@ exports.webhookMobilewalletService = async (payload, source = 'webhook') => {
     log.info(`${logPrefix} → Verdict reçu: status=${status}, amount=${amount}`);
 
     // ========================================================================
-    // 1. Retrouver le contexte persisté (Supabase)
+    // 0. Routage RETRAIT (payout) : ce verdict concerne-t-il un withdrawal ?
+    // ========================================================================
+    const withdrawal = await repos.withdrawals.getByPayoutId(transaction_id);
+    if (withdrawal) {
+      log.info(`${logPrefix} → Verdict de RETRAIT (withdrawalId=${withdrawal.id})`);
+      await webhookPayoutVerdict(withdrawal, data, source);
+      return;
+    }
+
+    // ========================================================================
+    // 1. Retrouver le contexte persisté (Supabase) — flux PAIEMENT
     // ========================================================================
     let ctx = await repos.pendingPayments.getById(transaction_id);
 

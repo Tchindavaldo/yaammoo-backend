@@ -65,7 +65,7 @@ crédite **chaque item** via
 | GET | `/wallet/balance` | `{ balance, totalEarned, totalWithdrawn }` du marchand (`req.user.uid`) |
 | GET | `/wallet/history` | payin (gains) + payout (retraits), filtrable, triés DESC |
 | GET | `/wallet/stats` | totaux payin/payout/net agrégés par jour/semaine/mois |
-| POST | `/wallet/withdraw` | demande de retrait `{ amount, phone, network }` |
+| POST | `/wallet/withdraw` | demande de retrait `{ amount, phone, network, receiverName?, narration? }` |
 
 ### `GET /wallet/history`
 Chaque entrée porte un champ **`direction`** : `payin` (= `merchant_credit`) ou
@@ -96,18 +96,39 @@ Validateur : [validateWithdrawal.js](../src/utils/validator/validateWithdrawal.j
 
 ### Flux retrait (`POST /wallet/withdraw`)
 
+Body : `{ amount, phone, network, receiverName?, narration? }`.
+
+> ⚠️ **Le débit n'a lieu QU'AU SUCCÈS du payout** (transaction `withdrawal` créée au verdict
+> `successful`), jamais à la demande. Donc un retrait échoué/annulé laisse le solde intact.
+
 1. valide montant/phone/network ;
 2. recalcule le solde → **400 `insufficient_balance`** si `amount > balance` ;
-3. insère `withdrawals` (`status='pending'`) ;
-4. crée la transaction `withdrawal` (débite le solde dérivé) ;
-5. **STUB MobileWallet** : `// TODO` appel endpoint payout (fourni plus tard). Le retrait
-   reste `pending`. Au branchement : `updateStatus(completed|failed)` (+ remboursement si échec) ;
-6. émet socket `wallet.withdrawal`.
+3. **blocage doublon** : **409 `withdrawal_in_progress`** s'il existe déjà un retrait `pending` ;
+4. **cooldown** : **429 `cooldown`** si moins de `WITHDRAWAL_COOLDOWN_HOURS` (env, défaut 24h)
+   depuis le dernier retrait ;
+5. `receiver_name` : `receiverName` du body → nom marchand (`users`) → `fastfood.name` ;
+6. insère `withdrawals` (`status='pending'`) — **aucun débit** ;
+7. appelle **MobileWallet `/payout`** ([mobilewalletService.payout](../src/services/transaction/mobilewalletService.js)),
+   stocke `mw_payout_id`. Échec d'initiation (409/503/502) → `status='failed'` + erreur renvoyée ;
+8. émet socket fiable `wallet.withdrawal` (`status='pending'`).
+
+### Verdict du retrait (webhook + socket)
+
+Même double canal que les paiements. [webhookMobilewallet.service](../src/services/transaction/webhookMobilewallet.service.js)
+**route en tête** : si `transaction_id` correspond à un `withdrawals.mw_payout_id` →
+[webhookPayout.service](../src/services/transaction/webhookPayout.service.js) :
+- idempotence via `reserveSettlement` (table partagée) ;
+- `successful` → crée la transaction `withdrawal` (**débit réel**) + `status='completed'` +
+  socket `wallet.withdrawal` (`status='completed'`, `newBalance`) ;
+- `failed`/`cancelled` → `status='failed'`, **aucun débit** + socket `wallet.withdrawal`
+  (`status='failed'`).
+
+Variables d'env : `WITHDRAWAL_COOLDOWN_HOURS`, `WITHDRAWAL_CURRENCY` (défaut `XAF`).
 
 ---
 
 ## TODO
 
-- [ ] Brancher l'endpoint MobileWallet de retrait (payout) — fourni plus tard.
-- [ ] Remboursement automatique (`merchant_credit` compensatoire) si le payout échoue.
+- [ ] Réservation atomique du solde entre la demande et le verdict (aujourd'hui : blocage
+      `pending` + cooldown suffisent en pratique, mais le solde n'est pas verrouillé).
 - [ ] Remboursement client : crédit marchand inverse à prévoir si une commande payée est annulée.

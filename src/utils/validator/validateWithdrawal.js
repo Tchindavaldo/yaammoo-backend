@@ -5,7 +5,9 @@
 // (même convention que les autres validateurs du dossier).
 // ============================================================================
 
-const ALLOWED_NETWORKS = ['MTN', 'Orangemoney', 'OM'];
+// Sensible à la casse : valeurs EXACTES attendues par MobileWallet /payout.
+// Le front DOIT envoyer exactement 'MTN' ou 'ORANGEMONEY'.
+const ALLOWED_NETWORKS = ['MTN', 'ORANGEMONEY'];
 
 exports.validateWithdrawal = (data = {}) => {
   const errors = [];

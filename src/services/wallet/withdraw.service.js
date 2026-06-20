@@ -1,25 +1,32 @@
 // ============================================================================
 // withdraw.service — Demande de retrait du portefeuille marchand
 // ============================================================================
-// Le solde est calculé depuis les transactions. Un retrait :
-//   1. recalcule le solde (source de vérité),
-//   2. valide montant > 0 et montant <= solde,
-//   3. insère une ligne `withdrawals` (status='pending'),
-//   4. crée une transaction `type='withdrawal'` (débite le solde dérivé),
-//   5. [STUB] appellera l'endpoint MobileWallet payout (fourni plus tard),
-//   6. émet un socket `wallet.withdrawal` vers le marchand.
+// Le solde est calculé depuis les transactions. Le débit (transaction
+// 'withdrawal') n'est créé QU'AU SUCCÈS du payout (cf. webhookMobilewallet
+// branche payout) — pas à la demande. Une demande de retrait :
+//   1. valide les champs + le solde (>= montant),
+//   2. bloque s'il existe déjà un retrait 'pending' pour ce marchand,
+//   3. applique un cooldown (WITHDRAWAL_COOLDOWN_HOURS) depuis le dernier retrait,
+//   4. insère une ligne `withdrawals` (status='pending'),
+//   5. appelle MobileWallet /payout, stocke mw_payout_id,
+//   6. émet un socket fiable `wallet.withdrawal` (status='pending').
+// Le verdict final (completed/failed) arrive via webhook/socket.
 // ============================================================================
 
 const repos = require('../../repositories');
 const { getIO } = require('../../socket');
 const { validateWithdrawal } = require('../../utils/validator/validateWithdrawal');
 const { reliableEmit } = require('../../utils/reliableEmit');
+const mobilewallet = require('../transaction/mobilewalletService');
+
+// 0 = désactivé (dev). Si non défini → 24h par défaut (prod).
+const COOLDOWN_HOURS = process.env.WITHDRAWAL_COOLDOWN_HOURS !== undefined ? Number(process.env.WITHDRAWAL_COOLDOWN_HOURS) : 24;
 
 /**
- * @param {object} params { userId, amount, phone, network }
+ * @param {object} params { userId, amount, phone, network, receiverName?, narration? }
  * @returns {{ success:boolean, httpStatus:number, code?:string, message?:string, data?:object }}
  */
-exports.requestWithdrawal = async ({ userId, amount, phone, network }) => {
+exports.requestWithdrawal = async ({ userId, amount, phone, network, receiverName, narration }) => {
   if (!userId) {
     return { success: false, httpStatus: 401, code: 'unauthenticated', message: 'Utilisateur non authentifié' };
   }
@@ -47,10 +54,43 @@ exports.requestWithdrawal = async ({ userId, amount, phone, network }) => {
     };
   }
 
-  // Boutique du marchand (pour traçabilité)
-  const fastfood = await repos.fastfoods.getByUserId(userId).catch(() => null);
+  // 2. Bloquer si un retrait est déjà en cours
+  const pending = await repos.withdrawals.getPendingByUser(userId);
+  if (pending) {
+    return {
+      success: false,
+      httpStatus: 409,
+      code: 'withdrawal_in_progress',
+      message: 'Un retrait est déjà en cours. Attendez sa confirmation avant d’en relancer un.',
+    };
+  }
 
-  // 2. Tracer la demande de retrait (pending)
+  // 3. Cooldown depuis le dernier retrait (COOLDOWN_HOURS=0 → désactivé, ex. en dev)
+  const last = COOLDOWN_HOURS > 0 ? await repos.withdrawals.getLatestByUser(userId) : null;
+  if (last?.createdAt) {
+    const elapsedMs = Date.now() - new Date(last.createdAt).getTime();
+    const cooldownMs = COOLDOWN_HOURS * 3600 * 1000;
+    if (elapsedMs < cooldownMs) {
+      const remainingH = Math.ceil((cooldownMs - elapsedMs) / 3600000);
+      return {
+        success: false,
+        httpStatus: 429,
+        code: 'cooldown',
+        message: `Vous devez attendre ${COOLDOWN_HOURS}h entre deux retraits. Réessayez dans ~${remainingH}h.`,
+      };
+    }
+  }
+
+  // receiver_name : body → nom marchand (users) → nom fastfood
+  const fastfood = await repos.fastfoods.getByUserId(userId).catch(() => null);
+  let finalReceiver = receiverName;
+  if (!finalReceiver) {
+    const user = await repos.users.getUserById(userId).catch(() => null);
+    const fullName = [user?.infos?.prenom, user?.infos?.nom].filter(Boolean).join(' ').trim();
+    finalReceiver = fullName || fastfood?.name || 'Marchand yaammoo';
+  }
+
+  // 4. Tracer la demande (pending) — AUCUN débit à ce stade
   const withdrawal = await repos.withdrawals.create({
     userId,
     fastFoodId: fastfood?.id || null,
@@ -60,32 +100,42 @@ exports.requestWithdrawal = async ({ userId, amount, phone, network }) => {
     status: 'pending',
   });
 
-  // 3. Débiter le portefeuille (transaction de type 'withdrawal')
-  await repos.transactions.create({
-    type: 'withdrawal',
-    userId,
+  // 5. Appel MobileWallet /payout
+  const mw = await mobilewallet.payout({
     amount: amt,
-    name: 'Retrait portefeuille',
-    payBy: network,
-    withdrawalId: withdrawal.id,
-    status: 'pending',
-    phone,
     network,
+    phone,
+    receiverName: finalReceiver,
+    narration,
+    withdrawalId: withdrawal.id,
   });
 
-  // 4. STUB MobileWallet payout.
-  // TODO: brancher l'endpoint MobileWallet de retrait ici. Au retour :
-  //   - succès → repos.withdrawals.updateStatus(withdrawal.id, { status:'completed', mwPayoutId })
-  //   - échec  → repos.withdrawals.updateStatus(withdrawal.id, { status:'failed', failureReason })
-  //              + rembourser le solde (transaction merchant_credit compensatoire).
-  // Pour l'instant, le retrait reste 'pending'.
+  if (!mw || mw.status === 'error') {
+    // Échec d'initiation → marquer failed (aucun débit n'a eu lieu, solde intact)
+    await repos.withdrawals.updateStatus(withdrawal.id, { status: 'failed', failureReason: mw?.message || 'payout init failed' });
+    return {
+      success: false,
+      httpStatus: mw?.httpStatus || 502,
+      code: mw?.code || 'payout_failed',
+      message: mw?.message || 'Échec de l’initiation du retrait',
+      retry_after_s: mw?.retry_after_s,
+    };
+  }
 
-  // 5. Notifier le marchand (émission FIABLE : rejouée si hors ligne)
+  // Stocker l'id MobileWallet pour router le verdict
+  await repos.withdrawals.updateStatus(withdrawal.id, { mwPayoutId: mw.transaction_id });
+
+  // 6. Notifier le marchand (statut pending). Émission fiable.
   try {
     await reliableEmit(getIO(), userId, 'wallet.withdrawal', {
       withdrawalId: withdrawal.id,
+      type: 'withdrawal',
+      direction: 'payout',
       amount: amt,
-      status: withdrawal.status,
+      status: 'pending',
+      network,
+      mwTransactionId: mw.transaction_id,
+      createdAt: withdrawal.createdAt,
     });
   } catch (e) {
     console.warn('[withdraw] émission socket non critique:', e.message);
@@ -94,7 +144,7 @@ exports.requestWithdrawal = async ({ userId, amount, phone, network }) => {
   return {
     success: true,
     httpStatus: 200,
-    message: 'Demande de retrait enregistrée',
-    data: { withdrawal, newBalance: balance - amt },
+    message: mw.message || 'Retrait en cours de traitement',
+    data: { withdrawal: { ...withdrawal, mwPayoutId: mw.transaction_id }, status: 'pending' },
   };
 };

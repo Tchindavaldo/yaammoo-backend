@@ -84,7 +84,7 @@ exports.withdrawController = async (req, res) => {
 
     const result = await requestWithdrawal({ userId, amount, phone, network });
     if (result.success) {
-      console.info(`[Wallet] POST /withdraw ✓ userId=${userId} → withdrawalId=${result.data?.withdrawal?.id}, newBalance=${result.data?.newBalance}`);
+      console.info(`[Wallet] POST /withdraw ✓ userId=${userId} → withdrawalId=${result.data?.withdrawal?.id}, status=${result.data?.status} (débit appliqué au verdict)`);
     } else {
       console.warn(`[Wallet] POST /withdraw ✗ userId=${userId} → ${result.code}: ${result.message}`);
     }

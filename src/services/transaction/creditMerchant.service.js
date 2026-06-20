@@ -62,11 +62,17 @@ exports.creditMerchantForItem = async ({ item, clientUserId }) => {
   // Notifier le marchand (émission FIABLE : rejouée si le marchand est hors ligne).
   try {
     await reliableEmit(getIO(), merchantUserId, 'wallet.credited', {
+      transactionId: tx.id,
+      type: 'merchant_credit',
+      direction: 'payin',
       amount: net,
       grossAmount: gross,
+      mwCommission,
+      yaammooFee,
+      name: tx.name,
       fastFoodId,
       relatedOrderId: item?.id || null,
-      transactionId: tx.id,
+      createdAt: tx.createdAt, // date de la transaction (pour liste + groupement par jour)
     });
   } catch (e) {
     console.warn(`${logPrefix} émission socket wallet.credited non critique: ${e.message}`);
