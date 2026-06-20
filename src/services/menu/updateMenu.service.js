@@ -5,6 +5,7 @@ const repos = require('../../repositories');
 const { getIO } = require('../../socket');
 const { validateMenu } = require('../../utils/validator/validatMenu');
 const { getFastFoodService } = require('../fastfood/getFastFood');
+const { reliableEmit } = require('../../utils/reliableEmit');
 
 exports.updateMenuService = async (menuId, updateData) => {
   if (!menuId) return { success: false, message: 'ID du menu est requis' };
@@ -25,8 +26,12 @@ exports.updateMenuService = async (menuId, updateData) => {
     const userId = fastFood.userId;
 
     const io = getIO();
+    // Broadcast catalogue public : rechargé par re-fetch à la reconnexion (non persisté).
     io.emit('globalMenuUpdated', { message: 'Menu mis à jour', menuId, menu: updatedMenu });
-    io.to(userId).emit('fastFoodMenuUpdated', { message: 'Menu mis à jour', menuId, menu: updatedMenu });
+    // Ciblé marchand propriétaire : émission fiable (rejouée si hors ligne).
+    if (userId) {
+      await reliableEmit(io, userId, 'fastFoodMenuUpdated', { message: 'Menu mis à jour', menuId, menu: updatedMenu });
+    }
 
     return { success: true, message: 'Menu mis à jour avec succès', data: updatedMenu };
   } catch (error) {

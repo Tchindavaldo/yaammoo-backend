@@ -36,7 +36,7 @@ const mobilewalletClient = axios.create({
  */
 exports.pay = async ({ amount, phone, network, email, mode, userId }) => {
   const finalEmail = email || 'yaammoo@rauval.com';
-  const finalMode = mode || 'replay';
+  const finalMode = mode || process.env.MOBILEWALLET_MODE || 'browser';
 
   // Construire l'URL du callback webhook (depuis env)
   const backendUrl = process.env.BACKEND_URL;
@@ -117,6 +117,87 @@ exports.pay = async ({ amount, phone, network, email, mode, userId }) => {
     }
 
     // Autres erreurs
+    return {
+      success: false,
+      status: 'error',
+      httpStatus: 502,
+      code: detail?.code || detail?.error || 'server_error',
+      message: detail?.message || error.message || 'Erreur serveur MobileWallet',
+    };
+  }
+};
+
+/**
+ * Appel POST /payout sur MobileWallet pour initier un RETRAIT (virement sortant).
+ * Même principe que /pay : réponse immédiate `pending`, puis verdict via
+ * webhook + socket (transaction.update). Le verdict est routé vers la branche
+ * payout de webhookMobilewalletService (cf. mw_payout_id sur withdrawals).
+ *
+ * @param {Object} params
+ * @param {number} params.amount
+ * @param {string} params.network        - code banque/opérateur (ex. 'MTN', 'Orangemoney')
+ * @param {string} params.phone          - numéro bénéficiaire
+ * @param {string} params.receiverName   - nom du bénéficiaire
+ * @param {string} [params.narration]
+ * @param {string} [params.withdrawalId] - pour la traçabilité (end_user_ref)
+ * @returns {Promise<{success, status, transaction_id, message, code, httpStatus?}>}
+ */
+exports.payout = async ({ amount, network, phone, receiverName, narration, withdrawalId }) => {
+  const backendUrl = process.env.BACKEND_URL;
+  const callbackUrl = `${backendUrl}/transaction/webhook/mobilewallet`;
+  const currency = process.env.WITHDRAWAL_CURRENCY || 'XAF';
+
+  const logPrefix = `[MobileWallet API] payout ${network} amount=${amount}`;
+
+  try {
+    // /payout attend la valeur EXACTE : 'ORANGEMONEY' | 'MTN' (validée en amont).
+    const payload = {
+      amount,
+      account_bank_code: network,
+      account_number: phone,
+      receiver_name: receiverName,
+      currency,
+      narration: narration || 'Retrait yaammoo',
+      callback_url: callbackUrl,
+      end_user_ref: withdrawalId,
+    };
+
+    log.info(`${logPrefix} → POST ${MOBILEWALLET_URL}/payout (withdrawalId=${withdrawalId}, phone=${phone})`);
+
+    const startTime = Date.now();
+    const response = await mobilewalletClient.post('/payout', payload);
+    const duration = Date.now() - startTime;
+
+    const { success, status, transaction_id, message, code } = response.data;
+    log.info(`${logPrefix} ✓ HTTP ${response.status} en ${duration}ms: status=${status}, tx_id=${transaction_id}`);
+
+    return { success, status, transaction_id, message, code };
+  } catch (error) {
+    const status = error.response?.status;
+    const data = error.response?.data;
+    const detail = data?.detail || data;
+
+    log.error(`${logPrefix} ❌ Erreur HTTP ${status || 'UNKNOWN'}: ${error.message}`);
+
+    if (status === 409) {
+      return {
+        success: false,
+        status: 'error',
+        httpStatus: 409,
+        code: detail?.error || 'duplicate',
+        message: detail?.message || 'Retrait en cours ou trop rapproché',
+        retry_after_s: detail?.retry_after_s,
+      };
+    }
+    if (status === 503) {
+      return {
+        success: false,
+        status: 'error',
+        httpStatus: 503,
+        code: detail?.code || detail?.error || 'unavailable',
+        message: detail?.message || 'Opérateur ou réseau indisponible',
+      };
+    }
     return {
       success: false,
       status: 'error',

@@ -2,6 +2,9 @@ const { getIO } = require('../../socket');
 const repos = require('../../repositories');
 const { createOrderService } = require('../order/createOrder');
 const { updateOrders } = require('../order/updateOrders.service');
+const { creditMerchantForItem } = require('./creditMerchant.service');
+const { reliableEmit } = require('../../utils/reliableEmit');
+const { webhookPayoutVerdict } = require('./webhookPayout.service');
 
 const log = console;
 
@@ -34,7 +37,17 @@ exports.webhookMobilewalletService = async (payload, source = 'webhook') => {
     log.info(`${logPrefix} → Verdict reçu: status=${status}, amount=${amount}`);
 
     // ========================================================================
-    // 1. Retrouver le contexte persisté (Supabase)
+    // 0. Routage RETRAIT (payout) : ce verdict concerne-t-il un withdrawal ?
+    // ========================================================================
+    const withdrawal = await repos.withdrawals.getByPayoutId(transaction_id);
+    if (withdrawal) {
+      log.info(`${logPrefix} → Verdict de RETRAIT (withdrawalId=${withdrawal.id})`);
+      await webhookPayoutVerdict(withdrawal, data, source);
+      return;
+    }
+
+    // ========================================================================
+    // 1. Retrouver le contexte persisté (Supabase) — flux PAIEMENT
     // ========================================================================
     let ctx = await repos.pendingPayments.getById(transaction_id);
 
@@ -72,7 +85,7 @@ exports.webhookMobilewalletService = async (payload, source = 'webhook') => {
     // → socket.join(userId)). Tout le reste du code émet aussi vers io.to(userId).
     // On garde la même convention ici, sinon le client ne reçoit jamais le verdict.
     log.info(`${logPrefix} → Émission socket payment.settled vers ${userId}`);
-    io.to(userId).emit('payment.settled', {
+    await reliableEmit(io, userId, 'payment.settled', {
       status,
       transaction_id,
       amount,
@@ -127,6 +140,17 @@ exports.webhookMobilewalletService = async (payload, source = 'webhook') => {
           }
         } catch (e) {
           log.error(`${logPrefix} ❌ ${label} exception: ${e.message}`);
+        }
+      }
+
+      // 3) Crédit du portefeuille marchand (par item, net de commissions).
+      // Couvre achat direct + panier (tous les items portent fastFoodId + total).
+      // Échec partiel toléré : un crédit raté est logué, n'interrompt pas le reste.
+      for (const item of orders) {
+        try {
+          await creditMerchantForItem({ item, clientUserId: userId });
+        } catch (e) {
+          log.error(`${logPrefix} ❌ Crédit marchand (fastFoodId=${item?.fastFoodId}) échoué: ${e.message}`);
         }
       }
     }

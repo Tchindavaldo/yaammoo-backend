@@ -27,6 +27,8 @@ const sb = {
   bonusRequests: require('./supabase/bonusRequests.repo'),
   notifications: require('./supabase/notifications.repo'),
   pendingPayments: require('./supabase/pendingPayments.repo'),
+  withdrawals: require('./supabase/withdrawals.repo'),
+  outboxEvents: require('./supabase/outboxEvents.repo'),
 };
 
 // ===========================================================================
@@ -35,11 +37,11 @@ const sb = {
 const users = {
   ...sb.users,
   // collectUserTokens est une pure fonction utilitaire (pas un accès DB)
-  collectUserTokens: (userData) => {
+  collectUserTokens: userData => {
     const fcm = [];
     const apns = [];
     if (Array.isArray(userData.pushTokens)) {
-      userData.pushTokens.forEach((e) => {
+      userData.pushTokens.forEach(e => {
         if (!e || !e.token) return;
         if (e.platform === 'ios') apns.push(e.token);
         else if (e.platform === 'android') fcm.push(e.token);
@@ -60,5 +62,7 @@ module.exports = {
   bonusRequests: sb.bonusRequests,
   notifications: sb.notifications,
   pendingPayments: sb.pendingPayments,
+  withdrawals: sb.withdrawals,
+  outboxEvents: sb.outboxEvents,
   supabase: sb,
 };

@@ -20,6 +20,7 @@ const { validateOrder } = require('../../utils/validator/validateOrder');
 const { getFastFoodService } = require('../fastfood/getFastFood');
 const { assignRank, reindexQueue } = require('./rankQueue.service');
 const { notifyOrderEvent } = require('../notification/helpers/notifyOrderEvent');
+const { reliableEmit } = require('../../utils/reliableEmit');
 
 const buildTransitionNotif = ({ prevStatus, newStatus, order, merchantUserId }) => {
   const menuName = order.menu?.name || order.menu?.titre || 'Menu';
@@ -51,8 +52,8 @@ const buildTransitionNotif = ({ prevStatus, newStatus, order, merchantUserId }) 
   return null;
 };
 
-const isRankedStatus = (s) => s === 'pending' || s === 'processing';
-const isCancelStatus = (s) => s === 'cancelByUser' || s === 'cancelByFastFood';
+const isRankedStatus = s => s === 'pending' || s === 'processing';
+const isCancelStatus = s => s === 'cancelByUser' || s === 'cancelByFastFood';
 
 exports.updateOrders = async (orders, userId) => {
   try {
@@ -68,7 +69,7 @@ exports.updateOrders = async (orders, userId) => {
     for (const updateData of updates) {
       const errors = validateOrder(updateData, false, false);
       if (errors && errors.length > 0) {
-        const formattedErrors = errors.map((err) => `${err.field}: ${err.message}`).join(', ');
+        const formattedErrors = errors.map(err => `${err.field}: ${err.message}`).join(', ');
         return {
           success: false,
           message: `Erreur de validation pour la commande ${updateData.id || 'inconnue'}: ${formattedErrors}`,
@@ -94,12 +95,23 @@ exports.updateOrders = async (orders, userId) => {
         newStatus = status;
       } else {
         switch (prevStatus) {
-          case 'pendingToBuy': newStatus = 'pending'; break;
-          case 'pending': newStatus = 'processing'; break;
-          case 'processing': newStatus = 'finished'; break;
-          case 'finished': newStatus = 'delivering'; break;
-          case 'delivering': newStatus = 'delivered'; break;
-          default: newStatus = prevStatus;
+          case 'pendingToBuy':
+            newStatus = 'pending';
+            break;
+          case 'pending':
+            newStatus = 'processing';
+            break;
+          case 'processing':
+            newStatus = 'finished';
+            break;
+          case 'finished':
+            newStatus = 'delivering';
+            break;
+          case 'delivering':
+            newStatus = 'delivered';
+            break;
+          default:
+            newStatus = prevStatus;
         }
       }
 
@@ -173,11 +185,7 @@ exports.updateOrders = async (orders, userId) => {
       groupedByFastFood[fastFoodId].push(updatedOrder);
     }
 
-    let message = updates.some((o) => o.status === 'cancelByFastFood')
-      ? 'Commande annulée avec succès'
-      : updates.some((o) => o.status === 'cancelByUser')
-        ? 'Commande retirée du panier avec succès'
-        : 'Commande(s) mise(s) à jour avec succès';
+    let message = updates.some(o => o.status === 'cancelByFastFood') ? 'Commande annulée avec succès' : updates.some(o => o.status === 'cancelByUser') ? 'Commande retirée du panier avec succès' : 'Commande(s) mise(s) à jour avec succès';
 
     let hasRemoval = false;
     let hasNewDelivery = false;
@@ -188,28 +196,28 @@ exports.updateOrders = async (orders, userId) => {
         if (!fastfood.userId) continue;
 
         const pendingOrders = [];
-        groupedByFastFood[fastFoodId].forEach((order) => {
+        groupedByFastFood[fastFoodId].forEach(order => {
           if (order.status === 'pending') pendingOrders.push(order);
         });
 
         if (pendingOrders.length > 0) {
-          io.to(fastfood.userId).emit('newFastFoodOrders', {
+          reliableEmit(io, fastfood.userId, 'newFastFoodOrders', {
             message: pendingOrders.length > 1 ? 'Nouvelles commandes' : 'Nouvelle commande',
             data: pendingOrders,
-          });
-          pendingOrders.forEach((order) => {
-            io.to(order.userId).emit('userOrderUpdated', { data: order });
+          }).catch(e => console.warn('[updateOrders] reliableEmit newFastFoodOrders:', e.message));
+          pendingOrders.forEach(order => {
+            reliableEmit(io, order.userId, 'userOrderUpdated', { data: order }).catch(e => console.warn('[updateOrders] reliableEmit userOrderUpdated:', e.message));
           });
         }
 
-        groupedByFastFood[fastFoodId].forEach((order) => {
+        groupedByFastFood[fastFoodId].forEach(order => {
           if (fastfood.userId === userId && order.periodKey !== undefined && order.status === 'delivering') {
             io.to(order.userId).emit('newPeriodKeyDelivering', { periodKey: order.periodKey });
             io.to(fastfood.userId).emit('newPeriodKeyDelivering', { periodKey: order.periodKey });
             hasNewDelivery = true;
           }
           if (fastfood.userId === userId && removedOrders.length > 0 && order.status === 'finished') {
-            const r = removedOrders.find((x) => x.orderId === order.id);
+            const r = removedOrders.find(x => x.orderId === order.id);
             if (r && r.periodKey) {
               io.to(order.userId).emit('removePeriodKeyDelivering', { periodKey: r.periodKey });
               io.to(fastfood.userId).emit('removePeriodKeyDelivering', { periodKey: r.periodKey });
@@ -222,7 +230,7 @@ exports.updateOrders = async (orders, userId) => {
             hasNewDelivery = true;
           }
           if (fastfood.userId === userId && removedOrders.length > 0 && order.status === 'finished') {
-            const r = removedOrders.find((x) => x.orderId === order.id);
+            const r = removedOrders.find(x => x.orderId === order.id);
             if (r && r.clientId) {
               io.to(order.userId).emit('removeClientIdDelivering', { clientId: r.clientId });
               io.to(fastfood.userId).emit('removeClientIdDelivering', { clientId: r.clientId });
@@ -230,13 +238,13 @@ exports.updateOrders = async (orders, userId) => {
             }
           }
           if (order.status !== 'pending') {
-            io.to(order.userId).emit('userOrderUpdated', { data: order });
-            io.to(fastfood.userId).emit('fastFoodOrderUpdated', { data: order });
+            reliableEmit(io, order.userId, 'userOrderUpdated', { data: order }).catch(e => console.warn('[updateOrders] reliableEmit userOrderUpdated:', e.message));
+            reliableEmit(io, fastfood.userId, 'fastFoodOrderUpdated', { data: order }).catch(e => console.warn('[updateOrders] reliableEmit fastFoodOrderUpdated:', e.message));
           }
         });
 
         // Notifications de transitions
-        const ffTransitions = transitions.filter((t) => t.fastFoodId === fastFoodId);
+        const ffTransitions = transitions.filter(t => t.fastFoodId === fastFoodId);
         for (const t of ffTransitions) {
           const notif = buildTransitionNotif({
             prevStatus: t.prevStatus,
@@ -245,12 +253,12 @@ exports.updateOrders = async (orders, userId) => {
             merchantUserId: fastfood.userId,
           });
           if (notif) {
-            notifyOrderEvent(notif).catch((e) => console.warn('[updateOrders] notify error:', e.message));
+            notifyOrderEvent(notif).catch(e => console.warn('[updateOrders] notify error:', e.message));
           }
         }
 
         // Reindex queue scheduled ops
-        const opsForFF = reindexOps.filter((op) => op.fastFoodId === fastFoodId);
+        const opsForFF = reindexOps.filter(op => op.fastFoodId === fastFoodId);
         for (const op of opsForFF) {
           await reindexQueue({
             fastFoodId: op.fastFoodId,
@@ -266,7 +274,7 @@ exports.updateOrders = async (orders, userId) => {
       }
     }
 
-    if (results.some((o) => o.status === 'finished') && hasRemoval) {
+    if (results.some(o => o.status === 'finished') && hasRemoval) {
       message = 'Livraison annulée avec succès';
     } else if (hasNewDelivery) {
       message = 'Nouvelle livraison lancée avec succès';

@@ -19,6 +19,7 @@ const fastfoodRoutes = require('./routes/fastfoodRoutes');
 const bonusRequest = require('./routes/bonusRequestRoute');
 const transactionRoutes = require('./routes/transactionRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
+const walletRoutes = require('./routes/walletRoutes');
 
 const app = express();
 
@@ -44,6 +45,7 @@ app.use('/fastFood', fastfoodRoutes);
 app.use('/bonusRequest', bonusRequest);
 app.use('/transaction', transactionRoutes);
 app.use('/notification', notificationRoutes);
+app.use('/wallet', walletRoutes);
 
 // Ajouter l'endpoint de diagnostic Firebase
 app.get('/debug-firebase', (req, res) => {
