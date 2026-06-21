@@ -32,7 +32,7 @@ Socket.io est fire-and-forget : un event émis pendant que l'utilisateur est hor
 |---|---|---|
 | `wallet.credited` | `services/transaction/creditMerchant.service.js` | marchand |
 | `wallet.withdrawal` | `services/wallet/withdraw.service.js` | marchand |
-| `payment.settled` | `services/transaction/webhookMobilewallet.service.js` | client |
+| `payment.settled` | `services/transaction/mwVerdictService.js` | client |
 | `newFastFoodOrders` | `services/order/updateOrders.service.js` | marchand |
 | `userOrderUpdated` | `updateOrders.service.js`, `updateOrder.js` | client |
 | `fastFoodOrderUpdated` | `updateOrders.service.js`, `updateOrder.js` | marchand |
@@ -59,49 +59,78 @@ Le même pattern (`ack?.()` + dédoublonnage `__eventId`) s'applique à tous les
 
 ## Événements émis par le backend
 
-### Commandes — nouvelles
+> **Principe** : chaque event porte sa donnée complète dans le payload. Le front met
+> à jour son store **directement avec le `data` reçu — sans refetch HTTP**. Les seuls
+> events "minces" (`payment.settled`, `isRead`, `*PeriodKey*`, `*ClientId*`) portent
+> un flag/identifiant qui EST la donnée (rien d'autre à transporter).
 
-| Event | Destination | Émetteur | Payload | Déclencheur |
-|---|---|---|---|---|
-| `newUserOrder` | `userId` client | `controllers/order/createOrder.js` | `{ message, data: order }` | Création commande |
-| `newFastFoodOrder` | `userId` marchand | `controllers/order/createOrder.js` | `{ message, data: order }` | Création si statut ≠ `pendingToBuy` |
-| `newFastFoodOrders` | `userId` marchand | `services/order/updateOrders.service.js` | `{ message, data: pendingOrders[] }` | Commandes passent à `pending` |
+### Commandes — client
 
-### Commandes — mises à jour
+| Event | Destination | Émetteur | Payload |
+|---|---|---|---|
+| `newUserOrder` | `userId` client | `controllers/order/createOrder.js` | `{ message, data: order }` |
+| `userOrderUpdated` | `userId` client | `updateOrders.service.js` | `{ data: order }` |
+| `userOrdersUpdated` | `userId` client | `updateOrdersField.service.js` | `{ message, field, orders: order[] }` |
 
-| Event | Destination | Émetteur | Payload | Déclencheur |
-|---|---|---|---|---|
-| `userOrderUpdated` | `userId` client | `updateOrders.service.js` | `{ data: order }` | Statut mis à jour (sauf `pending`) |
-| `fastFoodOrderUpdated` | `userId` marchand | `updateOrders.service.js` | `{ data: order }` | Statut mis à jour (sauf `pending`) |
-| `ordersRankUpdated` | `userId` marchand | `rankQueue.service.js` | `{ message, file, orders[] }` | Réindexation rang après sortie file |
+### Commandes — marchand
 
-### Livraisons
+| Event | Destination | Émetteur | Payload |
+|---|---|---|---|
+| `newFastFoodOrder` | `userId` marchand | `controllers/order/createOrder.js` | `{ message, data: order }` |
+| `newFastFoodOrders` | `userId` marchand | `updateOrders.service.js` | `{ message, data: order[] }` |
+| `fastFoodOrderUpdated` | `userId` marchand | `updateOrders.service.js` | `{ data: order }` |
+| `fastFoodOrdersUpdated` | `userId` marchand | `updateOrdersField.service.js` | `{ message, field, orders: order[] }` |
+| `ordersRankUpdated` | `userId`/`fastFoodId` marchand | `updateOrdersRankByDate.service.js`, `rankQueue.service.js` | `{ message, orders: order[] }` |
 
-| Event | Destination | Émetteur | Payload | Déclencheur |
-|---|---|---|---|---|
-| `newPeriodKeyDelivering` | client + marchand | `updateOrders.service.js` | `{ periodKey }` | Commande passe à `delivering` avec `periodKey` |
-| `removePeriodKeyDelivering` | client + marchand | `updateOrders.service.js` | `{ periodKey }` | Commande passe à `finished` |
-| `newClientIdDelivering` | client + marchand | `updateOrders.service.js` | `{ clientId }` | Commande passe à `delivering` avec `clientId` |
-| `removeClientIdDelivering` | client + marchand | `updateOrders.service.js` | `{ clientId }` | Commande passe à `finished` |
+### Livraisons (client + marchand)
+
+| Event | Émetteur | Payload |
+|---|---|---|
+| `newPeriodKeyDelivering` | `updateOrders.service.js` | `{ periodKey }` |
+| `removePeriodKeyDelivering` | `updateOrders.service.js` | `{ periodKey }` |
+| `newClientIdDelivering` | `updateOrders.service.js` | `{ clientId }` |
+| `removeClientIdDelivering` | `updateOrders.service.js` | `{ clientId }` |
 
 ### Menus / Stock
 
-| Event | Destination | Émetteur | Payload | Déclencheur |
-|---|---|---|---|---|
-| `globalMenuUpdated` | **tous** (`io.emit`) | `createOrder.js`, `updateOrders.service.js` | `{ message, menuId, menu }` | Stock décrémenté après commande `pending` |
+| Event | Destination | Émetteur | Payload |
+|---|---|---|---|
+| `newMenu` | `fastFoodId` | `controllers/menu/postMenu.controller.js` | `{ message, data: menu }` |
+| `newGlobalMenu` | **tous** (`io.emit`) | `services/menu/postMenu.service.js` | `{ message, menu }` |
+| `newFastFoodMenu` | `userId` marchand | `services/menu/postMenu.service.js` | `{ message, menu }` |
+| `globalMenuUpdated` | **tous** (`io.emit`) | `updateMenu.service.js`, `updateOrders.service.js` | `{ message, menuId, menu }` |
+| `fastFoodMenuUpdated` | `userId` marchand | `updateMenu.service.js` | `{ message, menuId, menu }` |
+| `globalMenuDeleted` | **tous** (`io.emit`) | `deleteMenu.service.js` | `{ message, fastFood, menuId }` |
+| `fastFoodMenuDeleted` | `userId` marchand | `deleteMenu.service.js` | `{ message, fastFood, menuId }` |
+
+### Paiement & Wallet
+
+| Event | Destination | Émetteur | Payload |
+|---|---|---|---|
+| `payment.settled` | `userId` client | `mwVerdictService.js` | `{ status, transaction_id, amount, source }` |
+| `newTransaction` | `userId` (client ou marchand) | `postTransaction.service.js`, `mwVerdictService.js` | `{ message, data: transaction }` |
+| `wallet.credited` | `userId` marchand | `creditMerchant.service.js` | `{ transactionId, type:'merchant_credit', direction:'payin', amount, grossAmount, mwCommission, yaammooFee, name, fastFoodId, relatedOrderId, createdAt }` |
+| `wallet.withdrawal` | `userId` marchand | `withdraw.service.js`, `webhookPayout.service.js` | `{ withdrawalId, type:'withdrawal', direction:'payout', amount, status, network, newBalance?, reason? }` |
 
 ### Notifications
 
-| Event | Destination | Émetteur | Payload | Déclencheur |
-|---|---|---|---|---|
-| `newNotification` | `userId` ou `fastFoodId` | `services/notification/request/postNotification.service.js` | `{ notification: {...} }` | À chaque nouvelle notif Firestore |
+| Event | Destination | Émetteur | Payload |
+|---|---|---|---|
+| `newNotification` | `userId` ou `fastFoodId` | `postNotification.service.js` | `{ notification: {...} }` |
+| `isRead` | `userId` | `markNotificationAsRead.services.js` | `{ notificationId, userId }` |
+
+### Fastfood
+
+| Event | Destination | Émetteur | Payload |
+|---|---|---|---|
+| `newFastfood` | **tous** (`io.emit`) | `services/fastfood/createFastFood.js` | `{ message, fastFood }` |
 
 ---
 
 ## Règles d'adressage
 
 - Par défaut : `io.to(userId).emit(...)` — une room par utilisateur.
-- Broadcast global : uniquement pour `globalMenuUpdated` (stock impacte tous les appareils).
+- Broadcast global (`io.emit`) : `newGlobalMenu`, `globalMenuUpdated`, `globalMenuDeleted`, `newFastfood`.
 - Le `userId` marchand est stocké dans le document `fastfoods` → champ `userId`.
 
 ## Récepteurs côté client

@@ -27,9 +27,9 @@ const log = console;
  *   3. Émet socket payment.settled vers le client
  *   4. Si successful → confirme la commande via createOrderService
  */
-exports.webhookMobilewalletService = async (payload, source = 'webhook') => {
+exports.mwVerdictService = async (payload, source = 'webhook') => {
   const { data } = payload;
-  const { transaction_id, status, end_user_ref, amount } = data;
+  const { transaction_id, status, end_user_ref, amount, network } = data;
 
   const logPrefix = `[Verdict MobileWallet:${source}] tx=${transaction_id}`;
 
@@ -144,14 +144,31 @@ exports.webhookMobilewalletService = async (payload, source = 'webhook') => {
       }
 
       // 3) Crédit du portefeuille marchand (par item, net de commissions).
-      // Couvre achat direct + panier (tous les items portent fastFoodId + total).
-      // Échec partiel toléré : un crédit raté est logué, n'interrompt pas le reste.
       for (const item of orders) {
         try {
           await creditMerchantForItem({ item, clientUserId: userId });
         } catch (e) {
           log.error(`${logPrefix} ❌ Crédit marchand (fastFoodId=${item?.fastFoodId}) échoué: ${e.message}`);
         }
+      }
+
+      // 4) Créer la transaction client + notifier via socket newTransaction.
+      try {
+        const totalAmount = orders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
+        const firstName = orders[0]?.userData?.firstName || '';
+        const menuName = orders[0]?.menu?.name || orders[0]?.menu?.titre || 'Commande';
+        const name = orders.length > 1 ? `${menuName} (+${orders.length - 1})` : menuName;
+        const clientTx = await repos.transactions.create({
+          type: 'payment',
+          userId,
+          amount: totalAmount,
+          name,
+          payBy: network || orders[0]?.network || 'mobilemoney',
+        });
+        io.to(userId).emit('newTransaction', { message: 'nouvelle transaction', data: clientTx });
+        log.info(`${logPrefix} ✓ Transaction client créée + socket newTransaction émis (amount=${totalAmount})`);
+      } catch (e) {
+        log.error(`${logPrefix} ❌ Transaction client échouée: ${e.message}`);
       }
     }
 

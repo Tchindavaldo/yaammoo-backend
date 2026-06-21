@@ -11,7 +11,7 @@ if (!MOBILEWALLET_YAAMMOO_KEY) {
 
 const mobilewalletClient = axios.create({
   baseURL: MOBILEWALLET_URL,
-  timeout: 30000,
+  timeout: 120000,
   headers: {
     Authorization: `Bearer ${MOBILEWALLET_YAAMMOO_KEY}`,
     'Content-Type': 'application/json',
@@ -131,7 +131,7 @@ exports.pay = async ({ amount, phone, network, email, mode, userId }) => {
  * Appel POST /payout sur MobileWallet pour initier un RETRAIT (virement sortant).
  * Même principe que /pay : réponse immédiate `pending`, puis verdict via
  * webhook + socket (transaction.update). Le verdict est routé vers la branche
- * payout de webhookMobilewalletService (cf. mw_payout_id sur withdrawals).
+ * payout de mwVerdictService (cf. mw_payout_id sur withdrawals).
  *
  * @param {Object} params
  * @param {number} params.amount
@@ -147,6 +147,9 @@ exports.payout = async ({ amount, network, phone, receiverName, narration, withd
   const callbackUrl = `${backendUrl}/transaction/webhook/mobilewallet`;
   const currency = process.env.WITHDRAWAL_CURRENCY || 'XAF';
 
+  // Normaliser : strip tout préfixe (+237, 00237) puis préfixer 237
+  const normalizedPhone = `237${String(phone).replace(/^\+?237/, '')}`;
+
   const logPrefix = `[MobileWallet API] payout ${network} amount=${amount}`;
 
   try {
@@ -154,7 +157,7 @@ exports.payout = async ({ amount, network, phone, receiverName, narration, withd
     const payload = {
       amount,
       account_bank_code: network,
-      account_number: phone,
+      account_number: normalizedPhone,
       receiver_name: receiverName,
       currency,
       narration: narration || 'Retrait yaammoo',
@@ -162,7 +165,7 @@ exports.payout = async ({ amount, network, phone, receiverName, narration, withd
       end_user_ref: withdrawalId,
     };
 
-    log.info(`${logPrefix} → POST ${MOBILEWALLET_URL}/payout (withdrawalId=${withdrawalId}, phone=${phone})`);
+    log.info(`${logPrefix} → POST ${MOBILEWALLET_URL}/payout (withdrawalId=${withdrawalId}, phone=${normalizedPhone})`);
 
     const startTime = Date.now();
     const response = await mobilewalletClient.post('/payout', payload);

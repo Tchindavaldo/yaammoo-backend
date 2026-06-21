@@ -121,18 +121,33 @@ router.get('/stats', firebaseAuth, getStatsController);
  *             properties:
  *               amount:
  *                 type: number
+ *                 description: Montant en XAF (doit être <= solde disponible)
  *               phone:
  *                 type: string
+ *                 description: "Numéro bénéficiaire — backend normalise automatiquement vers 237XXXXXXXXX (accepte : 677001122, +237677001122, 00237677001122)"
  *               network:
  *                 type: string
- *                 enum: [MTN, Orangemoney, OM]
+ *                 enum: [MTN, ORANGEMONEY]
+ *                 description: "Valeur exacte MobileWallet /payout : MTN ou ORANGEMONEY (pas Orangemoney, pas OM)"
+ *               receiverName:
+ *                 type: string
+ *                 description: Nom du bénéficiaire (optionnel — défaut nom marchand ou boutique)
+ *               narration:
+ *                 type: string
+ *                 description: Libellé du virement (optionnel — défaut "Retrait yaammoo")
  *     responses:
  *       200:
- *         description: Demande de retrait enregistrée
+ *         description: Demande de retrait enregistrée (verdict final via socket wallet.withdrawal)
  *       400:
- *         description: Montant invalide ou solde insuffisant
+ *         description: "Montant invalide, solde insuffisant (insufficient_balance) ou champs manquants"
  *       401:
  *         description: Non authentifié
+ *       409:
+ *         description: Un retrait est déjà en cours (withdrawal_in_progress)
+ *       429:
+ *         description: Cooldown entre deux retraits non écoulé (cooldown)
+ *       502:
+ *         description: Échec initiation MobileWallet /payout
  */
 router.post('/withdraw', firebaseAuth, withdrawController);
 

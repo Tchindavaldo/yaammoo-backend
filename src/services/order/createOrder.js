@@ -11,7 +11,7 @@
 
 const repos = require('../../repositories');
 const { getIO } = require('../../socket');
-const { postTransactionService } = require('../transaction/postTransaction.service');
+
 const { notifyOrderEvent } = require('../notification/helpers/notifyOrderEvent');
 
 exports.createOrderService = async (order) => {
@@ -38,16 +38,6 @@ exports.createOrderService = async (order) => {
       console.warn('[createOrder] socket emit menu update failed:', e.message);
     }
   }
-
-  // Transaction
-  await postTransactionService({
-    type: 'order',
-    userId: order.userId,
-    name: order.menu?.name || order.menu?.titre,
-    amount: order.total,
-    payBy: 'OM',
-    currentAmount: 0,
-  });
 
   // Notification au marchand (si pending uniquement)
   if (order.status === 'pending') {

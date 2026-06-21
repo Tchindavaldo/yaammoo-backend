@@ -191,11 +191,119 @@ router.post('', firebaseAuth, createUser);
  */
 router.put('/:id', updateUser);
 
-// Push tokens multi-device
+/**
+ * @swagger
+ * /user/push-token/add:
+ *   post:
+ *     summary: Enregistrer un push token (FCM/Expo) pour l'utilisateur connecté
+ *     tags:
+ *       - Users
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - token
+ *             properties:
+ *               token:
+ *                 type: string
+ *                 description: Push token FCM ou Expo
+ *               platform:
+ *                 type: string
+ *                 enum: [android, ios, web]
+ *               deviceId:
+ *                 type: string
+ *                 description: Identifiant unique de l'appareil
+ *     responses:
+ *       200:
+ *         description: Token enregistré
+ *       401:
+ *         description: Non authentifié
+ */
 router.post('/push-token/add', firebaseAuth, addPushToken);
+
+/**
+ * @swagger
+ * /user/push-token/remove:
+ *   post:
+ *     summary: Supprimer un push token (déconnexion / changement d'appareil)
+ *     tags:
+ *       - Users
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - deviceId
+ *             properties:
+ *               deviceId:
+ *                 type: string
+ *                 description: Identifiant de l'appareil dont supprimer le token
+ *     responses:
+ *       200:
+ *         description: Token supprimé
+ *       401:
+ *         description: Non authentifié
+ */
 router.post('/push-token/remove', firebaseAuth, removePushToken);
 
+/**
+ * @swagger
+ * /user/email/{email}:
+ *   get:
+ *     summary: Rechercher un utilisateur par email
+ *     tags:
+ *       - Users
+ *     parameters:
+ *       - in: path
+ *         name: email
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: email
+ *     responses:
+ *       200:
+ *         description: Utilisateur trouvé
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/User'
+ *       404:
+ *         description: Utilisateur non trouvé
+ */
 router.get('/email/:email', getUserByEmail);
+
+/**
+ * @swagger
+ * /user/phone/{phone}:
+ *   get:
+ *     summary: Rechercher un utilisateur par numéro de téléphone
+ *     tags:
+ *       - Users
+ *     parameters:
+ *       - in: path
+ *         name: phone
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Utilisateur trouvé
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/User'
+ *       404:
+ *         description: Utilisateur non trouvé
+ */
 router.get('/phone/:phone', getUserByPhone);
 
 module.exports = router;

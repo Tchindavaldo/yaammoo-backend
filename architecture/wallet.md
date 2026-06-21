@@ -31,11 +31,11 @@ mw_payout_id, failure_reason`.
 
 ## Commissions (env)
 
-`net = gross − round(gross × MOBILEWALLET_COMMISSION_RATE) − YAAMMOO_FLAT_FEE` (clampé ≥ 0).
+`net = gross − ceil(gross × DIGIKUNTZ_FEE) − YAAMMOO_FLAT_FEE` (clampé ≥ 0).
 
 | Variable | Valeur | Rôle |
 |---|---|---|
-| `MOBILEWALLET_COMMISSION_RATE` | `0.05` | commission MobileWallet (5%) |
+| `DIGIKUNTZ_FEE` | `0.05` | commission Digikuntz (5%) |
 | `YAAMMOO_FLAT_FEE` | `100` | frais fixe yaammoo (FCFA) par commande |
 
 Helper : [src/utils/commission.js](../src/utils/commission.js) → `computeNet(gross)`.

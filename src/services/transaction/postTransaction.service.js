@@ -5,6 +5,7 @@ const repos = require('../../repositories');
 const { getIO } = require('../../socket');
 const { validateTransactionCreation } = require('../../utils/validator/validateTransactionCreation');
 const mobilewalletService = require('./mobilewalletService');
+const { computeNet } = require('../../utils/commission');
 
 const log = console;
 
@@ -78,13 +79,14 @@ exports.postTransactionService = async data => {
       }
       log.info(`${logPrefix} ✓ Pré-check stock OK (${Object.keys(qtyByMenu).length} menu(s))`);
 
-      log.info(`${logPrefix} → Appel MobileWallet /pay: amount=${amount}, network=${networkName}, phone=${phone}`);
+      const { afterMw } = computeNet(amount);
+      log.info(`${logPrefix} → Appel MobileWallet /pay: gross=${amount}, afterMw=${afterMw}, network=${networkName}, phone=${phone}`);
 
       const startTime = Date.now();
       let mwResult;
       try {
         mwResult = await mobilewalletService.pay({
-          amount,
+          amount: afterMw,
           phone,
           network: networkName,
           email,

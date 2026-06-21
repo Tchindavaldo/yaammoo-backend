@@ -2,7 +2,7 @@
 // withdraw.service — Demande de retrait du portefeuille marchand
 // ============================================================================
 // Le solde est calculé depuis les transactions. Le débit (transaction
-// 'withdrawal') n'est créé QU'AU SUCCÈS du payout (cf. webhookMobilewallet
+// 'withdrawal') n'est créé QU'AU SUCCÈS du payout (cf. mwVerdictService
 // branche payout) — pas à la demande. Une demande de retrait :
 //   1. valide les champs + le solde (>= montant),
 //   2. bloque s'il existe déjà un retrait 'pending' pour ce marchand,

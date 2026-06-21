@@ -46,7 +46,7 @@ exports.validateTransactionCreation = data => {
 
   // Validation conditionnelle : un paiement Mobile Money DOIT pouvoir devenir
   // une commande. Sans ces champs, le paiement réussit mais aucune commande
-  // n'est créée (cf. webhookMobilewallet.service.js) → paiement orphelin.
+  // n'est créée (cf. mwVerdictService.js) → paiement orphelin.
   if (data.payBy === 'mobilemoney') {
     const required = ['phone', 'network', 'items'];
     for (const field of required) {

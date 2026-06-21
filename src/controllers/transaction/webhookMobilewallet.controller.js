@@ -1,4 +1,4 @@
-const { webhookMobilewalletService } = require('../../services/transaction/webhookMobilewallet.service');
+const { mwVerdictService } = require('../../services/transaction/mwVerdictService');
 
 const log = console;
 exports.webhookMobilewalletController = async (req, res) => {
@@ -16,8 +16,8 @@ exports.webhookMobilewalletController = async (req, res) => {
     );
     log.debug(`${logPrefix} Payload complet:`, JSON.stringify(payload, null, 2));
 
-    log.info(`${logPrefix} → Appel webhookMobilewalletService...`);
-    await webhookMobilewalletService(payload);
+    log.info(`${logPrefix} → Appel mwVerdictService...`);
+    await mwVerdictService(payload);
     log.info(`${logPrefix} ✓ Service complété`);
 
     log.info(`${logPrefix} ✓ Webhook traité, réponse 200 OK`);

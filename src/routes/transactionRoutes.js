@@ -10,7 +10,7 @@ const { webhookMobilewalletController } = require('../controllers/transaction/we
  * @swagger
  * /transaction:
  *   post:
- *     summary: Create a new transaction
+ *     summary: Initie une transaction (paiement Mobile Money via MobileWallet)
  *     tags:
  *       - Transactions
  *     requestBody:
@@ -22,20 +22,57 @@ const { webhookMobilewalletController } = require('../controllers/transaction/we
  *             required:
  *               - userId
  *               - amount
- *               - type
+ *               - payBy
  *             properties:
  *               userId:
  *                 type: string
+ *                 description: uid Firebase de l'utilisateur
  *               amount:
  *                 type: number
- *               type:
+ *                 description: Montant en XAF
+ *               payBy:
  *                 type: string
- *                 enum: [deposit, withdrawal, payment]
- *               description:
+ *                 enum: [mobilemoney]
+ *                 description: Mode de paiement
+ *               phone:
  *                 type: string
+ *                 description: Numéro de téléphone (requis si payBy=mobilemoney). Le backend passe le numéro tel quel à MobileWallet.
+ *               network:
+ *                 type: string
+ *                 enum: [MTN, Orangemoney]
+ *                 description: Opérateur (requis si payBy=mobilemoney)
+ *               email:
+ *                 type: string
+ *                 description: Email utilisateur (optionnel, défaut yaammoo@rauval.com)
+ *               items:
+ *                 type: array
+ *                 description: "Commandes complètes (requis si payBy=mobilemoney). Chaque item doit porter un fastFoodId."
+ *                 items:
+ *                   type: object
+ *                   required: [fastFoodId, menu, quantity, total]
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                       description: "Présent si commande déjà en base (panier pendingToBuy) → updateOrders. Absent → createOrderService."
+ *                     fastFoodId:
+ *                       type: string
+ *                     menu:
+ *                       type: object
+ *                       properties:
+ *                         id: { type: string }
+ *                         name: { type: string }
+ *                     quantity:
+ *                       type: number
+ *                     total:
+ *                       type: number
+ *                     delivery:
+ *                       type: object
+ *                     status:
+ *                       type: string
+ *                       enum: [pending, pendingToBuy]
  *     responses:
- *       201:
- *         description: Transaction successfully created
+ *       200:
+ *         description: Initiation réussie — attendre le verdict via socket payment.settled
  *         content:
  *           application/json:
  *             schema:
@@ -43,12 +80,22 @@ const { webhookMobilewalletController } = require('../controllers/transaction/we
  *               properties:
  *                 success:
  *                   type: boolean
- *                 message:
+ *                 status:
  *                   type: string
- *                 data:
- *                   $ref: '#/components/schemas/Transaction'
+ *                   example: ussd_sent
+ *                 mw_transaction_id:
+ *                   type: string
+ *                 payment_number:
+ *                   type: string
+ *                   description: Code USSD à taper par le client (*123*{payment_number}#)
  *       400:
- *         description: Invalid input
+ *         description: Validation échouée (champs manquants, items sans fastFoodId)
+ *       409:
+ *         description: "Doublon (pending_exists / retry_too_soon) ou stock insuffisant (insufficient_stock)"
+ *       503:
+ *         description: Opérateur ou réseau indisponible
+ *       502:
+ *         description: Erreur serveur MobileWallet
  */
 router.post('', postTransactionController);
 
@@ -163,7 +210,18 @@ router.get('/:id', getTransactionById);
  */
 router.put('/:id', updateTransactionController);
 
-// Webhook entrant MobileWallet
+/**
+ * @swagger
+ * /transaction/webhook/mobilewallet:
+ *   post:
+ *     summary: Webhook entrant MobileWallet — verdict de paiement (usage interne)
+ *     description: "Appelé par MobileWallet après verdict USSD. Retourne toujours 200 pour éviter les retries. Ne pas appeler manuellement."
+ *     tags:
+ *       - Transactions
+ *     responses:
+ *       200:
+ *         description: Toujours 200 (même en cas d'erreur interne)
+ */
 router.post('/webhook/mobilewallet', webhookMobilewalletController);
 
 module.exports = router;

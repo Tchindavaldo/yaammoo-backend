@@ -1,7 +1,7 @@
 // ============================================================================
 // webhookPayout.service — Verdict d'un RETRAIT (payout MobileWallet)
 // ============================================================================
-// Appelé par webhookMobilewalletService quand le transaction_id du verdict
+// Appelé par mwVerdictService quand le transaction_id du verdict
 // correspond à un withdrawal (mw_payout_id). Couvre webhook HTTP + socket.
 //
 // Règle métier : le DÉBIT (transaction 'withdrawal') n'est créé qu'au SUCCÈS.

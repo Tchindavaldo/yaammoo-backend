@@ -27,7 +27,7 @@ exports.getById = async id => {
 };
 
 exports.getByUser = async userId => {
-  const { data, error } = await supabase.from(TABLE).select('*').eq('user_id', userId).order('created_at', { ascending: false });
+  const { data, error } = await supabase.from(TABLE).select('*').eq('user_id', userId).not('type', 'in', '("merchant_credit","withdrawal")').order('created_at', { ascending: false });
   if (error) throw error;
   return (data || []).map(m.transaction.fromSupabase);
 };

@@ -1,5 +1,5 @@
 const io = require('socket.io-client');
-const { webhookMobilewalletService } = require('./webhookMobilewallet.service');
+const { mwVerdictService } = require('./mwVerdictService');
 
 const log = console;
 
@@ -15,7 +15,7 @@ const MOBILEWALLET_YAAMMOO_KEY = process.env.MOBILEWALLET_YAAMMOO_KEY;
  * Flux:
  *   1. Se connecter avec auth token (clé API)
  *   2. Écouter l'événement 'transaction.update' sur la room app:{app_id}
- *   3. Traiter le verdict reçu via webhookMobilewalletService (idempotence)
+ *   3. Traiter le verdict reçu via mwVerdictService (idempotence)
  *   4. Gérer les reconnexions automatiques
  */
 function initMobileWalletSocket() {
@@ -104,7 +104,7 @@ function initMobileWalletSocket() {
       log.info(`${logPrefix} → Événement reçu: type=${type}, tx_id=${transaction_id}, status=${status}`);
       log.debug(`${logPrefix} Payload complet:`, JSON.stringify(eventPayload, null, 2));
 
-      // Transformer en format attendu par webhookMobilewalletService
+      // Transformer en format attendu par mwVerdictService
       const webhookPayload = {
         type,
         data: {
@@ -119,8 +119,8 @@ function initMobileWalletSocket() {
       };
 
       // Traiter via le service (idempotence garantie)
-      log.info(`${logPrefix} → Appel webhookMobilewalletService...`);
-      await webhookMobilewalletService(webhookPayload, 'socket');
+      log.info(`${logPrefix} → Appel mwVerdictService...`);
+      await mwVerdictService(webhookPayload, 'socket');
       log.info(`${logPrefix} ✓ Événement traité`);
     } catch (error) {
       log.error(`${logPrefix} ❌ Erreur traitement: ${error.message}`, error);
