@@ -31,10 +31,11 @@ const mobilewalletClient = axios.create({
  * @param {string} params.phone - Numéro de téléphone (sans +237)
  * @param {string} params.network - 'Orangemoney' ou 'MTN'
  * @param {string} params.email - Email utilisateur
- * @param {string} params.userId - uid Firebase de l'utilisateur
+ * @param {string} params.userId - uid Firebase de l'utilisateur (log/traçabilité)
+ * @param {string} params.paymentRef - ID unique de CE paiement (= end_user_ref MW)
  * @returns {Promise<{success, status, transaction_id, message, code}>}
  */
-exports.pay = async ({ amount, phone, network, email, mode, userId }) => {
+exports.pay = async ({ amount, phone, network, email, mode, userId, paymentRef }) => {
   const finalEmail = email || 'yaammoo@rauval.com';
   const finalMode = mode || process.env.MOBILEWALLET_MODE || 'browser';
 
@@ -51,11 +52,11 @@ exports.pay = async ({ amount, phone, network, email, mode, userId }) => {
       network,
       email: finalEmail,
       mode: finalMode,
-      end_user_ref: userId,
+      end_user_ref: paymentRef,
       callback_url: callbackUrl,
     };
 
-    log.info(`${logPrefix} → POST ${MOBILEWALLET_URL}/pay (timeout=30s, userId=${userId}, phone=${phone})`);
+    log.info(`${logPrefix} → POST ${MOBILEWALLET_URL}/pay (timeout=${mobilewalletClient.defaults.timeout / 1000}s, userId=${userId}, phone=${phone})`);
     log.debug(`${logPrefix} Payload:`, JSON.stringify(payload, null, 2));
 
     const startTime = Date.now();

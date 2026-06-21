@@ -49,15 +49,12 @@ exports.mwVerdictService = async (payload, source = 'webhook') => {
     // ========================================================================
     // 1. Retrouver le contexte persisté (Supabase) — flux PAIEMENT
     // ========================================================================
-    let ctx = await repos.pendingPayments.getById(transaction_id);
-
-    // Fallback : MobileWallet peut renvoyer un tx_id différent → chercher par user
-    if (!ctx && end_user_ref) {
-      ctx = await repos.pendingPayments.getLatestByUser(end_user_ref);
-    }
+    // `end_user_ref` = le paymentRef UNIQUE qu'on a envoyé à l'init. MobileWallet
+    // nous le renvoie tel quel → lookup DÉTERMINISTE, pas de fallback/devinette.
+    const ctx = end_user_ref ? await repos.pendingPayments.getByRef(end_user_ref) : null;
 
     if (!ctx) {
-      log.error(`${logPrefix} ❌ Contexte introuvable (tx_id=${transaction_id}, userId=${end_user_ref})`);
+      log.error(`${logPrefix} ❌ Contexte introuvable (end_user_ref=${end_user_ref}, tx_id=${transaction_id})`);
       return;
     }
 
@@ -174,7 +171,7 @@ exports.mwVerdictService = async (payload, source = 'webhook') => {
 
     // Marquer le pending_payment comme réglé (audit / purge ultérieure)
     try {
-      await repos.pendingPayments.markSettled(ctx.mwTransactionId || transaction_id, status);
+      await repos.pendingPayments.markSettled(ctx.paymentRef || end_user_ref, status);
     } catch (e) {
       log.warn(`${logPrefix} markSettled non critique: ${e.message}`);
     }

@@ -6,6 +6,7 @@ const { getIO } = require('../../socket');
 const { validateTransactionCreation } = require('../../utils/validator/validateTransactionCreation');
 const mobilewalletService = require('./mobilewalletService');
 const { computeNet } = require('../../utils/commission');
+const { generateId } = require('../../repositories/idGen');
 
 const log = console;
 
@@ -80,7 +81,30 @@ exports.postTransactionService = async data => {
       log.info(`${logPrefix} ✓ Pré-check stock OK (${Object.keys(qtyByMenu).length} menu(s))`);
 
       const { afterMw } = computeNet(amount);
-      log.info(`${logPrefix} → Appel MobileWallet /pay: gross=${amount}, afterMw=${afterMw}, network=${networkName}, phone=${phone}`);
+
+      // ID UNIQUE de CE paiement (= end_user_ref MobileWallet). On l'utilise
+      // pour retrouver le contexte au verdict de façon DÉTERMINISTE, quel que
+      // soit le tx_id que MobileWallet attribue. Une transaction = un paymentRef.
+      const paymentRef = generateId();
+
+      // Persister le contexte AVANT l'appel MobileWallet : si /pay timeout mais
+      // que MobileWallet traite quand même, le webhook retrouvera le contexte.
+      try {
+        await repos.pendingPayments.create(paymentRef, {
+          userId,
+          items, // tableau de commandes complètes (chacune avec son fastFoodId)
+          amount,
+          phone,
+          network: network || 'Orangemoney',
+          email,
+        });
+        log.debug(`${logPrefix} Contexte persisté ref=${paymentRef} → userId=${userId}, nbCommandes=${Array.isArray(items) ? items.length : 0}`);
+      } catch (e) {
+        log.error(`${logPrefix} ❌ Échec persistance pending_payment: ${e.message}`);
+        throw e;
+      }
+
+      log.info(`${logPrefix} → Appel MobileWallet /pay: ref=${paymentRef}, gross=${amount}, afterMw=${afterMw}, network=${networkName}, phone=${phone}`);
 
       const startTime = Date.now();
       let mwResult;
@@ -91,12 +115,16 @@ exports.postTransactionService = async data => {
           network: networkName,
           email,
           userId,
+          paymentRef,
         });
         const duration = Date.now() - startTime;
         log.info(`${logPrefix} ✓ Réponse MobileWallet reçue en ${duration}ms`);
       } catch (error) {
         const duration = Date.now() - startTime;
         log.error(`${logPrefix} ❌ Erreur appel MobileWallet après ${duration}ms: ${error.message}`);
+        // Init échouée (timeout/réseau) : on ne marque PAS cancelled — MobileWallet
+        // peut quand même avoir traité le paiement et envoyer un webhook. Le
+        // contexte reste 'pending' pour que le verdict le retrouve.
         throw error;
       }
 
@@ -104,6 +132,10 @@ exports.postTransactionService = async data => {
       // Init OK = success:true + status:'ussd_sent'. Sinon c'est une erreur.
       if (!mwResult.success || mwResult.status === 'error') {
         log.warn(`${logPrefix} MobileWallet erreur: success=${mwResult.success}, code=${mwResult.code}, message=${mwResult.message}`);
+        // Refus EXPLICITE de MobileWallet → aucun paiement ne sera traité → cancel.
+        await repos.pendingPayments.markSettled(paymentRef, 'cancelled').catch(e =>
+          log.error(`${logPrefix} ❌ markSettled(cancelled) échoué: ${e.message}`)
+        );
         return {
           success: false,
           status: mwResult.status || 'error',
@@ -115,28 +147,13 @@ exports.postTransactionService = async data => {
         };
       }
 
-      // Succès: persister le contexte de commande pour le verdict
+      // Succès init : attacher le tx_id MobileWallet au contexte (idempotence verdict).
       const mw_transaction_id = mwResult.transaction_id;
       log.info(`${logPrefix} ✓ MobileWallet success=${mwResult.success}, status=${mwResult.status}, transaction_id=${mw_transaction_id}`);
 
-      // Persister le contexte de commande en BD (Supabase) pour le verdict
-      // (webhook OU socket). Remplace l'ancienne Map en mémoire — survit aux
-      // redémarrages et fonctionne en multi-instance.
-      try {
-        await repos.pendingPayments.save(mw_transaction_id, {
-          userId,
-          // items = tableau de commandes complètes, chacune avec son fastFoodId.
-          items,
-          amount,
-          phone,
-          network: network || 'Orangemoney',
-          email,
-        });
-        log.debug(`${logPrefix} Contexte persisté mw_tx=${mw_transaction_id} → userId=${userId}, nbCommandes=${Array.isArray(items) ? items.length : 0}`);
-      } catch (e) {
-        log.error(`${logPrefix} ❌ Échec persistance pending_payment: ${e.message}`);
-        throw e;
-      }
+      await repos.pendingPayments.setMwTransactionId(paymentRef, mw_transaction_id).catch(e =>
+        log.error(`${logPrefix} ❌ setMwTransactionId échoué: ${e.message}`)
+      );
 
       log.info(`${logPrefix} ✓ Transaction initiée, en attente de webhook/socket`);
 
