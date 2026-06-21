@@ -80,4 +80,4 @@ BACKEND/
 **Repository Pattern** : Services appellent `repos.users.getById()` → Supabase (impl. unique)  
 **Mapper Pattern** : Conversions automatiques camelCase ↔ snake_case en read/write  
 **Controller → Service** : Controllers valident + transforment ; Services orchestrent logique métier + appels repo  
-**Socket Rooms** : `app:<appId>`, `user:<userId>`, `fastfood:<fastFoodId>`
+**Socket Rooms** : `app:<appId>`, `<userId>` (sans préfixe), `<fastFoodId>` (sans préfixe)

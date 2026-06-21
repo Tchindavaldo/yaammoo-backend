@@ -77,11 +77,10 @@ PushToken {
 
 1. Frontend : appelle GET `/user/:uid`
 2. Backend : `getOneUserByIdController()` → `userService.getUserById()`
-3. Repository (Firestore) :
+3. Mapper Supabase (`mappers.js`) :
    ```javascript
-   return { ...rawData, isMarchand: !!rawData.fastFoodId }
+   isMarchand: !!row.fastfood_id
    ```
-   **Mapper (Supabase)** : fait de même avec `row.fastfood_id`
 4. Frontend : reçoit user avec `isMarchand` recalculé automatiquement ✅
 
 ### Suppression de compte (RGPD)
@@ -129,9 +128,8 @@ isMarchand: !!row.fastfood_id
 - `removePushToken(userId, payload)`
 - `deleteUserAccount(uid)` — suppression complète RGPD
 
-**repos.users** : Interface stable implemented par :
-- `firestore/users.repo.js` — Firestore via `firebase-admin`
-- `supabase/users.repo.js` — Supabase via `supabase-js`
+**repos.users** : Interface stable implémentée par :
+- `supabase/users.repo.js` — Supabase via `supabase-js` (seule impl. active)
 
 ---
 
