@@ -7,8 +7,13 @@ const { validateTransactionCreation } = require('../../utils/validator/validateT
 const mobilewalletService = require('./mobilewalletService');
 const { computeNet } = require('../../utils/commission');
 const { generateId } = require('../../repositories/idGen');
+const { createOrderService } = require('../order/createOrder');
+const { updateOrders } = require('../order/updateOrders.service');
+const { creditMerchantForItem } = require('./creditMerchant.service');
 
 const log = console;
+
+const APPLE_REVIEW_MODE = process.env.APPLE_REVIEW_MODE === 'true';
 
 exports.postTransactionService = async data => {
   const io = getIO();
@@ -32,6 +37,42 @@ exports.postTransactionService = async data => {
     // remainingAmount calculé si paiement mobileApp partiel
     if (payBy === 'mobileApp' && amount < currentAmount) {
       data.remainingAmount = +(currentAmount - amount).toFixed(2);
+    }
+
+    // =========================================================================
+    // Apple Review Mode : bypass total MobileWallet → createOrder direct
+    // =========================================================================
+    if (APPLE_REVIEW_MODE && payBy === 'mobilemoney') {
+      log.info(`${logPrefix} 🍎 APPLE_REVIEW_MODE → createOrder direct sans paiement`);
+      const orders = Array.isArray(items) ? items : [];
+      const toUpdate = orders.filter(o => o && o.id);
+      const toCreate = orders.filter(o => o && !o.id);
+
+      if (toUpdate.length > 0) {
+        await updateOrders(toUpdate, userId);
+      }
+      for (const order of toCreate) {
+        await createOrderService({ ...order, userId });
+      }
+      for (const item of orders) {
+        await creditMerchantForItem({ item, clientUserId: userId }).catch(e =>
+          log.error(`${logPrefix} ❌ Crédit marchand échoué: ${e.message}`)
+        );
+      }
+
+      const totalAmount = orders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
+      const menuName = orders[0]?.menu?.name || orders[0]?.menu?.titre || 'Commande';
+      const name = orders.length > 1 ? `${menuName} (+${orders.length - 1})` : menuName;
+      await repos.transactions.create({
+        type: 'payment',
+        userId,
+        amount: totalAmount,
+        name,
+        payBy: network || 'mobilemoney',
+      });
+
+      log.info(`${logPrefix} ✓ Apple Review : commandes créées, transaction enregistrée`);
+      return { success: true };
     }
 
     // =========================================================================
