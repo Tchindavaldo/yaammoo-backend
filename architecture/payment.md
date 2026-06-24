@@ -1,5 +1,24 @@
 # Feature — Payments (Paiements MobileWallet)
 
+## Apple Review Mode
+
+Quand `APPLE_REVIEW_MODE=true` (env var), tout appel `POST /transaction` avec `payBy=mobilemoney`
+**bypasse entièrement MobileWallet** :
+1. Validation normale (`items`, `phone`, etc.) — le frontend envoie exactement la même requête
+2. `createOrderService` / `updateOrders` appelés directement sur les `items`
+3. Crédit marchand appliqué normalement
+4. `repos.transactions.create` enregistre la transaction — aucun socket émis
+5. Retourne `{ success: true }` — pas de `payment.settled`, pas d'écran USSD
+
+**Détection côté frontend** : `GET /fastFood/all` retourne `appleReviewMode: true|false` dans la réponse racine.
+Le frontend lit ce flag au démarrage pour adapter son rendu (sauter l'écran USSD/attente).
+
+**Env var** : `APPLE_REVIEW_MODE=true` dans `.env` ou variable Fly.io pour la soumission App Store.
+
+> ⚠️ À activer **uniquement** pour les soumissions App Store Review. Ne jamais laisser en prod normale.
+
+---
+
 ## Rôle
 
 Intégration avec le backend **MobileWallet** pour les paiements Mobile Money (USSD).
