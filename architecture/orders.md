@@ -56,6 +56,14 @@ BACKEND/src/
 4. Crée une transaction associée (`postTransactionService`)
 5. Retourne `{ id, ...orderData }`
 
+**Émissions socket à la création** :
+- `newUserOrder` → client (`order.userId`) via `reliableEmit` (fiable, rejeu au reconnect).
+  Payload `{ message, data: order }`. ⚠️ Le front doit appeler `ack()`.
+- `newFastFoodOrders` → marchand (`fastFood.userId`) via `reliableEmit` si `status === 'pending'`.
+  Payload `{ message, data: [order] }`.
+- Le controller (`controllers/order/createOrder.js`) émet en plus `newFastFoodOrder`
+  (singulier, brut) au marchand si `status !== 'pendingToBuy'`.
+
 **Erreur stock** : le controller vérifie `orderData?.error` → `400` avec le message.
 
 ---

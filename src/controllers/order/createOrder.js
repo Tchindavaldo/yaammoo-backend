@@ -9,7 +9,7 @@ exports.createOrder = async (req, res) => {
     if (!req.body || typeof req.body !== 'object') {
       return res.status(400).json({ code: 400, message: 'Corps de requête manquant ou invalide. Assurez-vous d\'envoyer Content-Type: application/json.' });
     }
-    const { fastFoodId, userId, status } = req.body;
+    const { fastFoodId, status } = req.body;
 
     const errors = validateOrder(req.body);
     if (errors.length > 0) {
@@ -26,7 +26,7 @@ exports.createOrder = async (req, res) => {
       return res.status(400).json({ code: 400, message: orderData.error });
     }
 
-    io.to(userId).emit('newUserOrder', { message: 'Nouvelle commande user  ajoutée', data: orderData });
+    // Socket client `newUserOrder` émis dans createOrderService (reliableEmit, rejeu hors-ligne)
     if (orderData.status !== 'pendingToBuy') io.to(fastfood.userId).emit('newFastFoodOrder', { message: 'Nouvelle commande fastfood ajoutée', data: orderData });
     res.status(201).json({ message: 'Commande ajoutée avec succès.', data: orderData });
   } catch (error) {

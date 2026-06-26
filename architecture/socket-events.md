@@ -33,7 +33,7 @@ Socket.io est fire-and-forget : un event émis pendant que l'utilisateur est hor
 | `wallet.credited` | `services/transaction/creditMerchant.service.js` | marchand |
 | `wallet.withdrawal` | `services/wallet/withdraw.service.js` | marchand |
 | `payment.settled` | `services/transaction/mwVerdictService.js` | client |
-| `newFastFoodOrders` | `services/order/updateOrders.service.js` | marchand |
+| `newFastFoodOrders` | `services/order/createOrder.js`, `services/order/updateOrders.service.js` | marchand |
 | `userOrderUpdated` | `updateOrders.service.js`, `updateOrder.js` | client |
 | `fastFoodOrderUpdated` | `updateOrders.service.js`, `updateOrder.js` | marchand |
 | `newFastFoodMenu` / `fastFoodMenuUpdated` / `fastFoodMenuDeleted` | `services/menu/*` | marchand |
@@ -68,7 +68,7 @@ Le même pattern (`ack?.()` + dédoublonnage `__eventId`) s'applique à tous les
 
 | Event | Destination | Émetteur | Payload |
 |---|---|---|---|
-| `newUserOrder` | `userId` client | `controllers/order/createOrder.js` | `{ message, data: order }` |
+| `newUserOrder` | `userId` client | `services/order/createOrder.js` (reliableEmit) | `{ message, data: order }` |
 | `userOrderUpdated` | `userId` client | `updateOrders.service.js` | `{ data: order }` |
 | `userOrdersUpdated` | `userId` client | `updateOrdersField.service.js` | `{ message, field, orders: order[] }` |
 
@@ -124,13 +124,14 @@ Le même pattern (`ack?.()` + dédoublonnage `__eventId`) s'applique à tous les
 | Event | Destination | Émetteur | Payload |
 |---|---|---|---|
 | `newFastfood` | **tous** (`io.emit`) | `services/fastfood/createFastFood.js` | `{ message, fastFood }` |
+| `fastfoodUpdated` | **tous** (`io.emit`) | `services/fastfood/updateFastFood.js` | `{ message, fastFood }` |
 
 ---
 
 ## Règles d'adressage
 
 - Par défaut : `io.to(userId).emit(...)` — une room par utilisateur.
-- Broadcast global (`io.emit`) : `newGlobalMenu`, `globalMenuUpdated`, `globalMenuDeleted`, `newFastfood`.
+- Broadcast global (`io.emit`) : `newGlobalMenu`, `globalMenuUpdated`, `globalMenuDeleted`, `newFastfood`, `fastfoodUpdated`.
 - Le `userId` marchand est stocké dans le document `fastfoods` → champ `userId`.
 
 ## Récepteurs côté client
