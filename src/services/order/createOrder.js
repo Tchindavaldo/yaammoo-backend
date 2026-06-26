@@ -13,6 +13,7 @@ const repos = require('../../repositories');
 const { getIO } = require('../../socket');
 
 const { notifyOrderEvent } = require('../notification/helpers/notifyOrderEvent');
+const { reliableEmit } = require('../../utils/reliableEmit');
 
 exports.createOrderService = async (order) => {
   const result = await repos.orders.createWithStockCheck(order);
@@ -21,6 +22,15 @@ exports.createOrderService = async (order) => {
 
   const createdOrder = result.order;
   const newStock = result.newStock;
+
+  // Socket temps réel fiable vers le CLIENT : sa commande vient d'être créée
+  // (rejoué au reconnect si le client est hors ligne)
+  if (createdOrder?.userId) {
+    reliableEmit(getIO(), createdOrder.userId, 'newUserOrder', {
+      message: 'Commande créée',
+      data: createdOrder,
+    }).catch((e) => console.warn('[createOrder] reliableEmit newUserOrder:', e.message));
+  }
 
   // Socket : si stock modifié, prévenir tout le monde
   if (typeof newStock === 'number' && order.menu?.id) {
@@ -45,6 +55,13 @@ exports.createOrderService = async (order) => {
       const fastFood = await repos.fastfoods.getById(order.fastFoodId);
       const merchantUserId = fastFood?.userId;
       if (merchantUserId) {
+        // Socket temps réel fiable : boutique du marchand se met à jour en live
+        // (rejoué au reconnect si le marchand est hors ligne)
+        reliableEmit(getIO(), merchantUserId, 'newFastFoodOrders', {
+          message: 'Nouvelle commande',
+          data: [createdOrder],
+        }).catch((e) => console.warn('[createOrder] reliableEmit newFastFoodOrders:', e.message));
+
         await notifyOrderEvent({
           targetUserId: merchantUserId,
           type: 'order_new',

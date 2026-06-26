@@ -131,8 +131,9 @@ MenuItem {
      ```
 
 2. Backend : `updateFastfoodService()` :
-   - Whitelist champs autorisés (nom, openTime, closeTime, deliveryHours, orderLeadTime…)
+   - Whitelist champs autorisés (nom, openTime, closeTime, image, deliveryHours, orderLeadTime…)
    - Met à jour doc fastfoods
+   - Émet socket `fastfoodUpdated` (broadcast global)
 
 3. Frontend :
    - Affiche confirmation "Boutique mise à jour"

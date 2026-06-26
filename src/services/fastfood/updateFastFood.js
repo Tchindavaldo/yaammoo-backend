@@ -2,6 +2,7 @@
 // updateFastFoodService — Façade vers l'orchestrateur
 // ============================================================================
 const repos = require('../../repositories');
+const { getIO } = require('../../socket');
 
 exports.updateFastFoodService = async (fastFoodId, data) => {
   const existing = await repos.fastfoods.getById(fastFoodId);
@@ -21,5 +22,9 @@ exports.updateFastFoodService = async (fastFoodId, data) => {
   if (data.orderLeadTime !== undefined) updateData.orderLeadTime = data.orderLeadTime;
   if (data.deliveryHours !== undefined) updateData.deliveryHours = data.deliveryHours;
 
-  return repos.fastfoods.update(fastFoodId, updateData);
+  const updated = await repos.fastfoods.update(fastFoodId, updateData);
+
+  getIO().emit('fastfoodUpdated', { message: 'Fastfood mis à jour', fastFood: updated });
+
+  return updated;
 };
