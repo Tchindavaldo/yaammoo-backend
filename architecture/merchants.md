@@ -257,7 +257,9 @@ Deux formats coexistent en base (`delivery_hours` JSON) :
 L'app 1.0.0 plante (`hour.split is not a function`) si on lui sert des objets.
 Le backend **downgrade** donc vers le format legacy selon le client appelant.
 
-**Détection de la version** (`src/utils/deliveryHoursFormat.js`) :
+**Détection de la version** — utilitaire générique `src/utils/appVersion.js`
+(`resolveClientVersion`, `clientVersionAtLeast`) ; la transformation deliveryHours
+vit dans `src/utils/deliveryHoursFormat.js` qui s'appuie dessus :
 1. Header `x-app-version` (prioritaire) — version réelle du client.
 2. Fallback `FRONTEND_APP_VERSION` (.env, défaut `1.0.0`) si aucun header.
 

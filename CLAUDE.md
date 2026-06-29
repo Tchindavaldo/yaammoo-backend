@@ -192,6 +192,66 @@ Voir `.env` pour la liste complète des variables.
 
 ---
 
+## Versioning par version d'app (OBLIGATOIRE — compatibilité ascendante)
+
+> ⚠️ Règle **non négociable**. Le but : ne JAMAIS casser une version d'app déjà
+> publiée sur les stores quand on change la forme des données renvoyées au frontend.
+> Les utilisateurs ne mettent pas tous à jour en même temps : pendant la transition,
+> l'ancienne et la nouvelle version de l'app appellent le **même** backend.
+
+### Quand cette règle s'applique (déclencheur)
+
+**Dès qu'un travail — nouvel endpoint OU modification d'un endpoint existant —
+change la FORME des données reçues côté frontend**, c.-à-d. tout ce qui peut faire
+planter ou mal afficher une version d'app déjà en prod :
+
+- changement de **type** d'un champ (ex. `["10:00"]` → `[{hour:"10:00", ...}]`)
+- **renommage / suppression** d'un champ lu par le frontend
+- changement de **structure** d'un objet ou d'un tableau renvoyé
+- nouveau champ **remplaçant** un ancien
+
+Si le changement est purement additif ET ignoré par les anciennes apps (nouveau
+champ jamais lu par l'existant), la règle ne s'impose pas — mais en cas de doute,
+on l'applique.
+
+### Ce qu'il FAUT faire (sans exception)
+
+1. **Détecter la version du client** via l'utilitaire GÉNÉRIQUE centralisé
+   `src/utils/appVersion.js` (`resolveClientVersion(req)` /
+   `clientVersionAtLeast(req, minVersion)`). Ne JAMAIS réimplémenter la détection
+   ailleurs, et ne JAMAIS mettre cette logique transverse dans un fichier spécifique
+   à un domaine (ex. `deliveryHoursFormat.js` ne gère QUE les heures de livraison).
+   - Priorité 1 : header `x-app-version` (version réelle du client).
+   - Priorité 2 (fallback si pas de header) : env **`FRONTEND_APP_VERSION`**.
+   - Chaque domaine définit son propre seuil (env dédiée) et une fonction métier
+     fine (ex. `clientSupportsNewDeliveryFormat`) qui s'appuie sur `appVersion.js`.
+2. **Adapter la réponse dans le controller** (qui a accès à `req`), jamais dans le
+   repository/mapper : on garde un seul format en base, on transforme à la sortie.
+3. **Servir l'ancien format aux anciennes apps** et le nouveau aux versions >= seuil.
+   Le seuil est porté par une env dédiée (ex. `APP_DELIVERY_NEW_MIN_VERSION`).
+4. **Documenter** dans `architecture/<feature>.md` les deux formats + le seuil de
+   version + l'env de bascule.
+5. **Au déploiement de la nouvelle version d'app**, basculer `FRONTEND_APP_VERSION`
+   (et tout seuil concerné) côté Fly : `flyctl secrets set FRONTEND_APP_VERSION=x.y.z`.
+
+### Ce qu'il NE faut JAMAIS faire
+
+- ❌ Changer la forme des données renvoyées sans gérer l'ancienne version d'app.
+- ❌ Mettre la logique de version dans le repository ou le mapper.
+- ❌ Hardcoder une version ou un seuil dans le code (toujours via `.env`).
+- ❌ Dupliquer la détection de version : réutiliser l'utilitaire central.
+
+> 💡 `FRONTEND_APP_VERSION` est **générique et réutilisable** : tout nouvel endpoint
+> soumis à cette règle s'appuie sur la même variable et le même utilitaire.
+
+### ⚠️ Déploiement Fly — piège connu
+
+`flyctl secrets set ...` **ne rebuild PAS le code** : il redémarre la machine avec
+l'**image existante**. Pour déployer du **code** modifié, toujours lancer
+`flyctl deploy`. Set des secrets seuls ≠ déploiement du nouveau code.
+
+---
+
 ## Conventions de branches Git
 
 > ⚠️ Cette section parle **exclusivement de branches Git** (`git checkout -b ...`).
