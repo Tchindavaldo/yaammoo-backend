@@ -89,7 +89,7 @@ const userFromSupabase = (row, pushTokens = []) => {
 // ---------------------------------------------------------------------------
 const fastfoodToSupabase = data => {
   const { createdAt, updatedAt, ...rest } = data;
-  const known = ['id', 'userId', 'name', 'number', 'openTime', 'closeTime', 'image', 'orderLeadTime', 'deliveryHours'];
+  const known = ['id', 'userId', 'name', 'number', 'momoNumber', 'whatsappNumber', 'openTime', 'closeTime', 'image', 'orderLeadTime', 'advanceDays', 'pickupOnly', 'cities', 'deliveryHours'];
   const extra = {};
   for (const k of Object.keys(rest)) {
     if (!known.includes(k)) extra[k] = rest[k];
@@ -99,10 +99,15 @@ const fastfoodToSupabase = data => {
     user_id: data.userId,
     name: data.name ?? null,
     number: data.number ?? null,
+    momo_number: data.momoNumber ?? null,
+    whatsapp_number: data.whatsappNumber ?? null,
     open_time: data.openTime ?? null,
     close_time: data.closeTime ?? null,
     image: data.image ?? null,
     order_lead_time: data.orderLeadTime ?? null,
+    advance_days: data.advanceDays ?? null,
+    pickup_only: data.pickupOnly ?? null,
+    cities: data.cities ?? [],
     delivery_hours: data.deliveryHours ?? [],
     extra_data: extra,
     created_at: toIso(createdAt),
@@ -117,10 +122,15 @@ const fastfoodFromSupabase = row => {
     userId: row.user_id,
     name: row.name,
     number: row.number,
+    momoNumber: row.momo_number ?? null,
+    whatsappNumber: row.whatsapp_number ?? null,
     openTime: row.open_time,
     closeTime: row.close_time,
     image: row.image,
     orderLeadTime: row.order_lead_time,
+    advanceDays: row.advance_days ?? 0,
+    pickupOnly: row.pickup_only ?? false,
+    cities: row.cities || [],
     deliveryHours: row.delivery_hours || [],
     createdAt: row.created_at,
     updatedAt: row.updated_at,

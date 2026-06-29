@@ -29,7 +29,9 @@ FastFood {
   id: string                    // UUID
   userId: string               // UID du propriétaire (créateur)
   name: string                 // Nom boutique
-  number: string               // Numéro Orange Money (OM)
+  number: string               // Numéro téléphone principal
+  momoNumber: string           // Numéro Mobile Money (OM/Momo)
+  whatsappNumber: string       // Numéro WhatsApp
   openTime: "HH:mm"           // Heure ouverture (ex: "09:00")
   closeTime: "HH:mm"          // Heure fermeture (ex: "22:00")
   image: string                // URL image (Supabase storage)
@@ -38,11 +40,27 @@ FastFood {
   orderLeadTime: number        // Délai avant livraison (minutes)
                                // Clients ne peuvent pas commander 
                                // après minuit - orderLeadTime
-  deliveryHours: string[]      // Créneaux dispo (ex: ["12:00", "14:30", "19:00"])
+  advanceDays: number          // Nombre de jours à l'avance pour commander (défaut: 0)
+  pickupOnly: boolean          // true = retrait uniquement, pas de livraison
+  cities: string[]             // Villes où la boutique opère (ex: ["Douala", "Yaoundé"])
+  deliveryHours: DeliveryHour[] // Créneaux avec zones de livraison et prix
   
   // Métadonnées
   createdAt: ISO8601
   updatedAt: ISO8601
+}
+
+DeliveryHour {
+  hour: string                 // Créneau horaire (ex: "08:00")
+  periodic: boolean            // Livraison périodique disponible
+  periodicZones: Zone[]        // Zones et prix pour livraison périodique
+  express: boolean             // Livraison express disponible
+  expressZones: Zone[]         // Zones et prix pour livraison express
+}
+
+Zone {
+  lieu: string                 // Lieu/quartier (ex: "Bonanjo")
+  prix: string                 // Prix de livraison (ex: "500")
 }
 ```
 
@@ -125,8 +143,21 @@ MenuItem {
      ```json
      {
        "name": "...",
-       "deliveryHours": ["12:00", "14:30", "19:00"],
-       "orderLeadTime": 30
+       "deliveryHours": [
+         {
+           "hour": "08:00",
+           "periodic": true,
+           "periodicZones": [{ "lieu": "Bonanjo", "prix": "500" }],
+           "express": false,
+           "expressZones": []
+         }
+       ],
+       "orderLeadTime": 30,
+       "advanceDays": 3,
+       "pickupOnly": false,
+       "cities": ["Douala", "Yaoundé"],
+       "momoNumber": "691234568",
+       "whatsappNumber": "691234569"
      }
      ```
 
@@ -180,9 +211,9 @@ MenuItem {
 **FastFood**
 - userId : non-vide, valide
 - name : 3+ caractères
-- number : format OM valide
+- number : format téléphone valide
 - openTime, closeTime : format "HH:mm"
-- deliveryHours : array de "HH:mm"
+- deliveryHours : array d'objets DeliveryHour
 
 **Menu**
 - name : 3+ caractères

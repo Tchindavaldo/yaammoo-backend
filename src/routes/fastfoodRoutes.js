@@ -26,16 +26,59 @@ const route = express.Router();
  *             properties:
  *               name:
  *                 type: string
- *               description:
+ *               userId:
  *                 type: string
- *               address:
+ *               number:
  *                 type: string
- *               phone:
+ *               momoNumber:
+ *                 type: string
+ *               whatsappNumber:
+ *                 type: string
+ *               openTime:
+ *                 type: string
+ *               closeTime:
  *                 type: string
  *               image:
  *                 type: string
- *               userId:
- *                 type: string
+ *               orderLeadTime:
+ *                 type: number
+ *               advanceDays:
+ *                 type: number
+ *               pickupOnly:
+ *                 type: boolean
+ *               cities:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               deliveryHours:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     hour:
+ *                       type: string
+ *                     periodic:
+ *                       type: boolean
+ *                     periodicZones:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           lieu:
+ *                             type: string
+ *                           prix:
+ *                             type: string
+ *                     express:
+ *                       type: boolean
+ *                     expressZones:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           lieu:
+ *                             type: string
+ *                           prix:
+ *                             type: string
  *     responses:
  *       201:
  *         description: FastFood successfully created
@@ -117,6 +160,10 @@ route.get('/all', getfastfoodController);
  *                 type: string
  *               number:
  *                 type: string
+ *               momoNumber:
+ *                 type: string
+ *               whatsappNumber:
+ *                 type: string
  *               openTime:
  *                 type: string
  *               closeTime:
@@ -125,10 +172,43 @@ route.get('/all', getfastfoodController);
  *                 type: string
  *               orderLeadTime:
  *                 type: number
- *               deliveryHours:
+ *               advanceDays:
+ *                 type: number
+ *               pickupOnly:
+ *                 type: boolean
+ *               cities:
  *                 type: array
  *                 items:
  *                   type: string
+ *               deliveryHours:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     hour:
+ *                       type: string
+ *                     periodic:
+ *                       type: boolean
+ *                     periodicZones:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           lieu:
+ *                             type: string
+ *                           prix:
+ *                             type: string
+ *                     express:
+ *                       type: boolean
+ *                     expressZones:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           lieu:
+ *                             type: string
+ *                           prix:
+ *                             type: string
  *     responses:
  *       200:
  *         description: FastFood successfully updated
