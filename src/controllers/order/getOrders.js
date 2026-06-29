@@ -6,6 +6,7 @@ exports.getOrders = async (req, res) => {
     if (!fastFoodId) return res.status(400).json({ success: false, message: 'ID du fastfood requis.' });
 
     const orders = await getOrdersService(fastFoodId);
+    console.log(`[getOrders] fastFoodId:${fastFoodId} → ${orders.length} commandes | ex. userData:`, orders[0]?.userData, '| selectedPriceIndex:', orders[0]?.selectedPriceIndex);
     return res.status(200).json({ success: true, message: 'Commandes récupérées avec succès.', data: orders });
   } catch (error) {
     console.error('Erreur récupération commandes :', error);

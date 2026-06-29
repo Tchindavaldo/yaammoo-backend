@@ -204,7 +204,7 @@ const menuFromSupabase = row => {
 // ORDERS
 // ---------------------------------------------------------------------------
 const orderToSupabase = data => {
-  const { createdAt, updatedAt, menu, ...rest } = data;
+  const { createdAt, updatedAt, menu, userData, selectedPriceIndex, ...rest } = data;
   const known = ['id', 'userId', 'fastFoodId', 'quantity', 'extra', 'drink', 'delivery', 'total', 'status', 'rank', 'clientId', 'periodKey'];
   const extra_data = {};
   for (const k of Object.keys(rest)) {
@@ -226,6 +226,8 @@ const orderToSupabase = data => {
     rank: data.rank ?? null,
     client_id: data.clientId ?? null,
     period_key: data.periodKey ?? null,
+    user_data: userData ?? null,
+    selected_price_index: selectedPriceIndex ?? null,
     extra_data,
     created_at: toIso(createdAt),
     updated_at: toIso(updatedAt) || toIso(createdAt),
@@ -248,6 +250,8 @@ const orderFromSupabase = row => {
     rank: row.rank ?? undefined,
     clientId: row.client_id ?? undefined,
     periodKey: row.period_key ?? undefined,
+    userData: row.user_data ?? undefined,
+    selectedPriceIndex: row.selected_price_index ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     ...(row.extra_data || {}),

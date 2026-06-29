@@ -80,6 +80,8 @@ exports.createWithStockCheck = async (order) => {
     p_delivery_date: deliveryDate,
     p_total: order.total || 0,
     p_status: order.status,
+    p_user_data: order.userData || null,
+    p_selected_price_index: order.selectedPriceIndex ?? null,
   });
 
   if (error) throw error;
@@ -90,7 +92,6 @@ exports.createWithStockCheck = async (order) => {
       id,
       user_id: order.userId,
       fastfood_id: order.fastFoodId,
-      menu_id: order.menu?.id || null,
       menu_snapshot: order.menu || null,
       quantity: order.quantity || 1,
       extra: order.extra || [],
@@ -99,6 +100,8 @@ exports.createWithStockCheck = async (order) => {
       total: order.total,
       status: order.status,
       rank: data?.rank ?? null,
+      user_data: order.userData || null,
+      selected_price_index: order.selectedPriceIndex ?? null,
       created_at: data?.created_at,
       updated_at: data?.updated_at,
     }),

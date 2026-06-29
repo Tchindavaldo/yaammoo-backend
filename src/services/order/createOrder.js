@@ -26,6 +26,7 @@ exports.createOrderService = async (order) => {
   // Socket temps réel fiable vers le CLIENT : sa commande vient d'être créée
   // (rejoué au reconnect si le client est hors ligne)
   if (createdOrder?.userId) {
+    console.log('[createOrder] socket newUserOrder → userId:', createdOrder.userId, '| userData:', createdOrder.userData, '| selectedPriceIndex:', createdOrder.selectedPriceIndex);
     reliableEmit(getIO(), createdOrder.userId, 'newUserOrder', {
       message: 'Commande créée',
       data: createdOrder,
@@ -57,6 +58,7 @@ exports.createOrderService = async (order) => {
       if (merchantUserId) {
         // Socket temps réel fiable : boutique du marchand se met à jour en live
         // (rejoué au reconnect si le marchand est hors ligne)
+        console.log('[createOrder] socket newFastFoodOrders → merchantUserId:', merchantUserId, '| userData:', createdOrder.userData, '| selectedPriceIndex:', createdOrder.selectedPriceIndex);
         reliableEmit(getIO(), merchantUserId, 'newFastFoodOrders', {
           message: 'Nouvelle commande',
           data: [createdOrder],

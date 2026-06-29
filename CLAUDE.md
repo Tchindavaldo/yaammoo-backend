@@ -231,6 +231,33 @@ Après toute modif des services/routes/features, **mettre à jour** :
 
 ---
 
+## Schema & Migrations (OBLIGATOIRE)
+
+**Ne jamais modifier `schema/migrations/schema.sql` directement** pour un changement incrémental.
+
+### Règles
+
+- Tout changement de schéma DB (ALTER TABLE, nouvelle colonne, index, fonction SQL) = **nouveau fichier de migration numéroté**
+- Répertoire : `schema/migrations/`
+- Nommage : `NNN_description_courte.sql` (ex. `007_orders_user_data.sql`)
+- Chaque migration doit être **idempotente** : utiliser `IF NOT EXISTS` / `IF EXISTS` partout
+- Appliquer manuellement dans l'éditeur SQL du dashboard Supabase
+
+### Quand mettre à jour `schema.sql`
+
+`schema.sql` = état cible complet de la DB (snapshot). Le mettre à jour **après** avoir appliqué la migration en prod, pour qu'il reste la référence à jour.
+
+### Exemple
+
+```sql
+-- 007_orders_user_data.sql
+ALTER TABLE orders
+  ADD COLUMN IF NOT EXISTS user_data            JSONB DEFAULT '{}'::jsonb,
+  ADD COLUMN IF NOT EXISTS selected_price_index INTEGER;
+```
+
+---
+
 ## Tests & Validation
 
 - **API** : Swagger endpoint manual + Postman/curl

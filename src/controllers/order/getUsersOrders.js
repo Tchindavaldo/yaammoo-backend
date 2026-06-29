@@ -6,6 +6,7 @@ exports.getUsersOrders = async (req, res) => {
     if (!userId) return res.status(400).json({ success: false, message: 'ID du user requis.' });
 
     const orders = await getUserOrdersService(userId);
+    console.log(`[getUsersOrders] userId:${userId} → ${orders.length} commandes | ex. selectedPriceIndex:`, orders[0]?.selectedPriceIndex);
     return res.status(200).json({ success: true, message: 'Commandes récupérées avec succès.', data: orders });
   } catch (error) {
     console.error('Erreur récupération commandes :', error);

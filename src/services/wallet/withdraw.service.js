@@ -44,8 +44,11 @@ exports.requestWithdrawal = async ({ userId, amount, phone, network, receiverNam
   const amt = Number(amount);
 
   // 1. Solde dérivé (source de vérité)
+  // ⚠️ TEMPORAIRE : contrôle de solde désactivable via DISABLE_WITHDRAWAL_BALANCE_CHECK=true.
+  //    Réactiver (retirer le flag) une fois les tests terminés.
+  const SKIP_BALANCE_CHECK = process.env.DISABLE_WITHDRAWAL_BALANCE_CHECK === 'true';
   const { balance } = await repos.transactions.getMerchantBalance(userId);
-  if (amt > balance) {
+  if (!SKIP_BALANCE_CHECK && amt > balance) {
     return {
       success: false,
       httpStatus: 400,
