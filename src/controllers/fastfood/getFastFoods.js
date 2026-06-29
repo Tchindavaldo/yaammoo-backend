@@ -1,9 +1,11 @@
 const { getFastFoodsService } = require('../../services/fastfood/getFastFoods');
+const { formatFastfoodsForClient } = require('../../utils/deliveryHoursFormat');
 
 exports.getfastfoodController = async (req, res) => {
   try {
     const fastfoods = await getFastFoodsService();
-    return res.status(200).json({ success: true, message: 'fastfoods récupérées avec succès.', data: fastfoods, appleReviewMode: process.env.APPLE_REVIEW_MODE === 'true' });
+    const data = formatFastfoodsForClient(fastfoods, req);
+    return res.status(200).json({ success: true, message: 'fastfoods récupérées avec succès.', data, appleReviewMode: process.env.APPLE_REVIEW_MODE === 'true' });
   } catch (error) {
     console.error('Erreur récupération fastfood :', error);
     return res.status(error.message === 'Fastfood non trouvé' ? 404 : 500).json({

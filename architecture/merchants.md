@@ -247,6 +247,31 @@ Frontend → confirmation ✅
 
 ---
 
+## Compatibilité versions app — `deliveryHours`
+
+Deux formats coexistent en base (`delivery_hours` JSON) :
+
+- **legacy (app 1.0.0)** : `["10:00", "14:00"]` (tableau de strings)
+- **new (app 1.0.1+)** : `[{ hour: "13:06", express, periodic, expressZones, periodicZones }]` (objets enrichis)
+
+L'app 1.0.0 plante (`hour.split is not a function`) si on lui sert des objets.
+Le backend **downgrade** donc vers le format legacy selon le client appelant.
+
+**Détection de la version** (`src/utils/deliveryHoursFormat.js`) :
+1. Header `x-app-version` (prioritaire) — version réelle du client.
+2. Fallback `FRONTEND_APP_VERSION` (.env, défaut `1.0.0`) si aucun header.
+
+La version résolue est comparée à `APP_DELIVERY_NEW_MIN_VERSION` (1.0.1) :
+< 1.0.1 → format legacy (strings) ; >= 1.0.1 → format new (objets).
+
+`FRONTEND_APP_VERSION` est générique et réutilisable pour tout futur endpoint
+devant adapter sa réponse selon la version de l'app.
+
+**Appliqué dans** : `getFastFoods` (liste home) et `getFastFood` (détail).
+Au déploiement de la 1.0.1, passer `FRONTEND_APP_VERSION=1.0.1`.
+
+---
+
 ## Erreurs couantes
 
 - 400 : Cet utilisateur possède déjà une fastfood
