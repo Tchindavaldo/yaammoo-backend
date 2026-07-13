@@ -66,6 +66,14 @@ exports.OrderFields = {
         type: 'string',
         required: false,
       },
+      zone: {
+        type: 'string',
+        required: false,
+      },
+      prix: {
+        type: 'number',
+        required: false,
+      },
       location: {
         type: 'string',
         required: false,

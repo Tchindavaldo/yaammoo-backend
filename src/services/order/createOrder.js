@@ -14,8 +14,15 @@ const { getIO } = require('../../socket');
 
 const { notifyOrderEvent } = require('../notification/helpers/notifyOrderEvent');
 const { reliableEmit } = require('../../utils/reliableEmit');
+const { validateOrder } = require('../../utils/validator/validateOrder');
 
 exports.createOrderService = async (order) => {
+  // Validation au niveau service : garantit qu'aucun chemin d'appel
+  // (HTTP POST /order OU flux paiement mwVerdict/postTransaction) ne
+  // contourne le validateur.
+  const errors = validateOrder(order);
+  if (errors && errors.length > 0) return { error: errors };
+
   const result = await repos.orders.createWithStockCheck(order);
 
   if (result?.error) return { error: result.error };

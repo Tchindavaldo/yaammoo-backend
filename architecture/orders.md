@@ -45,6 +45,16 @@ BACKEND/src/
 
 **Chemin** : `BACKEND/src/services/order/createOrder.js`
 
+**⚠️ Validation** : `createOrderService` appelle `validateOrder(order)` en tout début.
+La validation est ainsi **impossible à contourner**, quel que soit l'appelant
+(HTTP `POST /order` OU flux paiement `mwVerdictService` / `postTransaction.service`).
+Avant, la validation n'existait que dans le controller → les achats confirmés après
+paiement (qui appellent directement le service) échappaient au validateur.
+
+**Champs `delivery`** (déclarés dans `interface/orderFields.js`) : `status`, `date`,
+`type` (`express|time`), `time`, `zone`, `prix`, `location`, `phone`, `voiceNoteUri`,
+`record`, `note`. Tout champ non déclaré = rejet `Champ non autorisé`.
+
 **Flux** :
 1. Si `status === 'pending'` → `reserveRank()` pour obtenir un rank avant création
 2. `db.collection('orders').add(orderData)` — crée la commande
