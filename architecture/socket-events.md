@@ -4,7 +4,7 @@
 
 - **Serveur** : `BACKEND/src/socket.js` — singleton `getIO()` retourne l'instance Socket.io
 - **Init** : `BACKEND/src/server.js` crée le `http.Server` et wrappe Socket.io dessus
-- **Rooms** : chaque utilisateur (client ou marchand) rejoint sa propre room via `socket.on('join_user', userId => socket.join(userId))`. Le marchand utilise le même `userId` que son compte user (stocké dans `fastfoods.userId`) — pas de room `fastFoodId` séparée.
+- **Rooms** : chaque utilisateur (client, marchand **ou livreur**) rejoint sa propre room via `socket.on('join_user', userId => socket.join(userId))`. Le marchand utilise le même `userId` que son compte user (stocké dans `fastfoods.userId`), et le livreur sa room `uid` (= `driverId`) — **pas de room dédiée ni de `join_driver`**. Les events de délégation (`driverOrderAssigned`, `driverOrderUpdated`) sont émis vers `io.to(driverId)`.
 
 ---
 
@@ -36,6 +36,7 @@ Socket.io est fire-and-forget : un event émis pendant que l'utilisateur est hor
 | `newFastFoodOrders` | `services/order/createOrder.js`, `services/order/updateOrders.service.js` | marchand |
 | `userOrderUpdated` | `updateOrders.service.js`, `updateOrder.js` | client |
 | `fastFoodOrderUpdated` | `updateOrders.service.js`, `updateOrder.js` | marchand |
+| `driverOrderAssigned` / `driverOrderUpdated` | `services/order/driverOrders.service.js` | livreur |
 | `newFastFoodMenu` / `fastFoodMenuUpdated` / `fastFoodMenuDeleted` | `services/menu/*` | marchand |
 
 > Les broadcasts catalogue (`globalMenu*`) restent **fire-and-forget** : le front recharge le
@@ -81,6 +82,25 @@ Le même pattern (`ack?.()` + dédoublonnage `__eventId`) s'applique à tous les
 | `fastFoodOrderUpdated` | `userId` marchand | `updateOrders.service.js` | `{ data: order }` |
 | `fastFoodOrdersUpdated` | `userId` marchand | `updateOrdersField.service.js` | `{ message, field, orders: order[] }` |
 | `ordersRankUpdated` | `userId`/`fastFoodId` marchand | `updateOrdersRankByDate.service.js`, `rankQueue.service.js` | `{ message, orders: order[] }` |
+
+### Délégation livreur (driver)
+
+Émis depuis `services/order/driverOrders.service.js` (reliableEmit). Cible : room `driverId`
+(= uid du livreur, rejointe via `join_user`). En parallèle, le client et le marchand reçoivent
+`userOrderUpdated` / `fastFoodOrderUpdated`.
+
+| Event | Destination | Déclencheur | Payload |
+|---|---|---|---|
+| `driverOrderAssigned` | `driverId` (livreur) | `PUT /order { id, driverId }` (assignation par le fastFood) | `{ data: order }` |
+| `driverOrderUpdated` | `driverId` (livreur) | `PUT /order { id, status, driverId }` (statut delivering/finished par le livreur) | `{ data: order }` |
+| `driverApplicationCreated` | `userId` marchand | `POST /driver/apply` (candidature créée/relancée) | `{ data: application }` |
+| `driverApplicationDecided` | `userId` candidat | `PUT /driver/applications/:id` (accepté/refusé) | `{ data: application }` |
+| `driverRemoved` | `userId` livreur | `DELETE /driver/:driverId?fastFoodId=` | `{ data: { fastFoodId }, role }` |
+| `merchantDriverApplicationDecided` | `userId` marchand | `PUT /driver/applications/:id` (écho marchand) | `{ data: application }` |
+| `merchantDriverRemoved` | `userId` marchand | `DELETE /driver/:driverId?fastFoodId=` (écho marchand) | `{ data: { driverId } }` |
+
+> `driverApplicationCreated`/`Decided` déclenchent aussi **push + notif BD** (`newNotification`)
+> via `notifyOrderEvent` → `postNotificationService`.
 
 ### Livraisons (client + marchand)
 

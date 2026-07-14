@@ -1,0 +1,41 @@
+# TODO — Fallback firstName / lastName manquants (dérivés de l'email)
+
+## Problème
+
+Certains users n'ont pas de `firstName` / `lastName` (ou `nom` / `prenom`) renseignés.
+Ces champs sont pourtant utilisés à l'affichage (candidatures livreur, commandes,
+profil, notifications). Quand ils sont vides → affichage cassé / "undefined".
+
+Besoin : garantir qu'un user a TOUJOURS un `firstName`/`lastName` exploitable,
+en le **dérivant de l'email** quand ils sont vides (ex. `jean.dupont@x.com`
+→ firstName `Jean`, lastName `Dupont` ; ou fallback = partie locale de l'email).
+
+## À trancher (solution idéale)
+
+- [ ] **Où gérer le fallback ?**
+  - (A) **À la création du user** (`repositories/supabase/users.repo.js` /
+        service de création) : si first/last vides → dériver de l'email avant insert.
+  - (B) **À la lecture** (mapper `userFromSupabase` / couche service) : dériver à la
+        volée si vide, sans toucher la BD. Non destructif, mais recalculé à chaque read.
+  - (C) **Les deux** : (B) immédiat pour ne rien casser + (A) pour les nouveaux +
+        un **script de backfill** pour les users existants déjà créés.
+  - Recommandation à valider : (C).
+
+- [ ] **Règle de dérivation depuis l'email** à figer :
+  - `prenom.nom@domaine` → firstName=`Prenom`, lastName=`Nom` (capitalisés).
+  - Sinon (pas de séparateur) → firstName = partie locale capitalisée, lastName = ''.
+  - Centraliser dans un util réutilisable (ex. `src/utils/deriveNameFromEmail.js`).
+
+- [ ] **Users déjà créés sans nom** : script de backfill
+      (`scripts/backfill-user-names.js`) qui parcourt les users, applique la
+      dérivation et met à jour ceux dont first/last sont vides.
+
+- [ ] **Cohérence FR/EN** : décider si on écrit dans `nom/prenom` (schéma actuel)
+      ou si on profite du chantier de normalisation EN (voir `.todo`). Éviter de
+      faire les deux migrations séparément si possible.
+
+## Notes
+
+- Ne PAS écraser un nom déjà présent.
+- Gérer les emails sans nom propre (ex. `contact@`, chiffres) proprement
+  (fallback lisible, pas d'exception).

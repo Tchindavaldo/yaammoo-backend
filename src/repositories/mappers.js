@@ -205,7 +205,7 @@ const menuFromSupabase = row => {
 // ---------------------------------------------------------------------------
 const orderToSupabase = data => {
   const { createdAt, updatedAt, menu, userData, selectedPriceIndex, ...rest } = data;
-  const known = ['id', 'userId', 'fastFoodId', 'quantity', 'extra', 'drink', 'delivery', 'total', 'status', 'rank', 'clientId', 'periodKey'];
+  const known = ['id', 'userId', 'fastFoodId', 'quantity', 'extra', 'drink', 'delivery', 'total', 'status', 'rank', 'clientId', 'periodKey', 'driverId'];
   const extra_data = {};
   for (const k of Object.keys(rest)) {
     if (!known.includes(k)) extra_data[k] = rest[k];
@@ -226,6 +226,7 @@ const orderToSupabase = data => {
     rank: data.rank ?? null,
     client_id: data.clientId ?? null,
     period_key: data.periodKey ?? null,
+    driver_id: data.driverId ?? null,
     user_data: userData ?? null,
     selected_price_index: selectedPriceIndex ?? null,
     extra_data,
@@ -250,6 +251,7 @@ const orderFromSupabase = row => {
     rank: row.rank ?? undefined,
     clientId: row.client_id ?? undefined,
     periodKey: row.period_key ?? undefined,
+    driverId: row.driver_id ?? undefined,
     userData: row.user_data ?? undefined,
     selectedPriceIndex: row.selected_price_index ?? undefined,
     createdAt: row.created_at,
@@ -412,6 +414,40 @@ const notificationFromSupabase = row => {
   };
 };
 
+// ---------------------------------------------------------------------------
+// DRIVER APPLICATIONS (candidatures livreur)
+// ---------------------------------------------------------------------------
+const driverApplicationToSupabase = data => {
+  const { createdAt, updatedAt, ...rest } = data;
+  const known = ['id', 'userId', 'fastFoodId', 'status'];
+  const extra_data = {};
+  for (const k of Object.keys(rest)) {
+    if (!known.includes(k)) extra_data[k] = rest[k];
+  }
+  return {
+    id: data.id,
+    user_id: data.userId,
+    fastfood_id: data.fastFoodId,
+    status: data.status ?? 'pending',
+    extra_data,
+    created_at: toIso(createdAt),
+    updated_at: toIso(updatedAt) || toIso(createdAt),
+  };
+};
+
+const driverApplicationFromSupabase = row => {
+  if (!row) return null;
+  return {
+    id: row.id,
+    userId: row.user_id,
+    fastFoodId: row.fastfood_id,
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    ...(row.extra_data || {}),
+  };
+};
+
 module.exports = {
   toIso,
   toDate,
@@ -424,4 +460,5 @@ module.exports = {
   bonus: { toSupabase: bonusToSupabase, fromSupabase: bonusFromSupabase },
   bonusRequest: { toSupabase: bonusRequestToSupabase, fromSupabase: bonusRequestFromSupabase },
   notification: { toSupabase: notificationToSupabase, fromSupabase: notificationFromSupabase },
+  driverApplication: { toSupabase: driverApplicationToSupabase, fromSupabase: driverApplicationFromSupabase },
 };

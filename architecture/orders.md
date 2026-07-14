@@ -15,9 +15,11 @@ BACKEND/src/
 │   ├── updateOrdersField.controller.js # PUT /order/update-field
 │   ├── updateOrdersRankByDate.js       # PUT /order/update-rank-by-date/:fastFoodId
 │   ├── getOrders.js                    # GET /order/all/:fastFoodId
-│   └── getUsersOrders.js               # GET /order/user/all/:userId
+│   ├── getUsersOrders.js               # GET /order/user/all/:userId
+│   └── getDriverOrders.js              # GET /order/driver/:driverId
 └── services/order/
     ├── createOrder.js                  # Logique création + rank + stock + transaction
+    ├── driverOrders.service.js         # Délégation livreur : assign + progression statut
     ├── updateOrders.service.js         # Logique mise à jour bulk + transitions statut + rank
     ├── updateOrder.js                  # Logique mise à jour commande unique
     ├── rankQueue.service.js            # assignRank, reindexQueue, reserveRank, resetCounter
@@ -33,6 +35,7 @@ BACKEND/src/
 |---|---|---|---|
 | GET | `/order/all/:fastFoodId` | `getOrders` | Commandes d'une boutique |
 | GET | `/order/user/all/:userId` | `getUsersOrders` | Commandes d'un client |
+| GET | `/order/driver/:driverId` | `getDriverOrders` | Commandes assignées à un livreur |
 | POST | `/order` | `createOrder` | Créer une commande |
 | PUT | `/order` | `updateOrder` | Mettre à jour une commande (champs libres) |
 | PUT | `/order/tabs/:userId` | `updateOrdersConstroller` | Passer N commandes au statut suivant |
@@ -117,6 +120,38 @@ const qty = Number(updateData.quantity ?? prevData.quantity) || 1;
 - `userOrderUpdated` → client concerné
 - `fastFoodOrderUpdated` → marchand
 - `newPeriodKeyDelivering` / `newClientIdDelivering` → client + marchand (statut `delivering`)
+
+---
+
+## Délégation à un livreur (driver)
+
+**Chemin** : `BACKEND/src/services/order/driverOrders.service.js`
+
+Canal **parallèle** à la state machine autoritaire (`updateOrders.service`). Piloté par
+le frontend : le fastFood délègue une commande à un livreur, qui la fait ensuite progresser.
+
+### Modèle de données
+
+- **`order.driverId`** : id du livreur assigné. Colonne dédiée `orders.driver_id`
+  (migration `009_orders_driver_id.sql`, index `idx_orders_driver`). Mappé dans
+  `mappers.js` (`order.toSupabase`/`fromSupabase`) + déclaré dans `interface/orderFields.js`.
+- **`user.driverId`** : identifie un livreur. **Pas de colonne dédiée** : porté par
+  `users.extra_data` (pass-through du mapper user). `GET /user/:uid` le renvoie tel quel ;
+  le front en dérive `isDriver`.
+
+### Endpoints (tous via `PUT /order`, branché dans `updateOrderService`)
+
+| Payload | Effet | Vérif | Events |
+|---|---|---|---|
+| `{ id, driverId }` (sans status) | **Assignation** : pose `driver_id` sur la commande | — | `driverOrderAssigned` (→ `driverId`) + `userOrderUpdated` + `fastFoodOrderUpdated` |
+| `{ id, status, driverId }` avec status ∈ `delivering`\|`finished` | **Progression** par le livreur : pose le statut tel quel | `order.driverId === driverId` sinon **403** | `driverOrderUpdated` (→ `driverId`) + `userOrderUpdated` + `fastFoodOrderUpdated` |
+
+- Statut hors `delivering`/`finished` avec un `driverId` → traité comme assignation.
+- `getDriverOrders(driverId)` → `repos.orders.getByDriver()` → `GET /order/driver/:driverId`.
+- **Socket livreur** : le livreur est un user ; `driverId` = son uid. Il reçoit ses events sur
+  sa room `uid` déjà rejointe via `join_user` (comme client/marchand) — pas de `join_driver`.
+- Le controller `updateOrder` renvoie désormais le bon code HTTP en cas d'échec
+  (`result.code` : 400/403/404), sinon 200 avec la shape historique `{ message, data: result }`.
 
 ---
 

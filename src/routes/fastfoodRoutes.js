@@ -4,6 +4,7 @@ const { createFastfoodController } = require('../controllers/fastfood/createFast
 const { getfastfoodController } = require('../controllers/fastfood/getFastFoods');
 const { getfastfood } = require('../controllers/fastfood/getFastFood');
 const { updateFastfoodController } = require('../controllers/fastfood/updateFastfood');
+const { searchFastfoodController } = require('../controllers/fastfood/searchFastfood');
 
 const route = express.Router();
 
@@ -213,6 +214,42 @@ route.get('/all', getfastfoodController);
  *       200:
  *         description: FastFood successfully updated
  */
+/**
+ * @swagger
+ * /fastFood/search:
+ *   get:
+ *     summary: Rechercher une boutique par nom (option « Devenir livreur »)
+ *     tags:
+ *       - FastFood
+ *     parameters:
+ *       - in: query
+ *         name: q
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Terme de recherche (nom de boutique)
+ *     responses:
+ *       200:
+ *         description: Liste de StoreOption { id, nom }
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                       nom:
+ *                         type: string
+ */
+route.get('/search', searchFastfoodController);
+
 route.get('/:fastFoodId', getfastfood);
 route.post('/:fastFoodId', updateFastfoodController);
 

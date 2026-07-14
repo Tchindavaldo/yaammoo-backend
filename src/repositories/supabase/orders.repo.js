@@ -40,6 +40,16 @@ exports.getByUser = async (userId) => {
   return (data || []).map(m.order.fromSupabase);
 };
 
+exports.getByDriver = async (driverId) => {
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select('*')
+    .eq('driver_id', driverId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data || []).map(m.order.fromSupabase);
+};
+
 /**
  * Query flexible (équivalent du repo Firestore).
  */

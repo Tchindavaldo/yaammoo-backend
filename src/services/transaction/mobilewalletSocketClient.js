@@ -5,9 +5,28 @@ const log = console;
 
 let mobilewalletSocket = null;
 let reconnectTimer = null;
+let giveUpTimer = null;
 
 const MOBILEWALLET_URL = process.env.MOBILEWALLET_URL || 'http://localhost:7332';
 const MOBILEWALLET_YAAMMOO_KEY = process.env.MOBILEWALLET_YAAMMOO_KEY;
+
+// Durée max pendant laquelle on retente de se (re)connecter avant d'abandonner.
+const MOBILEWALLET_RECONNECT_MAX_MS = Number(process.env.MOBILEWALLET_RECONNECT_MAX_MS) || 5 * 60 * 1000; // 5 min
+
+// Démarre (une seule fois) le compte à rebours d'abandon : si toujours pas
+// connecté au bout de MOBILEWALLET_RECONNECT_MAX_MS, on stoppe les tentatives.
+function armGiveUpTimer() {
+  if (giveUpTimer) return;
+  giveUpTimer = setTimeout(() => {
+    giveUpTimer = null;
+    if (mobilewalletSocket && !mobilewalletSocket.connected) {
+      log.error(`[MobileWallet Socket] ⏹️ Abandon après ${MOBILEWALLET_RECONNECT_MAX_MS / 1000}s sans connexion.`);
+      mobilewalletSocket.disconnect(); // coupe les reconnexions auto
+      mobilewalletSocket = null;
+    }
+  }, MOBILEWALLET_RECONNECT_MAX_MS);
+  if (giveUpTimer.unref) giveUpTimer.unref();
+}
 
 /**
  * Initialiser la connexion Socket.io vers MobileWallet en tant que client.
@@ -54,6 +73,11 @@ function initMobileWalletSocket() {
       clearTimeout(reconnectTimer);
       reconnectTimer = null;
     }
+    // Connecté → on annule le compte à rebours d'abandon.
+    if (giveUpTimer) {
+      clearTimeout(giveUpTimer);
+      giveUpTimer = null;
+    }
   });
 
   mobilewalletSocket.on('disconnect', (reason) => {
@@ -71,6 +95,7 @@ function initMobileWalletSocket() {
 
   mobilewalletSocket.on('connect_error', (error) => {
     log.error(`[MobileWallet Socket] ❌ Erreur connexion: ${error.message}`);
+    armGiveUpTimer(); // limite les tentatives à MOBILEWALLET_RECONNECT_MAX_MS
   });
 
   // =========================================================================
@@ -150,6 +175,10 @@ function closeMobileWalletSocket() {
   if (reconnectTimer) {
     clearTimeout(reconnectTimer);
     reconnectTimer = null;
+  }
+  if (giveUpTimer) {
+    clearTimeout(giveUpTimer);
+    giveUpTimer = null;
   }
 }
 

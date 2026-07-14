@@ -7,8 +7,12 @@ exports.updateOrder = async (req, res) => {
     const { id, userId } = req.body;
     const updateData = req.body;
 
-    const updatedOrder = await updateOrderService(id, updateData);
-    res.status(200).json({ message: 'success.', data: updatedOrder });
+    const result = await updateOrderService(id, updateData);
+    if (result && result.success === false) {
+      return res.status(result.code || 400).json({ success: false, message: result.message });
+    }
+    // Shape historique conservée : data = objet résultat complet du service.
+    res.status(200).json({ message: 'success.', data: result });
   } catch (error) {
     console.error('Erreur mise à jour commande :', error.message);
     res.status(error.code || 500).json({

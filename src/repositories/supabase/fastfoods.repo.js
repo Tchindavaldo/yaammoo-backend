@@ -57,6 +57,20 @@ exports.update = async (id, fields) => {
   return m.fastfood.fromSupabase(data);
 };
 
+// Recherche boutique par nom (option « Devenir livreur »).
+// Retourne des StoreOption { id, nom } (name → nom).
+exports.searchByName = async (q, { limit = 20 } = {}) => {
+  const term = (q || '').trim();
+  if (!term) return [];
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select('id, name')
+    .ilike('name', `%${term}%`)
+    .limit(limit);
+  if (error) throw error;
+  return (data || []).map((r) => ({ id: r.id, nom: r.name }));
+};
+
 exports.exists = async (id) => {
   const { count, error } = await supabase
     .from(TABLE)

@@ -20,6 +20,7 @@ const bonusRequest = require('./routes/bonusRequestRoute');
 const transactionRoutes = require('./routes/transactionRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const walletRoutes = require('./routes/walletRoutes');
+const driverRoutes = require('./routes/driverRoutes');
 
 const app = express();
 
@@ -46,6 +47,7 @@ app.use('/bonusRequest', bonusRequest);
 app.use('/transaction', transactionRoutes);
 app.use('/notification', notificationRoutes);
 app.use('/wallet', walletRoutes);
+app.use('/driver', driverRoutes);
 
 // Ajouter l'endpoint de diagnostic Firebase
 app.get('/debug-firebase', (req, res) => {
