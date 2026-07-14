@@ -198,9 +198,10 @@ router.post('', createOrder);
  *               driverId:
  *                 type: string
  *                 description: >-
- *                   Délégation livreur. Sans status → assignation d'un livreur à la
- *                   commande (event driverOrderAssigned). Avec status delivering|finished →
- *                   le livreur fait progresser SA commande (vérifie l'assignation,
+ *                   Délégation livreur (le front n'envoie PAS de status). Si la commande
+ *                   n'est pas encore assignée à ce driverId → assignation par le fastFood
+ *                   (event driverOrderAssigned). Si elle l'est déjà → le livreur fait
+ *                   avancer la commande via la machine à états (finished→delivering→delivered,
  *                   event driverOrderUpdated).
  *               items:
  *                 type: array

@@ -141,12 +141,17 @@ le frontend : le fastFood délègue une commande à un livreur, qui la fait ensu
 
 ### Endpoints (tous via `PUT /order`, branché dans `updateOrderService`)
 
-| Payload | Effet | Vérif | Events |
-|---|---|---|---|
-| `{ id, driverId }` (sans status) | **Assignation** : pose `driver_id` sur la commande | — | `driverOrderAssigned` (→ `driverId`) + `userOrderUpdated` + `fastFoodOrderUpdated` |
-| `{ id, status, driverId }` avec status ∈ `delivering`\|`finished` | **Progression** par le livreur : pose le statut tel quel | `order.driverId === driverId` sinon **403** | `driverOrderUpdated` (→ `driverId`) + `userOrderUpdated` + `fastFoodOrderUpdated` |
+> ⚠️ Le front **n'envoie jamais de statut** pour le livreur. On distingue assignation
+> et progression selon que la commande est **déjà assignée à ce livreur** ou non.
 
-- Statut hors `delivering`/`finished` avec un `driverId` → traité comme assignation.
+| Payload | Condition | Effet | Events |
+|---|---|---|---|
+| `{ id, driverId }` | `order.driverId` ≠ `driverId` (ou vide) | **Assignation** par le fastFood : pose `driver_id` | `driverOrderAssigned` (→ `driverId`) + `userOrderUpdated` + `fastFoodOrderUpdated` |
+| `{ id, driverId }` | `order.driverId` === `driverId` | **Avance** par le livreur : délègue à `updateOrders.service` (machine à états) → `finished→delivering→delivered` | `driverOrderUpdated` (→ `driverId`) + `userOrderUpdated` + `fastFoodOrderUpdated` (émis par `updateOrders`) |
+
+- **Avance livreur** (`driverAdvanceStatus`) : autorisée uniquement si `order.status` ∈
+  `finished`|`delivering` (sinon **409**), et si `order.driverId === driverId` (sinon **403**).
+  Le statut est décidé par la **même machine à états** que le reste — jamais posé en dur.
 - `getDriverOrders(driverId)` → `repos.orders.getByDriver()` → `GET /order/driver/:driverId`.
 - **Socket livreur** : le livreur est un user ; `driverId` = son uid. Il reçoit ses events sur
   sa room `uid` déjà rejointe via `join_user` (comme client/marchand) — pas de `join_driver`.

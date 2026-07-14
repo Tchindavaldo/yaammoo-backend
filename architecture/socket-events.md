@@ -92,7 +92,7 @@ Le même pattern (`ack?.()` + dédoublonnage `__eventId`) s'applique à tous les
 | Event | Destination | Déclencheur | Payload |
 |---|---|---|---|
 | `driverOrderAssigned` | `driverId` (livreur) | `PUT /order { id, driverId }` (assignation par le fastFood) | `{ data: order }` |
-| `driverOrderUpdated` | `driverId` (livreur) | `PUT /order { id, status, driverId }` (statut delivering/finished par le livreur) | `{ data: order }` |
+| `driverOrderUpdated` | `driverId` (livreur) | `PUT /order { id, driverId }` (avance auto finished→delivering→delivered) | `{ data: order }` |
 | `driverApplicationCreated` | `userId` marchand | `POST /driver/apply` (candidature créée/relancée) | `{ data: application }` |
 | `driverApplicationDecided` | `userId` candidat | `PUT /driver/applications/:id` (accepté/refusé) | `{ data: application }` |
 | `driverRemoved` | `userId` livreur | `DELETE /driver/:driverId?fastFoodId=` | `{ data: { fastFoodId }, role }` |

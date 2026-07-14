@@ -4,13 +4,11 @@
 // Flux :
 //   1. Le fastFood ASSIGNE une commande à un livreur → assignDriver()
 //      (pose order.driverId) → event `driverOrderAssigned` (→ room uid du livreur).
-//   2. Le livreur fait progresser la commande → driverUpdateStatus()
-//      statuts autorisés : 'delivering', 'finished'. On VÉRIFIE que la commande
-//      est bien assignée à ce livreur avant tout changement.
-//
-// Ces flux sont volontairement isolés de la state machine autoritaire de
-// updateOrders.service (pending→processing→...) : la délégation livreur est un
-// canal parallèle piloté par le frontend, on pose donc le statut tel quel.
+//   2. Le livreur fait AVANCER la commande → driverAdvanceStatus()
+//      Le livreur n'envoie PAS de statut : on délègue à la MÊME machine à états
+//      que le reste (updateOrders.service), qui avance automatiquement
+//      `finished → delivering → delivered`. On vérifie juste que la commande lui
+//      est bien assignée et qu'elle est à une étape avançable par le livreur.
 //
 // Émissions socket (toutes fiabilisées via reliableEmit → room = uid) :
 //   - `driverOrderAssigned`  → livreur (room = driverId = son uid)
@@ -27,8 +25,11 @@ const repos = require('../../repositories');
 const { getIO } = require('../../socket');
 const { getFastFoodService } = require('../fastfood/getFastFood');
 const { reliableEmit } = require('../../utils/reliableEmit');
+const { updateOrders } = require('./updateOrders.service');
 
-const DRIVER_ALLOWED_STATUSES = new Set(['delivering', 'finished']);
+// Étapes depuis lesquelles le livreur peut faire avancer la commande.
+// (finished = prête → delivering ; delivering → delivered)
+const DRIVER_ADVANCE_FROM = new Set(['finished', 'delivering']);
 
 const notifyClientAndMerchant = async (order) => {
   const io = getIO();
@@ -62,18 +63,16 @@ exports.assignDriver = async (orderId, driverId, prevData = null) => {
 };
 
 /**
- * Le livreur fait progresser une commande qui lui est assignée.
+ * Le livreur fait AVANCER une commande qui lui est assignée.
+ * Ne prend PAS de statut : la machine à états (updateOrders.service) décide
+ * `finished → delivering → delivered`.
  * @param {string} orderId
  * @param {string} driverId
- * @param {string} status  'delivering' | 'finished'
  * @param {object} [prevData]
  */
-exports.driverUpdateStatus = async (orderId, driverId, status, prevData = null) => {
+exports.driverAdvanceStatus = async (orderId, driverId, prevData = null) => {
   if (!orderId) return { success: false, message: 'ID de la commande est requis' };
   if (!driverId) return { success: false, message: 'driverId est requis' };
-  if (!DRIVER_ALLOWED_STATUSES.has(status)) {
-    return { success: false, message: `Statut non autorisé pour un livreur : ${status}`, code: 400 };
-  }
 
   const order = prevData || (await repos.orders.getById(orderId));
   if (!order) return { success: false, message: 'Commande non trouvée', code: 404 };
@@ -81,14 +80,19 @@ exports.driverUpdateStatus = async (orderId, driverId, status, prevData = null) 
   if (order.driverId !== driverId) {
     return { success: false, message: "Cette commande n'est pas assignée à ce livreur", code: 403 };
   }
+  if (!DRIVER_ADVANCE_FROM.has(order.status)) {
+    return { success: false, code: 409, message: `Le livreur ne peut pas faire avancer une commande au statut "${order.status}"` };
+  }
 
-  const updatedOrder = await repos.orders.update(orderId, { status });
+  // Délégation à la machine à états autoritaire (même logique que pending→processing…).
+  const result = await updateOrders([{ id: orderId, fastFoodId: order.fastFoodId }], order.userId);
+  if (!result.success) return result;
 
-  const io = getIO();
-  await reliableEmit(io, driverId, 'driverOrderUpdated', { data: updatedOrder });
-  await notifyClientAndMerchant(updatedOrder);
+  const updatedOrder = result.data?.[0] || (await repos.orders.getById(orderId));
+  // updateOrders a déjà émis userOrderUpdated + fastFoodOrderUpdated ; on ajoute l'event livreur.
+  await reliableEmit(getIO(), driverId, 'driverOrderUpdated', { data: updatedOrder });
 
-  return { success: true, message: 'Statut de la commande mis à jour', data: updatedOrder };
+  return { success: true, message: result.message, data: updatedOrder };
 };
 
 exports.getDriverOrders = async (driverId) => {
