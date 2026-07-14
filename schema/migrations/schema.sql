@@ -146,6 +146,7 @@ CREATE TABLE IF NOT EXISTS orders (
   rank              INTEGER,
   client_id         TEXT,
   period_key        TEXT,
+  driver_id         TEXT,
   extra_data        JSONB DEFAULT '{}'::jsonb,
   created_at        TIMESTAMPTZ DEFAULT NOW(),
   updated_at        TIMESTAMPTZ DEFAULT NOW()
@@ -156,6 +157,7 @@ CREATE INDEX IF NOT EXISTS idx_orders_user_created ON orders(user_id, created_at
 CREATE INDEX IF NOT EXISTS idx_orders_status_created ON orders(status, created_at ASC);
 CREATE INDEX IF NOT EXISTS idx_orders_queue ON orders(fastfood_id, status, delivery_date);
 CREATE INDEX IF NOT EXISTS idx_orders_menu ON orders(menu_id);
+CREATE INDEX IF NOT EXISTS idx_orders_driver ON orders(driver_id);
 
 -- ============================================================================
 -- TABLE: rank_counters
@@ -244,6 +246,25 @@ CREATE TABLE IF NOT EXISTS notifications (
 CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_fastfood ON notifications(fastfood_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_target ON notifications(target);
+
+-- ============================================================================
+-- TABLE: driver_applications — candidatures livreur (migration 010)
+-- ============================================================================
+-- Un user postule pour devenir livreur d'un/plusieurs fastFoods (une ligne par
+-- boutique). Acceptation → pose user.driverId = uid du user (marqueur isDriver) ;
+-- l'appartenance boutique↔livreur = lignes status='accepted'. Refus → 'refused'.
+CREATE TABLE IF NOT EXISTS driver_applications (
+  id            TEXT PRIMARY KEY,
+  user_id       TEXT NOT NULL,
+  fastfood_id   TEXT NOT NULL,
+  status        TEXT NOT NULL DEFAULT 'pending',
+  extra_data    JSONB DEFAULT '{}'::jsonb,
+  created_at    TIMESTAMPTZ DEFAULT NOW(),
+  updated_at    TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_driver_applications_fastfood ON driver_applications(fastfood_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_driver_applications_user ON driver_applications(user_id, status);
 
 -- ============================================================================
 -- FONCTIONS ATOMIQUES POUR LE RANKING

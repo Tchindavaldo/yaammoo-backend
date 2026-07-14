@@ -1,0 +1,49 @@
+# TODO — Backend yaammoo
+
+## Versioning par version d'app (compatibilité ascendante)
+
+> Voir la règle complète dans `CLAUDE.md` § « Versioning par version d'app ».
+> But : ne JAMAIS casser une version d'app déjà en prod quand on change la FORME
+> des données renvoyées au frontend. Détection via `src/utils/appVersion.js`
+> (`x-app-version` → fallback `FRONTEND_APP_VERSION`), bascule dans le CONTROLLER,
+> seuil porté par une env dédiée. Modèle de référence : heures de livraison
+> (`deliveryHoursFormat.js` + `APP_DELIVERY_NEW_MIN_VERSION`).
+
+### À gérer dans les prochaines mises à jour
+
+- [ ] **Feature livreurs (driver)** — vérifier au fil des évolutions que tout
+      changement de forme reste géré en versioning :
+  - `GET /order/driver/:driverId`, `PUT /order { id, status, driverId }`,
+    events `driverOrderAssigned` / `driverOrderUpdated`.
+  - `order.driverId` (nouveau champ) et `user.driverId` : aujourd'hui **additifs**
+    (anciens clients les ignorent) → pas de bascule requise pour l'instant.
+  - Endpoints candidatures (`/driver/apply`, `/driver/applications`, `/driver/list`,
+    `/driver/stores`, `/driver/my-applications`) et `/fastFood/search` : **nouveaux**
+    → pas de rupture. Mais si on modifie plus tard la forme d'un payload déjà
+    consommé (ex. renommer/retyper un champ de `DriverApplication`, `StoreOption`,
+    ou le `user` embarqué), **appliquer le versioning** (adapter dans le controller,
+    servir l'ancien format aux apps < seuil, nouvelle env de bascule, doc).
+  - Trancher la forme du `user` embarqué dans les demandes : garder `infos.nom/prenom`
+    (FR, cohérent avec `GET /user/:uid`) OU mapper en EN. Si on bascule après release
+    front → versioning obligatoire.
+
+### Normalisation FR → EN des noms de champs (chantier transverse)
+
+- [ ] **Uniformiser en anglais les noms de champs encore en français**, d'abord au
+      niveau des payloads renvoyés au front (ex. `user.infos.nom/prenom` →
+      `firstName/lastName`, `numero` → `phone`, etc.), puis **à terme les colonnes
+      des tables encore nommées en français** (ex. `users.nom/prenom/numero`,
+      `menus.titre`, `delivery.prix/zone`, ...).
+  - ⚠️ **Rupture de forme** → à faire OBLIGATOIREMENT sous versioning (adapter la
+    réponse dans le controller, servir l'ancien format aux apps < seuil, env de
+    bascule dédiée) sinon on casse les apps déjà en prod. Voir règle ci-dessus.
+  - Séquencer : (1) mappers renvoient les 2 formats un temps, (2) bascule front,
+    (3) montée du seuil, (4) migration SQL de renommage des colonnes en dernier.
+
+### Règle générale (rappel)
+
+- [ ] Tout nouvel endpoint / modif d'endpoint qui **change la forme** des données
+      lues côté front → détecter la version client, adapter la réponse dans le
+      controller, servir l'ancien format aux anciennes apps, documenter le seuil.
+- [ ] Au déploiement d'une nouvelle version d'app : basculer `FRONTEND_APP_VERSION`
+      (et seuils concernés) côté Fly (`flyctl secrets set ...` + `flyctl deploy`).

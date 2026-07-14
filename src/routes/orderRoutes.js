@@ -6,6 +6,7 @@ const { getUsersOrders } = require('../controllers/order/getUsersOrders');
 const { updateOrdersConstroller } = require('../controllers/order/updateOrdersConstroller.controller');
 const { updateOrdersField } = require('../controllers/order/updateOrdersField.controller');
 const { updateOrdersRankByDate } = require('../controllers/order/updateOrdersRankByDate');
+const { getDriverOrders } = require('../controllers/order/getDriverOrders');
 
 const router = express.Router();
 
@@ -74,6 +75,39 @@ router.get('/all/:fastFoodId', getOrders);
  *                     $ref: '#/components/schemas/Order'
  */
 router.get('/user/all/:userId', getUsersOrders);
+
+/**
+ * @swagger
+ * /order/driver/{driverId}:
+ *   get:
+ *     summary: Get all orders assigned to a driver
+ *     tags:
+ *       - Orders
+ *     parameters:
+ *       - in: path
+ *         name: driverId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Driver (livreur) user ID
+ *     responses:
+ *       200:
+ *         description: List of orders assigned to the driver
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Order'
+ */
+router.get('/driver/:driverId', getDriverOrders);
 
 /**
  * @swagger
@@ -160,7 +194,14 @@ router.post('', createOrder);
  *                 type: string
  *               status:
  *                 type: string
- *                 enum: [pending, confirmed, preparing, ready, delivered, cancelled]
+ *                 enum: [pending, confirmed, preparing, ready, delivering, finished, delivered, cancelled]
+ *               driverId:
+ *                 type: string
+ *                 description: >-
+ *                   Délégation livreur. Sans status → assignation d'un livreur à la
+ *                   commande (event driverOrderAssigned). Avec status delivering|finished →
+ *                   le livreur fait progresser SA commande (vérifie l'assignation,
+ *                   event driverOrderUpdated).
  *               items:
  *                 type: array
  *                 items:

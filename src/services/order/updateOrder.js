@@ -6,7 +6,10 @@ const { getIO } = require('../../socket');
 const { validateOrder } = require('../../utils/validator/validateOrder');
 const { getFastFoodService } = require('../fastfood/getFastFood');
 const { updateOrders } = require('./updateOrders.service');
+const { assignDriver, driverUpdateStatus } = require('./driverOrders.service');
 const { reliableEmit } = require('../../utils/reliableEmit');
+
+const DRIVER_STATUSES = new Set(['delivering', 'finished']);
 
 const RANKED_STATUSES = new Set(['pending', 'processing']);
 const RANK_IMPACTING = new Set(['pendingToBuy', 'pending', 'processing', 'cancelByUser', 'cancelByFastFood']);
@@ -23,6 +26,18 @@ exports.updateOrderService = async (orderId, updateData) => {
 
     const prevStatus = prevData.status;
     const newStatus = updateData.status;
+
+    // --- Délégation livreur (driver) ---
+    // Canal parallèle à la state machine autoritaire. Déclenché dès que le
+    // payload porte un driverId.
+    if (updateData.driverId !== undefined) {
+      // Changement de statut par le livreur (delivering/finished) → vérifie l'assignation
+      if (newStatus && DRIVER_STATUSES.has(newStatus)) {
+        return driverUpdateStatus(orderId, updateData.driverId, newStatus, prevData);
+      }
+      // Sinon : (ré)assignation d'un livreur par le fastFood
+      return assignDriver(orderId, updateData.driverId, prevData);
+    }
 
     // Si transition impactant le rank, on délègue à updateOrders pour cohérence
     const isRankedTransition = newStatus && newStatus !== prevStatus && (RANKED_STATUSES.has(prevStatus) || RANK_IMPACTING.has(newStatus));

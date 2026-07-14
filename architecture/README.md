@@ -17,7 +17,8 @@ Documentation d'architecture du backend Node.js / Express / Supabase / Socket.io
 | [users.md](./users.md) | Utilisateurs — registration, auth, profile, **isMarchand recalculé** | ✅ |
 | [merchants.md](./merchants.md) | Marchands — creation boutique, config heures livraison | ✅ |
 | [menus-detailed.md](./menus-detailed.md) | Menus — catalogue produits, stock, extras, boissons | ✅ |
-| [orders.md](./orders.md) | Commandes — routes `/order`, rank queue, stock, transitions statut | ✅ |
+| [orders.md](./orders.md) | Commandes — routes `/order`, rank queue, stock, transitions statut, **délégation livreur** | ✅ |
+| [drivers.md](./drivers.md) | Livreurs — candidatures `/driver`, `user.driverId` vs `order.driverId`, listes | ✅ |
 | [deliveries.md](./deliveries.md) | Livraisons — tracking, livreur assignation, GPS, statuts | ✅ |
 | [payment.md](./payment.md) | Paiements — MobileWallet, `/transaction` → `/pay`, verdict double canal (webhook HTTP + socket), idempotence | ✅ |
 | [transactions.md](./transactions.md) | Transactions — historique paiements, portefeuille marchand, remboursements | ✅ |

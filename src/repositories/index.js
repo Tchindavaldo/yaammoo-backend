@@ -29,6 +29,7 @@ const sb = {
   pendingPayments: require('./supabase/pendingPayments.repo'),
   withdrawals: require('./supabase/withdrawals.repo'),
   outboxEvents: require('./supabase/outboxEvents.repo'),
+  driverApplications: require('./supabase/driverApplications.repo'),
 };
 
 // ===========================================================================
@@ -64,5 +65,6 @@ module.exports = {
   pendingPayments: sb.pendingPayments,
   withdrawals: sb.withdrawals,
   outboxEvents: sb.outboxEvents,
+  driverApplications: sb.driverApplications,
   supabase: sb,
 };
