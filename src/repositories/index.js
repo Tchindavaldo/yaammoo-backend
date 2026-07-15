@@ -30,6 +30,7 @@ const sb = {
   withdrawals: require('./supabase/withdrawals.repo'),
   outboxEvents: require('./supabase/outboxEvents.repo'),
   driverApplications: require('./supabase/driverApplications.repo'),
+  ratings: require('./supabase/ratings.repo'),
 };
 
 // ===========================================================================
@@ -66,5 +67,6 @@ module.exports = {
   withdrawals: sb.withdrawals,
   outboxEvents: sb.outboxEvents,
   driverApplications: sb.driverApplications,
+  ratings: sb.ratings,
   supabase: sb,
 };

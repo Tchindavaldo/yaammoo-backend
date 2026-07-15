@@ -38,6 +38,8 @@ Socket.io est fire-and-forget : un event émis pendant que l'utilisateur est hor
 | `fastFoodOrderUpdated` | `updateOrders.service.js`, `updateOrder.js` | marchand |
 | `driverOrderAssigned` / `driverOrderUpdated` | `services/order/driverOrders.service.js` | livreur |
 | `newFastFoodMenu` / `fastFoodMenuUpdated` / `fastFoodMenuDeleted` | `services/menu/*` | marchand |
+| `menuRatingUpdated` | `services/rating/rateMenu.service.js` | marchand + user |
+| `driverRatingUpdated` | `services/rating/rateDriver.service.js` | livreur + user + marchand |
 
 > Les broadcasts catalogue (`globalMenu*`) restent **fire-and-forget** : le front recharge le
 > catalogue (GET) à la reconnexion plutôt que de rejouer des events à tous. Les events de file
@@ -93,6 +95,7 @@ Le même pattern (`ack?.()` + dédoublonnage `__eventId`) s'applique à tous les
 |---|---|---|---|
 | `driverOrderAssigned` | `driverId` (livreur) | `PUT /order { id, driverId }` (assignation par le fastFood) | `{ data: order }` |
 | `driverOrderUpdated` | `driverId` (livreur) | `PUT /order { id, driverId }` (avance auto finished→delivering→delivered) | `{ data: order }` |
+| `driverOrderRemoved` | **ancien** `driverId` (livreur) | `PUT /order { id, driverId }` — réassignation à un autre livreur, ou reprise « moi-même » (`driverId` vide/null) | `{ data: { orderId } }` |
 | `driverApplicationCreated` | `userId` marchand | `POST /driver/apply` (candidature créée/relancée) | `{ data: application }` |
 | `driverApplicationDecided` | `userId` candidat | `PUT /driver/applications/:id` (accepté/refusé) | `{ data: application }` |
 | `driverRemoved` | `userId` livreur | `DELETE /driver/:driverId?fastFoodId=` | `{ data: { fastFoodId }, role }` |
@@ -101,6 +104,16 @@ Le même pattern (`ack?.()` + dédoublonnage `__eventId`) s'applique à tous les
 
 > `driverApplicationCreated`/`Decided` déclenchent aussi **push + notif BD** (`newNotification`)
 > via `notifyOrderEvent` → `postNotificationService`.
+
+### Notes / Avis (ratings)
+
+Émis depuis `services/rating/*` (reliableEmit). La moyenne va au store du front sans refetch.
+Détails feature : [ratings.md](./ratings.md).
+
+| Event | Destination | Déclencheur | Payload |
+|---|---|---|---|
+| `menuRatingUpdated` | `userId` marchand + `userId` auteur | `POST /menu/:id/rating` | `{ data: { menuId, ratingAvg, ratingCount, value } }` |
+| `driverRatingUpdated` | `driverId` livreur + `userId` auteur + `userId` marchand | `POST /driver/:id/rating` | `{ data: { driverId, ratingAvg, ratingCount, value } }` |
 
 ### Livraisons (client + marchand)
 

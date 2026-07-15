@@ -39,6 +39,27 @@ en status `accepted`.
 | GET | `/driver/my-applications/:userId` | `getMyApplicationsController` | Demandes envoyées par le user (+ `fastFoodName`, `status`). Relance = re-POST `/driver/apply` |
 | PUT | `/driver/applications/:applicationId` | `decide` | `{ decision: accepted \| refused }` |
 | DELETE | `/driver/:driverId?fastFoodId=` | `removeDriverController` | Retire le livreur de la boutique (vide `user.driverId` s'il ne sert plus aucune boutique) |
+| POST | `/driver/:driverId/rating` | `rateDriverController` | Noter un livreur (client livré) — voir [ratings.md](./ratings.md) |
+| GET | `/driver/:driverId/ratings` | `getDriverRatingsController` | Liste des avis d'un livreur |
+| GET | `/driver/:driverId` | `getDriverProfileController` | **Infos livreur, contenu adapté au demandeur** (protégé `firebaseAuth`) |
+
+### `GET /driver/:driverId` — profil adapté au demandeur
+
+`services/driver/getDriverProfile.service.js`. Le contenu dépend de `req.user.uid` :
+
+| Demandeur | `scope` | Contenu |
+|---|---|---|
+| Simple user (autre) | `public` | `uid`, `isDriver`, `nom`/`prenom` (**fallback** partie locale de l'email si vides), `displayName`, `photo` (pass-through `extra_data`), `ratingAvg`/`ratingCount`, `stores[]`, **`myStats`** (ses commandes avec CE livreur : `{delivered,inProgress,pending,total}`), **`hasRated`**, **`canRate`** (livré ≥1 fois ET pas encore noté) |
+| Marchand possédant ce livreur (`accepted`) | `merchant` | idem + `fastFoodId` + `stats` **pour SA boutique** : `{ delivered, inProgress, pending, total }` |
+| Le livreur lui-même | `self` | idem + `stats` **globales** (toutes boutiques) |
+
+- Buckets statuts : `delivered` (terminées) ; `processing|finished|delivering` (en cours) ;
+  `pending|pendingToBuy` (en attente).
+- **Jamais** d'email/password/pushTokens bruts exposés — l'email sert seulement de fallback d'affichage du nom.
+- 404 si le user n'existe pas ou n'est pas livreur (`!user.driverId`).
+
+> **Notes livreur** : le user (livreur) porte `driverRatingAvg` + `driverRatingCount`
+> (pré-calculés, colonnes `users.driver_rating_avg/count`). Détail : [ratings.md](./ratings.md).
 
 Montées dans `app.js` sous `/driver`. Recherche boutique (« Devenir livreur ») :
 `GET /fastFood/search?q=` → `StoreOption[]` `{ id, nom }` (`fastfoods.searchByName`, `ilike`).

@@ -17,6 +17,11 @@ Gestion complète des menus (articles) : création, édition, suppression, gesti
 | DELETE | `/menu/:id` | `deleteMenu` | Supprime menu |
 | PATCH | `/menu/:id/stock` | `updateMenuStock` | Décrément stock (après commande) |
 | PATCH | `/menu/:id/availability` | `toggleMenuAvailability` | On/off disponibilité |
+| POST | `/menu/:id/rating` | `rateMenuController` | Noter un plat (client livré) — voir [ratings.md](./ratings.md) |
+| GET | `/menu/:id/ratings` | `getMenuRatingsController` | Liste des avis d'un plat |
+
+> **Notes plat** : chaque menu porte `ratingAvg` + `ratingCount` (pré-calculés, colonnes
+> `menus.rating_avg/count`). Détail du système : [ratings.md](./ratings.md).
 
 ---
 

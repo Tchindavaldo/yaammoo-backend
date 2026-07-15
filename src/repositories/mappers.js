@@ -31,7 +31,7 @@ const toDate = v => {
 // ---------------------------------------------------------------------------
 const userToSupabase = data => {
   const { infos = {}, pushTokens, createdAt, updatedAt, ...rest } = data;
-  const known = ['id', 'uid', 'fastFoodId', 'isMarchand', 'statistique', 'cmd'];
+  const known = ['id', 'uid', 'fastFoodId', 'isMarchand', 'statistique', 'cmd', 'driverRatingAvg', 'driverRatingCount'];
   const extra = {};
   for (const k of Object.keys(rest)) {
     if (!known.includes(k)) extra[k] = rest[k];
@@ -70,6 +70,8 @@ const userFromSupabase = (row, pushTokens = []) => {
     },
     fastFoodId: row.fastfood_id,
     isMarchand: !!row.fastfood_id,
+    driverRatingAvg: row.driver_rating_avg != null ? Number(row.driver_rating_avg) : 0,
+    driverRatingCount: row.driver_rating_count ?? 0,
     statistique: row.statistique,
     cmd: row.cmd || [],
     pushTokens: (pushTokens || []).map(t => ({
@@ -89,7 +91,7 @@ const userFromSupabase = (row, pushTokens = []) => {
 // ---------------------------------------------------------------------------
 const fastfoodToSupabase = data => {
   const { createdAt, updatedAt, ...rest } = data;
-  const known = ['id', 'userId', 'name', 'number', 'momoNumber', 'whatsappNumber', 'openTime', 'closeTime', 'image', 'orderLeadTime', 'advanceDays', 'pickupOnly', 'cities', 'deliveryHours'];
+  const known = ['id', 'userId', 'name', 'number', 'momoNumber', 'whatsappNumber', 'openTime', 'closeTime', 'image', 'orderLeadTime', 'advanceDays', 'pickupOnly', 'cities', 'deliveryHours', 'driverRatingAvg', 'driverRatingCount'];
   const extra = {};
   for (const k of Object.keys(rest)) {
     if (!known.includes(k)) extra[k] = rest[k];
@@ -132,6 +134,8 @@ const fastfoodFromSupabase = row => {
     pickupOnly: row.pickup_only ?? false,
     cities: row.cities || [],
     deliveryHours: row.delivery_hours || [],
+    driverRatingAvg: row.driver_rating_avg != null ? Number(row.driver_rating_avg) : 0,
+    driverRatingCount: row.driver_rating_count ?? 0,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     ...(row.extra_data || {}),
@@ -143,7 +147,7 @@ const fastfoodFromSupabase = row => {
 // ---------------------------------------------------------------------------
 const menuToSupabase = data => {
   const { createdAt, updatedAt, ...rest } = data;
-  const known = ['id', 'fastFoodId', 'titre', 'name', 'prix1', 'prix2', 'prix3', 'optionPrix1', 'optionPrix2', 'optionPrix3', 'image', 'coverImage', 'images', 'disponibilite', 'status', 'stock', 'extra', 'drink'];
+  const known = ['id', 'fastFoodId', 'titre', 'name', 'prix1', 'prix2', 'prix3', 'optionPrix1', 'optionPrix2', 'optionPrix3', 'image', 'coverImage', 'images', 'disponibilite', 'status', 'stock', 'extra', 'drink', 'ratingAvg', 'ratingCount'];
   const extra_data = {};
   for (const k of Object.keys(rest)) {
     if (!known.includes(k)) extra_data[k] = rest[k];
@@ -194,9 +198,30 @@ const menuFromSupabase = row => {
     stock: row.stock ?? 0,
     extra: row.extra || [],
     drink: row.drink || [],
+    ratingAvg: row.rating_avg != null ? Number(row.rating_avg) : 0,
+    ratingCount: row.rating_count ?? 0,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     ...(row.extra_data || {}),
+  };
+};
+
+// ---------------------------------------------------------------------------
+// RATINGS (polymorphe : menu | driver | …)
+// ---------------------------------------------------------------------------
+const ratingFromSupabase = row => {
+  if (!row) return null;
+  return {
+    id: row.id ?? row.rating_id,
+    targetType: row.target_type,
+    targetId: row.target_id,
+    userId: row.user_id,
+    orderId: row.order_id ?? null,
+    value: row.value != null ? Number(row.value) : null,
+    comment: row.comment ?? null,
+    ...(row.extra_data ? { extra: row.extra_data } : {}),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   };
 };
 
@@ -454,6 +479,7 @@ module.exports = {
   user: { toSupabase: userToSupabase, fromSupabase: userFromSupabase },
   fastfood: { toSupabase: fastfoodToSupabase, fromSupabase: fastfoodFromSupabase },
   menu: { toSupabase: menuToSupabase, fromSupabase: menuFromSupabase },
+  rating: { fromSupabase: ratingFromSupabase },
   order: { toSupabase: orderToSupabase, fromSupabase: orderFromSupabase },
   transaction: { toSupabase: transactionToSupabase, fromSupabase: transactionFromSupabase },
   withdrawal: { toSupabase: withdrawalToSupabase, fromSupabase: withdrawalFromSupabase },

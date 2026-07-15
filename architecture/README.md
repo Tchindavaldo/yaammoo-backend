@@ -20,6 +20,7 @@ Documentation d'architecture du backend Node.js / Express / Supabase / Socket.io
 | [orders.md](./orders.md) | Commandes — routes `/order`, rank queue, stock, transitions statut, **délégation livreur** | ✅ |
 | [drivers.md](./drivers.md) | Livreurs — candidatures `/driver`, `user.driverId` vs `order.driverId`, listes | ✅ |
 | [deliveries.md](./deliveries.md) | Livraisons — tracking, livreur assignation, GPS, statuts | ✅ |
+| [ratings.md](./ratings.md) | Notes & Avis — table polymorphe `ratings`, note plat/livreur, moyennes pré-calculées | ✅ |
 | [payment.md](./payment.md) | Paiements — MobileWallet, `/transaction` → `/pay`, verdict double canal (webhook HTTP + socket), idempotence | ✅ |
 | [transactions.md](./transactions.md) | Transactions — historique paiements, portefeuille marchand, remboursements | ✅ |
 | [wallet.md](./wallet.md) | Portefeuille marchand — crédit au paiement, solde dérivé, commissions, retraits `/wallet` | ✅ |

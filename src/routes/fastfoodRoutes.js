@@ -5,6 +5,8 @@ const { getfastfoodController } = require('../controllers/fastfood/getFastFoods'
 const { getfastfood } = require('../controllers/fastfood/getFastFood');
 const { updateFastfoodController } = require('../controllers/fastfood/updateFastfood');
 const { searchFastfoodController } = require('../controllers/fastfood/searchFastfood');
+const { getFastFoodDeliveryStatsController } = require('../controllers/fastfood/getFastFoodDeliveryStats');
+const firebaseAuth = require('../middlewares/authMiddleware');
 
 const route = express.Router();
 
@@ -249,6 +251,33 @@ route.get('/all', getfastfoodController);
  *                         type: string
  */
 route.get('/search', searchFastfoodController);
+
+/**
+ * @swagger
+ * /fastFood/{fastFoodId}/delivery-stats:
+ *   get:
+ *     summary: Stats de livraison du fastFood (auto-livraison), adaptées au demandeur
+ *     description: >
+ *       Le fastFood peut livrer lui-même (order.driverId = fastFoodId). Renvoie des stats
+ *       dont le détail dépend de l'appelant (token) : le marchand propriétaire → stats GLOBALES
+ *       de ses auto-livraisons (`scope: self`) ; un client de la boutique → SES stats avec
+ *       cette boutique + `hasRated`/`canRate` (`scope: client`). Tout autre demandeur → 403.
+ *     tags: [FastFood]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: fastFoodId
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Stats livraison (champ `scope` = self | client)
+ *       401: { description: Non authentifié }
+ *       403: { description: Ni propriétaire ni client de la boutique }
+ *       404: { description: FastFood non trouvé }
+ */
+route.get('/:fastFoodId/delivery-stats', firebaseAuth, getFastFoodDeliveryStatsController);
 
 route.get('/:fastFoodId', getfastfood);
 route.post('/:fastFoodId', updateFastfoodController);

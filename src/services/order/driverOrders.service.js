@@ -41,22 +41,44 @@ const notifyClientAndMerchant = async (order) => {
 };
 
 /**
- * Le fastFood assigne une commande à un livreur.
+ * Retire une commande de la liste d'un ancien livreur (réassignation / reprise).
+ * Payload minimal : le front n'a besoin que de l'orderId pour purger sa liste.
+ */
+const notifyPreviousDriver = async (io, prevDriverId, orderId, newDriverId = null) => {
+  if (!prevDriverId || prevDriverId === newDriverId) return;
+  await reliableEmit(io, prevDriverId, 'driverOrderRemoved', { data: { orderId } });
+};
+
+/**
+ * Le fastFood assigne une commande à un livreur, LE RÉASSIGNE à un autre livreur,
+ * ou la reprend « moi-même » (retrait du driverId : `driverId` vide/null).
  * @param {string} orderId
- * @param {string} driverId
+ * @param {string|null} driverId  uid du nouveau livreur, ou vide/null pour reprise fastFood
  * @param {object} [prevData] commande déjà lue (optimisation)
  */
 exports.assignDriver = async (orderId, driverId, prevData = null) => {
   if (!orderId) return { success: false, message: 'ID de la commande est requis' };
-  if (!driverId) return { success: false, message: 'driverId est requis' };
 
   const order = prevData || (await repos.orders.getById(orderId));
   if (!order) return { success: false, message: 'Commande non trouvée' };
 
-  const updatedOrder = await repos.orders.update(orderId, { driverId });
-
+  const prevDriverId = order.driverId || null;
+  const nextDriverId = driverId || null; // '' / undefined / null → reprise fastFood
   const io = getIO();
-  await reliableEmit(io, driverId, 'driverOrderAssigned', { data: updatedOrder });
+
+  // --- Reprise « moi-même » : le fastFood retire le livreur ---
+  if (!nextDriverId) {
+    const updatedOrder = await repos.orders.update(orderId, { driverId: null });
+    await notifyPreviousDriver(io, prevDriverId, orderId, null);
+    await notifyClientAndMerchant(updatedOrder);
+    return { success: true, message: 'Commande reprise par le fastFood', data: updatedOrder };
+  }
+
+  const updatedOrder = await repos.orders.update(orderId, { driverId: nextDriverId });
+
+  // Réassignation : purge la commande chez l'ancien livreur (garde-fou du filtrage backend).
+  await notifyPreviousDriver(io, prevDriverId, orderId, nextDriverId);
+  await reliableEmit(io, nextDriverId, 'driverOrderAssigned', { data: updatedOrder });
   await notifyClientAndMerchant(updatedOrder);
 
   return { success: true, message: 'Commande assignée au livreur', data: updatedOrder };

@@ -1,8 +1,10 @@
 const express = require('express');
+const firebaseAuth = require('../middlewares/authMiddleware');
 const { postMenuController } = require('../controllers/menu/postMenu.controller');
 const { getMenuController } = require('../controllers/menu/getMenu.controller');
 const { deleteMenuController } = require('../controllers/menu/deleteMenu.controller');
 const { updateMenuController } = require('../controllers/menu/updateMenu.controller');
+const { rateMenuController, getMenuRatingsController } = require('../controllers/rating/rateMenu.controller');
 
 const router = express.Router();
 
@@ -210,5 +212,54 @@ router.delete('/:menuId', deleteMenuController);
  *         description: Invalid input
  */
 router.put('/:menuId', updateMenuController);
+
+/**
+ * @swagger
+ * /menu/{menuId}/rating:
+ *   post:
+ *     summary: Noter un plat (client ayant reçu ce plat)
+ *     description: Le user doit fournir l'orderId d'une commande livrée (delivered) lui appartenant et contenant ce plat. Une note par (user, plat) — re-noter met à jour. Émet `menuRatingUpdated` au marchand et au user.
+ *     tags: [Ratings]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: menuId
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [orderId, value]
+ *             properties:
+ *               orderId: { type: string }
+ *               value: { type: integer, minimum: 1, maximum: 5 }
+ *               comment: { type: string }
+ *     responses:
+ *       200: { description: Plat noté (renvoie rating + ratingAvg + ratingCount) }
+ *       400: { description: Données invalides }
+ *       403: { description: Commande non livrée, pas au user, ou ne contient pas ce plat }
+ *       404: { description: Commande non trouvée }
+ */
+router.post('/:menuId/rating', firebaseAuth, rateMenuController);
+
+/**
+ * @swagger
+ * /menu/{menuId}/ratings:
+ *   get:
+ *     summary: Liste des avis d'un plat
+ *     tags: [Ratings]
+ *     parameters:
+ *       - in: path
+ *         name: menuId
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: Liste des avis (value, comment, userId, createdAt) }
+ */
+router.get('/:menuId/ratings', getMenuRatingsController);
 
 module.exports = router;

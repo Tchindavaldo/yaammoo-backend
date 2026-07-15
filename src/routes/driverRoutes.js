@@ -7,7 +7,10 @@ const {
   getMyApplicationsController,
   removeDriverController,
   decide,
+  getDriverProfileController,
 } = require('../controllers/driver/driverController');
+const firebaseAuth = require('../middlewares/authMiddleware');
+const { rateDriverController, getDriverRatingsController } = require('../controllers/rating/rateDriver.controller');
 
 const router = express.Router();
 
@@ -195,5 +198,79 @@ router.put('/applications/:applicationId', decide);
  *         description: driverId ou fastFoodId manquant
  */
 router.delete('/:driverId', removeDriverController);
+
+/**
+ * @swagger
+ * /driver/{driverId}/rating:
+ *   post:
+ *     summary: Noter un livreur (client livré par ce livreur)
+ *     description: Le user fournit l'orderId d'une commande livrée (delivered) lui appartenant et dont order.driverId = ce livreur. Une note par (user, livreur) — re-noter met à jour. Émet `driverRatingUpdated` au livreur, au user et au marchand.
+ *     tags: [Ratings]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: driverId
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [orderId, value]
+ *             properties:
+ *               orderId: { type: string }
+ *               value: { type: integer, minimum: 1, maximum: 5 }
+ *               comment: { type: string }
+ *     responses:
+ *       200: { description: Livreur noté (renvoie rating + ratingAvg + ratingCount) }
+ *       400: { description: Données invalides }
+ *       403: { description: Commande non livrée, pas au user, ou pas livrée par ce livreur }
+ *       404: { description: Commande non trouvée }
+ */
+router.post('/:driverId/rating', firebaseAuth, rateDriverController);
+
+/**
+ * @swagger
+ * /driver/{driverId}/ratings:
+ *   get:
+ *     summary: Liste des avis d'un livreur
+ *     tags: [Ratings]
+ *     parameters:
+ *       - in: path
+ *         name: driverId
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: Liste des avis du livreur }
+ */
+router.get('/:driverId/ratings', getDriverRatingsController);
+
+/**
+ * @swagger
+ * /driver/{driverId}:
+ *   get:
+ *     summary: Infos d'un livreur (contenu adapté au demandeur)
+ *     description: >
+ *       Renvoie un profil livreur dont le détail dépend de l'appelant (token) :
+ *       simple user → profil public (nom/prénom, fallback email, photo, note, boutiques) ;
+ *       marchand possédant ce livreur → + stats commandes POUR SA boutique (livrées, en cours, en attente) ;
+ *       le livreur lui-même → + stats GLOBALES (toutes boutiques). `scope` indique la vue servie.
+ *     tags: [Drivers]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: driverId
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Profil livreur (champ `scope` = public | merchant | self)
+ *       404: { description: Livreur non trouvé ou utilisateur non livreur }
+ */
+router.get('/:driverId', firebaseAuth, getDriverProfileController);
 
 module.exports = router;

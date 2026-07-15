@@ -8,6 +8,21 @@ const {
   removeDriver,
   decideApplication,
 } = require('../../services/driver/driverApplication.service');
+const { getDriverProfile } = require('../../services/driver/getDriverProfile.service');
+
+// GET /driver/:driverId — profil livreur adapté au demandeur (public | merchant | self)
+exports.getDriverProfileController = async (req, res) => {
+  try {
+    const { driverId } = req.params;
+    const viewerUid = req.user?.uid;
+    const result = await getDriverProfile(driverId, viewerUid);
+    if (!result.success) return res.status(result.code || 400).json({ success: false, message: result.message });
+    return res.status(200).json({ success: true, scope: result.scope, data: result.data });
+  } catch (error) {
+    console.error('Erreur profil livreur :', error.message);
+    return res.status(500).json({ success: false, message: error.message || 'Erreur serveur.' });
+  }
+};
 
 exports.apply = async (req, res) => {
   try {

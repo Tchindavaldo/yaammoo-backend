@@ -146,8 +146,14 @@ le frontend : le fastFood délègue une commande à un livreur, qui la fait ensu
 
 | Payload | Condition | Effet | Events |
 |---|---|---|---|
-| `{ id, driverId }` | `order.driverId` ≠ `driverId` (ou vide) | **Assignation** par le fastFood : pose `driver_id` | `driverOrderAssigned` (→ `driverId`) + `userOrderUpdated` + `fastFoodOrderUpdated` |
+| `{ id, driverId }` | `order.driverId` absent ≠ `driverId` | **Assignation** par le fastFood : pose `driver_id` | `driverOrderAssigned` (→ nouveau `driverId`) + `userOrderUpdated` + `fastFoodOrderUpdated` |
+| `{ id, driverId }` | `order.driverId` présent ≠ `driverId` | **Réassignation** à un autre livreur : repose `driver_id` | `driverOrderRemoved` (→ **ancien** `driverId`) + `driverOrderAssigned` (→ nouveau) + `userOrderUpdated` + `fastFoodOrderUpdated` |
+| `{ id, driverId: null }` (ou `''`) | `order.driverId` présent | **Reprise « moi-même »** par le fastFood : vide `driver_id` | `driverOrderRemoved` (→ **ancien** `driverId`) + `userOrderUpdated` + `fastFoodOrderUpdated` |
 | `{ id, driverId }` | `order.driverId` === `driverId` | **Avance** par le livreur : délègue à `updateOrders.service` (machine à états) → `finished→delivering→delivered` | `driverOrderUpdated` (→ `driverId`) + `userOrderUpdated` + `fastFoodOrderUpdated` (émis par `updateOrders`) |
+
+> `driverOrderRemoved` porte un payload **minimal** `{ data: { orderId } }` : le front livreur n'a
+> besoin que de l'`orderId` pour purger la commande de sa liste localement (garde-fou du filtrage
+> backend, qui ne renvoie déjà que `driver_id === ce livreur` via `GET /order/driver/:driverId`).
 
 - **Avance livreur** (`driverAdvanceStatus`) : autorisée uniquement si `order.status` ∈
   `finished`|`delivering` (sinon **409**), et si `order.driverId === driverId` (sinon **403**).
