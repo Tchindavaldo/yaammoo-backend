@@ -59,6 +59,8 @@ Route vers `menus` (`menu`), `fastfoods` (`fastfoodDriver`) ou `users` (`driver`
 | POST | `/driver/:driverId/rating` | ✅ `firebaseAuth` | Noter un livreur (`{ orderId, value, comment? }`) |
 | GET | `/driver/:driverId/ratings` | public | Liste des avis d'un livreur |
 | GET | `/fastFood/:fastFoodId/delivery-stats` | ✅ `firebaseAuth` | Stats auto-livraison du fastFood (scope `self`/`client`) |
+| GET | `/menu/:menuId/stats` | ✅ `firebaseAuth` | Stats de commande d'un plat (scope `self`/`client`) |
+| GET | `/rating/order/:orderId` | ✅ `firebaseAuth` | Note (menu + livreur) laissée par l'user pour sa commande |
 
 > `value` : entier 1-5. L'`uid` de l'auteur vient du token (`req.user.uid`), **jamais du body**.
 
@@ -114,3 +116,126 @@ Le front envoie l'`orderId` ; le backend lit la commande et vérifie **lui-même
 - `401` : non authentifié
 - `403` : commande pas au user, non livrée, ou cible non liée à la commande
 - `404` : commande non trouvée
+
+---
+
+## GET /rating/order/:orderId — Récupérer ses notes pour une commande
+
+Protégé par `firebaseAuth`. L'user connecté récupère les notes (value + comment) qu'il a
+lui-même données pour le **plat** et/ou le **livreur** de sa commande.
+
+### Réponse (200)
+
+```json
+{
+  "success": true,
+  "data": {
+    "orderId": "...",
+    "menuRating": {
+      "id": "...",
+      "targetType": "menu",
+      "targetId": "...",
+      "userId": "...",
+      "orderId": "...",
+      "value": 4,
+      "comment": "Délicieux !",
+      "createdAt": "...",
+      "updatedAt": "..."
+    },
+    "driverRating": {
+      "id": "...",
+      "targetType": "driver",
+      "targetId": "...",
+      "value": 5,
+      "comment": "Très ponctuel",
+      ...
+    }
+  }
+}
+```
+
+- `menuRating` : `null` si l'user n'a pas encore noté le plat.
+- `driverRating` : `null` si la commande n'a pas de livreur ou s'il n'a pas encore été noté.
+
+### Garde métier
+
+1. La commande `orderId` doit exister → sinon `404`.
+2. `order.userId === uid` → sinon `403`.
+
+### Codes d'erreur
+
+- `400` : `orderId` manquant
+- `401` : non authentifié
+- `403` : commande pas au user
+- `404` : commande non trouvée
+
+---
+
+## GET /menu/:menuId/stats — Stats de commande d'un plat (adaptées au demandeur)
+
+Protégé par `firebaseAuth`. **Jumeau de `/fastFood/:fastFoodId/delivery-stats`**, mais la
+cible est un **plat**. Aucune donnée n'est stockée : tout est **calculé à la volée** depuis
+les commandes. Le plat porte déjà `ratingAvg`/`ratingCount` (mapper menu → migration 011).
+
+**`totalOrders`** = commandes réelles reçues (livrées + en cours + en attente),
+**hors annulations**, depuis la création du plat.
+
+Service : `services/rating/getMenuStats.service.js`.
+
+La **forme de la réponse dépend de qui appelle** :
+
+| Scope | Qui | Contenu |
+|---|---|---|
+| `self` | marchand propriétaire du plat (`viewerUid === fastfood.userId`) | `totalOrders` + ventilation par statut (`stats`) |
+| `client` | user ayant déjà commandé ce plat | `totalOrders` (total du plat, tous users) + `myTotalOrders` (ses commandes) + `hasRated`/`canRate` |
+| autre | ni propriétaire ni client du plat | `403` |
+
+### Réponse (200) — scope `self`
+
+```json
+{
+  "success": true,
+  "scope": "self",
+  "data": {
+    "menuId": "...", "fastFoodId": "...", "name": "Poulet DG", "image": "...",
+    "ratingAvg": 4.33, "ratingCount": 27,
+    "totalOrders": 126,
+    "stats": { "delivered": 120, "inProgress": 4, "pending": 2 }
+  }
+}
+```
+
+### Réponse (200) — scope `client`
+
+```json
+{
+  "success": true,
+  "scope": "client",
+  "data": {
+    "menuId": "...", "fastFoodId": "...", "name": "Poulet DG", "image": "...",
+    "ratingAvg": 4.33, "ratingCount": 27,
+    "totalOrders": 126,
+    "myTotalOrders": 4,
+    "hasRated": false,
+    "canRate": true
+  }
+}
+```
+
+- `totalOrders` : total des commandes du plat (tous users) → indicateur de popularité.
+- `myTotalOrders` : total des commandes de l'appelant **sur ce plat**.
+- `stats` (self uniquement) : ventilation par statut du total (`delivered` + `inProgress` + `pending` = `totalOrders`).
+- `canRate` = a reçu ce plat au moins une fois (une commande `delivered`) **et** pas encore noté.
+
+### Garde métier
+
+1. Le plat `menuId` doit exister → sinon `404`.
+2. Propriétaire (`viewerUid === fastfood.userId`) → `self`. Sinon, au moins une commande
+   de ce plat par l'appelant → `client`. Sinon → `403`.
+
+### Codes d'erreur
+
+- `400` : `menuId` manquant
+- `401` : non authentifié
+- `403` : ni propriétaire du plat ni client de ce plat
+- `404` : plat non trouvé

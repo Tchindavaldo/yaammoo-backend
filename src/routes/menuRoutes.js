@@ -5,6 +5,7 @@ const { getMenuController } = require('../controllers/menu/getMenu.controller');
 const { deleteMenuController } = require('../controllers/menu/deleteMenu.controller');
 const { updateMenuController } = require('../controllers/menu/updateMenu.controller');
 const { rateMenuController, getMenuRatingsController } = require('../controllers/rating/rateMenu.controller');
+const { getMenuStatsController } = require('../controllers/rating/getMenuStats.controller');
 
 const router = express.Router();
 
@@ -261,5 +262,68 @@ router.post('/:menuId/rating', firebaseAuth, rateMenuController);
  *       200: { description: Liste des avis (value, comment, userId, createdAt) }
  */
 router.get('/:menuId/ratings', getMenuRatingsController);
+
+/**
+ * @swagger
+ * /menu/{menuId}/stats:
+ *   get:
+ *     summary: Stats de commande d'un plat, adaptées au demandeur (self | client)
+ *     description: >
+ *       Retourne les statistiques de commande d'un plat, calculées à la volée
+ *       (aucun compteur stocké). La forme de la réponse dépend de qui appelle :
+ *         • **self** (marchand propriétaire du plat) → `stats` GLOBALES : combien de
+ *           fois CE plat a été commandé/livré par TOUS les users.
+ *         • **client** (user ayant déjà commandé ce plat) → `myStats` (SES commandes
+ *           de ce plat) + `hasRated` / `canRate`.
+ *       Accès refusé (403) si l'appelant n'est ni le propriétaire ni un client du plat.
+ *       Le plat porte toujours `ratingAvg` / `ratingCount`.
+ *     tags: [Ratings]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: menuId
+ *         required: true
+ *         schema: { type: string }
+ *         description: ID du plat
+ *     responses:
+ *       200:
+ *         description: Stats trouvées (forme selon `scope`)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: boolean }
+ *                 scope: { type: string, enum: [self, client] }
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     menuId: { type: string }
+ *                     fastFoodId: { type: string, nullable: true }
+ *                     name: { type: string, nullable: true }
+ *                     image: { type: string, nullable: true }
+ *                     ratingAvg: { type: number }
+ *                     ratingCount: { type: integer }
+ *                     totalOrders:
+ *                       type: integer
+ *                       description: Total commandes reçues par le plat (tous users), hors annulations, depuis sa création. Présent en scope=self ET scope=client.
+ *                     stats:
+ *                       type: object
+ *                       description: Ventilation par statut du total. Présent uniquement si scope=self.
+ *                       properties:
+ *                         delivered: { type: integer }
+ *                         inProgress: { type: integer }
+ *                         pending: { type: integer }
+ *                     myTotalOrders:
+ *                       type: integer
+ *                       description: Total commandes de l'appelant sur ce plat (hors annulations). Présent uniquement si scope=client.
+ *                     hasRated: { type: boolean, description: scope=client uniquement }
+ *                     canRate: { type: boolean, description: scope=client uniquement }
+ *       401: { description: Non authentifié }
+ *       403: { description: Ni propriétaire du plat ni client de ce plat }
+ *       404: { description: Plat non trouvé }
+ */
+router.get('/:menuId/stats', firebaseAuth, getMenuStatsController);
 
 module.exports = router;
