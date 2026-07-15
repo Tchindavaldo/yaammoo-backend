@@ -34,6 +34,7 @@ Jamais recalculées en lisant toutes les lignes : mises à jour de façon
 |---|---|---|
 | plat (`menu`) | `menus.rating_avg`, `menus.rating_count` | mapper menu → `ratingAvg`, `ratingCount` |
 | livreur (`driver`) | `users.driver_rating_avg`, `users.driver_rating_count` | mapper user → `driverRatingAvg`, `driverRatingCount` |
+| fastFood-livreur (`fastfoodDriver`) | `fastfoods.driver_rating_avg`, `fastfoods.driver_rating_count` | mapper fastfood → `driverRatingAvg`, `driverRatingCount` |
 
 Le catalogue (`GET /menu/:fastFoodId`) et le profil livreur portent donc déjà la
 moyenne — **aucune requête d'agrégat** au chargement.
@@ -45,7 +46,7 @@ Upsert + recalcul en **une transaction** (verrous `FOR UPDATE` → pas de race) 
 - **nouvelle note** : `avg = (avg*count + value) / (count+1)` ; `count += 1`.
 - **re-note** : `avg = (avg*count - oldValue + value) / count` ; `count` inchangé.
 
-Route vers `menus` ou `users` selon `target_type`. Renvoie la note + `rating_avg`/`rating_count` à jour.
+Route vers `menus` (`menu`), `fastfoods` (`fastfoodDriver`) ou `users` (`driver`) selon `target_type`. Renvoie la note + `rating_avg`/`rating_count` à jour.
 
 ---
 
@@ -57,6 +58,7 @@ Route vers `menus` ou `users` selon `target_type`. Renvoie la note + `rating_avg
 | GET | `/menu/:menuId/ratings` | public | Liste des avis d'un plat |
 | POST | `/driver/:driverId/rating` | ✅ `firebaseAuth` | Noter un livreur (`{ orderId, value, comment? }`) |
 | GET | `/driver/:driverId/ratings` | public | Liste des avis d'un livreur |
+| GET | `/fastFood/:fastFoodId/delivery-stats` | ✅ `firebaseAuth` | Stats auto-livraison du fastFood (scope `self`/`client`) |
 
 > `value` : entier 1-5. L'`uid` de l'auteur vient du token (`req.user.uid`), **jamais du body**.
 

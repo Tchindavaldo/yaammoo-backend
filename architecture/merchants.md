@@ -14,6 +14,7 @@ Gestion des fastfoods (boutiques marchand) : création, édition infos boutique,
 | GET | `/fastfood/:id` | `getFastFoodById` | Récupère les infos d'une boutique |
 | POST | `/fastfood/:id` | `updateFastFood` | Édite infos boutique (nom, heures, OM…) |
 | GET | `/menu/:fastFoodId` | `getMenusByFastFood` | Récupère tous les menus d'une boutique |
+| GET | `/fastFood/:fastFoodId/delivery-stats` | `getFastFoodDeliveryStatsController` | Stats auto-livraison du fastFood (scope `self`/`client`, auth requise) |
 | POST | `/menu` | `createMenu` | Ajoute un menu à une boutique |
 | PUT | `/menu/:id` | `updateMenu` | Édite un menu |
 | DELETE | `/menu/:id` | `deleteMenu` | Supprime un menu |
@@ -202,7 +203,7 @@ MenuItem {
 - `updateMenu(id, data)`
 - `deleteMenu(id)`
 
-**repos.fastfoods** & **repos.menus** : Implémentés en Firestore et Supabase
+**repos.fastfoods** & **repos.menus** : Implémentés en Supabase
 
 ---
 
