@@ -18,6 +18,7 @@ sur une fenêtre glissante (jour / semaine / mois), ou d'office (`welcome`).
 |---------|----------|-----------|---------|------|
 | POST | `/bonus` | `postBonusController` | Non | Crée un bonus (définition seule) |
 | GET | `/bonus/all` | `getBonusController` | **Oui** (`firebaseAuth`) | Liste les bonus **enrichis pour le user courant** |
+| POST | `/bonus/:id/claim` | `claimBonusController` | **Oui** (`firebaseAuth`) | **Réclame** un bonus (auto-approuvé, palier vérifié backend) |
 | POST | `/bonusRequest/:totalBonus` | `postBonusRequestController` | — | Le user réclame un bonus |
 | GET | `/bonusRequest/status/:id` | `getBonusRequestStatusController` | — | Statut d'une demande |
 
@@ -123,9 +124,27 @@ src/
 
 ---
 
+## Flux réclamation (`POST /bonus/:id/claim`)
+
+Auto-approuvé, avec vérification d'éligibilité côté backend (source de vérité) :
+
+1. `firebaseAuth` → `req.user.uid` ; `:id` = bonusId.
+2. Charge la définition (`bonus.getById`) → 404 si absent ; 400 si `active === false`.
+3. **Éligibilité** (`bonusStats.util:isBonusEligible`) :
+   - `welcome` → toujours éligible.
+   - `order_count` → `bonusStats[period].count >= criteria.target`.
+   - `amount_spent` → `bonusStats[period].amount >= criteria.target`.
+   - sinon → 400 « Palier non atteint (metric/target) ».
+4. **Anti-doublon** : 409 si une réclamation est déjà `pending` ou `approved` non consommée.
+5. Ajoute une entrée `{status:'approved', target, period, createdAt}` dans le
+   `bonus_request` (bonus_type = `loyalty`, isolé du legacy). Nouvelle demande →
+   `create` avec `usageCount:0, redeemed:false`.
+6. Notifie le user (best-effort, non bloquant).
+
+> Réponse : `{ success, message, data:{ bonusId, requestStatus, claimedAt, userClaimedCount } }`.
+
 ## TODO (étapes suivantes)
 
-- Flux **réclamation** au nouveau format (`requestStatus`, `claimedAt`).
 - Flux **activation** avec décrémentation du solde `bonusStats` de `criteria.target`.
 - Flux **redemption** (`usageCount`, `usageLimit`, `redeemed`, `claimDuration`).
 - Validateur de définition de bonus (`criteria.kind`, `target`, `period`, cohérence

@@ -84,4 +84,32 @@ function computeBonusStats(orders, { fastFoodId = null, now = new Date() } = {})
   return stats;
 }
 
-module.exports = { computeBonusStats, windowStart, EXCLUDED_STATUSES, PERIODS };
+/**
+ * Évalue si un user atteint le palier d'un bonus (source de vérité backend).
+ *
+ * @param {Object} bonus   définition (criteria.kind/target/period, fastFoodId)
+ * @param {Array}  orders  commandes du user
+ * @param {Date}   [now]
+ * @returns {{eligible:boolean, metric:number, target:number|null, kind:string}}
+ */
+function isBonusEligible(bonus, orders, now = new Date()) {
+  const criteria = bonus.criteria || {};
+  const kind = criteria.kind;
+
+  // Bonus d'accueil : offert d'office, aucun palier à atteindre.
+  if (kind === 'welcome') {
+    return { eligible: true, metric: 0, target: null, kind };
+  }
+
+  const period = criteria.period || 'month';
+  const target = Number(criteria.target) || 0;
+  const stats = computeBonusStats(orders, { fastFoodId: bonus.fastFoodId ?? null, now });
+  const window = stats[period] || { count: 0, amount: 0 };
+
+  // order_count → nb de commandes ; amount_spent → montant cumulé
+  const metric = kind === 'order_count' ? window.count : window.amount;
+
+  return { eligible: target > 0 && metric >= target, metric, target, kind };
+}
+
+module.exports = { computeBonusStats, windowStart, isBonusEligible, EXCLUDED_STATUSES, PERIODS };
