@@ -1,185 +1,132 @@
-# Feature — Bonus & Referrals (Système de Récompenses)
+# Feature — Bonus (Système de Fidélité par Paliers)
 
 ## Rôle
 
-Gestion des bonus (réductions, crédits) et parrainage (referral). Client peut utiliser bonus à la commande, marchand peut distribuer bonus.
+Système de récompenses par **paliers** : un fastfood (ou la plateforme Yaammoo)
+propose des bonus (Netflix offert, livraison gratuite, repas offert, réduction…)
+débloqués quand le user atteint un quota — nombre de commandes OU montant dépensé —
+sur une fenêtre glissante (jour / semaine / mois), ou d'office (`welcome`).
+
+> ⚠️ Doc réécrite pour le nouveau modèle. L'ancien système (codes promo
+> `SUMMER2025`, `percentage/fixed`, parrainage) est obsolète.
 
 ---
 
 ## Routes
 
-| Méthode | Endpoint | Contrôleur | Rôle |
-|---------|----------|-----------|------|
-| POST | `/bonus` | `createBonus` | Crée un bonus (admin/marchand) |
-| GET | `/bonus` | `getAllBonus` | Liste tous les bonus disponibles |
-| GET | `/bonus/:id` | `getBonusById` | Récupère détail d'un bonus |
-| POST | `/bonus-request` | `createBonusRequest` | Client réclame un bonus |
-| GET | `/bonus-request/:userId` | `getUserBonusRequests` | Historique demandes bonus user |
-| PUT | `/bonus-request/:id` | `updateBonusRequest` | Admin approuve/rejette demande |
+| Méthode | Endpoint | Contrôleur | Protégé | Rôle |
+|---------|----------|-----------|---------|------|
+| POST | `/bonus` | `postBonusController` | Non | Crée un bonus (définition seule) |
+| GET | `/bonus/all` | `getBonusController` | **Oui** (`firebaseAuth`) | Liste les bonus **enrichis pour le user courant** |
+| POST | `/bonusRequest/:totalBonus` | `postBonusRequestController` | — | Le user réclame un bonus |
+| GET | `/bonusRequest/status/:id` | `getBonusRequestStatusController` | — | Statut d'une demande |
 
 ---
 
-## Structure de données
+## Modèle de données
 
-### Bonus
+### Stockage (table `bonus`)
 
-```typescript
-Bonus {
-  id: string                    // UUID
-  code: string                  // Code promo (ex: "SUMMER2025")
-  type: 'percentage' | 'fixed' | 'free_delivery'
-  
-  // Valeur
-  value: number                 // Pourcentage (0-100) ou montant (XOF)
-  maxDiscount: number           // Remise max si percentage
-  minOrderAmount: number        // Commande minimale pour appliquer
-  
-  // Validité
-  validFrom: ISO8601
-  validUntil: ISO8601
-  maxUses: number               // Nombre total d'utilisations
-  usageCount: number            // Utilisations actuelles
-  
-  // Restrictions
-  applicableToMerchants: string[]  // FastFood IDs (vide = tous)
-  applicableToUsers: string[]      // User IDs (vide = tous)
-  singleUsePerUser: boolean        // Un seul usage par client?
-  
-  // Métadonnées
-  description: string
-  createdBy: string             // Admin/marchand qui a créé
-  
-  createdAt: ISO8601
-  updatedAt: ISO8601
+La table `bonus (id, data JSONB, created_at)` ne stocke **QUE la définition** du
+bonus. Aucun champ dépendant du user n'est persisté ici.
+
+**Définition (persistée) :**
+
+```jsonc
+{
+  "id": "bns_123",
+  "type": "netflix",            // chaîne libre : netflix | free_delivery | free_meal | discount | <futur>
+  "name": "1 mois Netflix offert",
+  "description": "…",
+  "criteria": {
+    "kind": "amount_spent",     // "welcome" | "order_count" | "amount_spent"
+    "target": 50000,            // palier (nb commandes OU montant FCFA) ; absent si welcome
+    "period": "month"           // "day" | "week" | "month" ; ignoré si welcome
+  },
+  "fastFoodId": "ff_42",        // null/absent = bonus plateforme Yaammoo
+  "fastFoodName": "Burger Palace", // requis si fastFoodId présent
+  "active": true,
+  "claimDuration": 30,          // validité du code après réclamation (jours)
+  "usageLimit": 3,              // nb d'utilisations autorisées du code
+  "createdAt": "2026-06-18T10:00:00.000Z"
 }
 ```
 
-### Bonus Request
+### Champs recalculés au `GET /bonus/all` (jamais persistés dans `bonus`)
 
-```typescript
-BonusRequest {
-  id: string                    // UUID
-  userId: string                // Client qui demande
-  bonusId: string               // Référence bonus
-  bonusType: string             // 'referral', 'claim', 'earned'
-  
-  // Statut
-  status: 'pending' | 'approved' | 'rejected' | 'used'
-  rejectionReason?: string
-  
-  // Métadonnées
-  referrerId?: string           // Si referral, qui a parrainé
-  relatedOrderId?: string       // Si bonus lié à commande
-  
-  createdAt: ISO8601
-  updatedAt: ISO8601
-  approvedAt?: ISO8601
-}
+Fusionnés dans chaque bonus à la lecture, pour le user authentifié :
+
+| Champ | Source | Calcul |
+|---|---|---|
+| `bonusStats.{day,week,month}` | table `orders` | Agrégation `{count, amount}` des commandes **non annulées** du user pour `fastFoodId` (toutes si bonus plateforme), par fenêtre calendaire UTC (jour / lundi→ / 1er du mois). |
+| `fastFoodBonusCount` | liste `bonus` | Nb de bonus partageant le même `fastFoodId`. |
+| `totalClaimedCount` | table `bonus_requests` | Nb total d'entrées de statut accordé (`approved`/`completed`) pour ce bonus, tous users. |
+| `userClaimedCount` | `bonus_requests` du user | Nb d'entrées accordées dans la demande du user pour ce bonus. |
+| `requestStatus` | `bonus_requests` du user | `none` / `pending` / `approved` (dérivé du tableau `status`). |
+| `claimedAt` | `bonus_requests` du user | `createdAt` de la dernière entrée accordée. |
+| `usageCount` | `bonus_requests` du user | Depuis `extra_data.usageCount` (flux de redemption à venir), défaut `0`. |
+| `redeemed` | `bonus_requests` du user | Depuis `extra_data.redeemed`, défaut `false`. |
+
+> ⚠️ **Décrémentation du solde** : le payload prévoit que `bonusStats` se
+> décrémente de `criteria.target` à chaque bonus activé. Cette logique relève du
+> **flux d'ACTIVATION** (à implémenter) et n'est **pas** faite au GET : ici on ne
+> calcule que la progression **brute** depuis les commandes.
+
+---
+
+## Architecture (fichiers)
+
+```
+src/
+├── routes/bonusRoute.js                       # GET /bonus/all protégé (firebaseAuth)
+├── controllers/bonus/getBonus.controller.js   # extrait req.user.uid → service
+├── services/bonus/
+│   ├── getBonus.service.js                     # orchestration (charge + enrichit)
+│   ├── enrichBonusForUser.js                   # fusion définition + user + compteurs
+│   └── bonusStats.util.js                      # calcul bonusStats depuis orders
+└── repositories/supabase/
+    ├── bonus.repo.js                           # getAll / getById / create
+    └── bonusRequests.repo.js                   # + getByUser, claimCountsByBonus
 ```
 
----
+**Flux `GET /bonus/all` :**
 
-## Flux clés
-
-### Referral (Parrainage)
-
-1. **User A** partage code referral "USERA123"
-2. **User B** s'enregistre avec code → POST `/bonus-request`
-   ```json
-   {
-     "userId": "user-b-uid",
-     "bonusType": "referral",
-     "referrerId": "user-a-uid"
-   }
-   ```
-3. Backend : crée BonusRequest, statut `pending`
-4. Admin approuve : PUT `/bonus-request/:id` → `status: approved`
-5. Systèm crée bonus pour User A ET User B
-6. Client utilise bonus : déduit de commande au checkout
-
-### Bonus promotion globale
-
-1. Admin crée bonus : POST `/bonus`
-   ```json
-   {
-     "code": "SUMMER2025",
-     "type": "percentage",
-     "value": 10,
-     "validFrom": "2025-06-01",
-     "validUntil": "2025-06-30"
-   }
-   ```
-2. Bonus visible à tous : GET `/bonus`
-3. Client panier : rentre code à checkout
-4. Frontend valide code → calcule remise
-5. POST `/order` avec `appliedBonusId`
+1. `firebaseAuth` valide le Bearer → `req.user.uid`.
+2. `getBonusService(userId)` charge en parallèle : définitions bonus, commandes du
+   user (`orders.getByUser`), demandes du user (`bonusRequests.getByUser`),
+   compteurs globaux de réclamations (`bonusRequests.claimCountsByBonus`).
+3. Pour chaque bonus, `enrichBonusForUser` fusionne définition + `bonusStats`
+   (via `computeBonusStats`) + compteurs + état de la demande.
+4. Réponse : `{ success, message, data: [ …bonus enrichis… ] }`.
 
 ---
 
-## Services & Repositories
+## Règles de calcul `bonusStats`
 
-**bonusService.js**
-- `createBonus(data)` — crée bonus admin
-- `getAllBonus()` — liste disponibles
-- `getBonusById(id)` — détail
-- `validateBonus(bonusId, userId, orderAmount)` — vérifie applicabilité
-- `applyBonus(bonusId, orderAmount)` — calcule remise
-
-**bonusRequestService.js**
-- `createBonusRequest(data)` — client réclame bonus
-- `getUserBonusRequests(userId)` — historique
-- `approveBonusRequest(id)` — admin approuve
-- `rejectBonusRequest(id, reason)` — admin rejette
-
-**repos.bonus** & **repos.bonusRequests** : Firestore/Supabase
+- **Statuts exclus** : `cancelByUser`, `cancelByFastFood` (commande annulée ne
+  compte pas). Cf. `bonusStats.util.js:EXCLUDED_STATUSES`.
+- **Fenêtres (UTC, calendaires)** :
+  - `day` : depuis minuit UTC du jour courant.
+  - `week` : depuis lundi 00:00 UTC de la semaine courante.
+  - `month` : depuis le 1er du mois 00:00 UTC.
+- **`count`** = nb de commandes qualifiantes ; **`amount`** = somme de `total`.
+- Bonus plateforme (`fastFoodId` null) : agrégation sur **toutes** les commandes
+  du user, tous fastfoods confondus.
 
 ---
 
-## Validations
+## Erreurs
 
-**Bonus**
-- code : non-vide, unique
-- value : > 0
-- validFrom < validUntil
-- maxUses >= usageCount
-
-**BonusRequest**
-- userId : existant
-- bonusId : existant
-- bonusType : enum valide
+- 401 : Token manquant ou invalide (`GET /bonus/all`).
+- 500 : Erreur serveur lors de la récupération.
+- Liste vide → `200` avec `data: []` (pas de 404).
 
 ---
 
-## Checkout integration
+## TODO (étapes suivantes)
 
-À l'étape checkout :
-
-```typescript
-// Frontend : client rentre code bonus
-const bonus = await getBonus(codeEntered);
-const discount = await validateBonus(bonus.id, userId, totalAmount);
-
-// Backend calcule discount
-if (bonus.type === 'percentage') {
-  discount = (totalAmount * bonus.value) / 100;
-  discount = Math.min(discount, bonus.maxDiscount);
-}
-
-// Crée commande avec appliedBonusId
-const order = await createOrder({
-  ...orderData,
-  appliedBonusId: bonus.id,
-  originalTotal,
-  discount,
-  totalAfterDiscount: originalTotal - discount
-});
-```
-
----
-
-## Erreurs courantes
-
-- 400 : Code bonus invalide ou expiré
-- 409 : Bonus déjà utilisé (singleUsePerUser)
-- 404 : Bonus non trouvé
-- 403 : Bonus non applicable (montant min, marchand, etc.)
+- Flux **réclamation** au nouveau format (`requestStatus`, `claimedAt`).
+- Flux **activation** avec décrémentation du solde `bonusStats` de `criteria.target`.
+- Flux **redemption** (`usageCount`, `usageLimit`, `redeemed`, `claimDuration`).
+- Validateur de définition de bonus (`criteria.kind`, `target`, `period`, cohérence
+  `fastFoodId`/`fastFoodName`).

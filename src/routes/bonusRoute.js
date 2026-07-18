@@ -1,5 +1,6 @@
 // src/routes/bonusRoute.js
 const express = require('express');
+const firebaseAuth = require('../middlewares/authMiddleware');
 const { getBonusController } = require('../controllers/bonus/getBonus.controller');
 const { postBonusController } = require('../controllers/bonus/postBonus.controller');
 
@@ -51,12 +52,18 @@ route.post('', postBonusController);
  * @swagger
  * /bonus/all:
  *   get:
- *     summary: Get all bonuses
+ *     summary: Liste tous les bonus, enrichis pour l'utilisateur courant
+ *     description: >
+ *       Retourne la définition de chaque bonus fusionnée avec les données
+ *       propres à l'utilisateur authentifié : progression `bonusStats`
+ *       (calculée depuis ses commandes), compteurs et état de sa demande.
  *     tags:
  *       - Bonus
+ *     security:
+ *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: List of all bonuses
+ *         description: Liste des bonus enrichis
  *         content:
  *           application/json:
  *             schema:
@@ -69,8 +76,40 @@ route.post('', postBonusController);
  *                 data:
  *                   type: array
  *                   items:
- *                     $ref: '#/components/schemas/Bonus'
+ *                     type: object
+ *                     properties:
+ *                       id: { type: string, example: bns_123 }
+ *                       type: { type: string, example: netflix }
+ *                       name: { type: string }
+ *                       description: { type: string }
+ *                       criteria:
+ *                         type: object
+ *                         properties:
+ *                           kind: { type: string, enum: [welcome, order_count, amount_spent] }
+ *                           target: { type: number }
+ *                           period: { type: string, enum: [day, week, month] }
+ *                       fastFoodId: { type: string, nullable: true }
+ *                       fastFoodName: { type: string, nullable: true }
+ *                       active: { type: boolean }
+ *                       claimDuration: { type: number, description: validité du code (jours) }
+ *                       usageLimit: { type: number }
+ *                       createdAt: { type: string, format: date-time }
+ *                       bonusStats:
+ *                         type: object
+ *                         properties:
+ *                           day: { type: object, properties: { count: { type: number }, amount: { type: number } } }
+ *                           week: { type: object, properties: { count: { type: number }, amount: { type: number } } }
+ *                           month: { type: object, properties: { count: { type: number }, amount: { type: number } } }
+ *                       fastFoodBonusCount: { type: number }
+ *                       totalClaimedCount: { type: number }
+ *                       userClaimedCount: { type: number }
+ *                       requestStatus: { type: string, enum: [none, pending, approved] }
+ *                       claimedAt: { type: string, format: date-time, nullable: true }
+ *                       usageCount: { type: number }
+ *                       redeemed: { type: boolean }
+ *       401:
+ *         description: Token manquant ou invalide
  */
-route.get('/all', getBonusController);
+route.get('/all', firebaseAuth, getBonusController);
 
 module.exports = route;
