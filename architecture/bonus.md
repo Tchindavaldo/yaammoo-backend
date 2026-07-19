@@ -16,7 +16,7 @@ sur une fenêtre glissante (jour / semaine / mois), ou d'office (`welcome`).
 
 | Méthode | Endpoint | Contrôleur | Protégé | Rôle |
 |---------|----------|-----------|---------|------|
-| POST | `/bonus` | `postBonusController` | Non | Crée un bonus (définition seule) |
+| POST | `/bonus` | `postBonusController` | Non | Crée un bonus (définition seule, **validée**) |
 | GET | `/bonus/all` | `getBonusController` | **Oui** (`firebaseAuth`) | Liste les bonus **enrichis pour le user courant** |
 | POST | `/bonus/:id/claim` | `claimBonusController` | **Oui** (`firebaseAuth`) | **Réclame** un bonus (auto-approuvé, palier vérifié backend) → renvoie un **code** |
 | POST | `/bonus/redeem` | `redeemBonusController` | **Oui** (`firebaseAuth`) | **Consomme** une utilisation du code (à la commande) |
@@ -92,6 +92,8 @@ src/
 │   ├── enrichBonusForUser.js                   # fusion définition + user + compteurs
 │   ├── bonusStats.util.js                      # bonusStats, décrément, éligibilité
 │   └── bonusCode.util.js                       # génération/normalisation du code
+├── interface/bonusFields.js                    # schéma de la définition
+├── utils/validator/validateBonus.js            # règles de validation
 └── repositories/supabase/
     ├── bonus.repo.js                           # getAll / getById / create
     └── bonusRequests.repo.js                   # + getByUser, claimCountsByBonus,
@@ -226,10 +228,37 @@ code neuf, `usageCount` remis à 0.
 
 ---
 
+## Validation de la définition (`POST /bonus`)
+
+`src/interface/bonusFields.js` (schéma) + `src/utils/validator/validateBonus.js`
+(règles), suivant le pattern des autres domaines. Appelé par `postBonus.service`
+**avant** toute écriture → `400` avec la liste des erreurs `{field, message}`.
+
+Règles :
+
+| Règle | Détail |
+|---|---|
+| Champs requis | `type`, `name`, `criteria`, `claimDuration`, `usageLimit` |
+| Champs inconnus | Rejetés (`Champ non autorisé`) — bloque l'envoi de `bonusStats`, `requestStatus`… qui sont recalculés au GET |
+| `criteria.kind` | Doit valoir `welcome` \| `order_count` \| `amount_spent` |
+| `criteria.target` / `period` | **Requis** si `order_count`/`amount_spent` ; **interdits** si `welcome` |
+| `criteria.target` | > 0 ; entier si `order_count` |
+| `fastFoodId` / `fastFoodName` | L'un implique l'autre (absents tous deux = bonus plateforme) |
+| Nombres / chaînes | `claimDuration`/`usageLimit` > 0 ; chaînes non vides |
+
+> ⚠️ **Pourquoi c'est critique** : sans ce garde-fou, une simple faute de frappe
+> (`amount_spend`) entrait en base sans erreur. `isBonusEligible` retombait alors
+> sur `target = 0` → `eligible: false` **définitivement**, et le bug n'apparaissait
+> qu'à la réclamation, très loin de sa cause.
+
+`active` vaut `true` par défaut si non fourni.
+
+---
+
 ## TODO (étapes suivantes)
 
-- **Validateur de définition** de bonus (`criteria.kind`, `target`, `period`,
-  cohérence `fastFoodId`/`fastFoodName`) + branchement dans `POST /bonus`
-  (aujourd'hui `req.body` est écrit en base sans contrôle).
+- **Protection de `POST /bonus`** : la route est encore publique — décider qui
+  peut créer un bonus (marchand propriétaire du `fastFoodId` ? admin ?) et
+  ajouter `firebaseAuth` + contrôle d'autorisation.
 - **Perf** : `totalClaimedCount` (`claimCountsByBonus`) scanne toute la table
   `bonus_requests` à chaque GET — à dénormaliser quand le volume grossira.

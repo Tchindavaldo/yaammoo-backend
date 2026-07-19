@@ -12,7 +12,11 @@ const route = express.Router();
  * @swagger
  * /bonus:
  *   post:
- *     summary: Create a new bonus
+ *     summary: Crée un bonus (définition uniquement)
+ *     description: >
+ *       Seule la DÉFINITION est persistée. Les champs dépendant de
+ *       l'utilisateur (`bonusStats`, `requestStatus`, compteurs…) sont
+ *       recalculés au GET et sont rejetés ici.
  *     tags:
  *       - Bonus
  *     requestBody:
@@ -22,31 +26,82 @@ const route = express.Router();
  *           schema:
  *             type: object
  *             required:
+ *               - type
  *               - name
- *               - amount
+ *               - criteria
+ *               - claimDuration
+ *               - usageLimit
  *             properties:
+ *               type:
+ *                 type: string
+ *                 description: Chaîne libre (netflix, free_delivery, free_meal, discount…)
+ *                 example: netflix
  *               name:
  *                 type: string
+ *                 example: 1 mois Netflix offert
  *               description:
  *                 type: string
- *               amount:
+ *               criteria:
+ *                 type: object
+ *                 description: >
+ *                   `target` et `period` sont requis pour `order_count` et
+ *                   `amount_spent`, et interdits pour `welcome`.
+ *                 required:
+ *                   - kind
+ *                 properties:
+ *                   kind:
+ *                     type: string
+ *                     enum: [welcome, order_count, amount_spent]
+ *                   target:
+ *                     type: number
+ *                     example: 50000
+ *                   period:
+ *                     type: string
+ *                     enum: [day, week, month]
+ *               fastFoodId:
+ *                 type: string
+ *                 description: Absent/null = bonus plateforme yaammoo
+ *               fastFoodName:
+ *                 type: string
+ *                 description: Requis si `fastFoodId` est présent
+ *               active:
+ *                 type: boolean
+ *                 default: true
+ *               claimDuration:
  *                 type: number
+ *                 description: Validité du code après réclamation (jours)
+ *                 example: 30
+ *               usageLimit:
+ *                 type: number
+ *                 description: Nombre d'utilisations autorisées du code
+ *                 example: 3
  *     responses:
  *       201:
- *         description: Bonus successfully created
+ *         description: Bonus créé
  *         content:
  *           application/json:
  *             schema:
  *               type: object
  *               properties:
- *                 success:
- *                   type: boolean
- *                 message:
- *                   type: string
- *                 data:
- *                   $ref: '#/components/schemas/Bonus'
+ *                 success: { type: boolean }
+ *                 message: { type: string }
+ *                 data: { type: object }
  *       400:
- *         description: Invalid input
+ *         description: Définition invalide
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: boolean }
+ *                 message: { type: string }
+ *                 errors:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       field: { type: string }
+ *                       message: { type: string }
  */
 route.post('', postBonusController);
 
