@@ -4,6 +4,7 @@ const firebaseAuth = require('../middlewares/authMiddleware');
 const { getBonusController } = require('../controllers/bonus/getBonus.controller');
 const { postBonusController } = require('../controllers/bonus/postBonus.controller');
 const { claimBonusController } = require('../controllers/bonus/claimBonus.controller');
+const { redeemBonusController } = require('../controllers/bonus/redeemBonus.controller');
 
 const route = express.Router();
 
@@ -161,5 +162,67 @@ route.get('/all', firebaseAuth, getBonusController);
  *         description: Réclamation déjà active pour ce bonus
  */
 route.post('/:id/claim', firebaseAuth, claimBonusController);
+
+/**
+ * @swagger
+ * /bonus/redeem:
+ *   post:
+ *     summary: Consommer une utilisation du code bonus (à la commande)
+ *     description: >
+ *       Appelé au moment de la commande, quand le user utilise le code reçu
+ *       lors de la réclamation. Incrémente `usageCount`, vérifie l'expiration
+ *       (`claimedAt` + `claimDuration` jours) et `usageLimit`. Passe
+ *       `redeemed: true` une fois la limite atteinte.
+ *     tags:
+ *       - Bonus
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - code
+ *             properties:
+ *               code:
+ *                 type: string
+ *                 example: YAM-7K3F9Q
+ *               orderId:
+ *                 type: string
+ *                 description: Commande sur laquelle le bonus est consommé (optionnel)
+ *     responses:
+ *       200:
+ *         description: Utilisation consommée
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: boolean }
+ *                 message: { type: string }
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     bonusId: { type: string }
+ *                     code: { type: string }
+ *                     usageCount: { type: number }
+ *                     usageLimit: { type: number, nullable: true }
+ *                     remainingUses: { type: number, nullable: true }
+ *                     redeemed: { type: boolean }
+ *                     expiresAt: { type: string, format: date-time, nullable: true }
+ *       400:
+ *         description: Code requis, bonus non réclamé, ou code expiré
+ *       401:
+ *         description: Token manquant ou invalide
+ *       403:
+ *         description: Le code n'appartient pas à l'utilisateur
+ *       404:
+ *         description: Code bonus introuvable
+ *       409:
+ *         description: Code déjà entièrement consommé / limite atteinte
+ */
+route.post('/redeem', firebaseAuth, redeemBonusController);
 
 module.exports = route;

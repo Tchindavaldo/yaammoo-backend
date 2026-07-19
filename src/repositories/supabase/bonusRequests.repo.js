@@ -63,6 +63,37 @@ exports.findByUserBonus = async ({ userId, bonusId, bonusType }) => {
   return m.bonusRequest.fromSupabase(data);
 };
 
+/**
+ * Retrouve une réclamation par son code (unique par réclamation active).
+ */
+exports.findByCode = async (code, bonusType) => {
+  let q = supabase.from(TABLE).select('*').eq('extra_data->>code', code);
+  if (bonusType) q = q.eq('bonus_type', bonusType);
+  const { data, error } = await q.limit(1).maybeSingle();
+  if (error) throw error;
+  return m.bonusRequest.fromSupabase(data);
+};
+
+/**
+ * Met à jour les champs portés par extra_data (code, usageCount, redeemed…)
+ * sans écraser les autres clés déjà présentes.
+ * @param {string} id
+ * @param {Object} fields  champs à fusionner dans extra_data
+ * @param {Array}  [statusArray] si fourni, remplace aussi le tableau status
+ */
+exports.updateExtraData = async (id, fields, statusArray) => {
+  const { data: current, error: readErr } = await supabase.from(TABLE).select('extra_data').eq('id', id).maybeSingle();
+  if (readErr) throw readErr;
+
+  const merged = { ...(current?.extra_data || {}), ...fields };
+  const update = { extra_data: merged, updated_at: new Date().toISOString() };
+  if (statusArray) update.status = statusArray;
+
+  const { data, error } = await supabase.from(TABLE).update(update).eq('id', id).select().single();
+  if (error) throw error;
+  return m.bonusRequest.fromSupabase(data);
+};
+
 exports.updateStatus = async (id, statusArray) => {
   const { data, error } = await supabase.from(TABLE).update({ status: statusArray, updated_at: new Date().toISOString() }).eq('id', id).select().single();
   if (error) throw error;

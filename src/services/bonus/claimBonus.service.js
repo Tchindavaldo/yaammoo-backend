@@ -10,7 +10,8 @@
 // ============================================================================
 const repos = require('../../repositories');
 const { isBonusEligible } = require('./bonusStats.util');
-const { deriveRequestState } = require('./enrichBonusForUser');
+const { deriveRequestState, computeExpiresAt } = require('./enrichBonusForUser');
+const { generateBonusCode } = require('./bonusCode.util');
 const { postNotificationService } = require('../notification/request/postNotification.service');
 
 // bonus_type isolant les réclamations du nouveau modèle du legacy referral/claim.
@@ -46,22 +47,23 @@ exports.claimBonusService = async (userId, bonusId) => {
     if (!bonus) return { success: false, status: 404, message: 'Bonus non trouvé.' };
     if (bonus.active === false) return { success: false, status: 400, message: "Ce bonus n'est pas actif." };
 
-    // Éligibilité (source de vérité backend)
+    // Réclamation existante (nécessaire au décrément ET à l'anti-doublon)
+    const existing = await repos.bonusRequests.findByUserBonus({ userId, bonusId, bonusType: LOYALTY_TYPE });
+    const state = deriveRequestState(existing);
+    if (state.requestStatus === 'pending' || (state.requestStatus === 'approved' && !state.redeemed)) {
+      return { success: false, status: 409, message: 'Vous avez déjà une réclamation active pour ce bonus.' };
+    }
+
+    // Éligibilité sur le solde DÉCRÉMENTÉ (source de vérité backend) : un palier
+    // déjà consommé ne peut être re-réclamé sans nouvelles commandes.
     const orders = await repos.orders.getByUser(userId);
-    const { eligible, metric, target } = isBonusEligible(bonus, orders);
+    const { eligible, metric, target } = isBonusEligible(bonus, orders, existing);
     if (!eligible) {
       return {
         success: false,
         status: 400,
         message: `Palier non atteint (${metric}/${target}).`,
       };
-    }
-
-    // Empêche une double réclamation active
-    const existing = await repos.bonusRequests.findByUserBonus({ userId, bonusId, bonusType: LOYALTY_TYPE });
-    const state = deriveRequestState(existing);
-    if (state.requestStatus === 'pending' || (state.requestStatus === 'approved' && !state.redeemed)) {
-      return { success: false, status: 409, message: 'Vous avez déjà une réclamation active pour ce bonus.' };
     }
 
     // Nouvelle entrée accordée (A = auto-approuvé)
@@ -74,33 +76,39 @@ exports.claimBonusService = async (userId, bonusId) => {
     };
     const statusArray = existing ? [...(existing.status || []), entry] : [entry];
 
+    // Chaque réclamation ouvre un nouveau cycle d'utilisation : code neuf,
+    // compteur d'usage remis à zéro.
+    const code = generateBonusCode();
+    const usageFields = { code, usageCount: 0, redeemed: false };
+
     let saved;
     if (existing) {
-      // NB: le reset de usageCount/redeemed pour une nouvelle réclamation relève
-      // du flux redemption (à venir) ; updateStatus ne touche que le tableau status.
-      saved = await repos.bonusRequests.updateStatus(existing.id, statusArray);
+      saved = await repos.bonusRequests.updateExtraData(existing.id, usageFields, statusArray);
     } else {
       saved = await repos.bonusRequests.create({
         userId,
         bonusId,
         bonusType: LOYALTY_TYPE,
         status: statusArray,
-        usageCount: 0,
-        redeemed: false,
+        ...usageFields,
       });
     }
 
     await notifyUser(userId);
 
     const finalState = deriveRequestState(saved);
+    const expiresAt = computeExpiresAt(finalState.claimedAt, bonus.claimDuration);
     return {
       success: true,
       status: 201,
       message: 'Bonus réclamé avec succès.',
       data: {
         bonusId,
+        code: finalState.code,
         requestStatus: finalState.requestStatus,
         claimedAt: finalState.claimedAt,
+        expiresAt,
+        usageLimit: bonus.usageLimit ?? null,
         userClaimedCount: finalState.userClaimedCount,
       },
     };

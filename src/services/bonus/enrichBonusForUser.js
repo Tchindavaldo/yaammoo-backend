@@ -8,10 +8,10 @@
 //   4. l'état de la demande de CE user (requestStatus, claimedAt, usageCount, redeemed)
 // ============================================================================
 
-const { computeBonusStats } = require('./bonusStats.util');
+const { computeBonusStats, applyConsumption, CLAIMED_STATUSES } = require('./bonusStats.util');
 
 // Statuts d'une entrée de demande considérés comme "réclamé/accordé".
-const CLAIMED_ENTRY_STATUSES = ['approved', 'completed'];
+const CLAIMED_ENTRY_STATUSES = CLAIMED_STATUSES;
 
 /**
  * Dérive l'état de demande d'un user à partir de son bonus_request.
@@ -24,6 +24,7 @@ function deriveRequestState(request) {
     usageCount: 0,
     redeemed: false,
     userClaimedCount: 0,
+    code: null,
   };
   if (!request) return base;
 
@@ -48,11 +49,24 @@ function deriveRequestState(request) {
     base.claimedAt = last ? last.createdAt || null : null;
   }
 
-  // usageCount / redeemed : portés par extra_data de la demande (flux de redemption à venir)
+  // usageCount / redeemed / code : portés par extra_data de la demande
   if (typeof request.usageCount === 'number') base.usageCount = request.usageCount;
   if (typeof request.redeemed === 'boolean') base.redeemed = request.redeemed;
+  if (typeof request.code === 'string') base.code = request.code;
 
   return base;
+}
+
+/**
+ * Date d'expiration du code = claimedAt + claimDuration (jours).
+ * @returns {string|null} ISO ou null si non réclamé / durée non définie
+ */
+function computeExpiresAt(claimedAt, claimDuration) {
+  if (!claimedAt || !claimDuration) return null;
+  const at = new Date(claimedAt);
+  if (Number.isNaN(at.getTime())) return null;
+  at.setUTCDate(at.getUTCDate() + Number(claimDuration));
+  return at.toISOString();
 }
 
 /**
@@ -69,8 +83,15 @@ function enrichBonusForUser(bonus, ctx) {
 
   const fastFoodId = bonus.fastFoodId ?? null;
 
-  const bonusStats = computeBonusStats(orders, { fastFoodId, now });
-  const requestState = deriveRequestState(userRequestByBonus[bonus.id]);
+  const request = userRequestByBonus[bonus.id];
+  const requestState = deriveRequestState(request);
+
+  // Solde affiché = brut (commandes) − paliers déjà consommés sur la fenêtre.
+  const rawStats = computeBonusStats(orders, { fastFoodId, now });
+  const bonusStats = applyConsumption(rawStats, bonus, request, now);
+
+  const expiresAt = computeExpiresAt(requestState.claimedAt, bonus.claimDuration);
+  const expired = expiresAt ? new Date(expiresAt) < now : false;
 
   return {
     // ── Définition (base) ──
@@ -99,7 +120,13 @@ function enrichBonusForUser(bonus, ctx) {
     claimedAt: requestState.claimedAt,
     usageCount: requestState.usageCount,
     redeemed: requestState.redeemed,
+
+    // ── Code de réclamation & validité ──
+    code: requestState.code,
+    expiresAt,
+    expired,
+    remainingUses: bonus.usageLimit != null ? Math.max(0, Number(bonus.usageLimit) - requestState.usageCount) : null,
   };
 }
 
-module.exports = { enrichBonusForUser, deriveRequestState, CLAIMED_ENTRY_STATUSES };
+module.exports = { enrichBonusForUser, deriveRequestState, computeExpiresAt, CLAIMED_ENTRY_STATUSES };

@@ -14,6 +14,9 @@
 // Cohérent avec les statuts utilisés dans le domaine `order`.
 const EXCLUDED_STATUSES = ['cancelByUser', 'cancelByFastFood'];
 
+// Statuts d'une entrée de réclamation considérés comme accordés (= palier consommé).
+const CLAIMED_STATUSES = ['approved', 'completed'];
+
 const PERIODS = ['day', 'week', 'month'];
 
 /**
@@ -85,14 +88,78 @@ function computeBonusStats(orders, { fastFoodId = null, now = new Date() } = {})
 }
 
 /**
- * Évalue si un user atteint le palier d'un bonus (source de vérité backend).
+ * Somme des paliers déjà consommés par le user pour un bonus, sur la fenêtre
+ * courante. Chaque réclamation accordée persiste son `target` dans le tableau
+ * `status` du bonus_request : c'est l'historique des activations.
  *
- * @param {Object} bonus   définition (criteria.kind/target/period, fastFoodId)
- * @param {Array}  orders  commandes du user
+ * ⚠️ On ne déduit QUE les entrées tombant dans la fenêtre courante. Une
+ * réclamation du mois dernier ne doit pas grever le solde du mois en cours
+ * (le brut, lui, repart de 0 au changement de fenêtre).
+ *
+ * @param {Object} request  bonus_request du user (peut être null)
+ * @param {string} period   'day' | 'week' | 'month'
+ * @param {Date}   [now]
+ * @returns {number} total des targets consommés dans la fenêtre
+ */
+function consumedInWindow(request, period, now = new Date()) {
+  if (!request) return 0;
+  const entries = Array.isArray(request.status) ? request.status : [];
+  const start = windowStart(period, now);
+
+  return entries.reduce((sum, e) => {
+    if (!e || !CLAIMED_STATUSES.includes(e.status)) return sum;
+    const at = new Date(e.createdAt || 0);
+    if (Number.isNaN(at.getTime()) || at < start) return sum;
+    return sum + (Number(e.target) || 0);
+  }, 0);
+}
+
+/**
+ * Applique le décrément au solde brut : solde affiché = brut − consommé.
+ * Le brut vient des commandes (immuable) ; c'est le consommé qui monte à
+ * chaque activation, produisant l'effet "redescend puis remonte".
+ *
+ * Seule la métrique correspondant à `criteria.kind` est décrémentée
+ * (order_count → count ; amount_spent → amount), et uniquement sur la période
+ * du critère. Jamais en dessous de 0.
+ *
+ * @param {Object} stats    bonusStats brut {day,week,month}
+ * @param {Object} bonus    définition du bonus
+ * @param {Object} request  bonus_request du user
+ * @param {Date}   [now]
+ * @returns {Object} nouveau bonusStats décrémenté
+ */
+function applyConsumption(stats, bonus, request, now = new Date()) {
+  const criteria = bonus.criteria || {};
+  // Bonus welcome : pas de palier, donc rien à décrémenter.
+  if (!criteria.kind || criteria.kind === 'welcome') return stats;
+
+  const period = criteria.period || 'month';
+  const consumed = consumedInWindow(request, period, now);
+  if (consumed <= 0) return stats;
+
+  const metricKey = criteria.kind === 'order_count' ? 'count' : 'amount';
+  const window = stats[period];
+  if (!window) return stats;
+
+  return {
+    ...stats,
+    [period]: { ...window, [metricKey]: Math.max(0, window[metricKey] - consumed) },
+  };
+}
+
+/**
+ * Évalue si un user atteint le palier d'un bonus (source de vérité backend).
+ * Le solde évalué est le solde DÉCRÉMENTÉ : un palier déjà consommé ne peut pas
+ * être réclamé une 2e fois sans de nouvelles commandes.
+ *
+ * @param {Object} bonus     définition (criteria.kind/target/period, fastFoodId)
+ * @param {Array}  orders    commandes du user
+ * @param {Object} [request] bonus_request du user (pour le décrément)
  * @param {Date}   [now]
  * @returns {{eligible:boolean, metric:number, target:number|null, kind:string}}
  */
-function isBonusEligible(bonus, orders, now = new Date()) {
+function isBonusEligible(bonus, orders, request = null, now = new Date()) {
   const criteria = bonus.criteria || {};
   const kind = criteria.kind;
 
@@ -103,7 +170,8 @@ function isBonusEligible(bonus, orders, now = new Date()) {
 
   const period = criteria.period || 'month';
   const target = Number(criteria.target) || 0;
-  const stats = computeBonusStats(orders, { fastFoodId: bonus.fastFoodId ?? null, now });
+  const raw = computeBonusStats(orders, { fastFoodId: bonus.fastFoodId ?? null, now });
+  const stats = applyConsumption(raw, bonus, request, now);
   const window = stats[period] || { count: 0, amount: 0 };
 
   // order_count → nb de commandes ; amount_spent → montant cumulé
@@ -112,4 +180,13 @@ function isBonusEligible(bonus, orders, now = new Date()) {
   return { eligible: target > 0 && metric >= target, metric, target, kind };
 }
 
-module.exports = { computeBonusStats, windowStart, isBonusEligible, EXCLUDED_STATUSES, PERIODS };
+module.exports = {
+  computeBonusStats,
+  windowStart,
+  isBonusEligible,
+  consumedInWindow,
+  applyConsumption,
+  EXCLUDED_STATUSES,
+  CLAIMED_STATUSES,
+  PERIODS,
+};

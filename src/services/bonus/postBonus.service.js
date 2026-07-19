@@ -3,6 +3,6 @@
 // ============================================================================
 const repos = require('../../repositories');
 
-exports.postBonusService = async (data) => {
+exports.postBonusService = async data => {
   return repos.bonus.create(data);
 };
