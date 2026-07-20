@@ -8,6 +8,7 @@ const { getFastFoodService } = require('../fastfood/getFastFood');
 const { updateOrders } = require('./updateOrders.service');
 const { assignDriver, driverAdvanceStatus } = require('./driverOrders.service');
 const { reliableEmit } = require('../../utils/reliableEmit');
+const { emitBonusStats } = require('../bonus/emitBonusStats');
 
 const RANKED_STATUSES = new Set(['pending', 'processing']);
 const RANK_IMPACTING = new Set(['pendingToBuy', 'pending', 'processing', 'cancelByUser', 'cancelByFastFood']);
@@ -62,6 +63,12 @@ exports.updateOrderService = async (orderId, updateData) => {
     await reliableEmit(io, updatedOrder.userId, 'userOrderUpdated', { data: updatedOrder });
     if (fastFood?.userId) {
       await reliableEmit(io, fastFood.userId, 'fastFoodOrderUpdated', { data: updatedOrder });
+    }
+
+    // Une annulation sort la commande du solde bonus (statuts exclus du brut) :
+    // on repousse les soldes recalculés si le statut a changé.
+    if (updateData.status && updateData.status !== prevData.status && updatedOrder.userId) {
+      emitBonusStats(updatedOrder.userId).catch((e) => console.warn('[updateOrder] emitBonusStats:', e.message));
     }
 
     return { success: true, message: 'Commande mise à jour avec succès', data: updatedOrder };

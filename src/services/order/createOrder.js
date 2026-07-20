@@ -11,6 +11,7 @@
 
 const repos = require('../../repositories');
 const { getIO } = require('../../socket');
+const { emitBonusStats } = require('../bonus/emitBonusStats');
 
 const { notifyOrderEvent } = require('../notification/helpers/notifyOrderEvent');
 const { reliableEmit } = require('../../utils/reliableEmit');
@@ -55,6 +56,14 @@ exports.createOrderService = async (order) => {
     } catch (e) {
       console.warn('[createOrder] socket emit menu update failed:', e.message);
     }
+  }
+
+  // Bonus : une commande fait monter le solde de TOUS les bonus du user
+  // (le brut d'un bonus boutique ne compte que ses commandes, mais le solde
+  // plateforme intègre celles de tous les fastfoods). On pousse les soldes
+  // recalculés pour que la progression se voie sans re-GET.
+  if (createdOrder?.userId) {
+    emitBonusStats(createdOrder.userId).catch((e) => console.warn('[createOrder] emitBonusStats:', e.message));
   }
 
   // Notification au marchand (si pending uniquement)
