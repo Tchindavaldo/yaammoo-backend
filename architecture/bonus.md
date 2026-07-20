@@ -16,10 +16,12 @@ sur une fenêtre glissante (jour / semaine / mois), ou d'office (`welcome`).
 
 | Méthode | Endpoint | Contrôleur | Protégé | Rôle |
 |---------|----------|-----------|---------|------|
-| POST | `/bonus` | `postBonusController` | Non | Crée un bonus (définition seule, **validée**) |
+| POST | `/bonus` | `postBonusController` | **Oui** (`firebaseAuth`) | Crée un bonus (définition seule, **validée**, marchand propriétaire ou admin) |
 | GET | `/bonus/all` | `getBonusController` | **Oui** (`firebaseAuth`) | Liste les bonus **enrichis pour le user courant** |
 | POST | `/bonus/:id/claim` | `claimBonusController` | **Oui** (`firebaseAuth`) | **Réclame** un bonus (auto-approuvé, palier vérifié backend) → renvoie un **code** |
 | POST | `/bonus/redeem` | `redeemBonusController` | **Oui** (`firebaseAuth`) | **Consomme** une utilisation du code (à la commande) |
+| PATCH | `/bonus/:id` | `patchBonusController` | **Oui** (`firebaseAuth`) | Modifie un bonus (champs de définition, `active`, `requiresProfile`…) — marchand propriétaire ou admin |
+| POST | `/bonus/request/:id/reward-credentials` | `rewardCredentialsBonusController` | **Oui** (`firebaseAuth`) | **Livre** une réclamation `pending`, ou **corrige** des identifiants déjà livrés — admin ou marchand propriétaire |
 | POST | `/bonusRequest/:totalBonus` | `postBonusRequestController` | — | Le user réclame un bonus |
 | GET | `/bonusRequest/status/:id` | `getBonusRequestStatusController` | — | Statut d'une demande |
 
@@ -29,8 +31,20 @@ sur une fenêtre glissante (jour / semaine / mois), ou d'office (`welcome`).
 
 ### Stockage (table `bonus`)
 
-La table `bonus (id, data JSONB, created_at)` ne stocke **QUE la définition** du
-bonus. Aucun champ dépendant du user n'est persisté ici.
+La table `bonus` ne stocke **QUE la définition** du bonus. Aucun champ dépendant
+du user n'est persisté ici.
+
+**Colonnes structurées** (migration 014) : `type`, `name`, `description`,
+`criteria`, `fastfood_id` (FK → `fastfoods`, `ON DELETE CASCADE`),
+`fastfood_name`, `active`, `claim_duration`, `usage_limit`, `created_by`.
+
+> Auparavant tout vivait dans un `data JSONB` libre (reliquat de la reprise
+> Firestore) : ni filtrage SQL, ni index, ni intégrité référentielle.
+> `criteria` **reste en JSONB** — sous-objet cohérent `{kind, target, period}`,
+> toujours lu d'un bloc, jamais filtré champ par champ.
+>
+> Contraintes en base : `fastfood_id` et `fastfood_name` sont tous deux nuls ou
+> tous deux renseignés (miroir SQL du validateur applicatif).
 
 **Définition (persistée) :**
 
@@ -48,6 +62,8 @@ bonus. Aucun champ dépendant du user n'est persisté ici.
   "fastFoodId": "ff_42",        // null/absent = bonus plateforme Yaammoo
   "fastFoodName": "Burger Palace", // requis si fastFoodId présent
   "active": true,
+  "requiresRewardCredentials": true, // claim non auto-approuvé : reste `pending` jusqu'à livraison manuelle
+  "requiresProfile": true,      // accès via profil nominatif + son code → `profile {name, code}` exigé à la livraison
   "claimDuration": 30,          // validité du code après réclamation (jours)
   "usageLimit": 3,              // nb d'utilisations autorisées du code
   "createdAt": "2026-06-18T10:00:00.000Z"
@@ -83,21 +99,31 @@ Fusionnés dans chaque bonus à la lecture, pour le user authentifié :
 
 ```
 src/
-├── routes/bonusRoute.js                       # GET /bonus/all protégé (firebaseAuth)
-├── controllers/bonus/getBonus.controller.js   # extrait req.user.uid → service
+├── routes/bonusRoute.js                       # toutes les routes /bonus (firebaseAuth)
+├── controllers/bonus/
+│   ├── getBonus.controller.js                  # extrait req.user.uid → service
+│   ├── postBonus.controller.js                 # création
+│   ├── patchBonus.controller.js                # modification partielle
+│   ├── claimBonus.controller.js                # réclamation
+│   ├── redeemBonus.controller.js               # consommation d'un code
+│   └── rewardCredentialsBonus.controller.js    # livraison/correction des accès
 ├── services/bonus/
 │   ├── getBonus.service.js                     # orchestration (charge + enrichit)
+│   ├── postBonus.service.js                    # création (autorisation + cible)
+│   ├── patchBonus.service.js                   # modification (mêmes autorisations)
 │   ├── claimBonus.service.js                   # réclamation (= activation) + code
 │   ├── redeemBonus.service.js                  # consommation d'une utilisation
+│   ├── rewardCredentialsBonus.service.js       # livraison manuelle + validation `profile`
+│   ├── emitBonusStats.js                       # émet `bonus.stats_updated`
 │   ├── enrichBonusForUser.js                   # fusion définition + user + compteurs
 │   ├── bonusStats.util.js                      # bonusStats, décrément, éligibilité
 │   └── bonusCode.util.js                       # génération/normalisation du code
 ├── interface/bonusFields.js                    # schéma de la définition
 ├── utils/validator/validateBonus.js            # règles de validation
 └── repositories/supabase/
-    ├── bonus.repo.js                           # getAll / getById / create
+    ├── bonus.repo.js                           # getAll / getById / create / update
     └── bonusRequests.repo.js                   # + getByUser, claimCountsByBonus,
-                                                #   findByCode, updateExtraData
+                                                #   findByCode, updateUsage
 ```
 
 **Flux `GET /bonus/all` :**
@@ -149,9 +175,78 @@ Auto-approuvé, avec vérification d'éligibilité côté backend (source de vé
 5. Ajoute une entrée `{status:'approved', target, period, createdAt}` dans le
    `bonus_request` (bonus_type = `loyalty`, isolé du legacy). Nouvelle demande →
    `create` avec `usageCount:0, redeemed:false`.
+   ⚠️ Si le bonus est `requiresRewardCredentials`, l'entrée reste `pending` :
+   cf. [Flux livraison manuelle](#flux-livraison-manuelle-post-bonusrequestidreward-credentials).
 6. Notifie le user (best-effort, non bloquant).
 
 > Réponse : `{ success, message, data:{ bonusId, requestStatus, claimedAt, userClaimedCount } }`.
+
+## Flux livraison manuelle (`POST /bonus/request/:id/reward-credentials`)
+
+Pour les bonus `requiresRewardCredentials` (Netflix, clé de jeu…), le claim n'est
+pas auto-approuvé : il reste `pending` jusqu'à ce qu'un **admin** (bonus plateforme)
+ou le **marchand propriétaire** (bonus de boutique) fournisse les identifiants.
+
+⚠️ `:id` = id du **bonus_request**, pas du bonus.
+
+1. Charge la réclamation + le bonus → 404 si absents.
+2. **Autorisation** : admin, ou propriétaire de la boutique du bonus. Un bonus
+   plateforme (`fastFoodId` null) exige `isAdmin` → sinon 403.
+3. **Validation du profil** (cf. ci-dessous) → 400 si incomplet.
+4. Cible : dernière entrée `pending` ; à défaut, dernière entrée `approved`
+   (**correction** d'accès déjà livrés — cf. ci-dessous). 409 si aucune des deux.
+5. L'entrée passe `approved` + `rewardCredentials`, `credentialsSentAt`,
+   `credentialsSentBy` ; le code est généré s'il n'existe pas encore.
+6. Notifie le user : socket `bonus.reward_credentials` (room `<userId>`) + push.
+
+> Le solde a **déjà** été décrémenté au claim : la livraison ne touche pas aux
+> `consumedOrderIds`.
+
+### Correction d'une livraison déjà faite
+
+Le même endpoint accepte une réclamation **déjà `approved`** : il remplace alors
+`rewardCredentials` au lieu de livrer. Utile quand un bonus passe `requiresProfile`
+après coup et que d'anciennes livraisons n'ont pas de `profile` — sans quoi il
+faudrait re-livrer et invalider le code du user.
+
+Dans ce mode :
+- `code` et `claimedAt` d'origine sont **conservés** ;
+- `usageCount` / `redeemed` sont **préservés** (les remettre à zéro rendrait au
+  user des utilisations déjà consommées) ;
+- le socket `bonus.reward_credentials` est **réémis** avec les nouveaux identifiants ;
+- la notification dit « Bonus mis à jour » et non « disponible » ;
+- la réponse renvoie `Identifiants mis à jour avec succès.`
+
+### Forme de `rewardCredentials`
+
+Objet **libre** (stocké en JSONB dans l'entrée `status`) : la forme varie selon le
+type de bonus — login/password, clé, lien… Il est renvoyé tel quel dans la réponse,
+dans le payload socket, et dans `GET /bonus/all` (via `deriveRequestState`).
+
+**Bonus à profil** — bonus dont la colonne **`requires_profile`** vaut `true`
+(migration 017) : l'accès passe par un profil nominatif protégé par son propre code
+(Netflix : compte partagé, un profil + un code par utilisateur). `profile` y est donc
+**obligatoire**, avec `name` ET `code` en chaînes non vides :
+
+```json
+{
+  "login": "compte@netflix.com",
+  "password": "s3cr3t",
+  "profile": { "name": "Profil 3", "code": "4821" }
+}
+```
+
+Sans `profile.name` / `profile.code` → **400** : les identifiants de compte seuls ne
+permettent pas d'entrer sur le profil, on refuse de livrer des accès inutilisables.
+Les bonus `requires_profile = false` (livraison offerte, réduction…) ne sont pas concernés.
+
+> L'exigence est **une donnée du bonus**, pas une liste de types codée en dur ni une
+> variable d'environnement : marquer un nouveau bonus comme « à profil » se fait via
+> `PATCH /bonus/:id` (`requiresProfile: true`) ou directement en base, **sans
+> redéploiement**. Le champ est indépendant de `type`, qui reste une chaîne libre.
+
+> Les autres clés (`login`, `password`…) sont **libres et non validées** : elles
+> transitent telles quelles. Seul `profile` fait l'objet d'un contrat.
 
 ## Décrément du solde (activation)
 
@@ -219,9 +314,12 @@ Contrôles, dans l'ordre :
 5. `usageCount < usageLimit` → 409 sinon.
 
 Puis : `usageCount++`, et `redeemed = true` dès que `usageLimit` est atteint.
-Persisté via `bonusRequests.updateExtraData()` (fusionne `extra_data` sans
-écraser les autres clés). Une **nouvelle réclamation ouvre un nouveau cycle** :
-code neuf, `usageCount` remis à 0.
+Persisté via `bonusRequests.updateUsage()`. Une **nouvelle réclamation ouvre un
+nouveau cycle** : code neuf, `usageCount` remis à 0.
+
+`code`, `usage_count` et `redeemed` sont des **colonnes réelles** (migration 014),
+avec un index **unique** sur `code` : `findByCode` scannait auparavant toute la
+table via `extra_data->>'code'`.
 
 **Champs ajoutés au `GET /bonus/all`** : `code`, `expiresAt`, `expired`,
 `remainingUses`.
@@ -255,10 +353,66 @@ Règles :
 
 ---
 
+## Autorisation (`POST /bonus`)
+
+Route protégée par `firebaseAuth`. Deux cas, contrôlés dans `postBonus.service` :
+
+| Bonus | Qui peut créer | Sinon |
+|---|---|---|
+| **Boutique** (`fastFoodId` présent) | le marchand **propriétaire** (`viewerUid === fastfood.userId`) ou un admin | `403` |
+| **Plateforme** (sans `fastFoodId`) | **admin uniquement** (`users.is_admin`) | `403` |
+
+### Résolution de la cible (`fastFoodId` / `fastFoodName`)
+
+`fastFoodId` est **optionnel** à la création :
+
+| Appelant | `fastFoodId` omis | `fastFoodId` fourni |
+|---|---|---|
+| Marchand | déduit de **sa** boutique (`user.fastFoodId`) | doit en être propriétaire, sinon `403` |
+| Admin | **bonus plateforme** — le rôle admin prime, même si le compte a une boutique | bonus de cette boutique |
+| Ni l'un ni l'autre | `403` | `403` |
+
+`fastFoodName` est **toujours résolu par le serveur** ; l'envoyer est rejeté
+(`400`) — un nom fourni par le client pourrait ne pas correspondre au `fastFoodId` :
+
+- bonus de boutique → `fastfoods.name` lu en base ;
+- bonus **plateforme** → env **`PLATFORM_NAME`** (ex. `yaammoo`), pour que le
+  front affiche toujours un émetteur.
+
+En base, `fastfood_name` est donc **toujours renseigné** (contrainte
+`bonus_fastfood_name_chk`), tandis que `fastfood_id` reste `NULL` pour la
+plateforme. Idem pour `createdBy` (uid du créateur), renseigné par le backend.
+Un `fastFoodId` inconnu → `404`.
+
+> Le contrôle « propriétaire » réutilise le pattern déjà en place dans
+> `getFastFoodDeliveryStats.service.js` (`viewerUid === ff.userId`).
+
+**Rôle admin** : colonne `users.is_admin` (migration 013), exposée en `isAdmin`
+par le mapper. Contrairement à `isMarchand` (dérivé de `fastFoodId`), le rôle
+admin est **stocké**, jamais calculé. Il s'active manuellement en base :
+
+```sql
+UPDATE users SET is_admin = TRUE WHERE id = '<uid>';
+```
+
+---
+
+## Performance
+
+`totalClaimedCount` est agrégé **côté Postgres** via la fonction
+`bonus_claim_counts(claimed_statuses)` (migration 013) : elle déplie le tableau
+JSONB `status` et renvoie **une ligne par bonus**, au lieu de rapatrier toute la
+table `bonus_requests` à chaque GET. Un index GIN sur `status` accélère le
+filtrage.
+
+`claimCountsByBonus()` **replie** automatiquement sur le comptage applicatif si
+la fonction SQL est absente (migration non encore appliquée) — le endpoint
+continue de fonctionner, avec un `console.warn`.
+
+---
+
 ## TODO (étapes suivantes)
 
-- **Protection de `POST /bonus`** : la route est encore publique — décider qui
-  peut créer un bonus (marchand propriétaire du `fastFoodId` ? admin ?) et
-  ajouter `firebaseAuth` + contrôle d'autorisation.
-- **Perf** : `totalClaimedCount` (`claimCountsByBonus`) scanne toute la table
-  `bonus_requests` à chaque GET — à dénormaliser quand le volume grossira.
+- Appliquer les **migrations 013, 014 et 015** en prod (éditeur SQL Supabase),
+  dans l'ordre, et désigner les premiers admins.
+- Définir **`PLATFORM_NAME`** côté Fly : `flyctl secrets set PLATFORM_NAME=yaammoo`.

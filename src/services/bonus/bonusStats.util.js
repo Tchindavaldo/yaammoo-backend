@@ -14,8 +14,14 @@
 // Cohérent avec les statuts utilisés dans le domaine `order`.
 const EXCLUDED_STATUSES = ['cancelByUser', 'cancelByFastFood'];
 
-// Statuts d'une entrée de réclamation considérés comme accordés (= palier consommé).
+// Statuts d'une entrée de réclamation considérés comme accordés (bonus obtenu).
 const CLAIMED_STATUSES = ['approved', 'completed'];
+
+// Statuts qui MOBILISENT le solde. `pending` en fait partie : un bonus à
+// livraison manuelle réserve ses commandes dès le claim, sinon le user pourrait
+// réclamer plusieurs bonus avec le même solde pendant le traitement.
+// Seul un refus (`rejected`) rendrait les commandes — cf. rejet non implémenté.
+const CONSUMING_STATUSES = [...CLAIMED_STATUSES, 'pending'];
 
 const PERIODS = ['day', 'week', 'month'];
 
@@ -88,30 +94,147 @@ function computeBonusStats(orders, { fastFoodId = null, now = new Date() } = {})
 }
 
 /**
- * Somme des paliers déjà consommés par le user pour un bonus, sur la fenêtre
- * courante. Chaque réclamation accordée persiste son `target` dans le tableau
- * `status` du bonus_request : c'est l'historique des activations.
+ * IDs des commandes déjà dépensées par les réclamations accordées du user.
+ * Une commande dépensée l'est définitivement : elle ne peut plus financer un
+ * autre palier, même si elle est annulée après coup (le bonus est déjà accordé).
  *
- * ⚠️ On ne déduit QUE les entrées tombant dans la fenêtre courante. Une
- * réclamation du mois dernier ne doit pas grever le solde du mois en cours
- * (le brut, lui, repart de 0 au changement de fenêtre).
- *
- * @param {Object} request  bonus_request du user (peut être null)
- * @param {string} period   'day' | 'week' | 'month'
- * @param {Date}   [now]
- * @returns {number} total des targets consommés dans la fenêtre
+ * @param {Array|Object} requests  réclamation(s) du user
+ * @returns {Set<string>} ids de commandes déjà consommées
  */
-function consumedInWindow(request, period, now = new Date()) {
-  if (!request) return 0;
-  const entries = Array.isArray(request.status) ? request.status : [];
-  const start = windowStart(period, now);
+function collectSpentOrderIds(requests) {
+  const spent = new Set();
+  if (!requests) return spent;
 
-  return entries.reduce((sum, e) => {
-    if (!e || !CLAIMED_STATUSES.includes(e.status)) return sum;
-    const at = new Date(e.createdAt || 0);
-    if (Number.isNaN(at.getTime()) || at < start) return sum;
-    return sum + (Number(e.target) || 0);
-  }, 0);
+  const list = Array.isArray(requests) ? requests : [requests];
+  for (const request of list) {
+    const entries = Array.isArray(request?.status) ? request.status : [];
+    for (const e of entries) {
+      if (!e || !CONSUMING_STATUSES.includes(e.status)) continue;
+      for (const id of e.consumedOrderIds || []) spent.add(id);
+    }
+  }
+
+  return spent;
+}
+
+/**
+ * Somme des paliers déjà consommés par le user, sur la fenêtre courante.
+ * Chaque réclamation accordée persiste les COMMANDES qu'elle a dépensées
+ * (`consumedOrderIds`) : c'est l'historique des activations.
+ *
+ * ⚠️ La fenêtre se juge sur la date des COMMANDES consommées, pas sur celle de
+ * la réclamation. Un claim d'aujourd'hui peut avoir dépensé des commandes du
+ * début du mois : elles ne doivent grever que le solde `month`, pas le `day`.
+ *
+ * @param {Array|Object} requests  réclamation(s) du user (peut être null)
+ * @param {string} period          'day' | 'week' | 'month'
+ * @param {Array}  [orders]        commandes du user, pour dater les IDs consommés
+ * @param {Date}   [now]
+ * @returns {{count:number, amount:number}} total consommé dans la fenêtre
+ */
+function consumedInWindow(requests, period, orders = [], now = new Date()) {
+  const total = { count: 0, amount: 0 };
+  if (!requests) return total;
+
+  // POT COMMUN : on somme les paliers consommés sur TOUTES les réclamations du
+  // user (tous bonus, plateforme et fastfood confondus), pas seulement celles
+  // du bonus courant. Les commandes sont une monnaie : réclamer un bonus les
+  // dépense pour tous les autres.
+  const list = Array.isArray(requests) ? requests : [requests];
+  const start = windowStart(period, now);
+  const orderById = new Map((orders || []).filter(o => o && o.id).map(o => [o.id, o]));
+
+  for (const request of list) {
+    const entries = Array.isArray(request?.status) ? request.status : [];
+    for (const e of entries) {
+      if (!e || !CONSUMING_STATUSES.includes(e.status)) continue;
+
+      if (Array.isArray(e.consumedOrderIds) && e.consumedOrderIds.length > 0) {
+        // Modèle soldé : chaque commande dépensée pèse sur les fenêtres qui la
+        // contiennent, et sur elles seules.
+        for (const id of e.consumedOrderIds) {
+          const order = orderById.get(id);
+          if (!order || !order.createdAt) continue;
+          const at = new Date(order.createdAt);
+          if (Number.isNaN(at.getTime()) || at < start) continue;
+          total.count += 1;
+          total.amount += Number(order.total) || 0;
+        }
+        continue;
+      }
+
+      // Legacy (réclamations sans IDs) : on retombe sur la date du claim.
+      const at = new Date(e.createdAt || 0);
+      if (Number.isNaN(at.getTime()) || at < start) continue;
+
+      if (e.consumedCount != null || e.consumedAmount != null) {
+        total.count += Number(e.consumedCount) || 0;
+        total.amount += Number(e.consumedAmount) || 0;
+      } else {
+        // Plus ancien encore : seul `target` est connu, dans l'unité d'origine.
+        const legacy = Number(e.target) || 0;
+        if (e.kind === 'order_count') total.count += legacy;
+        else total.amount += legacy;
+      }
+    }
+  }
+
+  return total;
+}
+
+/**
+ * Contrepartie d'un palier dans LES DEUX unités, mesurée sur les commandes
+ * réellement passées : on consomme les commandes les plus anciennes de la
+ * fenêtre jusqu'à atteindre le palier.
+ *
+ * Ex. palier 10 000 FCFA atteint avec 3 commandes de 4 000 → on consomme
+ * 12 000 FCFA ET 3 commandes (on ne fractionne pas une commande).
+ *
+ * ⚠️ Modèle SOLDÉ : les commandes déjà dépensées par une réclamation antérieure
+ * sont exclues. Sans ça, chaque claim reconsommerait les mêmes commandes les
+ * plus anciennes et le total consommé dépasserait le total réellement commandé.
+ *
+ * @param {Object} bonus  définition du bonus réclamé
+ * @param {Array}  orders commandes du user
+ * @param {Object} [opts]
+ * @param {Set<string>} [opts.spentOrderIds]  commandes déjà dépensées (pot commun)
+ * @param {Date}   [opts.now]
+ * @returns {{consumedCount:number, consumedAmount:number, consumedOrderIds:string[]}}
+ */
+function measureConsumption(bonus, orders, { spentOrderIds = new Set(), now = new Date() } = {}) {
+  const criteria = bonus.criteria || {};
+  const target = Number(criteria.target) || 0;
+  if (!criteria.kind || target <= 0) {
+    return { consumedCount: 0, consumedAmount: 0, consumedOrderIds: [] };
+  }
+
+  const period = criteria.period || 'month';
+  const start = windowStart(period, now);
+  const fastFoodId = bonus.fastFoodId ?? null;
+
+  const eligible = (orders || [])
+    .filter(o => {
+      if (!o || !o.createdAt) return false;
+      if (EXCLUDED_STATUSES.includes(o.status)) return false;
+      if (fastFoodId && o.fastFoodId !== fastFoodId) return false;
+      if (spentOrderIds.has(o.id)) return false;
+      const at = new Date(o.createdAt);
+      return !Number.isNaN(at.getTime()) && at >= start;
+    })
+    .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+
+  let count = 0;
+  let amount = 0;
+  const consumedOrderIds = [];
+  for (const o of eligible) {
+    count += 1;
+    amount += Number(o.total) || 0;
+    consumedOrderIds.push(o.id);
+    const reached = criteria.kind === 'order_count' ? count >= target : amount >= target;
+    if (reached) break;
+  }
+
+  return { consumedCount: count, consumedAmount: amount, consumedOrderIds };
 }
 
 /**
@@ -119,33 +242,33 @@ function consumedInWindow(request, period, now = new Date()) {
  * Le brut vient des commandes (immuable) ; c'est le consommé qui monte à
  * chaque activation, produisant l'effet "redescend puis remonte".
  *
- * Seule la métrique correspondant à `criteria.kind` est décrémentée
- * (order_count → count ; amount_spent → amount), et uniquement sur la période
- * du critère. Jamais en dessous de 0.
+ * Chaque métrique est décrémentée dans SA propre unité : `count` avec les
+ * commandes consommées, `amount` avec les montants consommés. Jamais sous 0.
  *
- * @param {Object} stats    bonusStats brut {day,week,month}
- * @param {Object} bonus    définition du bonus
- * @param {Object} request  bonus_request du user
+ * POT COMMUN : le décrément agrège les réclamations de TOUS les bonus du user.
+ *
+ * @param {Object} stats     bonusStats brut {day,week,month}
+ * @param {Object} bonus     définition du bonus
+ * @param {Array}  requests  TOUTES les réclamations du user (pot commun)
+ * @param {Array}  [orders]  commandes du user, pour dater les IDs consommés
  * @param {Date}   [now]
  * @returns {Object} nouveau bonusStats décrémenté
  */
-function applyConsumption(stats, bonus, request, now = new Date()) {
-  const criteria = bonus.criteria || {};
-  // Bonus welcome : pas de palier, donc rien à décrémenter.
-  if (!criteria.kind || criteria.kind === 'welcome') return stats;
-
-  const period = criteria.period || 'month';
-  const consumed = consumedInWindow(request, period, now);
-  if (consumed <= 0) return stats;
-
-  const metricKey = criteria.kind === 'order_count' ? 'count' : 'amount';
-  const window = stats[period];
-  if (!window) return stats;
-
-  return {
-    ...stats,
-    [period]: { ...window, [metricKey]: Math.max(0, window[metricKey] - consumed) },
-  };
+function applyConsumption(stats, bonus, requests, orders = [], now = new Date()) {
+  // TOUTES les périodes sont décrémentées, chacune avec les COMMANDES consommées
+  // tombant dans SA propre fenêtre : une commande dépensée aujourd'hui impacte
+  // day, week et month ; une commande du début du mois n'impacte que month.
+  const out = {};
+  for (const p of PERIODS) {
+    const window = stats[p];
+    if (!window) continue;
+    const consumed = consumedInWindow(requests, p, orders, now);
+    out[p] = {
+      count: Math.max(0, window.count - consumed.count),
+      amount: Math.max(0, window.amount - consumed.amount),
+    };
+  }
+  return { ...stats, ...out };
 }
 
 /**
@@ -153,25 +276,19 @@ function applyConsumption(stats, bonus, request, now = new Date()) {
  * Le solde évalué est le solde DÉCRÉMENTÉ : un palier déjà consommé ne peut pas
  * être réclamé une 2e fois sans de nouvelles commandes.
  *
- * @param {Object} bonus     définition (criteria.kind/target/period, fastFoodId)
- * @param {Array}  orders    commandes du user
- * @param {Object} [request] bonus_request du user (pour le décrément)
+ * @param {Object} bonus      définition (criteria.kind/target/period, fastFoodId)
+ * @param {Array}  orders     commandes du user
+ * @param {Array}  [requests] TOUTES les réclamations du user (pot commun)
  * @param {Date}   [now]
  * @returns {{eligible:boolean, metric:number, target:number|null, kind:string}}
  */
-function isBonusEligible(bonus, orders, request = null, now = new Date()) {
+function isBonusEligible(bonus, orders, requests = null, now = new Date()) {
   const criteria = bonus.criteria || {};
   const kind = criteria.kind;
-
-  // Bonus d'accueil : offert d'office, aucun palier à atteindre.
-  if (kind === 'welcome') {
-    return { eligible: true, metric: 0, target: null, kind };
-  }
-
   const period = criteria.period || 'month';
   const target = Number(criteria.target) || 0;
   const raw = computeBonusStats(orders, { fastFoodId: bonus.fastFoodId ?? null, now });
-  const stats = applyConsumption(raw, bonus, request, now);
+  const stats = applyConsumption(raw, bonus, requests, orders, now);
   const window = stats[period] || { count: 0, amount: 0 };
 
   // order_count → nb de commandes ; amount_spent → montant cumulé
@@ -185,8 +302,11 @@ module.exports = {
   windowStart,
   isBonusEligible,
   consumedInWindow,
+  collectSpentOrderIds,
+  measureConsumption,
   applyConsumption,
   EXCLUDED_STATUSES,
   CLAIMED_STATUSES,
+  CONSUMING_STATUSES,
   PERIODS,
 };

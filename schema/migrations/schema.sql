@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS users (
   password        TEXT,
   fastfood_id     TEXT,
   is_marchand     BOOLEAN DEFAULT FALSE,
+  is_admin        BOOLEAN DEFAULT FALSE,
   statistique     INTEGER DEFAULT 0,
   cmd             JSONB DEFAULT '[]'::jsonb,
   extra_data      JSONB DEFAULT '{}'::jsonb,
@@ -198,11 +199,34 @@ CREATE INDEX IF NOT EXISTS idx_transactions_user_created
 -- ============================================================================
 -- TABLE: bonus
 -- ============================================================================
+-- `criteria` reste JSONB : sous-objet cohérent {kind, target, period}.
 CREATE TABLE IF NOT EXISTS bonus (
-  id          TEXT PRIMARY KEY,
-  data        JSONB DEFAULT '{}'::jsonb,
-  created_at  TIMESTAMPTZ DEFAULT NOW()
+  id             TEXT PRIMARY KEY,
+  type           TEXT,
+  name           TEXT,
+  description    TEXT,
+  criteria       JSONB DEFAULT '{}'::jsonb,
+  fastfood_id    TEXT REFERENCES fastfoods(id) ON DELETE CASCADE,
+  fastfood_name  TEXT,
+  active         BOOLEAN DEFAULT TRUE,
+  -- Livraison manuelle (016) : le claim reste `pending` au lieu d'être
+  -- auto-approuvé, jusqu'à ce qu'un admin/marchand fournisse les identifiants.
+  requires_reward_credentials BOOLEAN NOT NULL DEFAULT FALSE,
+  -- Accès par profil nominatif protégé par son propre code (017, ex. Netflix) :
+  -- `rewardCredentials.profile` {name, code} devient obligatoire à la livraison.
+  requires_profile BOOLEAN NOT NULL DEFAULT FALSE,
+  claim_duration INTEGER,
+  usage_limit    INTEGER,
+  created_by     TEXT,
+  extra_data     JSONB DEFAULT '{}'::jsonb,
+  created_at     TIMESTAMPTZ DEFAULT NOW(),
+  -- Nom d'affichage toujours requis : boutique, ou PLATFORM_NAME si
+  -- fastfood_id IS NULL (bonus plateforme).
+  CONSTRAINT bonus_fastfood_name_chk CHECK (fastfood_name IS NOT NULL AND fastfood_name <> '')
 );
+
+CREATE INDEX IF NOT EXISTS idx_bonus_fastfood ON bonus(fastfood_id);
+CREATE INDEX IF NOT EXISTS idx_bonus_active   ON bonus(active) WHERE active = TRUE;
 
 -- ============================================================================
 -- TABLE: bonus_requests
@@ -214,13 +238,29 @@ CREATE TABLE IF NOT EXISTS bonus_requests (
   bonus_id    TEXT NOT NULL,
   bonus_type  TEXT,
   status      JSONB DEFAULT '[]'::jsonb,
+  code        TEXT,
+  usage_count INTEGER DEFAULT 0,
+  redeemed    BOOLEAN DEFAULT FALSE,
   extra_data  JSONB DEFAULT '{}'::jsonb,
   created_at  TIMESTAMPTZ DEFAULT NOW(),
-  updated_at  TIMESTAMPTZ DEFAULT NOW()
+  updated_at  TIMESTAMPTZ DEFAULT NOW(),
+  CONSTRAINT bonus_requests_usage_count_chk CHECK (usage_count >= 0)
 );
 
 CREATE INDEX IF NOT EXISTS idx_bonus_requests_lookup
   ON bonus_requests(bonus_id, user_id, bonus_type);
+
+-- Recherche par code (redemption) : indexée + unique.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_bonus_requests_code
+  ON bonus_requests(code) WHERE code IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_bonus_requests_status_gin
+  ON bonus_requests USING GIN (status);
+
+-- Réclamations en attente de livraison manuelle (consultées côté back-office).
+CREATE INDEX IF NOT EXISTS idx_bonus_requests_pending
+  ON bonus_requests (bonus_id)
+  WHERE code IS NULL;
 
 -- ============================================================================
 -- TABLE: notifications

@@ -14,11 +14,25 @@ exports.bonusFields = {
   fastFoodId: { type: 'string', required: false },
   fastFoodName: { type: 'string', required: false },
   active: { type: 'bool', required: false },
+  // true = le bonus exige une livraison manuelle (identifiants Netflix, clé de
+  // jeu…). Le claim reste alors `pending` jusqu'à ce qu'un admin/marchand
+  // fournisse les identifiants via POST /bonus/request/:id/reward-credentials.
+  // Défaut false = auto-approuvé (livraison offerte, réduction…).
+  requiresRewardCredentials: { type: 'bool', required: false },
+  // true = l'accès passe par un profil nominatif protégé par son propre code
+  // (Netflix : compte partagé, un profil + un code par utilisateur). La livraison
+  // exige alors `rewardCredentials.profile` = {name, code}, sinon 400.
+  // Porté par le bonus (et non déduit de `type`) pour rester modifiable via
+  // PATCH /bonus/:id sans redéploiement.
+  requiresProfile: { type: 'bool', required: false },
   claimDuration: { type: 'number', required: true },
   usageLimit: { type: 'number', required: true },
   createdAt: { type: 'string', required: false },
+  // Renseigné par le backend (uid du créateur), jamais envoyé par le client.
+  createdBy: { type: 'string', required: false },
 };
 
 // Sous-champs de `criteria`
-exports.criteriaKinds = ['welcome', 'order_count', 'amount_spent'];
+// Tout bonus a un palier : `target` + `period` sont toujours requis.
+exports.criteriaKinds = ['order_count', 'amount_spent'];
 exports.criteriaPeriods = ['day', 'week', 'month'];

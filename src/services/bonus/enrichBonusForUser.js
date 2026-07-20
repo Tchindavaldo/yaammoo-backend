@@ -25,6 +25,7 @@ function deriveRequestState(request) {
     redeemed: false,
     userClaimedCount: 0,
     code: null,
+    rewardCredentials: null,
   };
   if (!request) return base;
 
@@ -36,6 +37,10 @@ function deriveRequestState(request) {
 
   if (hasPending) base.requestStatus = 'pending';
   else if (claimedEntries.length > 0) base.requestStatus = 'approved';
+
+  // Identifiants livrés (Netflix, clé…) portés par la dernière entrée honorée.
+  const withCredentials = entries.filter(e => e && e.rewardCredentials);
+  if (withCredentials.length > 0) base.rewardCredentials = withCredentials[withCredentials.length - 1].rewardCredentials;
 
   // Date de réclamation = createdAt de la dernière entrée accordée
   if (claimedEntries.length > 0) {
@@ -79,19 +84,30 @@ function computeExpiresAt(claimedAt, claimDuration) {
  * @param {Date}   [ctx.now]
  */
 function enrichBonusForUser(bonus, ctx) {
-  const { orders = [], userRequestByBonus = {}, fastFoodBonusCounts = {}, totalClaimCounts = {}, now = new Date() } = ctx || {};
+  const { orders = [], userRequestByBonus = {}, userRequests = [], fastFoodBonusCounts = {}, totalClaimCounts = {}, now = new Date() } = ctx || {};
 
   const fastFoodId = bonus.fastFoodId ?? null;
 
   const request = userRequestByBonus[bonus.id];
   const requestState = deriveRequestState(request);
 
-  // Solde affiché = brut (commandes) − paliers déjà consommés sur la fenêtre.
+  // Solde affiché = brut (commandes) − paliers consommés sur la fenêtre.
+  // Pot commun : on déduit les réclamations de TOUS les bonus du user.
   const rawStats = computeBonusStats(orders, { fastFoodId, now });
-  const bonusStats = applyConsumption(rawStats, bonus, request, now);
+  const bonusStats = applyConsumption(rawStats, bonus, userRequests, orders, now);
 
   const expiresAt = computeExpiresAt(requestState.claimedAt, bonus.claimDuration);
   const expired = expiresAt ? new Date(expiresAt) < now : false;
+
+  // Cycle terminé (code épuisé ou périmé) : la réclamation n'est plus active.
+  // On repasse en `none` pour que le front propose de réclamer à nouveau dès que
+  // le palier est de nouveau atteint. L'historique (`userClaimedCount`) est
+  // conservé, et le code périmé n'est plus exposé.
+  const cycleClosed = requestState.requestStatus === 'approved' && (requestState.redeemed || expired);
+
+  const requestStatus = cycleClosed ? 'none' : requestState.requestStatus;
+  const code = cycleClosed ? null : requestState.code;
+  const claimedAt = cycleClosed ? null : requestState.claimedAt;
 
   return {
     // ── Définition (base) ──
@@ -116,16 +132,21 @@ function enrichBonusForUser(bonus, ctx) {
     userClaimedCount: requestState.userClaimedCount,
 
     // ── État de la demande de CE user ──
-    requestStatus: requestState.requestStatus,
-    claimedAt: requestState.claimedAt,
-    usageCount: requestState.usageCount,
-    redeemed: requestState.redeemed,
+    // Un cycle terminé (épuisé/expiré) est remis à zéro : le user peut
+    // re-réclamer dès que le palier est de nouveau atteint.
+    requestStatus,
+    claimedAt,
+    usageCount: cycleClosed ? 0 : requestState.usageCount,
+    redeemed: cycleClosed ? false : requestState.redeemed,
 
     // ── Code de réclamation & validité ──
-    code: requestState.code,
-    expiresAt,
-    expired,
-    remainingUses: bonus.usageLimit != null ? Math.max(0, Number(bonus.usageLimit) - requestState.usageCount) : null,
+    code,
+    // Identifiants livrés pour les bonus `requiresRewardCredentials` (null tant que
+    // la réclamation est `pending`, ou une fois le cycle terminé).
+    rewardCredentials: cycleClosed ? null : requestState.rewardCredentials,
+    expiresAt: cycleClosed ? null : expiresAt,
+    expired: cycleClosed ? false : expired,
+    remainingUses: bonus.usageLimit != null ? (cycleClosed ? Number(bonus.usageLimit) : Math.max(0, Number(bonus.usageLimit) - requestState.usageCount)) : null,
   };
 }
 

@@ -2,7 +2,7 @@ const { postBonusService } = require('../../services/bonus/postBonus.service');
 
 exports.postBonusController = async (req, res) => {
   try {
-    const result = await postBonusService(req.body);
+    const result = await postBonusService(req.body, req.user?.uid);
     const { status = result.success ? 201 : 400, ...body } = result;
     return res.status(status).json(body);
   } catch (error) {

@@ -39,7 +39,7 @@ exports.getBonusService = async userId => {
     }
 
     const now = new Date();
-    return bonuses.map(bonus => enrichBonusForUser(bonus, { orders, userRequestByBonus, fastFoodBonusCounts, totalClaimCounts, now }));
+    return bonuses.map(bonus => enrichBonusForUser(bonus, { orders, userRequestByBonus, userRequests, fastFoodBonusCounts, totalClaimCounts, now }));
   } catch (error) {
     console.error('Erreur dans getBonusService:', error);
     throw new Error(error.message || 'Erreur lors de la récupération des bonus');

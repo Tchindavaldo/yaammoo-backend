@@ -31,7 +31,7 @@ const toDate = v => {
 // ---------------------------------------------------------------------------
 const userToSupabase = data => {
   const { infos = {}, pushTokens, createdAt, updatedAt, ...rest } = data;
-  const known = ['id', 'uid', 'fastFoodId', 'isMarchand', 'statistique', 'cmd', 'driverRatingAvg', 'driverRatingCount'];
+  const known = ['id', 'uid', 'fastFoodId', 'isMarchand', 'isAdmin', 'statistique', 'cmd', 'driverRatingAvg', 'driverRatingCount'];
   const extra = {};
   for (const k of Object.keys(rest)) {
     if (!known.includes(k)) extra[k] = rest[k];
@@ -47,6 +47,8 @@ const userToSupabase = data => {
     password: infos.password ?? null,
     fastfood_id: data.fastFoodId ?? null,
     is_marchand: !!data.isMarchand,
+    // Rôle admin : jamais dérivé, contrairement à isMarchand (calculé depuis fastFoodId).
+    ...(data.isAdmin !== undefined ? { is_admin: !!data.isAdmin } : {}),
     statistique: data.statistique ?? 0,
     cmd: data.cmd ?? [],
     extra_data: extra,
@@ -70,6 +72,7 @@ const userFromSupabase = (row, pushTokens = []) => {
     },
     fastFoodId: row.fastfood_id,
     isMarchand: !!row.fastfood_id,
+    isAdmin: !!row.is_admin,
     driverRatingAvg: row.driver_rating_avg != null ? Number(row.driver_rating_avg) : 0,
     driverRatingCount: row.driver_rating_count ?? 0,
     statistique: row.statistique,
@@ -361,26 +364,59 @@ const withdrawalFromSupabase = row => {
 // ---------------------------------------------------------------------------
 // BONUS
 // ---------------------------------------------------------------------------
+// Colonnes réelles depuis la migration 014 (avant : tout en `data` JSONB).
+// `criteria` reste JSONB : sous-objet {kind, target, period} lu d'un bloc.
 const bonusToSupabase = data => {
-  const { id, createdAt, ...rest } = data;
+  const { id, createdAt, type, name, description, criteria, fastFoodId, fastFoodName, active, requiresRewardCredentials, requiresProfile, claimDuration, usageLimit, createdBy, ...rest } = data;
+
   return {
     id,
-    data: rest,
+    type: type ?? null,
+    name: name ?? null,
+    description: description ?? null,
+    criteria: criteria ?? {},
+    fastfood_id: fastFoodId ?? null,
+    fastfood_name: fastFoodName ?? null,
+    active: active ?? true,
+    requires_reward_credentials: requiresRewardCredentials ?? false,
+    requires_profile: requiresProfile ?? false,
+    claim_duration: claimDuration ?? null,
+    usage_limit: usageLimit ?? null,
+    created_by: createdBy ?? null,
+    extra_data: rest,
     created_at: toIso(createdAt),
   };
 };
 
 const bonusFromSupabase = row => {
   if (!row) return null;
-  return { id: row.id, ...(row.data || {}), createdAt: row.created_at };
+  return {
+    id: row.id,
+    type: row.type,
+    name: row.name,
+    description: row.description,
+    criteria: row.criteria || {},
+    fastFoodId: row.fastfood_id,
+    fastFoodName: row.fastfood_name,
+    active: row.active ?? true,
+    requiresRewardCredentials: row.requires_reward_credentials ?? false,
+    requiresProfile: row.requires_profile ?? false,
+    claimDuration: row.claim_duration,
+    usageLimit: row.usage_limit,
+    createdBy: row.created_by,
+    createdAt: row.created_at,
+    ...(row.extra_data || {}),
+  };
 };
 
 // ---------------------------------------------------------------------------
 // BONUS REQUESTS
 // ---------------------------------------------------------------------------
+// code / usageCount / redeemed sont des colonnes réelles depuis la migration 014
+// (avant : dans extra_data, d'où un findByCode non indexé qui scannait la table).
 const bonusRequestToSupabase = data => {
   const { createdAt, updatedAt, ...rest } = data;
-  const known = ['id', 'userId', 'bonusId', 'bonusType', 'status'];
+  const known = ['id', 'userId', 'bonusId', 'bonusType', 'status', 'code', 'usageCount', 'redeemed'];
   const extra_data = {};
   for (const k of Object.keys(rest)) {
     if (!known.includes(k)) extra_data[k] = rest[k];
@@ -391,6 +427,9 @@ const bonusRequestToSupabase = data => {
     bonus_id: data.bonusId,
     bonus_type: data.bonusType ?? null,
     status: data.status ?? [],
+    code: data.code ?? null,
+    usage_count: data.usageCount ?? 0,
+    redeemed: data.redeemed ?? false,
     extra_data,
     created_at: toIso(createdAt),
     updated_at: toIso(updatedAt) || toIso(createdAt),
@@ -405,6 +444,9 @@ const bonusRequestFromSupabase = row => {
     bonusId: row.bonus_id,
     bonusType: row.bonus_type,
     status: row.status || [],
+    code: row.code ?? null,
+    usageCount: row.usage_count ?? 0,
+    redeemed: row.redeemed ?? false,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     ...(row.extra_data || {}),

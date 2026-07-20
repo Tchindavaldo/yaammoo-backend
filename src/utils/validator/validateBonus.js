@@ -21,18 +21,7 @@ function validateCriteria(criteria, errors) {
     return; // sans kind valide, inutile de valider target/period
   }
 
-  // `welcome` = offert d'office : ni palier ni fenêtre.
-  if (kind === 'welcome') {
-    if (target !== undefined) {
-      errors.push({ field: 'criteria.target', message: '"criteria.target" ne doit pas être défini pour kind=welcome' });
-    }
-    if (period !== undefined) {
-      errors.push({ field: 'criteria.period', message: '"criteria.period" ne doit pas être défini pour kind=welcome' });
-    }
-    return;
-  }
-
-  // order_count / amount_spent : palier + fenêtre obligatoires.
+  // Palier + fenêtre toujours obligatoires.
   if (typeof target !== 'number' || Number.isNaN(target)) {
     errors.push({ field: 'criteria.target', message: `"criteria.target" est requis (nombre) pour kind=${kind}` });
   } else if (target <= 0) {
@@ -54,11 +43,16 @@ function validateCriteria(criteria, errors) {
  * @param {Object} data corps de la requête
  * @returns {Array} liste d'erreurs ({field, message}) — vide si valide
  */
-exports.validateBonus = data => {
+exports.validateBonus = (data, { partial = false } = {}) => {
   const errors = [];
 
   if (typeof data !== 'object' || data === null || Array.isArray(data)) {
     return [{ field: 'body', message: 'Le corps de la requête doit être un objet' }];
+  }
+
+  // Mode partiel (PATCH) : au moins un champ à modifier.
+  if (partial && Object.keys(data).length === 0) {
+    return [{ field: 'body', message: 'Aucun champ à modifier' }];
   }
 
   // Champs envoyés : autorisés ? bon type ?
@@ -97,25 +91,22 @@ exports.validateBonus = data => {
     }
   }
 
-  // Champs obligatoires présents ?
+  // Champs obligatoires présents ? (ignoré en PATCH : mise à jour partielle)
   for (const field in bonusFields) {
-    if (bonusFields[field].required && !(field in data)) {
+    if (!partial && bonusFields[field].required && !(field in data)) {
       errors.push({ field, message: `Champ obligatoire manquant : ${field}` });
     }
   }
 
   if ('criteria' in data) validateCriteria(data.criteria, errors);
 
-  // Cohérence fastFoodId / fastFoodName : un bonus rattaché à un fastfood doit
-  // pouvoir afficher son nom côté front (absent/null = bonus plateforme yaammoo).
-  const hasFastFoodId = typeof data.fastFoodId === 'string' && data.fastFoodId.trim() !== '';
-  const hasFastFoodName = typeof data.fastFoodName === 'string' && data.fastFoodName.trim() !== '';
-
-  if (hasFastFoodId && !hasFastFoodName) {
-    errors.push({ field: 'fastFoodName', message: '"fastFoodName" est requis lorsque "fastFoodId" est présent' });
-  }
-  if (hasFastFoodName && !hasFastFoodId) {
-    errors.push({ field: 'fastFoodId', message: '"fastFoodName" ne doit pas être défini sans "fastFoodId"' });
+  // `fastFoodName` est TOUJOURS résolu côté backend depuis la boutique (le nom
+  // envoyé par un client pourrait ne pas correspondre au fastFoodId).
+  if ('fastFoodName' in data) {
+    errors.push({
+      field: 'fastFoodName',
+      message: '"fastFoodName" est déterminé par le serveur et ne doit pas être envoyé',
+    });
   }
 
   return errors;

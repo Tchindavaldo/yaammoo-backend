@@ -67,7 +67,7 @@ exports.redeemBonusService = async (userId, rawCode, meta = {}) => {
     const fields = { usageCount, redeemed };
     if (meta.orderId) fields.lastOrderId = meta.orderId;
 
-    const saved = await repos.bonusRequests.updateExtraData(request.id, fields);
+    const saved = await repos.bonusRequests.updateUsage(request.id, fields);
     const finalState = deriveRequestState(saved);
 
     return {

@@ -145,6 +145,22 @@ Détails feature : [ratings.md](./ratings.md).
 | `wallet.credited` | `userId` marchand | `creditMerchant.service.js` | `{ transactionId, type:'merchant_credit', direction:'payin', amount, grossAmount, mwCommission, yaammooFee, name, fastFoodId, relatedOrderId, createdAt }` |
 | `wallet.withdrawal` | `userId` marchand | `withdraw.service.js`, `webhookPayout.service.js` | `{ withdrawalId, type:'withdrawal', direction:'payout', amount, status, network, newBalance?, reason? }` |
 
+### Bonus (fidélité)
+
+| Event | Destination | Émetteur | Payload |
+|---|---|---|---|
+| `bonus.stats_updated` | `userId` client | `services/bonus/emitBonusStats.js` | `{ data: { bonusStats: { <bonusId>: {day,week,month} } } }` |
+| `bonus.claimed` | `userId` client | `services/bonus/claimBonus.service.js` | `{ data: { bonusId, requestId, requestStatus, code, claimedAt, expiresAt } }` |
+| `bonus.reward_credentials` | `userId` client | `services/bonus/rewardCredentialsBonus.service.js` | `{ data: { bonusId, requestId, requestStatus, code, rewardCredentials, claimedAt, expiresAt } }` |
+
+- `bonus.stats_updated` fait **seule autorité sur les soldes** : `bonus.claimed` n'en
+  porte pas, pour éviter deux sources contradictoires.
+- `bonus.reward_credentials` livre les accès des bonus `requiresRewardCredentials`
+  (Netflix, clé…). `rewardCredentials` est un objet **libre** ; si le bonus est
+  `requiresProfile`, il contient en plus `profile: { name, code }` (le profil
+  nominatif et son code d'accès). Réémis à l'identique si un admin **corrige** des
+  identifiants déjà livrés. Cf. [bonus.md](./bonus.md).
+
 ### Notifications
 
 | Event | Destination | Émetteur | Payload |

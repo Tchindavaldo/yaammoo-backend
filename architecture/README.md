@@ -24,7 +24,7 @@ Documentation d'architecture du backend Node.js / Express / Supabase / Socket.io
 | [payment.md](./payment.md) | Paiements — MobileWallet, `/transaction` → `/pay`, verdict double canal (webhook HTTP + socket), idempotence | ✅ |
 | [transactions.md](./transactions.md) | Transactions — historique paiements, portefeuille marchand, remboursements | ✅ |
 | [wallet.md](./wallet.md) | Portefeuille marchand — crédit au paiement, solde dérivé, commissions, retraits `/wallet` | ✅ |
-| [bonus.md](./bonus.md) | Bonus — fidélité par paliers, `bonusStats` recalculé au GET, `/bonus/all` protégé | ✅ |
+| [bonus.md](./bonus.md) | Bonus — fidélité par paliers, `bonusStats` recalculé au GET, `/bonus/all` protégé, livraison manuelle des accès (identifiants + profil) | ✅ |
 | [notifications.md](./notifications.md) | Notifications — FCM/Expo dispatcher, routes `/notification` | ✅ |
 | [socket-events.md](./socket-events.md) | Événements Socket.io — émetteurs, destinataires, rooms | ✅ |
 | [auth.md](./auth.md) | Authentification — middleware Bearer, routes `/auth`, Firebase tokens | ✅ |
