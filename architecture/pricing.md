@@ -60,11 +60,23 @@ d'app.
 `extra` et `drink` ne sont **pas** majorés : le supplément est porté une seule
 fois, par le plat.
 
-> ⚠️ **Point ouvert — quantité.** Le supplément est intégré au prix *unitaire*.
-> Une commande de 2 plats facture donc 2 × (livraison + marge), alors que la
-> livraison est unique. `order_deliveries.charged_price` n'enregistre qu'**une**
-> livraison. À trancher : soit le supplément passe au niveau du total, soit on
-> l'assume comme un tarif par article.
+### Quantité — asymétrie voulue
+
+Le supplément est porté par le prix **unitaire**, donc facturé sur **chaque
+plat**. Le fastfood, lui, ne touche qu'**une seule course** : celle de la zone
+choisie, quelle que soit la quantité. Tout l'écart revient à la plateforme —
+c'est le levier de marge.
+
+Plat 2000, zones 500/800/1000, marge 100, **quantité 2** :
+
+| | Montant |
+|---|---|
+| Facturé au user | 2 × 1100 = **2200** de supplément |
+| Versé au fastfood | **500** (une seule course) |
+| Marge plateforme | **1700** |
+
+`order_deliveries` enregistre exactement cette asymétrie : `charged_price`
+multiplié par la quantité, `real_price` compté une fois.
 
 ---
 

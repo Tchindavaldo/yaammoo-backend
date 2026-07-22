@@ -134,17 +134,32 @@ function computePaymentFee(amount, feePercent) {
 /**
  * Répartition d'une commande livrée, pour `order_deliveries`.
  *
+ * ⚠️ **Asymétrie voulue, pas un bug** : le supplément est porté par le prix
+ * unitaire, donc facturé sur CHAQUE plat (`× quantity`) ; le fastfood, lui, ne
+ * touche qu'UNE seule course (la zone choisie, quelle que soit la quantité).
+ * Tout l'écart revient à la plateforme — c'est le levier de marge.
+ *
+ * Exemple : plat 2000, zones 500/800/1000, marge 100, quantité 2
+ *   facturé au user  = 2 × 1100 = 2200
+ *   versé au fastfood =       500 (une seule course)
+ *   marge plateforme  =      1700
+ *
  * `platformMargin` est plafonné à 0 par le bas : une gratuité fait renoncer à un
  * gain, elle ne crée jamais une dépense (contrainte SQL identique côté base).
  */
-function splitDeliveryAmounts({ fastfood, zone, platformMargin, freeReason = null }) {
-  const chargedPrice = fastfood?.pickupOnly ? 0 : maxDeliveryPrice(fastfood);
+function splitDeliveryAmounts({ fastfood, zone, platformMargin, quantity = 1, freeReason = null }) {
+  const qty = Math.max(1, toNumber(quantity) || 1);
+
+  // Facturé au user : le supplément unitaire, autant de fois qu'il y a de plats.
+  const chargedPrice = fastfood?.pickupOnly ? 0 : maxDeliveryPrice(fastfood) * qty;
+  // Versé au fastfood : la course réelle, UNE seule fois.
   const realPrice = fastfood?.pickupOnly ? 0 : zoneDeliveryPrice(fastfood, zone);
+
   return {
     zone: zone ?? null,
     realPrice,
     chargedPrice,
-    platformMargin: Math.max(0, chargedPrice - realPrice + toNumber(platformMargin)),
+    platformMargin: Math.max(0, chargedPrice - realPrice + toNumber(platformMargin) * qty),
     freeReason,
   };
 }

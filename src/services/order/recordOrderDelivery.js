@@ -32,6 +32,8 @@ exports.recordOrderDelivery = async ({ order, offer, platformMargin }) => {
       fastfood,
       zone: order.delivery?.zone,
       platformMargin,
+      // Le supplément est facturé par plat, la course n'est versée qu'une fois.
+      quantity: order.quantity,
       freeReason: offer?.reason ?? null,
     });
 
