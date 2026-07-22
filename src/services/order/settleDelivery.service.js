@@ -93,6 +93,8 @@ exports.settleDeliveryService = async ({ orders, bonusCode }) => {
       const amounts = splitDeliveryAmounts({
         fastfood,
         zone: order.delivery?.zone,
+        // Un même lieu n'a pas le même prix en express et en périodique.
+        deliveryType: order.delivery?.type,
         platformMargin: pricing.platformMargin,
         quantity: order.quantity,
         courseBilled,

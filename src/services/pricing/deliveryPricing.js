@@ -34,61 +34,81 @@ function toNumber(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
-/** Arrondi à l'entier SUPÉRIEUR : on n'encaisse pas de centimes de FCFA, et
- *  arrondir à l'inférieur ferait payer la différence à la plateforme. */
+/**
+ * Prix affiché = montant dont les frais représentent EXACTEMENT `feePercent`.
+ *
+ * On divise, on ne multiplie pas : à 5 %, `base × 1.05` donne des frais de
+ * 4,76 % du prix final — le prestataire prélève sur ce qu'il ENCAISSE, la
+ * différence serait perdue par la plateforme.
+ * Arrondi au supérieur : on n'encaisse pas de centimes de FCFA.
+ */
 function withFee(amount, feePercent) {
   const base = toNumber(amount);
   const percent = toNumber(feePercent);
-  if (base <= 0 || percent <= 0) return Math.max(0, Math.ceil(base));
-  return Math.ceil(base * (1 + percent / 100));
+  if (base <= 0) return 0;
+  if (percent <= 0 || percent >= 100) return Math.ceil(base);
+  return Math.ceil(base / (1 - percent / 100));
 }
 
-/**
- * Frais CONTENUS dans un montant déjà affiché (donc TTC).
- *
- * ⚠️ Ce n'est PAS `montant × 5%` : les 5 % ont été ajoutés en amont, ils sont
- * déjà dedans. On les extrait en divisant. Confondre les deux surévaluerait les
- * frais et fausserait tout le reste du partage (9765 → 488 au lieu de 465).
- */
+/** Frais CONTENUS dans un montant déjà affiché : exactement `feePercent` de lui. */
 function feeIncludedIn(ttcAmount, feePercent) {
   const ttc = toNumber(ttcAmount);
   const percent = toNumber(feePercent);
   if (ttc <= 0 || percent <= 0) return 0;
-  return Math.max(0, ttc - Math.round(ttc / (1 + percent / 100)));
+  return Math.min(ttc, Math.round((ttc * percent) / 100));
 }
 
-/** Toutes les zones d'une boutique, périodiques et express confondues. */
-function collectZones(fastfood) {
+// Type de livraison (orders.delivery.type) → liste de zones correspondante.
+// Un même lieu existe dans les DEUX listes à des prix différents : l'express
+// coûte plus cher. Confondre les deux crédite le fastfood du mauvais montant.
+const ZONES_BY_DELIVERY_TYPE = { express: 'expressZones', time: 'periodicZones' };
+
+/**
+ * Zones d'une boutique.
+ * @param {string} [deliveryType] `express` | `time` — omis, les deux listes.
+ */
+function collectZones(fastfood, deliveryType) {
   const hours = Array.isArray(fastfood?.deliveryHours) ? fastfood.deliveryHours : [];
+  const field = ZONES_BY_DELIVERY_TYPE[deliveryType];
   const zones = [];
   for (const h of hours) {
     // Le format legacy est un simple "HH:mm" : aucune zone à en tirer.
     if (!h || typeof h !== 'object') continue;
-    for (const list of [h.periodicZones, h.expressZones]) {
+    const lists = field ? [h[field]] : [h.periodicZones, h.expressZones];
+    for (const list of lists) {
       if (Array.isArray(list)) zones.push(...list);
     }
   }
   return zones.filter(Boolean);
 }
 
-/** Livraison la plus chère de la boutique. 0 si aucune zone déclarée. */
-function maxDeliveryPrice(fastfood) {
+/**
+ * Livraison la plus chère. Sans type précisé, le maximum est pris sur les DEUX
+ * listes : au moment du home le user n'a pas encore choisi son mode de
+ * livraison, le prix annoncé doit donc couvrir le cas le plus cher.
+ */
+function maxDeliveryPrice(fastfood, deliveryType) {
   if (fastfood?.pickupOnly) return 0;
-  const zones = collectZones(fastfood);
+  const zones = collectZones(fastfood, deliveryType);
   if (zones.length === 0) return 0;
   return zones.reduce((max, z) => Math.max(max, toNumber(z.prix)), 0);
 }
 
 /**
  * Prix réel de la zone choisie — ce que touche le fastfood.
- * Zone inconnue : on retombe sur la plus chère, jamais sur 0, pour ne pas
- * créditer la plateforme d'une marge qu'elle n'a pas gagnée.
+ *
+ * ⚠️ La recherche est filtrée par le TYPE de livraison : « Bonanjo » peut valoir
+ * 500 en périodique et 900 en express. Sans ce filtre, une course express était
+ * créditée au tarif périodique, et l'écart tombait dans la marge plateforme.
+ *
+ * Zone introuvable : on retombe sur la plus chère du même type, jamais sur 0,
+ * pour ne pas créditer la plateforme d'une marge qu'elle n'a pas gagnée.
  */
-function zoneDeliveryPrice(fastfood, zoneName) {
+function zoneDeliveryPrice(fastfood, zoneName, deliveryType) {
   if (fastfood?.pickupOnly) return 0;
-  if (!zoneName) return maxDeliveryPrice(fastfood);
-  const zone = collectZones(fastfood).find(z => z.lieu === zoneName);
-  return zone ? toNumber(zone.prix) : maxDeliveryPrice(fastfood);
+  if (!zoneName) return maxDeliveryPrice(fastfood, deliveryType);
+  const zone = collectZones(fastfood, deliveryType).find(z => z.lieu === zoneName);
+  return zone ? toNumber(zone.prix) : maxDeliveryPrice(fastfood, deliveryType);
 }
 
 /** Supplément intégré au prix d'un plat, avant frais : livraison + marge. */
@@ -165,13 +185,15 @@ function applyDisplayPricing(fastfood, pricing, raw = false) {
  * `platformMargin` est plafonné à 0 par le bas : une gratuité fait renoncer à un
  * gain, elle ne crée jamais une dépense (contrainte SQL identique côté base).
  */
-function splitDeliveryAmounts({ fastfood, zone, platformMargin, quantity = 1, courseBilled = true, freeReason = null }) {
+function splitDeliveryAmounts({ fastfood, zone, deliveryType, platformMargin, quantity = 1, courseBilled = true, freeReason = null }) {
   const qty = Math.max(1, toNumber(quantity) || 1);
 
   // Facturé au user : le supplément unitaire, autant de fois qu'il y a de plats.
+  // Sans filtre de type — c'est bien le maximum tous types confondus qui a été
+  // intégré au prix affiché, avant que le user ne choisisse son mode.
   const chargedPrice = maxDeliveryPrice(fastfood) * qty;
-  // Prix réel de la zone — toujours renseigné, dû seulement si `courseBilled`.
-  const realPrice = zoneDeliveryPrice(fastfood, zone);
+  // Prix réel de la zone, au tarif du TYPE réellement choisi.
+  const realPrice = zoneDeliveryPrice(fastfood, zone, deliveryType);
   const due = courseBilled ? realPrice : 0;
 
   return {
