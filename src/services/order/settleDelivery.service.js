@@ -26,13 +26,7 @@ const { generateId } = require('../../repositories/idGen');
 const { getPricingSettings } = require('../settings/settings.service');
 const { resolveOffer } = require('../pricing/deliveryOfferResolver');
 const { resolveDeliveryBonus, consumeDeliveryBonus } = require('../bonus/applyDeliveryBonus.service');
-const { splitDeliveryAmounts, toNumber, feePart } = require('../pricing/deliveryPricing');
-
-/** Montant hors livraison réellement payé, et part de frais qu'il contient. */
-function itemsAmounts(order, feePercent) {
-  const charged = toNumber(order.total);
-  return { itemsCharged: charged, paymentFee: feePart(charged, feePercent) };
-}
+const { splitDeliveryAmounts, toNumber, feeIncludedIn } = require('../pricing/deliveryPricing');
 
 /**
  * @param {Array}  orders     commandes venant de passer en `pending`
@@ -105,7 +99,14 @@ exports.settleDeliveryService = async ({ orders, bonusCode }) => {
         freeReason: orderOffer?.reason ?? null,
       });
 
-      const { itemsCharged, paymentFee } = itemsAmounts(order, pricing.paymentFeePercent);
+      // `order.total` est déjà TTC : les frais y sont inclus, on les EXTRAIT.
+      const itemsCharged = toNumber(order.total);
+      const paymentFee = feeIncludedIn(itemsCharged, pricing.paymentFeePercent);
+      const qty = Math.max(1, toNumber(order.quantity) || 1);
+
+      // Ce qui revient au fastfood pour les articles : on retire des montants
+      // encaissés tout ce qui ne lui appartient pas — frais, livraison, marge.
+      const itemsReal = Math.max(0, itemsCharged - paymentFee - amounts.chargedPrice - toNumber(pricing.platformMargin) * qty);
 
       try {
         const row = await repos.orderDeliveries.create({
@@ -115,8 +116,7 @@ exports.settleDeliveryService = async ({ orders, bonusCode }) => {
           deliveryGroupId: groupIdByFastFood[ffId],
           ...amounts,
           itemsCharged,
-          // Hors livraison, hors frais : ce qui revient au fastfood pour le plat.
-          itemsReal: Math.max(0, itemsCharged - paymentFee - amounts.chargedPrice),
+          itemsReal,
           paymentFee,
           coveredBy: orderOffer?.coveredBy ?? null,
           bonusId: orderOffer?.bonusId ?? null,

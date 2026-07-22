@@ -43,9 +43,18 @@ function withFee(amount, feePercent) {
   return Math.ceil(base * (1 + percent / 100));
 }
 
-/** Part de frais contenue dans un prix affiché. */
-function feePart(amount, feePercent) {
-  return withFee(amount, feePercent) - Math.ceil(toNumber(amount));
+/**
+ * Frais CONTENUS dans un montant déjà affiché (donc TTC).
+ *
+ * ⚠️ Ce n'est PAS `montant × 5%` : les 5 % ont été ajoutés en amont, ils sont
+ * déjà dedans. On les extrait en divisant. Confondre les deux surévaluerait les
+ * frais et fausserait tout le reste du partage (9765 → 488 au lieu de 465).
+ */
+function feeIncludedIn(ttcAmount, feePercent) {
+  const ttc = toNumber(ttcAmount);
+  const percent = toNumber(feePercent);
+  if (ttc <= 0 || percent <= 0) return 0;
+  return Math.max(0, ttc - Math.round(ttc / (1 + percent / 100)));
 }
 
 /** Toutes les zones d'une boutique, périodiques et express confondues. */
@@ -179,7 +188,7 @@ module.exports = {
   MENU_PRICES_FIELD,
   toNumber,
   withFee,
-  feePart,
+  feeIncludedIn,
   collectZones,
   maxDeliveryPrice,
   zoneDeliveryPrice,
