@@ -33,6 +33,7 @@ const sb = {
   ratings: require('./supabase/ratings.repo'),
   settings: require('./supabase/settings.repo'),
   orderDeliveries: require('./supabase/orderDeliveries.repo'),
+  orderSettlements: require('./supabase/orderSettlements.repo'),
 };
 
 // ===========================================================================
@@ -72,5 +73,6 @@ module.exports = {
   ratings: sb.ratings,
   settings: sb.settings,
   orderDeliveries: sb.orderDeliveries,
+  orderSettlements: sb.orderSettlements,
   supabase: sb,
 };

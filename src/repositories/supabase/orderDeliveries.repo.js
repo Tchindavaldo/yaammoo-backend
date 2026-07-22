@@ -1,7 +1,12 @@
 // ============================================================================
 // Order Deliveries Repository — Supabase
 // ============================================================================
-// Vérité comptable de la livraison d'une commande (migration 020).
+// La COURSE d'une commande livrée (migrations 020/021/023).
+//
+// Une ligne UNIQUEMENT si la commande est livrée : une commande à emporter n'a
+// pas de course. L'argent, lui, est dans `orderSettlements.repo` — une ligne par
+// commande, toujours.
+//
 // Complète `orders.delivery` (JSONB), ne le remplace pas.
 // ============================================================================
 const { supabase } = require('../../config/supabase');
@@ -23,11 +28,6 @@ const toSupabase = d => ({
   // Panier : plusieurs commandes, une seule course réellement due.
   delivery_group_id: d.deliveryGroupId ?? null,
   course_billed: d.courseBilled !== false,
-  // false = à emporter : rien n'est dû au fastfood, tout part en marge.
-  delivered: d.delivered !== false,
-  items_real: d.itemsReal ?? 0,
-  items_charged: d.itemsCharged ?? 0,
-  payment_fee: d.paymentFee ?? 0,
 });
 
 const fromSupabase = row =>
@@ -45,10 +45,6 @@ const fromSupabase = row =>
     bonusCode: row.bonus_code,
     deliveryGroupId: row.delivery_group_id ?? null,
     courseBilled: row.course_billed !== false,
-    delivered: row.delivered !== false,
-    itemsReal: Number(row.items_real ?? 0),
-    itemsCharged: Number(row.items_charged ?? 0),
-    paymentFee: Number(row.payment_fee ?? 0),
     createdAt: row.created_at,
   };
 

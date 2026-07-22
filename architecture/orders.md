@@ -104,8 +104,9 @@ ensemble : un seul client, une seule livraison.
 
 ### Règlement livraison — au passage en `pending`
 
-`settleDeliveryService()` écrit la répartition réelle des montants dans
-`order_deliveries` et consomme le bonus. Il est déclenché **quand la commande
+`settleDeliveryService()` écrit la répartition réelle des montants —
+`order_settlements` (une ligne par commande, toujours) et `order_deliveries`
+(uniquement si livrée) — et consomme le bonus. Il est déclenché **quand la commande
 devient payée**, jamais à la mise au panier :
 
 - **Panier** → `updateOrders`, transition `pendingToBuy → pending`. Le lot arrive

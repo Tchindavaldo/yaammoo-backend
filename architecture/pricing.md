@@ -156,22 +156,34 @@ Forme de `deliveryOffer` : voir [bonus.md](./bonus.md#deliveryoffer--objet-uniqu
 
 ---
 
-## Vérité comptable (`order_deliveries`)
+## Vérité comptable (`order_settlements` + `order_deliveries`)
 
-Table 1-1 avec `orders` (migrations 020 et 021), écrite par
-`services/order/settleDelivery.service.js`.
+**Deux tables, écrites par `services/order/settleDelivery.service.js`.** La
+séparation est volontaire : *toute* commande a un règlement, mais seules les
+commandes **livrées** ont une course. Créer une ligne dans une table
+« deliveries » pour une commande à emporter serait incohérent, et pénible à
+exploiter en statistiques.
+
+### `order_settlements` — l'ARGENT (une ligne par commande, **toujours**)
 
 | Colonne | Sens | Audience |
 |---|---|---|
-| `real_price` | prix de la zone choisie | ce que touche le **fastfood** |
-| `charged_price` | livraison facturée (la plus chère × quantité) | ce qu'a payé le **user** |
-| `platform_margin` | écart + marge plateforme | bénéfice **Yaammoo** |
-| `items_real` | plat + extras + boissons, hors livraison et frais | le **fastfood** |
-| `items_charged` | total réellement payé hors livraison | le **user** |
-| `payment_fee` | les 5 % contenus dans les prix affichés | le **prestataire** |
-| `delivery_group_id` | relie les commandes d'un même panier + boutique | — |
-| `course_billed` | `true` sur une seule ligne du groupe | comptabilité |
+| `items_real` | plat + extras + boissons, hors livraison, frais et marge | le **fastfood** |
+| `items_charged` | ce que le user a payé (TTC) | le **user** |
+| `payment_fee` | les 5 % **contenus** dans `items_charged` | le **prestataire** |
+| `platform_margin` | marge plat + écart livraison | **Yaammoo** |
 | `delivered` | `false` = à emporter → **marge pure** | comptabilité |
+| `group_id` | panier du client, recopié d'`orders` | agrégation sans jointure |
+
+### `order_deliveries` — la COURSE (uniquement si **livrée**)
+
+| Colonne | Sens | Audience |
+|---|---|---|
+| `real_price` | prix de la zone choisie, au tarif du type | le **fastfood** |
+| `charged_price` | livraison facturée (la plus chère × quantité) | le **user** |
+| `platform_margin` | écart + marge, pour cette course | **Yaammoo** |
+| `delivery_group_id` | relie les commandes d'un même panier **+ boutique** | — |
+| `course_billed` | `true` sur une seule ligne du groupe | comptabilité |
 | `free_reason` | `bonus` \| `campaign` \| null | motif de gratuité |
 | `covered_by` | `fastfood` \| `platform` | qui renonce au montant |
 | `bonus_id` / `bonus_code` | bonus appliqué | suivi |
@@ -203,18 +215,17 @@ ne baisse jamais.
 
 | | Livré (zone 500) | À emporter |
 |---|---|---|
-| `charged_price` | 1 000 | 1 000 |
-| `real_price` | 500 | **0** |
+| Ligne `order_settlements` | ✅ | ✅ |
+| Ligne `order_deliveries` | ✅ | **aucune** |
 | `delivered` | `true` | **`false`** |
-| `course_billed` | `true` | `false` |
 | `platform_margin` | 600 | **1 100** |
 
-`delivered` est un champ **explicite** : déduire le mode d'un `real_price = 0`
-serait fragile — 0 vaut aussi pour « boutique sans zone déclarée » ou « course
-mutualisée avec une autre commande du panier ».
+`delivered` reste un champ **explicite** sur le règlement, alors qu'on pourrait
+le déduire de l'absence de ligne `order_deliveries` : une statistique sur la
+marge pure ne doit pas dépendre d'un `LEFT JOIN … IS NULL`.
 
-> Ces commandes étaient auparavant **ignorées** par le règlement : ni marge ni
-> frais n'étaient tracés.
+> Ces commandes étaient auparavant **ignorées** : ni marge ni frais n'étaient
+> tracés.
 
 - Bonus **de boutique** → `covered_by = 'fastfood'` : le marchand renonce à sa
   course, la plateforme conserve intégralement ce qu'elle avait ajouté.
@@ -273,7 +284,8 @@ src/
 │   └── order/settleDelivery.service.js              # règlement au passage en `pending`
 └── repositories/supabase/
     ├── settings.repo.js
-    └── orderDeliveries.repo.js
+    ├── orderSettlements.repo.js                     # l'argent (toute commande)
+    └── orderDeliveries.repo.js                      # la course (si livrée)
 ```
 
 ## Migrations
@@ -284,4 +296,4 @@ src/
 | `020_order_deliveries.sql` | table `order_deliveries` + contraintes + index |
 | `021_order_deliveries_group.sql` | `delivery_group_id`, `course_billed`, `items_real`, `items_charged`, `payment_fee` |
 | `022_orders_group_id.sql` | `orders.group_id` — commandes d'un même panier (cf. [orders.md](./orders.md)) |
-| `023_order_deliveries_delivered.sql` | `delivered` — livré ou à emporter (marge pure) |
+| `023_order_settlements.sql` | table `order_settlements` (l'argent) ; sort les montants globaux de `order_deliveries`, qui ne garde que la course |

@@ -16,7 +16,11 @@
 //      Les autres lignes gardent leur `realPrice` (traçabilité) avec
 //      `courseBilled = false`, et `deliveryGroupId` les relie.
 //   2. Le bonus est consommé UNE fois pour le lot, pas une fois par plat.
-//   3. Écriture de la vérité comptable dans `order_deliveries`.
+//   3. DEUX écritures, volontairement séparées :
+//        • `order_settlements` — l'ARGENT. Une ligne par commande, TOUJOURS.
+//        • `order_deliveries`  — la COURSE. Une ligne SEULEMENT si livrée.
+//      Une commande à emporter n'a pas de course : lui créer une ligne dans une
+//      table « deliveries » serait incohérent, et pénible à exploiter en stats.
 //
 // Non bloquant : les commandes existent déjà quand on arrive ici. Un incident
 // comptable ne doit pas casser une commande payée — il est journalisé.
@@ -31,10 +35,11 @@ const { splitDeliveryAmounts, toNumber, feeIncludedIn } = require('../pricing/de
 /**
  * @param {Array}  orders     commandes venant de passer en `pending`
  * @param {string} [bonusCode] code bonus présenté pour le lot
- * @returns {Promise<{offer: Object|null, deliveries: Array}>}
+ * @returns {Promise<{offer: Object|null, settlements: Array, deliveries: Array}>}
+ *   `settlements` : une entrée par commande. `deliveries` : seulement les livrées.
  */
 exports.settleDeliveryService = async ({ orders, bonusCode }) => {
-  const settled = { offer: null, deliveries: [] };
+  const settled = { offer: null, settlements: [], deliveries: [] };
   const list = (Array.isArray(orders) ? orders : [orders]).filter(o => o && o.id);
   if (list.length === 0) return settled;
 
@@ -74,14 +79,14 @@ exports.settleDeliveryService = async ({ orders, bonusCode }) => {
     const billedFastFoods = new Set();
 
     for (const order of list) {
-      // ⚠️ Les commandes à emporter sont enregistrées AUSSI. Elles étaient
-      // ignorées : ni marge ni frais n'étaient tracés, alors que le user a bien
-      // payé le supplément livraison (fondu dans le prix du plat depuis le home).
-      // Sans course à payer, ce montant part intégralement en marge.
+      // ⚠️ Une commande à emporter est réglée AUSSI : le user a bien payé le
+      // supplément livraison (fondu dans le prix du plat depuis le home). Sans
+      // course à verser, ce montant part intégralement en marge.
+      // Seule la ligne `order_deliveries` est omise — il n'y a pas de course.
       const delivered = order.delivery?.status === true;
 
       const ffId = order.fastFoodId;
-      if (!groupIdByFastFood[ffId]) groupIdByFastFood[ffId] = generateId();
+      if (delivered && !groupIdByFastFood[ffId]) groupIdByFastFood[ffId] = generateId();
 
       // Une seule course facturée par boutique — sans objet si pas de livraison.
       const courseBilled = delivered && !billedFastFoods.has(ffId);
@@ -115,25 +120,46 @@ exports.settleDeliveryService = async ({ orders, bonusCode }) => {
       // encaissés tout ce qui ne lui appartient pas — frais, livraison, marge.
       const itemsReal = Math.max(0, itemsCharged - paymentFee - amounts.chargedPrice - toNumber(pricing.platformMargin) * qty);
 
+      // ── 1. Le règlement : une ligne par commande, TOUJOURS ────────────────
+      try {
+        const settlement = await repos.orderSettlements.create({
+          orderId: order.id,
+          userId: order.userId,
+          fastFoodId: ffId,
+          groupId: order.groupId ?? null,
+          itemsReal,
+          itemsCharged,
+          paymentFee,
+          platformMargin: amounts.platformMargin,
+          delivered,
+        });
+        settled.settlements.push(settlement);
+      } catch (err) {
+        console.error(`settleDelivery: règlement non enregistré pour ${order.id} —`, err.message);
+      }
+
+      // ── 2. La course : seulement si la commande est livrée ────────────────
+      if (!delivered) continue;
+
       try {
         const row = await repos.orderDeliveries.create({
           orderId: order.id,
           userId: order.userId,
           fastFoodId: ffId,
-          // Le groupe reste renseigné même sans livraison : il relie les
-          // commandes d'un même panier, indépendamment du mode.
           deliveryGroupId: groupIdByFastFood[ffId],
-          ...amounts,
-          itemsCharged,
-          itemsReal,
-          paymentFee,
+          zone: amounts.zone,
+          realPrice: amounts.realPrice,
+          chargedPrice: amounts.chargedPrice,
+          platformMargin: amounts.platformMargin,
+          courseBilled: amounts.courseBilled,
+          freeReason: amounts.freeReason,
           coveredBy: orderOffer?.coveredBy ?? null,
           bonusId: orderOffer?.bonusId ?? null,
           bonusCode: orderOffer?.bonusCode ?? null,
         });
         settled.deliveries.push(row);
       } catch (err) {
-        console.error(`settleDelivery: écriture comptable échouée pour ${order.id} —`, err.message);
+        console.error(`settleDelivery: course non enregistrée pour ${order.id} —`, err.message);
       }
     }
 

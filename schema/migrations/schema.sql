@@ -663,12 +663,15 @@ INSERT INTO settings (key, value, description) VALUES
 ON CONFLICT (key) DO NOTHING;
 
 -- ============================================================================
--- TABLE: order_deliveries (migration 020)
+-- TABLE: order_deliveries (migrations 020/021/023)
 -- ============================================================================
--- Vérité comptable de la livraison. `orders.delivery` (JSONB) ne portait qu'un
--- seul montant : impossible d'y distinguer ce que touche le fastfood, ce qu'a
--- payé le user, et la marge plateforme. Complète `orders.delivery`, ne le
--- remplace pas.
+-- La COURSE d'une commande livrée. Une ligne UNIQUEMENT si la commande est
+-- livrée — une commande à emporter n'a pas de course. L'argent est dans
+-- `order_settlements`.
+--
+-- `orders.delivery` (JSONB) ne portait qu'un seul montant : impossible d'y
+-- distinguer ce que touche le fastfood de ce qu'a payé le user. Cette table le
+-- complète, elle ne le remplace pas.
 CREATE TABLE IF NOT EXISTS order_deliveries (
   order_id        TEXT PRIMARY KEY REFERENCES orders(id) ON DELETE CASCADE,
   user_id         TEXT NOT NULL,
@@ -686,18 +689,6 @@ CREATE TABLE IF NOT EXISTS order_deliveries (
   -- (traçabilité) ; seule la ligne `course_billed = TRUE` est réellement due.
   delivery_group_id TEXT,
   course_billed     BOOLEAN NOT NULL DEFAULT TRUE,
-  -- Livrée ou à emporter (migration 023). Champ EXPLICITE : déduire le mode
-  -- d'un `real_price = 0` serait fragile (0 vaut aussi pour « pas de zone
-  -- déclarée » ou « course mutualisée »).
-  -- À emporter : `charged_price` reste facturé (le supplément est fondu dans le
-  -- prix du plat depuis le home), mais rien n'est dû au fastfood → marge pure.
-  delivered         BOOLEAN NOT NULL DEFAULT TRUE,
-  -- Montants hors livraison. Les frais de paiement sont INCLUS dans les prix
-  -- affichés : aucune ligne de frais n'est présentée au user, la base est donc
-  -- la seule source de vérité sur ce qu'il a payé.
-  items_real        NUMERIC(12,2) NOT NULL DEFAULT 0,
-  items_charged     NUMERIC(12,2) NOT NULL DEFAULT 0,
-  payment_fee       NUMERIC(12,2) NOT NULL DEFAULT 0,
   created_at      TIMESTAMPTZ DEFAULT NOW(),
   CONSTRAINT order_deliveries_free_reason_chk
     CHECK (free_reason IS NULL OR free_reason IN ('bonus', 'campaign')),
@@ -719,8 +710,46 @@ CREATE INDEX IF NOT EXISTS idx_order_deliveries_group
 CREATE INDEX IF NOT EXISTS idx_order_deliveries_billed
   ON order_deliveries(fastfood_id, created_at) WHERE course_billed = TRUE;
 
-CREATE INDEX IF NOT EXISTS idx_order_deliveries_pickup
-  ON order_deliveries(fastfood_id, created_at) WHERE delivered = FALSE;
+-- ============================================================================
+-- TABLE: order_settlements (migration 023)
+-- ============================================================================
+-- L'ARGENT d'une commande : UNE ligne par commande, TOUJOURS — livrée ou à
+-- emporter. Séparée de `order_deliveries` (la course) : toute commande a un
+-- règlement, seules les commandes livrées ont une course.
+--
+-- ⚠️ Une commande à emporter est TOUT DE MÊME facturée pour la livraison : le
+-- supplément est fondu dans le prix du plat depuis le home, avant que le user
+-- ait choisi son mode. Sans course à verser, ce montant part intégralement en
+-- marge. Modèle économique retenu.
+--
+--   Marge pure  =  order_settlements WHERE delivered = FALSE
+CREATE TABLE IF NOT EXISTS order_settlements (
+  order_id        TEXT PRIMARY KEY REFERENCES orders(id) ON DELETE CASCADE,
+  user_id         TEXT NOT NULL,
+  fastfood_id     TEXT,
+  -- Recopié d'orders.group_id : agréger un panier sans jointure.
+  group_id        TEXT,
+  -- Plat + extras + boissons, hors livraison, hors frais, hors marge.
+  items_real      NUMERIC(12,2) NOT NULL DEFAULT 0,
+  -- Ce que le user a payé (TTC, frais inclus).
+  items_charged   NUMERIC(12,2) NOT NULL DEFAULT 0,
+  -- Frais prestataire, CONTENUS dans items_charged.
+  payment_fee     NUMERIC(12,2) NOT NULL DEFAULT 0,
+  platform_margin NUMERIC(12,2) NOT NULL DEFAULT 0,
+  delivered       BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at      TIMESTAMPTZ DEFAULT NOW(),
+  -- Une gratuité fait renoncer à un gain, elle ne crée pas une dépense.
+  CONSTRAINT order_settlements_margin_chk CHECK (platform_margin >= 0)
+);
+
+CREATE INDEX IF NOT EXISTS idx_order_settlements_fastfood
+  ON order_settlements(fastfood_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_order_settlements_group
+  ON order_settlements(group_id) WHERE group_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_order_settlements_pickup
+  ON order_settlements(fastfood_id, created_at) WHERE delivered = FALSE;
 
 -- ============================================================================
 -- FIN DU SCHEMA
