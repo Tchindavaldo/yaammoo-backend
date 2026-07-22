@@ -49,6 +49,12 @@ plateforme**.
 boissons ne portent que leurs propres frais — sinon chaque supplément ajouterait
 une livraison de plus.
 
+> ⚠️ **`pickupAllowed` n'entre pas dans le calcul.** Ce champ dit que le client
+> *peut venir récupérer sur place*, pas que la boutique refuse de livrer. Une
+> boutique qui ne livre pas ne déclare simplement aucune zone → supplément à 0.
+> (Il s'appelait `pickupOnly`, ce qui laissait croire l'inverse et annulait à
+> tort le supplément de boutiques qui livrent.)
+
 ### Exemple de référence
 
 Plat 2000, zones 500 / 800 / 1000, marge 100, frais 5 %.
@@ -320,3 +326,4 @@ src/
 | `022_orders_group_id.sql` | `orders.group_id` — commandes d'un même panier (cf. [orders.md](./orders.md)) |
 | `023_order_settlements.sql` | table `order_settlements` (l'argent) ; sort les montants globaux de `order_deliveries`, qui ne garde que la course |
 | `024_platform_revenues.sql` | grand livre des revenus — **socle, pas encore alimenté** |
+| `025_fastfoods_pickup_allowed.sql` | `pickup_only` → `pickup_allowed` : le champ disait l'inverse de son usage |

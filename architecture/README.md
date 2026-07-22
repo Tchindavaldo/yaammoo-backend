@@ -99,3 +99,4 @@ BACKEND/
 | Zones de livraison | Un même lieu a **deux tarifs** : `periodicZones` et `expressZones`. Toujours filtrer par `orders.delivery.type` |
 | Frais de paiement | **Inclus** dans les prix affichés. Aucune ligne de frais n'est jamais présentée au user |
 | `platform_revenues` | Table **posée d'avance, pas encore alimentée** — socle pour les revenus hors commandes (flyers, abonnements…) |
+| `pickupAllowed` | « le client peut venir récupérer sur place ». **N'exclut pas la livraison** — ex-`pickupOnly`, dont le nom disait l'inverse |
