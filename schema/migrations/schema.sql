@@ -752,5 +752,45 @@ CREATE INDEX IF NOT EXISTS idx_order_settlements_pickup
   ON order_settlements(fastfood_id, created_at) WHERE delivered = FALSE;
 
 -- ============================================================================
+-- TABLE: platform_revenues (migration 024)
+-- ============================================================================
+-- Grand livre des revenus, toutes sources confondues. ⚠️ Socle posé d'avance :
+-- AUCUN code n'y écrit à ce jour, c'est intentionnel.
+--
+-- La marge ne viendra pas que des commandes (flyers, mise en avant, abonnements).
+-- Ces recettes n'ont pas d'`order_id` et ne peuvent donc pas entrer dans
+-- `order_settlements`, dont la clé primaire EST `order_id`.
+--
+--   order_settlements → le détail d'UNE commande (source de vérité)
+--   platform_revenues → l'agrégat de TOUTES les sources
+CREATE TABLE IF NOT EXISTS platform_revenues (
+  id            TEXT PRIMARY KEY,
+  source_type   TEXT NOT NULL,
+  source_id     TEXT,
+  fastfood_id   TEXT,
+  user_id       TEXT,
+  gross_amount  NUMERIC(12,2) NOT NULL DEFAULT 0,
+  platform_margin NUMERIC(12,2) NOT NULL DEFAULT 0,
+  payment_fee   NUMERIC(12,2) NOT NULL DEFAULT 0,
+  -- Date de l'événement économique, distincte de la date d'écriture : une
+  -- reprise d'historique ne doit pas fausser les agrégats mensuels.
+  occurred_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_at    TIMESTAMPTZ DEFAULT NOW(),
+  metadata      JSONB DEFAULT '{}'::jsonb,
+  CONSTRAINT platform_revenues_source_type_chk
+    CHECK (source_type IN ('order', 'flyer', 'subscription', 'promotion', 'other')),
+  CONSTRAINT platform_revenues_margin_chk CHECK (platform_margin >= 0)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_platform_revenues_source
+  ON platform_revenues(source_type, source_id) WHERE source_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_platform_revenues_occurred
+  ON platform_revenues(occurred_at);
+
+CREATE INDEX IF NOT EXISTS idx_platform_revenues_fastfood
+  ON platform_revenues(fastfood_id, occurred_at) WHERE fastfood_id IS NOT NULL;
+
+-- ============================================================================
 -- FIN DU SCHEMA
 -- ============================================================================

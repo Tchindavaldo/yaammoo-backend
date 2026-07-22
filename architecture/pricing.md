@@ -191,6 +191,27 @@ exploiter en statistiques.
 **`platform_margin` n'est jamais négatif** (contrainte SQL) : une gratuité fait
 renoncer à un gain, elle ne crée pas une dépense.
 
+### `platform_revenues` — socle, pas encore alimenté
+
+⚠️ **Aucun code n'écrit dans cette table à ce jour.** Elle est posée d'avance
+(migration 024) parce que la marge ne viendra pas que des commandes : flyers,
+mise en avant d'une boutique, abonnements. Ces recettes n'ont **pas d'`order_id`**
+et ne peuvent donc pas entrer dans `order_settlements`, dont la clé primaire
+*est* `order_id`.
+
+| Table | Portée |
+|---|---|
+| `order_settlements` | le détail d'**une commande** — source de vérité |
+| `platform_revenues` | l'agrégat de **toutes les sources** (`source_type` + `source_id`) |
+
+Les extras et boissons, eux, sont déjà couverts par `order_settlements` : ils
+font partie de la commande, leur marge est dans `platform_margin`.
+
+Le jour où une seconde source existe, les règlements de commandes s'y déversent
+(`source_type = 'order'`, `source_id = order_id`). Tant qu'il n'y a que les
+commandes, interroger `order_settlements` directement reste plus simple et plus
+sûr.
+
 ### Panier : une seule course par boutique
 
 Une commande = **un plat**. Un panier de 3 plats fait donc 3 commandes, alors que
@@ -297,3 +318,4 @@ src/
 | `021_order_deliveries_group.sql` | `delivery_group_id`, `course_billed`, `items_real`, `items_charged`, `payment_fee` |
 | `022_orders_group_id.sql` | `orders.group_id` — commandes d'un même panier (cf. [orders.md](./orders.md)) |
 | `023_order_settlements.sql` | table `order_settlements` (l'argent) ; sort les montants globaux de `order_deliveries`, qui ne garde que la course |
+| `024_platform_revenues.sql` | grand livre des revenus — **socle, pas encore alimenté** |
