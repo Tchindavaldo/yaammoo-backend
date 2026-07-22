@@ -686,6 +686,12 @@ CREATE TABLE IF NOT EXISTS order_deliveries (
   -- (traçabilité) ; seule la ligne `course_billed = TRUE` est réellement due.
   delivery_group_id TEXT,
   course_billed     BOOLEAN NOT NULL DEFAULT TRUE,
+  -- Livrée ou à emporter (migration 023). Champ EXPLICITE : déduire le mode
+  -- d'un `real_price = 0` serait fragile (0 vaut aussi pour « pas de zone
+  -- déclarée » ou « course mutualisée »).
+  -- À emporter : `charged_price` reste facturé (le supplément est fondu dans le
+  -- prix du plat depuis le home), mais rien n'est dû au fastfood → marge pure.
+  delivered         BOOLEAN NOT NULL DEFAULT TRUE,
   -- Montants hors livraison. Les frais de paiement sont INCLUS dans les prix
   -- affichés : aucune ligne de frais n'est présentée au user, la base est donc
   -- la seule source de vérité sur ce qu'il a payé.
@@ -712,6 +718,9 @@ CREATE INDEX IF NOT EXISTS idx_order_deliveries_group
 
 CREATE INDEX IF NOT EXISTS idx_order_deliveries_billed
   ON order_deliveries(fastfood_id, created_at) WHERE course_billed = TRUE;
+
+CREATE INDEX IF NOT EXISTS idx_order_deliveries_pickup
+  ON order_deliveries(fastfood_id, created_at) WHERE delivered = FALSE;
 
 -- ============================================================================
 -- FIN DU SCHEMA

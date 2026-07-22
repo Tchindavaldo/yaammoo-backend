@@ -184,22 +184,30 @@ function applyDisplayPricing(fastfood, pricing, raw = false) {
  * `platformMargin` est plafonné à 0 par le bas : une gratuité fait renoncer à un
  * gain, elle ne crée jamais une dépense (contrainte SQL identique côté base).
  */
-function splitDeliveryAmounts({ fastfood, zone, deliveryType, platformMargin, quantity = 1, courseBilled = true, freeReason = null }) {
+function splitDeliveryAmounts({ fastfood, zone, deliveryType, platformMargin, quantity = 1, courseBilled = true, delivered = true, freeReason = null }) {
   const qty = Math.max(1, toNumber(quantity) || 1);
 
   // Facturé au user : le supplément unitaire, autant de fois qu'il y a de plats.
   // Sans filtre de type — c'est bien le maximum tous types confondus qui a été
   // intégré au prix affiché, avant que le user ne choisisse son mode.
+  //
+  // ⚠️ Facturé MÊME EN RETRAIT : le supplément est fondu dans le prix du plat
+  // depuis le home, avant que le user ait choisi. S'il vient chercher lui-même,
+  // il n'y a aucune course à payer — le montant part donc intégralement en
+  // marge plateforme. C'est le modèle économique retenu, pas un oubli.
   const chargedPrice = maxDeliveryPrice(fastfood) * qty;
-  // Prix réel de la zone, au tarif du TYPE réellement choisi.
-  const realPrice = zoneDeliveryPrice(fastfood, zone, deliveryType);
-  const due = courseBilled ? realPrice : 0;
+
+  // Pas de livraison = pas de course : rien n'est dû au fastfood.
+  const realPrice = delivered ? zoneDeliveryPrice(fastfood, zone, deliveryType) : 0;
+  const due = delivered && courseBilled ? realPrice : 0;
 
   return {
-    zone: zone ?? null,
+    zone: delivered ? zone ?? null : null,
     realPrice,
     chargedPrice,
-    courseBilled,
+    // Sans livraison, aucune course n'est portée par cette commande.
+    courseBilled: delivered && courseBilled,
+    delivered,
     platformMargin: Math.max(0, chargedPrice - due + toNumber(platformMargin) * qty),
     freeReason,
   };

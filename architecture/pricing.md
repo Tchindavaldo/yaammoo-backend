@@ -171,6 +171,7 @@ Table 1-1 avec `orders` (migrations 020 et 021), écrite par
 | `payment_fee` | les 5 % contenus dans les prix affichés | le **prestataire** |
 | `delivery_group_id` | relie les commandes d'un même panier + boutique | — |
 | `course_billed` | `true` sur une seule ligne du groupe | comptabilité |
+| `delivered` | `false` = à emporter → **marge pure** | comptabilité |
 | `free_reason` | `bonus` \| `campaign` \| null | motif de gratuité |
 | `covered_by` | `fastfood` \| `platform` | qui renonce au montant |
 | `bonus_id` / `bonus_code` | bonus appliqué | suivi |
@@ -191,6 +192,29 @@ ligne**, et `course_billed` marque celle qui porte réellement la course.
 > La comptabilité somme `real_price WHERE course_billed = TRUE`.
 
 Deux boutiques dans un même panier = **deux courses**, chacune facturée une fois.
+
+### À emporter : marge pure
+
+Le supplément livraison est fondu dans le prix du plat **depuis le home**, avant
+que le user ait choisi son mode. S'il vient chercher sa commande lui-même, il l'a
+donc déjà payé — mais il n'y a **aucune course à verser au fastfood**. Le montant
+part intégralement en marge. C'est le modèle économique retenu : le prix affiché
+ne baisse jamais.
+
+| | Livré (zone 500) | À emporter |
+|---|---|---|
+| `charged_price` | 1 000 | 1 000 |
+| `real_price` | 500 | **0** |
+| `delivered` | `true` | **`false`** |
+| `course_billed` | `true` | `false` |
+| `platform_margin` | 600 | **1 100** |
+
+`delivered` est un champ **explicite** : déduire le mode d'un `real_price = 0`
+serait fragile — 0 vaut aussi pour « boutique sans zone déclarée » ou « course
+mutualisée avec une autre commande du panier ».
+
+> Ces commandes étaient auparavant **ignorées** par le règlement : ni marge ni
+> frais n'étaient tracés.
 
 - Bonus **de boutique** → `covered_by = 'fastfood'` : le marchand renonce à sa
   course, la plateforme conserve intégralement ce qu'elle avait ajouté.
@@ -260,3 +284,4 @@ src/
 | `020_order_deliveries.sql` | table `order_deliveries` + contraintes + index |
 | `021_order_deliveries_group.sql` | `delivery_group_id`, `course_billed`, `items_real`, `items_charged`, `payment_fee` |
 | `022_orders_group_id.sql` | `orders.group_id` — commandes d'un même panier (cf. [orders.md](./orders.md)) |
+| `023_order_deliveries_delivered.sql` | `delivered` — livré ou à emporter (marge pure) |

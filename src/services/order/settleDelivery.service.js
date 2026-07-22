@@ -74,20 +74,24 @@ exports.settleDeliveryService = async ({ orders, bonusCode }) => {
     const billedFastFoods = new Set();
 
     for (const order of list) {
-      // Retrait sur place : rien à répartir côté livraison.
-      if (order.delivery?.status !== true) continue;
+      // ⚠️ Les commandes à emporter sont enregistrées AUSSI. Elles étaient
+      // ignorées : ni marge ni frais n'étaient tracés, alors que le user a bien
+      // payé le supplément livraison (fondu dans le prix du plat depuis le home).
+      // Sans course à payer, ce montant part intégralement en marge.
+      const delivered = order.delivery?.status === true;
 
       const ffId = order.fastFoodId;
       if (!groupIdByFastFood[ffId]) groupIdByFastFood[ffId] = generateId();
 
-      const courseBilled = !billedFastFoods.has(ffId);
-      billedFastFoods.add(ffId);
+      // Une seule course facturée par boutique — sans objet si pas de livraison.
+      const courseBilled = delivered && !billedFastFoods.has(ffId);
+      if (delivered) billedFastFoods.add(ffId);
 
       const fastfood = await repos.fastfoods.getById(ffId);
 
       // L'offre ne vaut que pour la boutique concernée (ou partout si campagne
-      // / bonus plateforme).
-      const applies = !offer || offer.fastFoodId == null || offer.fastFoodId === ffId;
+      // / bonus plateforme), et n'a aucun sens sans livraison.
+      const applies = delivered && (!offer || offer.fastFoodId == null || offer.fastFoodId === ffId);
       const orderOffer = applies ? settled.offer : null;
 
       const amounts = splitDeliveryAmounts({
@@ -98,6 +102,7 @@ exports.settleDeliveryService = async ({ orders, bonusCode }) => {
         platformMargin: pricing.platformMargin,
         quantity: order.quantity,
         courseBilled,
+        delivered,
         freeReason: orderOffer?.reason ?? null,
       });
 
@@ -115,6 +120,8 @@ exports.settleDeliveryService = async ({ orders, bonusCode }) => {
           orderId: order.id,
           userId: order.userId,
           fastFoodId: ffId,
+          // Le groupe reste renseigné même sans livraison : il relie les
+          // commandes d'un même panier, indépendamment du mode.
           deliveryGroupId: groupIdByFastFood[ffId],
           ...amounts,
           itemsCharged,
