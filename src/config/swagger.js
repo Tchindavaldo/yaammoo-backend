@@ -194,18 +194,66 @@ const options = {
             fastFoodId: { type: 'string', nullable: true, description: 'null = bonus plateforme, valable partout.' },
           },
         },
+        // Forme RÉELLE (cf. interface/fastfoodFields.js et mappers.fastfoodFromSupabase).
+        // Les anciens champs `description`, `address` et `phone` n'existent pas.
         FastFood: {
           type: 'object',
           properties: {
             id: { type: 'string' },
+            userId: { type: 'string', description: 'uid du propriétaire.' },
             name: { type: 'string' },
-            description: { type: 'string' },
-            address: { type: 'string' },
-            phone: { type: 'string' },
             image: { type: 'string' },
-            userId: { type: 'string' },
+            number: { type: 'string' },
+            momoNumber: { type: 'string' },
+            whatsappNumber: { type: 'string' },
+            openTime: { type: 'string', example: '09:00' },
+            closeTime: { type: 'string', example: '22:00' },
+            orderLeadTime: { type: 'number', description: 'Délai avant livraison (minutes).' },
+            advanceDays: { type: 'number' },
+            pickupOnly: { type: 'boolean', description: 'true = retrait uniquement, aucune livraison.' },
+            cities: { type: 'array', items: { type: 'string' } },
+            deliveryHours: {
+              type: 'array',
+              description:
+                'Créneaux de livraison avec zones et prix. Deux formats coexistent selon la version du client ' +
+                '(cf. utils/deliveryHoursFormat.js) : legacy = tableau de "HH:mm", actuel = tableau d\'objets.',
+              items: { $ref: '#/components/schemas/DeliveryHour' },
+            },
+            driverRatingAvg: { type: 'number' },
+            driverRatingCount: { type: 'number' },
+            pricing: { $ref: '#/components/schemas/FastFoodPricing' },
             createdAt: { type: 'string', format: 'date-time' },
             updatedAt: { type: 'string', format: 'date-time' },
+          },
+        },
+        DeliveryHour: {
+          type: 'object',
+          properties: {
+            hour: { type: 'string', example: '08:00' },
+            periodic: { type: 'boolean' },
+            periodicZones: { type: 'array', items: { $ref: '#/components/schemas/DeliveryZone' } },
+            express: { type: 'boolean' },
+            expressZones: { type: 'array', items: { $ref: '#/components/schemas/DeliveryZone' } },
+          },
+        },
+        DeliveryZone: {
+          type: 'object',
+          properties: {
+            lieu: { type: 'string', example: 'Bonanjo' },
+            prix: { type: 'string', example: '500', description: 'Prix de livraison, stocké en chaîne.' },
+          },
+        },
+        FastFoodPricing: {
+          type: 'object',
+          description:
+            'Détail du supplément intégré aux prix des menus renvoyés. Le prix affiché vaut ' +
+            'prix fastfood + livraison la plus chère + marge plateforme. Le propriétaire de la boutique ' +
+            'reçoit les prix RÉELS (`applied: false`), sinon il ne pourrait plus gérer son catalogue.',
+          properties: {
+            surcharge: { type: 'number', description: 'maxDeliveryPrice + platformMargin.' },
+            maxDeliveryPrice: { type: 'number', description: 'Livraison la plus chère de la boutique (0 si pickupOnly).' },
+            platformMargin: { type: 'number' },
+            applied: { type: 'boolean', description: 'Le supplément est-il inclus dans les prix des menus renvoyés ?' },
           },
         },
         Transaction: {
@@ -288,6 +336,7 @@ const options = {
     './src/routes/driverRoutes.js',
     './src/routes/ratingRoutes.js',
     './src/routes/walletRoutes.js',
+    './src/routes/settingsRoutes.js',
   ],
 };
 

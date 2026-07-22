@@ -637,5 +637,59 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- ============================================================================
+-- TABLE: settings (migration 019)
+-- ============================================================================
+-- Réglages métier modifiables À CHAUD (marge, frais de paiement, campagne
+-- « livraison offerte »). En base et non dans .env : ce sont des décisions
+-- commerciales, `flyctl secrets set` redémarrerait la machine.
+-- Les seuils de version d'app restent, eux, en .env.
+CREATE TABLE IF NOT EXISTS settings (
+  key         TEXT PRIMARY KEY,
+  value       JSONB NOT NULL,
+  description TEXT,
+  updated_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+INSERT INTO settings (key, value, description) VALUES
+  ('platform_margin',     '100'::jsonb,   'Marge Yaammoo ajoutée au prix affiché de chaque plat (FCFA).'),
+  ('payment_fee_percent', '5'::jsonb,     'Frais du prestataire de paiement, en % du montant payé. Arrondi à l''entier SUPÉRIEUR.'),
+  ('delivery_free_mode',  'false'::jsonb, 'Campagne « livraison offerte » globale.')
+ON CONFLICT (key) DO NOTHING;
+
+-- ============================================================================
+-- TABLE: order_deliveries (migration 020)
+-- ============================================================================
+-- Vérité comptable de la livraison. `orders.delivery` (JSONB) ne portait qu'un
+-- seul montant : impossible d'y distinguer ce que touche le fastfood, ce qu'a
+-- payé le user, et la marge plateforme. Complète `orders.delivery`, ne le
+-- remplace pas.
+CREATE TABLE IF NOT EXISTS order_deliveries (
+  order_id        TEXT PRIMARY KEY REFERENCES orders(id) ON DELETE CASCADE,
+  user_id         TEXT NOT NULL,
+  fastfood_id     TEXT,
+  zone            TEXT,
+  real_price      NUMERIC(12,2) NOT NULL DEFAULT 0,
+  charged_price   NUMERIC(12,2) NOT NULL DEFAULT 0,
+  platform_margin NUMERIC(12,2) NOT NULL DEFAULT 0,
+  free_reason     TEXT,
+  covered_by      TEXT,
+  bonus_id        TEXT,
+  bonus_code      TEXT,
+  created_at      TIMESTAMPTZ DEFAULT NOW(),
+  CONSTRAINT order_deliveries_free_reason_chk
+    CHECK (free_reason IS NULL OR free_reason IN ('bonus', 'campaign')),
+  CONSTRAINT order_deliveries_covered_by_chk
+    CHECK (covered_by IS NULL OR covered_by IN ('fastfood', 'platform')),
+  -- Une gratuité fait renoncer à un gain, elle ne crée pas une dépense.
+  CONSTRAINT order_deliveries_margin_chk CHECK (platform_margin >= 0)
+);
+
+CREATE INDEX IF NOT EXISTS idx_order_deliveries_fastfood
+  ON order_deliveries(fastfood_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_order_deliveries_bonus
+  ON order_deliveries(bonus_id) WHERE bonus_id IS NOT NULL;
+
+-- ============================================================================
 -- FIN DU SCHEMA
 -- ============================================================================

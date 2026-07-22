@@ -17,6 +17,9 @@ const { notifyOrderEvent } = require('../notification/helpers/notifyOrderEvent')
 const { reliableEmit } = require('../../utils/reliableEmit');
 const { validateOrder } = require('../../utils/validator/validateOrder');
 const { resolveDeliveryBonus, consumeDeliveryBonus } = require('../bonus/applyDeliveryBonus.service');
+const { getPricingSettings } = require('../settings/settings.service');
+const { resolveOffer } = require('../pricing/deliveryOfferResolver');
+const { recordOrderDelivery } = require('./recordOrderDelivery');
 
 exports.createOrderService = async (order) => {
   // Validation au niveau service : garantit qu'aucun chemin d'appel
@@ -36,6 +39,12 @@ exports.createOrderService = async (order) => {
   });
   if (bonusResolution?.error) return { error: bonusResolution.error };
 
+  // Arbitrage campagne / bonus. Une campagne globale PRIME et laisse le bonus
+  // intact : le brûler pendant une période où tout le monde a la livraison
+  // offerte serait une perte sèche pour le user.
+  const pricing = await getPricingSettings();
+  const { offer, consumeBonus } = resolveOffer(pricing.deliveryFreeMode, bonusResolution?.offer || null);
+
   const result = await repos.orders.createWithStockCheck(orderData);
 
   if (result?.error) return { error: result.error };
@@ -46,12 +55,18 @@ exports.createOrderService = async (order) => {
   // Consommation APRÈS création réussie : pas de commande = pas d'utilisation
   // consommée. C'est ce qui permet au user de quitter l'écran de commande sans
   // rien perdre. Les montants de livraison, eux, restent inchangés.
-  if (bonusResolution?.bonus) {
+  if (consumeBonus && bonusResolution?.bonus) {
     createdOrder.deliveryOffer = await consumeDeliveryBonus({
       ...bonusResolution,
       orderId: createdOrder.id,
     });
+  } else {
+    createdOrder.deliveryOffer = offer;
   }
+
+  // Vérité comptable de la livraison (table dédiée) : prix réel fastfood, prix
+  // facturé au user, marge plateforme. Non bloquant — la commande existe déjà.
+  await recordOrderDelivery({ order: createdOrder, offer: createdOrder.deliveryOffer, platformMargin: pricing.platformMargin });
 
   // Socket temps réel fiable vers le CLIENT : sa commande vient d'être créée
   // (rejoué au reconnect si le client est hors ligne)
