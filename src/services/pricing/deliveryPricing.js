@@ -34,28 +34,27 @@ function toNumber(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
-/**
- * Prix affiché = montant dont les frais représentent EXACTEMENT `feePercent`.
- *
- * On divise, on ne multiplie pas : à 5 %, `base × 1.05` donne des frais de
- * 4,76 % du prix final — le prestataire prélève sur ce qu'il ENCAISSE, la
- * différence serait perdue par la plateforme.
- * Arrondi au supérieur : on n'encaisse pas de centimes de FCFA.
- */
+/** Arrondi à l'entier SUPÉRIEUR : on n'encaisse pas de centimes de FCFA, et
+ *  arrondir à l'inférieur ferait payer la différence à la plateforme. */
 function withFee(amount, feePercent) {
   const base = toNumber(amount);
   const percent = toNumber(feePercent);
-  if (base <= 0) return 0;
-  if (percent <= 0 || percent >= 100) return Math.ceil(base);
-  return Math.ceil(base / (1 - percent / 100));
+  if (base <= 0 || percent <= 0) return Math.max(0, Math.ceil(base));
+  return Math.ceil(base * (1 + percent / 100));
 }
 
-/** Frais CONTENUS dans un montant déjà affiché : exactement `feePercent` de lui. */
+/**
+ * Frais CONTENUS dans un montant déjà affiché (donc TTC).
+ *
+ * ⚠️ Ce n'est PAS `montant × 5%` : les 5 % ont été ajoutés en amont, ils sont
+ * déjà dedans. On les extrait en divisant. Confondre les deux surévaluerait les
+ * frais et fausserait tout le reste du partage (9765 → 488 au lieu de 465).
+ */
 function feeIncludedIn(ttcAmount, feePercent) {
   const ttc = toNumber(ttcAmount);
   const percent = toNumber(feePercent);
   if (ttc <= 0 || percent <= 0) return 0;
-  return Math.min(ttc, Math.round((ttc * percent) / 100));
+  return Math.max(0, ttc - Math.round(ttc / (1 + percent / 100)));
 }
 
 // Type de livraison (orders.delivery.type) → liste de zones correspondante.

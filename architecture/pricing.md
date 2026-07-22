@@ -24,17 +24,12 @@ tracer la vérité comptable de chaque livraison.
 ## Composition du prix affiché
 
 ```
-plat affiché    = ceil( (prix fastfood + livraison LA PLUS CHÈRE + marge) ÷ 0.95 )
-extra affiché   = ceil( prix extra   ÷ 0.95 )
-boisson affiché = ceil( prix boisson ÷ 0.95 )
+plat affiché    = ceil( (prix fastfood + livraison LA PLUS CHÈRE + marge) × 1.05 )
+extra affiché   = ceil( prix extra   × 1.05 )
+boisson affiché = ceil( prix boisson × 1.05 )
 
 montant payé    = SOMME de ce que le user voit
 ```
-
-> **On DIVISE, on ne multiplie pas.** Le prestataire prélève 5 % de ce qu'il
-> **encaisse**. `base × 1.05` donnerait des frais de 4,76 % du prix final — la
-> différence serait perdue par la plateforme. Avec `÷ 0.95`, les frais font bien
-> 5 % du montant affiché (3 100 → **3 264**, dont **163** de frais).
 
 > ⚠️ **Aucun frais n'est jamais ajouté à la fin.** Les 5 % sont déjà dans chaque
 > prix affiché : le user paie tout sans voir de ligne de frais ni de taxe. Ils
@@ -61,9 +56,9 @@ Plat 2000, zones 500 / 800 / 1000, marge 100, frais 5 %.
 | | Montant |
 |---|---|
 | Avant frais | 2000 + 1000 + 100 = 3100 |
-| **Prix affiché** | `ceil(3100 ÷ 0.95)` = **3264** |
+| **Prix affiché** | `ceil(3100 × 1.05)` = **3255** |
 | Le fastfood touche (zone 500) | 2000 + 500 = **2500** |
-| Frais prestataire | **163** (= 5 % de 3264) |
+| Frais prestataire | **155** |
 | Yaammoo garde | (1000 − 500) + 100 = **600** |
 
 Le user ne voit **jamais** la ligne livraison : elle est fondue dans le prix du
@@ -85,7 +80,7 @@ tombait dans la marge plateforme.
 ### Ne jamais inverser le calcul
 
 L'arrondi au supérieur rend l'opération **non réversible** : plat 25 → affiché
-`ceil(1125 ÷ 0.95)` = 1185 ; l'inverse ne redonne pas 25 exactement.
+`ceil(1125 × 1.05)` = 1182 ; l'inverse donne `1182 ÷ 1.05 − 1100` = **25,71**.
 
 Le prix réel n'est donc **jamais recalculé** : il est servi tel quel depuis la
 base, et `order_deliveries` stocke le réel et le facturé côte à côte.
