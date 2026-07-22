@@ -70,7 +70,8 @@ BACKEND/
 │   ├── controllers/                    # Entrées HTTP (validation → service)
 │   ├── services/                       # Logique métier orchestratrice
 │   ├── repositories/                   # Accès DB (Supabase, abstrait par mappers)
-│   │   ├── supabase/                   # Impl. Supabase (seule impl.) — dont settings, orderDeliveries
+│   │   ├── supabase/                   # Impl. Supabase (seule impl.) — dont settings,
+│   │   │                               #   orderSettlements, orderDeliveries
 │   │   ├── index.js                    # Point d'entrée stable repos.*
 │   │   └── mappers.js                  # Conversions camelCase ↔ snake_case
 │   ├── interface/                      # Définitions champs/schémas
@@ -83,4 +84,18 @@ BACKEND/
 **Repository Pattern** : Services appellent `repos.users.getById()` → Supabase (impl. unique)  
 **Mapper Pattern** : Conversions automatiques camelCase ↔ snake_case en read/write  
 **Controller → Service** : Controllers valident + transforment ; Services orchestrent logique métier + appels repo  
-**Socket Rooms** : `app:<appId>`, `<userId>` (sans préfixe), `<fastFoodId>` (sans préfixe)
+**Socket Rooms** : `app:<appId>`, `<userId>` (sans préfixe), `<fastFoodId>` (sans préfixe)  
+**Prix affiché ≠ prix stocké** : le catalogue garde les prix du fastfood ; livraison, marge et frais sont ajoutés **à la lecture**, jamais en base — comme `isMarchand`. Voir [pricing.md](./pricing.md)  
+**Réglages métier en base** (`settings`), pas dans `.env` : ils doivent basculer à chaud. Les **seuils de version d'app**, eux, restent en `.env`
+
+---
+
+## Points d'attention connus
+
+| Sujet | À savoir |
+|---|---|
+| Prix d'un menu | C'est **`prices[]`** (`{price, description}`) qui fait foi. `prix1/prix2/prix3` existent dans le mapper mais sont **NULL sur toute la base** |
+| Une commande | = **UN plat** × `quantity`. Un panier de 3 plats = 3 commandes, reliées par `orders.group_id` |
+| Zones de livraison | Un même lieu a **deux tarifs** : `periodicZones` et `expressZones`. Toujours filtrer par `orders.delivery.type` |
+| Frais de paiement | **Inclus** dans les prix affichés. Aucune ligne de frais n'est jamais présentée au user |
+| `platform_revenues` | Table **posée d'avance, pas encore alimentée** — socle pour les revenus hors commandes (flyers, abonnements…) |

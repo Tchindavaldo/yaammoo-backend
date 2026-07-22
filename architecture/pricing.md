@@ -83,7 +83,8 @@ L'arrondi au supérieur rend l'opération **non réversible** : plat 25 → affi
 `ceil(1125 × 1.05)` = 1182 ; l'inverse donne `1182 ÷ 1.05 − 1100` = **25,71**.
 
 Le prix réel n'est donc **jamais recalculé** : il est servi tel quel depuis la
-base, et `order_deliveries` stocke le réel et le facturé côte à côte.
+base, et le réel comme le facturé sont stockés côte à côte
+(`order_settlements`, `order_deliveries`).
 
 ### Vue marchand
 

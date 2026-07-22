@@ -74,13 +74,9 @@ Menu {
   name: string                 // Nom plat
   titre: string                // Titre (variante du name?)
   
-  // Prix (3 variantes possibles)
-  prix1: number
-  prix2: number
-  prix3: number
-  optionPrix1: string
-  optionPrix2: string
-  optionPrix3: string
+  // Prix — ⚠️ c'est `prices[]` qui fait foi ; prix1/prix2/prix3 sont des
+  // colonnes obsolètes, NULL sur toute la base. Cf. menus-detailed.md
+  prices: { price: number, description: string }[]
   
   // Images
   image: string                // Image principale
@@ -178,7 +174,7 @@ MenuItem {
    {
      "fastFoodId": "...",
      "name": "Poulet Grillé",
-     "prix1": 2500,
+     "prices": [{ "price": 2500, "description": "Petit" }],
      "stock": 50,
      "disponibilite": true
    }
@@ -218,7 +214,7 @@ MenuItem {
 
 **Menu**
 - name : 3+ caractères
-- prix1 : > 0
+- prices : au moins une entrée, chaque `price` > 0
 - stock : >= 0
 - fastFoodId : référence existante
 
