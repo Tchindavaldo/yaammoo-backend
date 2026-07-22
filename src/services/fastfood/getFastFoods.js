@@ -36,7 +36,7 @@ exports.getFastFoodsService = async (userId) => {
       fastfoods.map(async (fastfood) => {
         const menus = await getMenuService(fastfood.id);
         const isOwner = !!userId && fastfood.userId === userId;
-        const priced = applyDisplayPricing({ ...fastfood, menus }, pricing.platformMargin, isOwner);
+        const priced = applyDisplayPricing({ ...fastfood, menus }, pricing, isOwner);
         return {
           ...priced,
           deliveryOffer: campaignOffer || pickOfferForFastFood(offers, fastfood.id),

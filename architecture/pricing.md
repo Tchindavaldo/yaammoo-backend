@@ -24,10 +24,20 @@ tracer la vérité comptable de chaque livraison.
 ## Composition du prix affiché
 
 ```
-prix affiché d'un plat = prix fastfood + livraison LA PLUS CHÈRE + marge plateforme
-montant payé           = prix affiché × quantité (+ extras/boissons)
-frais de paiement      = ceil(montant payé × payment_fee_percent / 100)
+plat affiché    = ceil( (prix fastfood + livraison LA PLUS CHÈRE + marge) × 1.05 )
+extra affiché   = ceil( prix extra   × 1.05 )
+boisson affiché = ceil( prix boisson × 1.05 )
+
+montant payé    = SOMME de ce que le user voit
 ```
+
+> ⚠️ **Aucun frais n'est jamais ajouté à la fin.** Les 5 % sont déjà dans chaque
+> prix affiché : le user paie tout sans voir de ligne de frais ni de taxe. Ils
+> sont appliqués **une fois par prix**, jamais multipliés par la quantité.
+
+Les prix RÉELS des menus sont dans **`prices[]`** (`{price, description}`), pas
+dans `prix1/prix2/prix3` — ces colonnes existent dans le mapper mais sont NULL
+sur toute la base.
 
 **Pourquoi la livraison la plus chère** : une boutique a plusieurs zones à des
 prix différents, et le home ne sait pas encore où le user se fera livrer. En
@@ -35,48 +45,53 @@ prenant le maximum, le prix annoncé couvre toutes les zones — il ne peut jama
 manquer. Si le user choisit ensuite une zone moins chère, **l'écart reste à la
 plateforme**.
 
+**Le supplément livraison + marge n'est porté que par le plat.** Extras et
+boissons ne portent que leurs propres frais — sinon chaque supplément ajouterait
+une livraison de plus.
+
 ### Exemple de référence
 
 Plat 2000, zones 500 / 800 / 1000, marge 100, frais 5 %.
 
 | | Montant |
 |---|---|
-| Prix affiché | 2000 + 1000 + 100 = **3100** |
-| Frais de paiement | `ceil(3100 × 5%)` = **155** → vont au **prestataire**, pas à Yaammoo |
-| Le user paie | **3255** |
+| Avant frais | 2000 + 1000 + 100 = 3100 |
+| **Prix affiché** | `ceil(3100 × 1.05)` = **3255** |
 | Le fastfood touche (zone 500) | 2000 + 500 = **2500** |
+| Frais prestataire | **155** → au prestataire, pas à Yaammoo |
 | Yaammoo garde | (1000 − 500) + 100 = **600** |
 
-Le user ne voit **jamais** la ligne livraison : elle est déjà fondue dans le
-prix du plat.
+Le user ne voit **jamais** la ligne livraison : elle est fondue dans le prix du
+plat.
+
+### Ne jamais inverser le calcul
+
+L'arrondi au supérieur rend l'opération **non réversible** : plat 25 → affiché
+`ceil(1125 × 1.05)` = 1182 ; l'inverse donne `1182 / 1.05 − 1100` = **25,71**.
+
+Le prix réel n'est donc **jamais recalculé** : il est servi tel quel depuis la
+base, et `order_deliveries` stocke le réel et le facturé côte à côte.
 
 ### Vue marchand
 
-Le propriétaire d'une boutique reçoit ses **prix réels** (`pricing.applied:
-false`) : sinon il ne pourrait plus gérer son catalogue. Même endpoint, réponse
-différente selon l'appelant — c'est une distinction de **rôle**, pas de version
-d'app.
-
-`extra` et `drink` ne sont **pas** majorés : le supplément est porté une seule
-fois, par le plat.
+Le propriétaire d'une boutique reçoit ses **prix réels** — plat, extras et
+boissons (`pricing.applied: false`) : sinon il ne pourrait plus gérer son
+catalogue. Même endpoint, réponse différente selon l'appelant : c'est une
+distinction de **rôle**, pas de version d'app.
 
 ### Quantité — asymétrie voulue
 
 Le supplément est porté par le prix **unitaire**, donc facturé sur **chaque
-plat**. Le fastfood, lui, ne touche qu'**une seule course** : celle de la zone
-choisie, quelle que soit la quantité. Tout l'écart revient à la plateforme —
-c'est le levier de marge.
+exemplaire**. Le fastfood, lui, ne touche qu'**une seule course**. Tout l'écart
+revient à la plateforme — c'est le levier de marge.
 
-Plat 2000, zones 500/800/1000, marge 100, **quantité 2** :
+Plat 2000, zone 500, marge 100, **quantité 2** :
 
 | | Montant |
 |---|---|
 | Facturé au user | 2 × 1100 = **2200** de supplément |
 | Versé au fastfood | **500** (une seule course) |
 | Marge plateforme | **1700** |
-
-`order_deliveries` enregistre exactement cette asymétrie : `charged_price`
-multiplié par la quantité, `real_price` compté une fois.
 
 ---
 
@@ -130,14 +145,19 @@ Forme de `deliveryOffer` : voir [bonus.md](./bonus.md#deliveryoffer--objet-uniqu
 
 ## Vérité comptable (`order_deliveries`)
 
-Table 1-1 avec `orders` (migration 020), écrite par
-`services/order/recordOrderDelivery.js` après création de la commande.
+Table 1-1 avec `orders` (migrations 020 et 021), écrite par
+`services/order/settleDelivery.service.js`.
 
 | Colonne | Sens | Audience |
 |---|---|---|
 | `real_price` | prix de la zone choisie | ce que touche le **fastfood** |
-| `charged_price` | livraison facturée (la plus chère) | ce qu'a payé le **user** |
+| `charged_price` | livraison facturée (la plus chère × quantité) | ce qu'a payé le **user** |
 | `platform_margin` | écart + marge plateforme | bénéfice **Yaammoo** |
+| `items_real` | plat + extras + boissons, hors livraison et frais | le **fastfood** |
+| `items_charged` | total réellement payé hors livraison | le **user** |
+| `payment_fee` | les 5 % contenus dans les prix affichés | le **prestataire** |
+| `delivery_group_id` | relie les commandes d'un même panier + boutique | — |
+| `course_billed` | `true` sur une seule ligne du groupe | comptabilité |
 | `free_reason` | `bonus` \| `campaign` \| null | motif de gratuité |
 | `covered_by` | `fastfood` \| `platform` | qui renonce au montant |
 | `bonus_id` / `bonus_code` | bonus appliqué | suivi |
@@ -145,14 +165,52 @@ Table 1-1 avec `orders` (migration 020), écrite par
 **`platform_margin` n'est jamais négatif** (contrainte SQL) : une gratuité fait
 renoncer à un gain, elle ne crée pas une dépense.
 
+### Panier : une seule course par boutique
+
+Une commande = **un plat**. Un panier de 3 plats fait donc 3 commandes, alors que
+le livreur ne se déplace qu'une fois.
+
+Plutôt que de mettre `real_price = 0` sur les commandes non facturées — ce qui
+effacerait l'information — **le prix réel de la zone est conservé sur chaque
+ligne**, et `course_billed` marque celle qui porte réellement la course.
+`delivery_group_id` les relie.
+
+> La comptabilité somme `real_price WHERE course_billed = TRUE`.
+
+Deux boutiques dans un même panier = **deux courses**, chacune facturée une fois.
+
 - Bonus **de boutique** → `covered_by = 'fastfood'` : le marchand renonce à sa
   course, la plateforme conserve intégralement ce qu'elle avait ajouté.
 - Bonus **plateforme** / campagne → `covered_by = 'platform'` : Yaammoo renonce
   à sa marge livraison ; la marge plat (`platform_margin` de base) est conservée.
 
-**Non bloquant** : la commande est déjà créée quand on écrit ici. Un incident
+**Non bloquant** : les commandes existent déjà quand on écrit ici. Un incident
 comptable ne doit pas faire échouer une commande payée — il est journalisé
 bruyamment.
+
+---
+
+## Quand le règlement se déclenche
+
+**Au passage en `pending`**, c'est-à-dire quand la commande devient réelle
+(payée). **Jamais à la mise au panier** : un panier peut encore être vidé.
+
+| Chemin | Point d'entrée | Ce qui arrive |
+|---|---|---|
+| **Panier** | `updateOrders` — transition `pendingToBuy → pending` | Le lot arrive en **un seul appel** : c'est lui, le panier |
+| **Achat direct** | `createOrderService`, si `status === 'pending'` | Une seule commande |
+
+C'est parce que `updateOrders` reçoit le **tableau complet** qu'on peut ne
+compter qu'une course par boutique et ne consommer le bonus qu'une fois. Aucun
+identifiant de panier n'est nécessaire : le lot **est** le panier.
+
+`POST /transaction`, `mwVerdictService` et le mode Apple Review ne sont **pas
+modifiés** : ils appellent déjà ces deux services.
+
+> ⚠️ **Cas résiduel** : si un même paiement contient plusieurs commandes *sans
+> `id`* (plusieurs achats directs d'un coup), `mwVerdictService` les crée une par
+> une, en appels séparés — chacune comptera sa course. D'après le front, l'achat
+> direct ne concerne qu'un plat à la fois.
 
 ### Pas de rupture de compatibilité
 
@@ -175,7 +233,7 @@ src/
 │   │   ├── deliveryPricing.js                       # prix affiché, zones, frais, répartition
 │   │   └── deliveryOfferResolver.js                 # arbitrage campagne / bonus
 │   ├── fastfood/getFastFoods.js                     # applique les prix affichés
-│   └── order/recordOrderDelivery.js                 # écrit order_deliveries
+│   └── order/settleDelivery.service.js              # règlement au passage en `pending`
 └── repositories/supabase/
     ├── settings.repo.js
     └── orderDeliveries.repo.js
@@ -187,3 +245,4 @@ src/
 |---|---|
 | `019_settings.sql` | table `settings` + valeurs initiales (`ON CONFLICT DO NOTHING`) |
 | `020_order_deliveries.sql` | table `order_deliveries` + contraintes + index |
+| `021_order_deliveries_group.sql` | `delivery_group_id`, `course_billed`, `items_real`, `items_charged`, `payment_fee` |

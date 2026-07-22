@@ -77,12 +77,18 @@ Détail complet du modèle : [bonus.md](./bonus.md#livraison-offerte-armement--c
 **Arbitrage campagne / bonus** : si une campagne globale (`delivery_free_mode`)
 est active, elle prime et le bonus n'est **pas** consommé.
 
-### Vérité comptable — `order_deliveries`
+### Règlement livraison — au passage en `pending`
 
-Après création, `recordOrderDelivery()` écrit la répartition réelle des montants
-(prix fastfood, prix facturé, marge plateforme, motif de gratuité) dans une table
-dédiée. `orders.delivery` n'est ni modifié ni supprimé — aucune rupture pour les
-apps en production. Voir [pricing.md](./pricing.md).
+`settleDeliveryService()` écrit la répartition réelle des montants dans
+`order_deliveries` et consomme le bonus. Il est déclenché **quand la commande
+devient payée**, jamais à la mise au panier :
+
+- **Panier** → `updateOrders`, transition `pendingToBuy → pending`. Le lot arrive
+  en un seul appel → **une seule course par boutique**, bonus consommé une fois.
+- **Achat direct** → `createOrderService`, uniquement si `status === 'pending'`.
+
+`orders.delivery` n'est ni modifié ni supprimé — aucune rupture pour les apps en
+production. Voir [pricing.md](./pricing.md).
 
 **Flux** :
 1. Si `status === 'pending'` → `reserveRank()` pour obtenir un rank avant création

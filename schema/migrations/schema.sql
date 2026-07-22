@@ -675,6 +675,17 @@ CREATE TABLE IF NOT EXISTS order_deliveries (
   covered_by      TEXT,
   bonus_id        TEXT,
   bonus_code      TEXT,
+  -- Panier (migration 021) : une commande = un plat, donc plusieurs commandes
+  -- pour un seul déplacement du livreur. `real_price` reste renseigné partout
+  -- (traçabilité) ; seule la ligne `course_billed = TRUE` est réellement due.
+  delivery_group_id TEXT,
+  course_billed     BOOLEAN NOT NULL DEFAULT TRUE,
+  -- Montants hors livraison. Les frais de paiement sont INCLUS dans les prix
+  -- affichés : aucune ligne de frais n'est présentée au user, la base est donc
+  -- la seule source de vérité sur ce qu'il a payé.
+  items_real        NUMERIC(12,2) NOT NULL DEFAULT 0,
+  items_charged     NUMERIC(12,2) NOT NULL DEFAULT 0,
+  payment_fee       NUMERIC(12,2) NOT NULL DEFAULT 0,
   created_at      TIMESTAMPTZ DEFAULT NOW(),
   CONSTRAINT order_deliveries_free_reason_chk
     CHECK (free_reason IS NULL OR free_reason IN ('bonus', 'campaign')),
@@ -689,6 +700,12 @@ CREATE INDEX IF NOT EXISTS idx_order_deliveries_fastfood
 
 CREATE INDEX IF NOT EXISTS idx_order_deliveries_bonus
   ON order_deliveries(bonus_id) WHERE bonus_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_order_deliveries_group
+  ON order_deliveries(delivery_group_id) WHERE delivery_group_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_order_deliveries_billed
+  ON order_deliveries(fastfood_id, created_at) WHERE course_billed = TRUE;
 
 -- ============================================================================
 -- FIN DU SCHEMA

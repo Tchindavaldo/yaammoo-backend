@@ -21,8 +21,9 @@ const { getFastFoodService } = require('../fastfood/getFastFood');
 const { assignRank, reindexQueue } = require('./rankQueue.service');
 const { notifyOrderEvent } = require('../notification/helpers/notifyOrderEvent');
 const { reliableEmit } = require('../../utils/reliableEmit');
+const { settleDeliveryService } = require('./settleDelivery.service');
 
-const buildTransitionNotif = ({ prevStatus, newStatus, order, merchantUserId }) => {
+const buildTransitionNotif =({ prevStatus, newStatus, order, merchantUserId }) => {
   const menuName = order.menu?.name || order.menu?.titre || 'Menu';
   const qty = order.quantity || 1;
   const total = order.total || 0;
@@ -183,6 +184,24 @@ exports.updateOrders = async (orders, userId) => {
 
       if (!groupedByFastFood[fastFoodId]) groupedByFastFood[fastFoodId] = [];
       groupedByFastFood[fastFoodId].push(updatedOrder);
+    }
+
+    // ── Règlement livraison : le panier vient d'être payé ────────────────────
+    // `updates` est le panier ENTIER, reçu en un seul appel. C'est le seul
+    // moment où le backend voit ces commandes comme un tout — donc le seul où il
+    // peut ne compter qu'UNE course par boutique et ne consommer le bonus
+    // qu'une fois. Déclenché sur la transition vers `pending` uniquement : avant,
+    // le panier peut encore être vidé.
+    const becamePending = transitions.filter(t => t.prevStatus === 'pendingToBuy' && t.newStatus === 'pending').map(t => t.order);
+
+    if (becamePending.length > 0) {
+      // Le code bonus voyage avec le panier, pas avec un plat en particulier.
+      const bonusCode = updates.find(o => o && o.bonusCode)?.bonusCode;
+      const settled = await settleDeliveryService({ orders: becamePending, bonusCode });
+      // Le front reçoit l'offre appliquée sans avoir à re-GET.
+      if (settled.offer) {
+        for (const order of becamePending) order.deliveryOffer = settled.offer;
+      }
     }
 
     let message = updates.some(o => o.status === 'cancelByFastFood') ? 'Commande annulée avec succès' : updates.some(o => o.status === 'cancelByUser') ? 'Commande retirée du panier avec succès' : 'Commande(s) mise(s) à jour avec succès';

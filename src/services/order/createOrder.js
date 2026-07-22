@@ -16,10 +16,7 @@ const { emitBonusStats } = require('../bonus/emitBonusStats');
 const { notifyOrderEvent } = require('../notification/helpers/notifyOrderEvent');
 const { reliableEmit } = require('../../utils/reliableEmit');
 const { validateOrder } = require('../../utils/validator/validateOrder');
-const { resolveDeliveryBonus, consumeDeliveryBonus } = require('../bonus/applyDeliveryBonus.service');
-const { getPricingSettings } = require('../settings/settings.service');
-const { resolveOffer } = require('../pricing/deliveryOfferResolver');
-const { recordOrderDelivery } = require('./recordOrderDelivery');
+const { settleDeliveryService } = require('./settleDelivery.service');
 
 exports.createOrderService = async (order) => {
   // Validation au niveau service : garantit qu'aucun chemin d'appel
@@ -28,22 +25,8 @@ exports.createOrderService = async (order) => {
   const errors = validateOrder(order);
   if (errors && errors.length > 0) return { error: errors };
 
-  // Bonus livraison — résolution AVANT création : un code invalide doit faire
-  // échouer la commande, pas la laisser passer sans la gratuité annoncée.
-  // `bonusCode` n'est pas un champ de commande : on ne le persiste pas tel quel.
+  // `bonusCode` est un champ d'ENTRÉE : il ne se persiste pas sur la commande.
   const { bonusCode, ...orderData } = order;
-  const bonusResolution = await resolveDeliveryBonus({
-    userId: order.userId,
-    fastFoodId: order.fastFoodId,
-    bonusCode,
-  });
-  if (bonusResolution?.error) return { error: bonusResolution.error };
-
-  // Arbitrage campagne / bonus. Une campagne globale PRIME et laisse le bonus
-  // intact : le brûler pendant une période où tout le monde a la livraison
-  // offerte serait une perte sèche pour le user.
-  const pricing = await getPricingSettings();
-  const { offer, consumeBonus } = resolveOffer(pricing.deliveryFreeMode, bonusResolution?.offer || null);
 
   const result = await repos.orders.createWithStockCheck(orderData);
 
@@ -52,21 +35,14 @@ exports.createOrderService = async (order) => {
   const createdOrder = result.order;
   const newStock = result.newStock;
 
-  // Consommation APRÈS création réussie : pas de commande = pas d'utilisation
-  // consommée. C'est ce qui permet au user de quitter l'écran de commande sans
-  // rien perdre. Les montants de livraison, eux, restent inchangés.
-  if (consumeBonus && bonusResolution?.bonus) {
-    createdOrder.deliveryOffer = await consumeDeliveryBonus({
-      ...bonusResolution,
-      orderId: createdOrder.id,
-    });
-  } else {
-    createdOrder.deliveryOffer = offer;
+  // Règlement UNIQUEMENT si la commande naît déjà payée (achat direct). Une
+  // commande `pendingToBuy` n'est qu'un article du panier : elle peut encore
+  // être retirée, on ne facture ni ne consomme rien.
+  // Le panier payé, lui, passe par updateOrders — pas par ici.
+  if (createdOrder.status === 'pending') {
+    const settled = await settleDeliveryService({ orders: [createdOrder], bonusCode });
+    createdOrder.deliveryOffer = settled.offer;
   }
-
-  // Vérité comptable de la livraison (table dédiée) : prix réel fastfood, prix
-  // facturé au user, marge plateforme. Non bloquant — la commande existe déjà.
-  await recordOrderDelivery({ order: createdOrder, offer: createdOrder.deliveryOffer, platformMargin: pricing.platformMargin });
 
   // Socket temps réel fiable vers le CLIENT : sa commande vient d'être créée
   // (rejoué au reconnect si le client est hors ligne)

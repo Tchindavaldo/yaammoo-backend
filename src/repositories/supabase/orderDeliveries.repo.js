@@ -20,6 +20,12 @@ const toSupabase = d => ({
   covered_by: d.coveredBy ?? null,
   bonus_id: d.bonusId ?? null,
   bonus_code: d.bonusCode ?? null,
+  // Panier : plusieurs commandes, une seule course réellement due.
+  delivery_group_id: d.deliveryGroupId ?? null,
+  course_billed: d.courseBilled !== false,
+  items_real: d.itemsReal ?? 0,
+  items_charged: d.itemsCharged ?? 0,
+  payment_fee: d.paymentFee ?? 0,
 });
 
 const fromSupabase = row =>
@@ -35,6 +41,11 @@ const fromSupabase = row =>
     coveredBy: row.covered_by,
     bonusId: row.bonus_id,
     bonusCode: row.bonus_code,
+    deliveryGroupId: row.delivery_group_id ?? null,
+    courseBilled: row.course_billed !== false,
+    itemsReal: Number(row.items_real ?? 0),
+    itemsCharged: Number(row.items_charged ?? 0),
+    paymentFee: Number(row.payment_fee ?? 0),
     createdAt: row.created_at,
   };
 
