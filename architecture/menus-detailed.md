@@ -37,13 +37,16 @@ Menu {
   titre: string                 // Titre alternatif (?)
   description: string           // Description longue
   
-  // Tarification (3 variantes possibles)
-  prix1: number                 // Prix base
-  prix2: number                 // Variante 2 (ex: moyen)
-  prix3: number                 // Variante 3 (ex: grand)
-  optionPrix1: string           // Label variante 1 (ex: "Petit")
-  optionPrix2: string           // Label variante 2 (ex: "Moyen")
-  optionPrix3: string           // Label variante 3 (ex: "Grand")
+  // Tarification — ⚠️ c'est `prices[]` qui fait foi
+  prices: { price: number, description: string }[]
+                                // ex: [{price:2500, description:"Petit"},
+                                //      {price:3000, description:"Grand"}]
+                                // `orders.selectedPriceIndex` = index retenu
+
+  // ⚠️ OBSOLÈTES — colonnes présentes dans le mapper Supabase, mais NULL sur
+  // toute la base. Ne pas les lire, ne pas les écrire.
+  prix1 / prix2 / prix3 : number
+  optionPrix1 / optionPrix2 / optionPrix3 : string
   
   // Images
   image: string                 // Image principale (URL Supabase)
@@ -84,10 +87,10 @@ MenuItem {
    {
      "fastFoodId": "...",
      "name": "Poulet Grillé",
-     "prix1": 2500,
-     "prix2": 3500,
-     "optionPrix1": "Petit",
-     "optionPrix2": "Moyen",
+     "prices": [
+       { "price": 2500, "description": "Petit" },
+       { "price": 3500, "description": "Moyen" }
+     ],
      "stock": 50,
      "disponibilite": true,
      "extra": [
@@ -163,7 +166,7 @@ MenuItem {
 ## Validations
 
 - name : 3+ caractères
-- prix1 : > 0
+- prices : au moins une entrée, chaque `price` > 0
 - stock : >= 0
 - fastFoodId : référence boutique existante
 - images : format URL valide (Supabase)

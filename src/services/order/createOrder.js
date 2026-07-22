@@ -16,6 +16,7 @@ const { emitBonusStats } = require('../bonus/emitBonusStats');
 const { notifyOrderEvent } = require('../notification/helpers/notifyOrderEvent');
 const { reliableEmit } = require('../../utils/reliableEmit');
 const { validateOrder } = require('../../utils/validator/validateOrder');
+const { settleDeliveryService } = require('./settleDelivery.service');
 
 exports.createOrderService = async (order) => {
   // Validation au niveau service : garantit qu'aucun chemin d'appel
@@ -24,12 +25,24 @@ exports.createOrderService = async (order) => {
   const errors = validateOrder(order);
   if (errors && errors.length > 0) return { error: errors };
 
-  const result = await repos.orders.createWithStockCheck(order);
+  // `bonusCode` est un champ d'ENTRÉE : il ne se persiste pas sur la commande.
+  const { bonusCode, ...orderData } = order;
+
+  const result = await repos.orders.createWithStockCheck(orderData);
 
   if (result?.error) return { error: result.error };
 
   const createdOrder = result.order;
   const newStock = result.newStock;
+
+  // Règlement UNIQUEMENT si la commande naît déjà payée (achat direct). Une
+  // commande `pendingToBuy` n'est qu'un article du panier : elle peut encore
+  // être retirée, on ne facture ni ne consomme rien.
+  // Le panier payé, lui, passe par updateOrders — pas par ici.
+  if (createdOrder.status === 'pending') {
+    const settled = await settleDeliveryService({ orders: [createdOrder], bonusCode });
+    createdOrder.deliveryOffer = settled.offer;
+  }
 
   // Socket temps réel fiable vers le CLIENT : sa commande vient d'être créée
   // (rejoué au reconnect si le client est hors ligne)

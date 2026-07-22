@@ -148,6 +148,11 @@ CREATE TABLE IF NOT EXISTS orders (
   client_id         TEXT,
   period_key        TEXT,
   driver_id         TEXT,
+  -- Panier (migration 022) : une commande = un plat, donc un panier arrive comme
+  -- plusieurs commandes. `group_id` permet de les réafficher ensemble.
+  -- À distinguer de order_deliveries.delivery_group_id, qui groupe par
+  -- (panier, BOUTIQUE) pour la comptabilité.
+  group_id          TEXT,
   extra_data        JSONB DEFAULT '{}'::jsonb,
   created_at        TIMESTAMPTZ DEFAULT NOW(),
   updated_at        TIMESTAMPTZ DEFAULT NOW()
@@ -159,6 +164,7 @@ CREATE INDEX IF NOT EXISTS idx_orders_status_created ON orders(status, created_a
 CREATE INDEX IF NOT EXISTS idx_orders_queue ON orders(fastfood_id, status, delivery_date);
 CREATE INDEX IF NOT EXISTS idx_orders_menu ON orders(menu_id);
 CREATE INDEX IF NOT EXISTS idx_orders_driver ON orders(driver_id);
+CREATE INDEX IF NOT EXISTS idx_orders_group ON orders(group_id) WHERE group_id IS NOT NULL;
 
 -- ============================================================================
 -- TABLE: rank_counters
@@ -241,6 +247,10 @@ CREATE TABLE IF NOT EXISTS bonus_requests (
   code        TEXT,
   usage_count INTEGER DEFAULT 0,
   redeemed    BOOLEAN DEFAULT FALSE,
+  -- Armement global (page bonus) : le bonus s'applique à la prochaine commande
+  -- éligible. Persisté pour survivre à la fermeture de l'app. Armer ne consomme
+  -- rien — cf. architecture/bonus.md.
+  armed       BOOLEAN NOT NULL DEFAULT FALSE,
   extra_data  JSONB DEFAULT '{}'::jsonb,
   created_at  TIMESTAMPTZ DEFAULT NOW(),
   updated_at  TIMESTAMPTZ DEFAULT NOW(),
@@ -256,6 +266,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_bonus_requests_code
 
 CREATE INDEX IF NOT EXISTS idx_bonus_requests_status_gin
   ON bonus_requests USING GIN (status);
+
+-- Bonus armés d'un user : lus à chaque affichage du home (GET /fastfood/all).
+CREATE INDEX IF NOT EXISTS idx_bonus_requests_armed
+  ON bonus_requests(user_id) WHERE armed = TRUE;
 
 -- Réclamations en attente de livraison manuelle (consultées côté back-office).
 CREATE INDEX IF NOT EXISTS idx_bonus_requests_pending
@@ -627,6 +641,155 @@ BEGIN
   RETURN v_result;
 END;
 $$ LANGUAGE plpgsql;
+
+-- ============================================================================
+-- TABLE: settings (migration 019)
+-- ============================================================================
+-- Réglages métier modifiables À CHAUD (marge, frais de paiement, campagne
+-- « livraison offerte »). En base et non dans .env : ce sont des décisions
+-- commerciales, `flyctl secrets set` redémarrerait la machine.
+-- Les seuils de version d'app restent, eux, en .env.
+CREATE TABLE IF NOT EXISTS settings (
+  key         TEXT PRIMARY KEY,
+  value       JSONB NOT NULL,
+  description TEXT,
+  updated_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+INSERT INTO settings (key, value, description) VALUES
+  ('platform_margin',     '100'::jsonb,   'Marge Yaammoo ajoutée au prix affiché de chaque plat (FCFA).'),
+  ('payment_fee_percent', '5'::jsonb,     'Frais du prestataire de paiement, en % du montant payé. Arrondi à l''entier SUPÉRIEUR.'),
+  ('delivery_free_mode',  'false'::jsonb, 'Campagne « livraison offerte » globale.')
+ON CONFLICT (key) DO NOTHING;
+
+-- ============================================================================
+-- TABLE: order_deliveries (migrations 020/021/023)
+-- ============================================================================
+-- La COURSE d'une commande livrée. Une ligne UNIQUEMENT si la commande est
+-- livrée — une commande à emporter n'a pas de course. L'argent est dans
+-- `order_settlements`.
+--
+-- `orders.delivery` (JSONB) ne portait qu'un seul montant : impossible d'y
+-- distinguer ce que touche le fastfood de ce qu'a payé le user. Cette table le
+-- complète, elle ne le remplace pas.
+CREATE TABLE IF NOT EXISTS order_deliveries (
+  order_id        TEXT PRIMARY KEY REFERENCES orders(id) ON DELETE CASCADE,
+  user_id         TEXT NOT NULL,
+  fastfood_id     TEXT,
+  zone            TEXT,
+  real_price      NUMERIC(12,2) NOT NULL DEFAULT 0,
+  charged_price   NUMERIC(12,2) NOT NULL DEFAULT 0,
+  platform_margin NUMERIC(12,2) NOT NULL DEFAULT 0,
+  free_reason     TEXT,
+  covered_by      TEXT,
+  bonus_id        TEXT,
+  bonus_code      TEXT,
+  -- Panier (migration 021) : une commande = un plat, donc plusieurs commandes
+  -- pour un seul déplacement du livreur. `real_price` reste renseigné partout
+  -- (traçabilité) ; seule la ligne `course_billed = TRUE` est réellement due.
+  delivery_group_id TEXT,
+  course_billed     BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at      TIMESTAMPTZ DEFAULT NOW(),
+  CONSTRAINT order_deliveries_free_reason_chk
+    CHECK (free_reason IS NULL OR free_reason IN ('bonus', 'campaign')),
+  CONSTRAINT order_deliveries_covered_by_chk
+    CHECK (covered_by IS NULL OR covered_by IN ('fastfood', 'platform')),
+  -- Une gratuité fait renoncer à un gain, elle ne crée pas une dépense.
+  CONSTRAINT order_deliveries_margin_chk CHECK (platform_margin >= 0)
+);
+
+CREATE INDEX IF NOT EXISTS idx_order_deliveries_fastfood
+  ON order_deliveries(fastfood_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_order_deliveries_bonus
+  ON order_deliveries(bonus_id) WHERE bonus_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_order_deliveries_group
+  ON order_deliveries(delivery_group_id) WHERE delivery_group_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_order_deliveries_billed
+  ON order_deliveries(fastfood_id, created_at) WHERE course_billed = TRUE;
+
+-- ============================================================================
+-- TABLE: order_settlements (migration 023)
+-- ============================================================================
+-- L'ARGENT d'une commande : UNE ligne par commande, TOUJOURS — livrée ou à
+-- emporter. Séparée de `order_deliveries` (la course) : toute commande a un
+-- règlement, seules les commandes livrées ont une course.
+--
+-- ⚠️ Une commande à emporter est TOUT DE MÊME facturée pour la livraison : le
+-- supplément est fondu dans le prix du plat depuis le home, avant que le user
+-- ait choisi son mode. Sans course à verser, ce montant part intégralement en
+-- marge. Modèle économique retenu.
+--
+--   Marge pure  =  order_settlements WHERE delivered = FALSE
+CREATE TABLE IF NOT EXISTS order_settlements (
+  order_id        TEXT PRIMARY KEY REFERENCES orders(id) ON DELETE CASCADE,
+  user_id         TEXT NOT NULL,
+  fastfood_id     TEXT,
+  -- Recopié d'orders.group_id : agréger un panier sans jointure.
+  group_id        TEXT,
+  -- Plat + extras + boissons, hors livraison, hors frais, hors marge.
+  items_real      NUMERIC(12,2) NOT NULL DEFAULT 0,
+  -- Ce que le user a payé (TTC, frais inclus).
+  items_charged   NUMERIC(12,2) NOT NULL DEFAULT 0,
+  -- Frais prestataire, CONTENUS dans items_charged.
+  payment_fee     NUMERIC(12,2) NOT NULL DEFAULT 0,
+  platform_margin NUMERIC(12,2) NOT NULL DEFAULT 0,
+  delivered       BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at      TIMESTAMPTZ DEFAULT NOW(),
+  -- Une gratuité fait renoncer à un gain, elle ne crée pas une dépense.
+  CONSTRAINT order_settlements_margin_chk CHECK (platform_margin >= 0)
+);
+
+CREATE INDEX IF NOT EXISTS idx_order_settlements_fastfood
+  ON order_settlements(fastfood_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_order_settlements_group
+  ON order_settlements(group_id) WHERE group_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_order_settlements_pickup
+  ON order_settlements(fastfood_id, created_at) WHERE delivered = FALSE;
+
+-- ============================================================================
+-- TABLE: platform_revenues (migration 024)
+-- ============================================================================
+-- Grand livre des revenus, toutes sources confondues. ⚠️ Socle posé d'avance :
+-- AUCUN code n'y écrit à ce jour, c'est intentionnel.
+--
+-- La marge ne viendra pas que des commandes (flyers, mise en avant, abonnements).
+-- Ces recettes n'ont pas d'`order_id` et ne peuvent donc pas entrer dans
+-- `order_settlements`, dont la clé primaire EST `order_id`.
+--
+--   order_settlements → le détail d'UNE commande (source de vérité)
+--   platform_revenues → l'agrégat de TOUTES les sources
+CREATE TABLE IF NOT EXISTS platform_revenues (
+  id            TEXT PRIMARY KEY,
+  source_type   TEXT NOT NULL,
+  source_id     TEXT,
+  fastfood_id   TEXT,
+  user_id       TEXT,
+  gross_amount  NUMERIC(12,2) NOT NULL DEFAULT 0,
+  platform_margin NUMERIC(12,2) NOT NULL DEFAULT 0,
+  payment_fee   NUMERIC(12,2) NOT NULL DEFAULT 0,
+  -- Date de l'événement économique, distincte de la date d'écriture : une
+  -- reprise d'historique ne doit pas fausser les agrégats mensuels.
+  occurred_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_at    TIMESTAMPTZ DEFAULT NOW(),
+  metadata      JSONB DEFAULT '{}'::jsonb,
+  CONSTRAINT platform_revenues_source_type_chk
+    CHECK (source_type IN ('order', 'flyer', 'subscription', 'promotion', 'other')),
+  CONSTRAINT platform_revenues_margin_chk CHECK (platform_margin >= 0)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_platform_revenues_source
+  ON platform_revenues(source_type, source_id) WHERE source_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_platform_revenues_occurred
+  ON platform_revenues(occurred_at);
+
+CREATE INDEX IF NOT EXISTS idx_platform_revenues_fastfood
+  ON platform_revenues(fastfood_id, occurred_at) WHERE fastfood_id IS NOT NULL;
 
 -- ============================================================================
 -- FIN DU SCHEMA

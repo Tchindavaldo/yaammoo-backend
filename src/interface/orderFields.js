@@ -13,8 +13,16 @@ exports.OrderFields = {
   total: { type: 'number', required: true },
   clientId: { type: 'string', required: false },
   periodKey: { type: 'string', required: false },
+  // Commandes d'un même panier, à réafficher ensemble. Renseigné par le backend
+  // au passage en `pending` — jamais envoyé par le client.
+  groupId: { type: 'string', required: false },
   driverId: { type: 'string', required: false },
   selectedPriceIndex: { type: 'number', required: false },
+  // Code d'un bonus livraison offerte à appliquer à cette commande. Champ
+  // d'ENTRÉE uniquement : il est retiré avant persistance (le bonus appliqué est
+  // restitué via `deliveryOffer`). Déclaré ici parce que le validateur refuse
+  // tout champ non listé.
+  bonusCode: { type: 'string', required: false },
   quantity: { type: 'number', required: true },
   userData: {
     type: 'object',

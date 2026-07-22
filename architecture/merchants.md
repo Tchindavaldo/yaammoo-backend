@@ -42,7 +42,9 @@ FastFood {
                                // Clients ne peuvent pas commander 
                                // après minuit - orderLeadTime
   advanceDays: number          // Nombre de jours à l'avance pour commander (défaut: 0)
-  pickupOnly: boolean          // true = retrait uniquement, pas de livraison
+  pickupAllowed: boolean       // true = le client peut venir récupérer sur place.
+                               // N'exclut PAS la livraison : une boutique qui
+                               // ne livre pas ne déclare aucune zone.
   cities: string[]             // Villes où la boutique opère (ex: ["Douala", "Yaoundé"])
   deliveryHours: DeliveryHour[] // Créneaux avec zones de livraison et prix
   
@@ -74,13 +76,9 @@ Menu {
   name: string                 // Nom plat
   titre: string                // Titre (variante du name?)
   
-  // Prix (3 variantes possibles)
-  prix1: number
-  prix2: number
-  prix3: number
-  optionPrix1: string
-  optionPrix2: string
-  optionPrix3: string
+  // Prix — ⚠️ c'est `prices[]` qui fait foi ; prix1/prix2/prix3 sont des
+  // colonnes obsolètes, NULL sur toute la base. Cf. menus-detailed.md
+  prices: { price: number, description: string }[]
   
   // Images
   image: string                // Image principale
@@ -155,7 +153,7 @@ MenuItem {
        ],
        "orderLeadTime": 30,
        "advanceDays": 3,
-       "pickupOnly": false,
+       "pickupAllowed": false,
        "cities": ["Douala", "Yaoundé"],
        "momoNumber": "691234568",
        "whatsappNumber": "691234569"
@@ -178,7 +176,7 @@ MenuItem {
    {
      "fastFoodId": "...",
      "name": "Poulet Grillé",
-     "prix1": 2500,
+     "prices": [{ "price": 2500, "description": "Petit" }],
      "stock": 50,
      "disponibilite": true
    }
@@ -218,7 +216,7 @@ MenuItem {
 
 **Menu**
 - name : 3+ caractères
-- prix1 : > 0
+- prices : au moins une entrée, chaque `price` > 0
 - stock : >= 0
 - fastFoodId : référence existante
 

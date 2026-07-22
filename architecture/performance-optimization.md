@@ -41,7 +41,7 @@ const { data: orders } = await supabase
   .from('orders')
   .select(`
     id, status, total,
-    menus (id, name, prix1)
+    menus (id, name, prices)
   `)
   .eq('fastfood_id', fastFoodId);
   // 1 query with join!
@@ -59,7 +59,7 @@ const order = {
   menuSnapshot: {  // Denormalized copy
     id: menu.id,
     name: menu.name,
-    prix1: menu.prix1
+    prices: menu.prices
   },
   ...
 };

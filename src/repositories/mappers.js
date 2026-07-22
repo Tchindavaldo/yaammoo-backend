@@ -94,7 +94,7 @@ const userFromSupabase = (row, pushTokens = []) => {
 // ---------------------------------------------------------------------------
 const fastfoodToSupabase = data => {
   const { createdAt, updatedAt, ...rest } = data;
-  const known = ['id', 'userId', 'name', 'number', 'momoNumber', 'whatsappNumber', 'openTime', 'closeTime', 'image', 'orderLeadTime', 'advanceDays', 'pickupOnly', 'cities', 'deliveryHours', 'driverRatingAvg', 'driverRatingCount'];
+  const known = ['id', 'userId', 'name', 'number', 'momoNumber', 'whatsappNumber', 'openTime', 'closeTime', 'image', 'orderLeadTime', 'advanceDays', 'pickupAllowed', 'cities', 'deliveryHours', 'driverRatingAvg', 'driverRatingCount'];
   const extra = {};
   for (const k of Object.keys(rest)) {
     if (!known.includes(k)) extra[k] = rest[k];
@@ -111,7 +111,7 @@ const fastfoodToSupabase = data => {
     image: data.image ?? null,
     order_lead_time: data.orderLeadTime ?? null,
     advance_days: data.advanceDays ?? null,
-    pickup_only: data.pickupOnly ?? null,
+    pickup_allowed: data.pickupAllowed ?? null,
     cities: data.cities ?? [],
     delivery_hours: data.deliveryHours ?? [],
     extra_data: extra,
@@ -134,7 +134,7 @@ const fastfoodFromSupabase = row => {
     image: row.image,
     orderLeadTime: row.order_lead_time,
     advanceDays: row.advance_days ?? 0,
-    pickupOnly: row.pickup_only ?? false,
+    pickupAllowed: row.pickup_allowed ?? false,
     cities: row.cities || [],
     deliveryHours: row.delivery_hours || [],
     driverRatingAvg: row.driver_rating_avg != null ? Number(row.driver_rating_avg) : 0,
@@ -233,7 +233,7 @@ const ratingFromSupabase = row => {
 // ---------------------------------------------------------------------------
 const orderToSupabase = data => {
   const { createdAt, updatedAt, menu, userData, selectedPriceIndex, ...rest } = data;
-  const known = ['id', 'userId', 'fastFoodId', 'quantity', 'extra', 'drink', 'delivery', 'total', 'status', 'rank', 'clientId', 'periodKey', 'driverId'];
+  const known = ['id', 'userId', 'fastFoodId', 'quantity', 'extra', 'drink', 'delivery', 'total', 'status', 'rank', 'clientId', 'periodKey', 'driverId', 'groupId'];
   const extra_data = {};
   for (const k of Object.keys(rest)) {
     if (!known.includes(k)) extra_data[k] = rest[k];
@@ -255,6 +255,8 @@ const orderToSupabase = data => {
     client_id: data.clientId ?? null,
     period_key: data.periodKey ?? null,
     driver_id: data.driverId ?? null,
+    // Panier : commandes à réafficher ensemble (migration 022).
+    group_id: data.groupId ?? null,
     user_data: userData ?? null,
     selected_price_index: selectedPriceIndex ?? null,
     extra_data,
@@ -280,6 +282,7 @@ const orderFromSupabase = row => {
     clientId: row.client_id ?? undefined,
     periodKey: row.period_key ?? undefined,
     driverId: row.driver_id ?? undefined,
+    groupId: row.group_id ?? undefined,
     userData: row.user_data ?? undefined,
     selectedPriceIndex: row.selected_price_index ?? undefined,
     createdAt: row.created_at,
@@ -416,7 +419,7 @@ const bonusFromSupabase = row => {
 // (avant : dans extra_data, d'où un findByCode non indexé qui scannait la table).
 const bonusRequestToSupabase = data => {
   const { createdAt, updatedAt, ...rest } = data;
-  const known = ['id', 'userId', 'bonusId', 'bonusType', 'status', 'code', 'usageCount', 'redeemed'];
+  const known = ['id', 'userId', 'bonusId', 'bonusType', 'status', 'code', 'usageCount', 'redeemed', 'armed'];
   const extra_data = {};
   for (const k of Object.keys(rest)) {
     if (!known.includes(k)) extra_data[k] = rest[k];
@@ -430,6 +433,7 @@ const bonusRequestToSupabase = data => {
     code: data.code ?? null,
     usage_count: data.usageCount ?? 0,
     redeemed: data.redeemed ?? false,
+    armed: data.armed ?? false,
     extra_data,
     created_at: toIso(createdAt),
     updated_at: toIso(updatedAt) || toIso(createdAt),
@@ -447,6 +451,7 @@ const bonusRequestFromSupabase = row => {
     code: row.code ?? null,
     usageCount: row.usage_count ?? 0,
     redeemed: row.redeemed ?? false,
+    armed: row.armed ?? false,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     ...(row.extra_data || {}),

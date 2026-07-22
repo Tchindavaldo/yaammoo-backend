@@ -58,6 +58,64 @@ paiement (qui appellent directement le service) échappaient au validateur.
 `type` (`express|time`), `time`, `zone`, `prix`, `location`, `phone`, `voiceNoteUri`,
 `record`, `note`. Tout champ non déclaré = rejet `Champ non autorisé`.
 
+### Bonus livraison offerte
+
+`POST /order` accepte un champ d'entrée **`bonusCode`** (non persisté ; il est
+retiré avant l'écriture, et le bonus appliqué est restitué via `deliveryOffer`).
+
+1. **Avant création** — `resolveDeliveryBonus()` : un code fourni mais invalide
+   fait échouer la commande en `400`. Sans `bonusCode`, on retombe sur le bonus
+   éventuellement **armé** par le user (`GET /fastfood/all` l'expose déjà).
+2. **Après création réussie** — `consumeDeliveryBonus()` : `usageCount++`,
+   `armed = false`. **Pas de commande = pas de consommation.**
+
+> ⚠️ `delivery.prix` n'est **jamais** forcé à 0. La gratuité est portée par
+> `deliveryOffer` dans la commande renvoyée ; le front décide de l'affichage.
+
+Détail complet du modèle : [bonus.md](./bonus.md#livraison-offerte-armement--consommation).
+
+**Arbitrage campagne / bonus** : si une campagne globale (`delivery_free_mode`)
+est active, elle prime et le bonus n'est **pas** consommé.
+
+### Cohérence du panier — contrôlée AVANT le paiement
+
+`validateCartDelivery()` (`utils/validator/`), appelé dans
+`postTransaction.service` **avant tout appel à MobileWallet** : une fois le
+montant encaissé, refuser un panier incohérent obligerait à rembourser.
+
+Règle : **au sein d'une même boutique**, toutes les commandes livrées doivent
+partager le même `delivery.type`, la même `date` et la même `time`. Le livreur
+ne fait qu'un déplacement, il ne peut pas y avoir deux créneaux.
+
+- Deux boutiques différentes → deux courses indépendantes, aucun contrôle entre elles.
+- Commandes en retrait (`delivery.status !== true`) → ignorées.
+- Panier d'une seule commande → rien à comparer.
+
+### `groupId` — commandes d'un même panier
+
+Une commande = un plat, donc un panier de 3 plats arrive chez le marchand comme
+3 commandes. `groupId` (migration 022) leur est attribué **au passage en
+`pending`**, uniquement si le lot en compte plusieurs, pour les réafficher
+ensemble : un seul client, une seule livraison.
+
+> À distinguer de `order_deliveries.delivery_group_id`, qui groupe par
+> (panier, **boutique**) pour la comptabilité : un panier peut couvrir deux
+> boutiques — deux courses, mais un seul panier côté client.
+
+### Règlement livraison — au passage en `pending`
+
+`settleDeliveryService()` écrit la répartition réelle des montants —
+`order_settlements` (une ligne par commande, toujours) et `order_deliveries`
+(uniquement si livrée) — et consomme le bonus. Il est déclenché **quand la commande
+devient payée**, jamais à la mise au panier :
+
+- **Panier** → `updateOrders`, transition `pendingToBuy → pending`. Le lot arrive
+  en un seul appel → **une seule course par boutique**, bonus consommé une fois.
+- **Achat direct** → `createOrderService`, uniquement si `status === 'pending'`.
+
+`orders.delivery` n'est ni modifié ni supprimé — aucune rupture pour les apps en
+production. Voir [pricing.md](./pricing.md).
+
 **Flux** :
 1. Si `status === 'pending'` → `reserveRank()` pour obtenir un rank avant création
 2. `db.collection('orders').add(orderData)` — crée la commande

@@ -11,7 +11,8 @@ exports.FastfoodFields = {
   closeTime: { type: 'string', required: false },
   orderLeadTime: { type: 'number', required: false },
   advanceDays: { type: 'number', required: false },
-  pickupOnly: { type: 'bool', required: false },
+  // true = le user peut venir récupérer sur place. N'exclut PAS la livraison.
+  pickupAllowed: { type: 'bool', required: false },
   cities: { type: 'array', required: false },
   deliveryHours: {
     type: 'array',

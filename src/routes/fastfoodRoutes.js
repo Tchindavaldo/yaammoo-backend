@@ -7,6 +7,7 @@ const { updateFastfoodController } = require('../controllers/fastfood/updateFast
 const { searchFastfoodController } = require('../controllers/fastfood/searchFastfood');
 const { getFastFoodDeliveryStatsController } = require('../controllers/fastfood/getFastFoodDeliveryStats');
 const firebaseAuth = require('../middlewares/authMiddleware');
+const optionalFirebaseAuth = require('../middlewares/optionalAuthMiddleware');
 
 const route = express.Router();
 
@@ -47,7 +48,7 @@ const route = express.Router();
  *                 type: number
  *               advanceDays:
  *                 type: number
- *               pickupOnly:
+ *               pickupAllowed:
  *                 type: boolean
  *               cities:
  *                 type: array
@@ -105,12 +106,22 @@ route.post('', createFastfoodController);
  * @swagger
  * /fastFood/all:
  *   get:
- *     summary: Get all fastfood restaurants
+ *     summary: Liste les boutiques (avec leurs menus)
+ *     description: >-
+ *       Route **publique à authentification facultative**. Sans token, la réponse
+ *       est celle d'avant. Avec un token valide, chaque boutique porte en plus
+ *       `deliveryOffer` : l'offre de livraison armée par CE user et applicable
+ *       ici (bonus de la boutique, ou bonus plateforme valable partout).
+ *
+ *       Seules les boutiques ayant au moins un menu sont renvoyées.
  *     tags:
  *       - FastFood
+ *     security:
+ *       - bearerAuth: []
+ *       - {}
  *     responses:
  *       200:
- *         description: List of all fastfood restaurants
+ *         description: Liste des boutiques
  *         content:
  *           application/json:
  *             schema:
@@ -120,12 +131,23 @@ route.post('', createFastfoodController);
  *                   type: boolean
  *                 message:
  *                   type: string
+ *                 appleReviewMode:
+ *                   type: boolean
  *                 data:
  *                   type: array
  *                   items:
- *                     $ref: '#/components/schemas/FastFood'
+ *                     allOf:
+ *                       - $ref: '#/components/schemas/FastFood'
+ *                       - type: object
+ *                         properties:
+ *                           menus:
+ *                             type: array
+ *                             items:
+ *                               $ref: '#/components/schemas/Menu'
+ *                           deliveryOffer:
+ *                             $ref: '#/components/schemas/DeliveryOffer'
  */
-route.get('/all', getfastfoodController);
+route.get('/all', optionalFirebaseAuth, getfastfoodController);
 
 /**
  * @swagger
@@ -177,7 +199,7 @@ route.get('/all', getfastfoodController);
  *                 type: number
  *               advanceDays:
  *                 type: number
- *               pickupOnly:
+ *               pickupAllowed:
  *                 type: boolean
  *               cities:
  *                 type: array

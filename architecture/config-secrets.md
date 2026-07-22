@@ -22,19 +22,31 @@ Gestion centralisée configuration, variables d'environnement, secrets (clés AP
 ### `.env` (gitignoré)
 
 ```bash
-# Database Provider
-DB_PROVIDER=firestore                    # ou 'supabase'
+# Database Provider — `supabase` est la SEULE valeur supportée
+# (la couche Firestore a été retirée ; toute autre valeur est ignorée avec un warn)
+DB_PROVIDER=supabase
 
-# Firebase (Firestore)
+# Firebase — auth, push et storage UNIQUEMENT (plus de Firestore comme BD)
 FIREBASE_PROJECT_ID=yaammoo-prod
 FIREBASE_PRIVATE_KEY=-----BEGIN PRIVATE KEY-----...
 FIREBASE_CLIENT_EMAIL=firebase-adminsdk-xxx@...
 FIREBASE_DATABASE_URL=https://yaammoo-prod.firebaseio.com
 
-# Supabase (alternative)
+# Supabase — base de données
 SUPABASE_URL=https://xxx.supabase.co
 SUPABASE_ANON_KEY=eyJxxx...
 SUPABASE_SERVICE_KEY=eyJxxx...
+
+# Versioning par version d'app (cf. CLAUDE.md)
+# Repli quand la requête n'envoie pas le header `x-app-version`
+FRONTEND_APP_VERSION=1.0.0
+# Seuil : version minimale comprenant le format deliveryHours enrichi
+APP_DELIVERY_NEW_MIN_VERSION=1.0.1
+
+# Tarification — cache mémoire des réglages `settings` (ms)
+# ⚠️ Les réglages EUX-MÊMES (marge, frais, campagne) sont en BASE, pas ici :
+#    ce sont des décisions commerciales à basculer sans redéploiement.
+SETTINGS_CACHE_TTL_MS=30000
 
 # Payments
 MOBILEWALLET_URL=https://api.mobilewallet.com

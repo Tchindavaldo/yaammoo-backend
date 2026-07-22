@@ -31,6 +31,9 @@ const sb = {
   outboxEvents: require('./supabase/outboxEvents.repo'),
   driverApplications: require('./supabase/driverApplications.repo'),
   ratings: require('./supabase/ratings.repo'),
+  settings: require('./supabase/settings.repo'),
+  orderDeliveries: require('./supabase/orderDeliveries.repo'),
+  orderSettlements: require('./supabase/orderSettlements.repo'),
 };
 
 // ===========================================================================
@@ -68,5 +71,8 @@ module.exports = {
   outboxEvents: sb.outboxEvents,
   driverApplications: sb.driverApplications,
   ratings: sb.ratings,
+  settings: sb.settings,
+  orderDeliveries: sb.orderDeliveries,
+  orderSettlements: sb.orderSettlements,
   supabase: sb,
 };
