@@ -217,7 +217,7 @@ const options = {
             closeTime: { type: 'string', example: '22:00' },
             orderLeadTime: { type: 'number', description: 'Délai avant livraison (minutes).' },
             advanceDays: { type: 'number' },
-            pickupOnly: { type: 'boolean', description: 'true = retrait uniquement, aucune livraison.' },
+            pickupAllowed: { type: 'boolean', description: "true = le user peut venir récupérer sur place. N'exclut PAS la livraison." },
             cities: { type: 'array', items: { type: 'string' } },
             deliveryHours: {
               type: 'array',
@@ -258,7 +258,7 @@ const options = {
             'reçoit les prix RÉELS (`applied: false`), sinon il ne pourrait plus gérer son catalogue.',
           properties: {
             surcharge: { type: 'number', description: 'maxDeliveryPrice + platformMargin.' },
-            maxDeliveryPrice: { type: 'number', description: 'Livraison la plus chère de la boutique (0 si pickupOnly).' },
+            maxDeliveryPrice: { type: 'number', description: 'Livraison la plus chère de la boutique (0 si aucune zone déclarée).' },
             platformMargin: { type: 'number' },
             applied: { type: 'boolean', description: 'Le supplément est-il inclus dans les prix des menus renvoyés ?' },
           },

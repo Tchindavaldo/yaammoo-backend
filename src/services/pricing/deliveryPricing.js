@@ -87,7 +87,9 @@ function collectZones(fastfood, deliveryType) {
  * livraison, le prix annoncé doit donc couvrir le cas le plus cher.
  */
 function maxDeliveryPrice(fastfood, deliveryType) {
-  if (fastfood?.pickupOnly) return 0;
+  // ⚠️ `pickupAllowed` n'entre PAS en jeu : il dit que le user peut venir
+  // récupérer sur place, pas que la boutique refuse de livrer. Une boutique qui
+  // ne livre pas ne déclare simplement aucune zone → 0 naturellement.
   const zones = collectZones(fastfood, deliveryType);
   if (zones.length === 0) return 0;
   return zones.reduce((max, z) => Math.max(max, toNumber(z.prix)), 0);
@@ -104,7 +106,6 @@ function maxDeliveryPrice(fastfood, deliveryType) {
  * pour ne pas créditer la plateforme d'une marge qu'elle n'a pas gagnée.
  */
 function zoneDeliveryPrice(fastfood, zoneName, deliveryType) {
-  if (fastfood?.pickupOnly) return 0;
   if (!zoneName) return maxDeliveryPrice(fastfood, deliveryType);
   const zone = collectZones(fastfood, deliveryType).find(z => z.lieu === zoneName);
   return zone ? toNumber(zone.prix) : maxDeliveryPrice(fastfood, deliveryType);

@@ -42,7 +42,9 @@ FastFood {
                                // Clients ne peuvent pas commander 
                                // après minuit - orderLeadTime
   advanceDays: number          // Nombre de jours à l'avance pour commander (défaut: 0)
-  pickupOnly: boolean          // true = retrait uniquement, pas de livraison
+  pickupAllowed: boolean       // true = le client peut venir récupérer sur place.
+                               // N'exclut PAS la livraison : une boutique qui
+                               // ne livre pas ne déclare aucune zone.
   cities: string[]             // Villes où la boutique opère (ex: ["Douala", "Yaoundé"])
   deliveryHours: DeliveryHour[] // Créneaux avec zones de livraison et prix
   
@@ -151,7 +153,7 @@ MenuItem {
        ],
        "orderLeadTime": 30,
        "advanceDays": 3,
-       "pickupOnly": false,
+       "pickupAllowed": false,
        "cities": ["Douala", "Yaoundé"],
        "momoNumber": "691234568",
        "whatsappNumber": "691234569"

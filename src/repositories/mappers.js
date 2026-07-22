@@ -94,7 +94,7 @@ const userFromSupabase = (row, pushTokens = []) => {
 // ---------------------------------------------------------------------------
 const fastfoodToSupabase = data => {
   const { createdAt, updatedAt, ...rest } = data;
-  const known = ['id', 'userId', 'name', 'number', 'momoNumber', 'whatsappNumber', 'openTime', 'closeTime', 'image', 'orderLeadTime', 'advanceDays', 'pickupOnly', 'cities', 'deliveryHours', 'driverRatingAvg', 'driverRatingCount'];
+  const known = ['id', 'userId', 'name', 'number', 'momoNumber', 'whatsappNumber', 'openTime', 'closeTime', 'image', 'orderLeadTime', 'advanceDays', 'pickupAllowed', 'cities', 'deliveryHours', 'driverRatingAvg', 'driverRatingCount'];
   const extra = {};
   for (const k of Object.keys(rest)) {
     if (!known.includes(k)) extra[k] = rest[k];
@@ -111,7 +111,7 @@ const fastfoodToSupabase = data => {
     image: data.image ?? null,
     order_lead_time: data.orderLeadTime ?? null,
     advance_days: data.advanceDays ?? null,
-    pickup_only: data.pickupOnly ?? null,
+    pickup_allowed: data.pickupAllowed ?? null,
     cities: data.cities ?? [],
     delivery_hours: data.deliveryHours ?? [],
     extra_data: extra,
@@ -134,7 +134,7 @@ const fastfoodFromSupabase = row => {
     image: row.image,
     orderLeadTime: row.order_lead_time,
     advanceDays: row.advance_days ?? 0,
-    pickupOnly: row.pickup_only ?? false,
+    pickupAllowed: row.pickup_allowed ?? false,
     cities: row.cities || [],
     deliveryHours: row.delivery_hours || [],
     driverRatingAvg: row.driver_rating_avg != null ? Number(row.driver_rating_avg) : 0,

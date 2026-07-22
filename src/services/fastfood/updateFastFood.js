@@ -23,7 +23,7 @@ exports.updateFastFoodService = async (fastFoodId, data) => {
   if (data.image !== undefined) updateData.image = data.image;
   if (data.orderLeadTime !== undefined) updateData.orderLeadTime = data.orderLeadTime;
   if (data.advanceDays !== undefined) updateData.advanceDays = data.advanceDays;
-  if (data.pickupOnly !== undefined) updateData.pickupOnly = data.pickupOnly;
+  if (data.pickupAllowed !== undefined) updateData.pickupAllowed = data.pickupAllowed;
   if (data.cities !== undefined) updateData.cities = data.cities;
   if (data.deliveryHours !== undefined) updateData.deliveryHours = data.deliveryHours;
 

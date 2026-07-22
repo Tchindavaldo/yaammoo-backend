@@ -48,7 +48,7 @@ const route = express.Router();
  *                 type: number
  *               advanceDays:
  *                 type: number
- *               pickupOnly:
+ *               pickupAllowed:
  *                 type: boolean
  *               cities:
  *                 type: array
@@ -199,7 +199,7 @@ route.get('/all', optionalFirebaseAuth, getfastfoodController);
  *                 type: number
  *               advanceDays:
  *                 type: number
- *               pickupOnly:
+ *               pickupAllowed:
  *                 type: boolean
  *               cities:
  *                 type: array
