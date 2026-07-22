@@ -13,6 +13,9 @@ exports.OrderFields = {
   total: { type: 'number', required: true },
   clientId: { type: 'string', required: false },
   periodKey: { type: 'string', required: false },
+  // Commandes d'un même panier, à réafficher ensemble. Renseigné par le backend
+  // au passage en `pending` — jamais envoyé par le client.
+  groupId: { type: 'string', required: false },
   driverId: { type: 'string', required: false },
   selectedPriceIndex: { type: 'number', required: false },
   // Code d'un bonus livraison offerte à appliquer à cette commande. Champ

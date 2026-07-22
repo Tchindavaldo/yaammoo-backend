@@ -4,6 +4,7 @@
 const repos = require('../../repositories');
 const { getIO } = require('../../socket');
 const { validateTransactionCreation } = require('../../utils/validator/validateTransactionCreation');
+const { validateCartDelivery } = require('../../utils/validator/validateCartDelivery');
 const mobilewalletService = require('./mobilewalletService');
 const { computeNet } = require('../../utils/commission');
 const { generateId } = require('../../repositories/idGen');
@@ -32,6 +33,16 @@ exports.postTransactionService = async data => {
         log.warn(`  - ${err.field}: ${err.message}`);
       });
       return { success: false, httpStatus: 400, message: errors };
+    }
+
+    // Cohérence des livraisons du panier — AVANT tout paiement : une fois le
+    // montant encaissé, refuser un panier incohérent obligerait à rembourser.
+    // Chez une même boutique, le livreur ne fait qu'un déplacement : mode, date
+    // et heure doivent donc être identiques sur toutes ses commandes.
+    const cartError = validateCartDelivery(items);
+    if (cartError) {
+      log.warn(`${logPrefix} ❌ Panier incohérent: ${cartError}`);
+      return { success: false, httpStatus: 400, message: cartError };
     }
 
     // remainingAmount calculé si paiement mobileApp partiel

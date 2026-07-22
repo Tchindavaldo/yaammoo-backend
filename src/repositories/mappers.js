@@ -233,7 +233,7 @@ const ratingFromSupabase = row => {
 // ---------------------------------------------------------------------------
 const orderToSupabase = data => {
   const { createdAt, updatedAt, menu, userData, selectedPriceIndex, ...rest } = data;
-  const known = ['id', 'userId', 'fastFoodId', 'quantity', 'extra', 'drink', 'delivery', 'total', 'status', 'rank', 'clientId', 'periodKey', 'driverId'];
+  const known = ['id', 'userId', 'fastFoodId', 'quantity', 'extra', 'drink', 'delivery', 'total', 'status', 'rank', 'clientId', 'periodKey', 'driverId', 'groupId'];
   const extra_data = {};
   for (const k of Object.keys(rest)) {
     if (!known.includes(k)) extra_data[k] = rest[k];
@@ -255,6 +255,8 @@ const orderToSupabase = data => {
     client_id: data.clientId ?? null,
     period_key: data.periodKey ?? null,
     driver_id: data.driverId ?? null,
+    // Panier : commandes à réafficher ensemble (migration 022).
+    group_id: data.groupId ?? null,
     user_data: userData ?? null,
     selected_price_index: selectedPriceIndex ?? null,
     extra_data,
@@ -280,6 +282,7 @@ const orderFromSupabase = row => {
     clientId: row.client_id ?? undefined,
     periodKey: row.period_key ?? undefined,
     driverId: row.driver_id ?? undefined,
+    groupId: row.group_id ?? undefined,
     userData: row.user_data ?? undefined,
     selectedPriceIndex: row.selected_price_index ?? undefined,
     createdAt: row.created_at,

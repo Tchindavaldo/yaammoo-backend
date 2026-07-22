@@ -259,3 +259,4 @@ src/
 | `019_settings.sql` | table `settings` + valeurs initiales (`ON CONFLICT DO NOTHING`) |
 | `020_order_deliveries.sql` | table `order_deliveries` + contraintes + index |
 | `021_order_deliveries_group.sql` | `delivery_group_id`, `course_billed`, `items_real`, `items_charged`, `payment_fee` |
+| `022_orders_group_id.sql` | `orders.group_id` — commandes d'un même panier (cf. [orders.md](./orders.md)) |

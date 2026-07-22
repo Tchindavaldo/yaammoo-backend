@@ -22,6 +22,7 @@ const { assignRank, reindexQueue } = require('./rankQueue.service');
 const { notifyOrderEvent } = require('../notification/helpers/notifyOrderEvent');
 const { reliableEmit } = require('../../utils/reliableEmit');
 const { settleDeliveryService } = require('./settleDelivery.service');
+const { generateId } = require('../../repositories/idGen');
 
 const buildTransitionNotif =({ prevStatus, newStatus, order, merchantUserId }) => {
   const menuName = order.menu?.name || order.menu?.titre || 'Menu';
@@ -195,6 +196,22 @@ exports.updateOrders = async (orders, userId) => {
     const becamePending = transitions.filter(t => t.prevStatus === 'pendingToBuy' && t.newStatus === 'pending').map(t => t.order);
 
     if (becamePending.length > 0) {
+      // Panier de plusieurs plats : un `groupId` commun permet de les réafficher
+      // ensemble côté marchand comme côté client — un seul client, une seule
+      // livraison, même si ce sont techniquement plusieurs commandes.
+      // Inutile sur une commande seule : on ne pollue pas la donnée.
+      if (becamePending.length > 1) {
+        const groupId = generateId();
+        for (const order of becamePending) {
+          try {
+            await repos.orders.update(order.id, { groupId });
+            order.groupId = groupId;
+          } catch (e) {
+            console.warn(`[updateOrders] groupId non appliqué à ${order.id}:`, e.message);
+          }
+        }
+      }
+
       // Le code bonus voyage avec le panier, pas avec un plat en particulier.
       const bonusCode = updates.find(o => o && o.bonusCode)?.bonusCode;
       const settled = await settleDeliveryService({ orders: becamePending, bonusCode });

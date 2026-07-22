@@ -148,6 +148,11 @@ CREATE TABLE IF NOT EXISTS orders (
   client_id         TEXT,
   period_key        TEXT,
   driver_id         TEXT,
+  -- Panier (migration 022) : une commande = un plat, donc un panier arrive comme
+  -- plusieurs commandes. `group_id` permet de les réafficher ensemble.
+  -- À distinguer de order_deliveries.delivery_group_id, qui groupe par
+  -- (panier, BOUTIQUE) pour la comptabilité.
+  group_id          TEXT,
   extra_data        JSONB DEFAULT '{}'::jsonb,
   created_at        TIMESTAMPTZ DEFAULT NOW(),
   updated_at        TIMESTAMPTZ DEFAULT NOW()
@@ -159,6 +164,7 @@ CREATE INDEX IF NOT EXISTS idx_orders_status_created ON orders(status, created_a
 CREATE INDEX IF NOT EXISTS idx_orders_queue ON orders(fastfood_id, status, delivery_date);
 CREATE INDEX IF NOT EXISTS idx_orders_menu ON orders(menu_id);
 CREATE INDEX IF NOT EXISTS idx_orders_driver ON orders(driver_id);
+CREATE INDEX IF NOT EXISTS idx_orders_group ON orders(group_id) WHERE group_id IS NOT NULL;
 
 -- ============================================================================
 -- TABLE: rank_counters

@@ -77,6 +77,31 @@ Détail complet du modèle : [bonus.md](./bonus.md#livraison-offerte-armement--c
 **Arbitrage campagne / bonus** : si une campagne globale (`delivery_free_mode`)
 est active, elle prime et le bonus n'est **pas** consommé.
 
+### Cohérence du panier — contrôlée AVANT le paiement
+
+`validateCartDelivery()` (`utils/validator/`), appelé dans
+`postTransaction.service` **avant tout appel à MobileWallet** : une fois le
+montant encaissé, refuser un panier incohérent obligerait à rembourser.
+
+Règle : **au sein d'une même boutique**, toutes les commandes livrées doivent
+partager le même `delivery.type`, la même `date` et la même `time`. Le livreur
+ne fait qu'un déplacement, il ne peut pas y avoir deux créneaux.
+
+- Deux boutiques différentes → deux courses indépendantes, aucun contrôle entre elles.
+- Commandes en retrait (`delivery.status !== true`) → ignorées.
+- Panier d'une seule commande → rien à comparer.
+
+### `groupId` — commandes d'un même panier
+
+Une commande = un plat, donc un panier de 3 plats arrive chez le marchand comme
+3 commandes. `groupId` (migration 022) leur est attribué **au passage en
+`pending`**, uniquement si le lot en compte plusieurs, pour les réafficher
+ensemble : un seul client, une seule livraison.
+
+> À distinguer de `order_deliveries.delivery_group_id`, qui groupe par
+> (panier, **boutique**) pour la comptabilité : un panier peut couvrir deux
+> boutiques — deux courses, mais un seul panier côté client.
+
 ### Règlement livraison — au passage en `pending`
 
 `settleDeliveryService()` écrit la répartition réelle des montants dans

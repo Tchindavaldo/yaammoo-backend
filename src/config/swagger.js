@@ -132,6 +132,13 @@ const options = {
             rank: { type: 'number', description: "Rang dans la file du fastfood pour (statut, date de livraison)." },
             clientId: { type: 'string' },
             periodKey: { type: 'string' },
+            groupId: {
+              type: 'string',
+              nullable: true,
+              description:
+                "Commandes d'un même panier, à réafficher ensemble (une commande = un plat). " +
+                'Renseigné par le backend au passage en `pending`, jamais envoyé par le client.',
+            },
             driverId: { type: 'string', nullable: true, description: 'Livreur assigné à CETTE commande.' },
             userData: {
               type: 'object',
