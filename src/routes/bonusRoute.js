@@ -7,6 +7,8 @@ const { claimBonusController } = require('../controllers/bonus/claimBonus.contro
 const { redeemBonusController } = require('../controllers/bonus/redeemBonus.controller');
 const { patchBonusController } = require('../controllers/bonus/patchBonus.controller');
 const { rewardCredentialsBonusController } = require('../controllers/bonus/rewardCredentialsBonus.controller');
+const { armBonusController, disarmBonusController } = require('../controllers/bonus/armBonus.controller');
+const { verifyBonusCodeController } = require('../controllers/bonus/verifyBonusCode.controller');
 
 const route = express.Router();
 
@@ -179,6 +181,19 @@ route.post('', firebaseAuth, postBonusController);
  *                       claimedAt: { type: string, format: date-time, nullable: true }
  *                       usageCount: { type: number }
  *                       redeemed: { type: boolean }
+ *                       armed:
+ *                         type: boolean
+ *                         description: >-
+ *                           Bonus armé pour la prochaine commande éligible
+ *                           (POST /bonus/{id}/arm). Armer ne consomme rien.
+ *                       code: { type: string, nullable: true, description: code de réclamation actif }
+ *                       expiresAt: { type: string, format: date-time, nullable: true }
+ *                       expired: { type: boolean }
+ *                       remainingUses: { type: number, nullable: true, description: "usageLimit − usageCount ; null si pas de limite" }
+ *                       rewardCredentials:
+ *                         type: object
+ *                         nullable: true
+ *                         description: Identifiants livrés pour les bonus `requiresRewardCredentials`.
  *       401:
  *         description: Token manquant ou invalide
  */
@@ -436,5 +451,152 @@ route.patch('/:id', firebaseAuth, patchBonusController);
  *         description: Aucune réclamation à livrer ou à corriger
  */
 route.post('/request/:id/reward-credentials', firebaseAuth, rewardCredentialsBonusController);
+
+/**
+ * @swagger
+ * /bonus/verify:
+ *   post:
+ *     summary: Vérifie un code bonus (lecture seule)
+ *     description: >-
+ *       Contrôle la validité d'un code **sans rien consommer ni écrire**. Sert à
+ *       l'écran de commande : le front affiche la livraison comme offerte avant
+ *       même que la commande soit passée, sans risquer de brûler une utilisation
+ *       si le user quitte l'écran.
+ *
+ *       **La propriété du code n'est pas vérifiée** : un code peut circuler entre
+ *       utilisateurs, le code lui-même fait foi.
+ *
+ *       ⚠️ Ne fait jamais autorité : `POST /order` rejoue tous les contrôles.
+ *     tags:
+ *       - Bonus
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [code]
+ *             properties:
+ *               code:
+ *                 type: string
+ *                 example: YAM-7K3F9QW2
+ *               fastFoodId:
+ *                 type: string
+ *                 description: >-
+ *                   Boutique visée. Fourni, la correspondance est testée (un bonus
+ *                   de boutique ne vaut que chez elle ; un bonus plateforme partout).
+ *                   Omis, ce contrôle est ignoré.
+ *     responses:
+ *       200:
+ *         description: >-
+ *           Vérification effectuée. `data.valid` porte le verdict — un code
+ *           invalide répond 200, pas une erreur HTTP.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: boolean }
+ *                 message: { type: string }
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     valid: { type: boolean }
+ *                     reason:
+ *                       type: string
+ *                       description: Motif si invalide
+ *                       enum: [code_not_found, not_claimed, expired, exhausted, wrong_fastfood, bonus_inactive, bonus_not_free_delivery]
+ *                     bonusId: { type: string }
+ *                     bonusName: { type: string }
+ *                     type: { type: string }
+ *                     fastFoodId: { type: string, nullable: true }
+ *                     expiresAt: { type: string, format: date-time, nullable: true }
+ *                     remainingUses: { type: number, nullable: true }
+ *                     deliveryOffer:
+ *                       $ref: '#/components/schemas/DeliveryOffer'
+ *       400:
+ *         description: Code manquant
+ */
+route.post('/verify', verifyBonusCodeController);
+
+/**
+ * @swagger
+ * /bonus/{id}/arm:
+ *   post:
+ *     summary: Arme un bonus livraison offerte pour la prochaine commande
+ *     description: >-
+ *       Déclare que ce bonus doit s'appliquer à la prochaine commande éligible.
+ *       **Aucune utilisation n'est consommée** : la consommation n'a lieu qu'à la
+ *       création effective d'une commande.
+ *
+ *       L'état est **persisté** : il survit à la fermeture de l'app, et
+ *       `GET /fastfood/all` renvoie ensuite `deliveryOffer` sur les boutiques
+ *       concernées. (L'armement depuis l'écran de commande, lui, reste local au
+ *       front et ne passe pas par cette route.)
+ *
+ *       Réservé aux bonus de type `free_delivery` déjà réclamés, non expirés et
+ *       non épuisés. Armer un bonus en désarme automatiquement tout autre qui le
+ *       recouvre (même boutique, ou l'un des deux plateforme).
+ *     tags:
+ *       - Bonus
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *         description: Id du bonus à armer
+ *     responses:
+ *       200:
+ *         description: Bonus armé
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: boolean }
+ *                 message: { type: string }
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     bonusId: { type: string }
+ *                     armed: { type: boolean }
+ *                     disarmedBonusIds:
+ *                       type: array
+ *                       items: { type: string }
+ *                       description: Bonus désarmés car recouvrants
+ *                     deliveryOffer:
+ *                       $ref: '#/components/schemas/DeliveryOffer'
+ *       400:
+ *         description: Bonus inactif, non `free_delivery`, expiré ou épuisé
+ *       401:
+ *         description: Token manquant ou invalide
+ *       404:
+ *         description: Bonus non trouvé ou non réclamé
+ *   delete:
+ *     summary: Désarme un bonus
+ *     description: >-
+ *       Toujours autorisé, même sur un bonus expiré ou épuisé — sinon un bonus
+ *       armé devenu inutilisable resterait armé indéfiniment.
+ *     tags:
+ *       - Bonus
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Bonus désarmé
+ *       401:
+ *         description: Token manquant ou invalide
+ *       404:
+ *         description: Bonus non trouvé ou non réclamé
+ */
+route.post('/:id/arm', firebaseAuth, armBonusController);
+route.delete('/:id/arm', firebaseAuth, disarmBonusController);
 
 module.exports = route;

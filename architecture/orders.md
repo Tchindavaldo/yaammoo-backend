@@ -58,6 +58,22 @@ paiement (qui appellent directement le service) échappaient au validateur.
 `type` (`express|time`), `time`, `zone`, `prix`, `location`, `phone`, `voiceNoteUri`,
 `record`, `note`. Tout champ non déclaré = rejet `Champ non autorisé`.
 
+### Bonus livraison offerte
+
+`POST /order` accepte un champ d'entrée **`bonusCode`** (non persisté ; il est
+retiré avant l'écriture, et le bonus appliqué est restitué via `deliveryOffer`).
+
+1. **Avant création** — `resolveDeliveryBonus()` : un code fourni mais invalide
+   fait échouer la commande en `400`. Sans `bonusCode`, on retombe sur le bonus
+   éventuellement **armé** par le user (`GET /fastfood/all` l'expose déjà).
+2. **Après création réussie** — `consumeDeliveryBonus()` : `usageCount++`,
+   `armed = false`. **Pas de commande = pas de consommation.**
+
+> ⚠️ `delivery.prix` n'est **jamais** forcé à 0. La gratuité est portée par
+> `deliveryOffer` dans la commande renvoyée ; le front décide de l'affichage.
+
+Détail complet du modèle : [bonus.md](./bonus.md#livraison-offerte-armement--consommation).
+
 **Flux** :
 1. Si `status === 'pending'` → `reserveRank()` pour obtenir un rank avant création
 2. `db.collection('orders').add(orderData)` — crée la commande

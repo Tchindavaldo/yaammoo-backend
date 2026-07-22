@@ -113,7 +113,23 @@ router.get('/driver/:driverId', getDriverOrders);
  * @swagger
  * /order:
  *   post:
- *     summary: Create a new order
+ *     summary: Crée une commande
+ *     description: >-
+ *       Une commande porte **UN** menu commandé en `quantity` exemplaires — il n'y
+ *       a pas de tableau `items`. Le validateur **refuse tout champ non listé**
+ *       ci-dessous (`interface/orderFields.js`).
+ *
+ *       **Bonus livraison** : `bonusCode` est un champ d'entrée facultatif. Le
+ *       backend rejoue tous les contrôles (code connu, réclamation approuvée, non
+ *       expirée, utilisations restantes, boutique correspondante) ; un code
+ *       fourni mais invalide fait échouer la commande en 400. L'utilisation n'est
+ *       consommée **qu'après création effective** — le user peut donc quitter
+ *       l'écran de commande sans rien perdre. Sans `bonusCode`, le backend
+ *       retombe sur le bonus éventuellement **armé** par le user.
+ *
+ *       ⚠️ Les montants de livraison (`delivery.prix`) restent **inchangés**,
+ *       jamais forcés à 0 : la gratuité est portée par `deliveryOffer` dans la
+ *       réponse, et c'est le front qui décide de l'affichage.
  *     tags:
  *       - Orders
  *     requestBody:
@@ -122,55 +138,78 @@ router.get('/driver/:driverId', getDriverOrders);
  *         application/json:
  *           schema:
  *             type: object
- *             required:
- *               - fastFoodId
- *               - userId
- *               - items
- *               - totalPrice
+ *             required: [userId, fastFoodId, menu, quantity, total, userData, extra, drink, delivery]
  *             properties:
- *               fastFoodId:
- *                 type: string
  *               userId:
  *                 type: string
- *               items:
+ *               fastFoodId:
+ *                 type: string
+ *               menu:
+ *                 $ref: '#/components/schemas/Menu'
+ *               quantity:
+ *                 type: number
+ *               total:
+ *                 type: number
+ *               selectedPriceIndex:
+ *                 type: number
+ *                 description: Index du prix retenu parmi prix1/prix2/prix3.
+ *               bonusCode:
+ *                 type: string
+ *                 example: YAM-7K3F9QW2
+ *                 description: >-
+ *                   Code d'un bonus livraison offerte. Entrée seulement : non
+ *                   persisté, restitué via `deliveryOffer`.
+ *               extra:
  *                 type: array
  *                 items:
  *                   type: object
  *                   properties:
- *                     menuId:
- *                       type: string
- *                     quantity:
- *                       type: number
- *                     price:
- *                       type: number
- *               totalPrice:
- *                 type: number
+ *                     name: { type: string }
+ *                     status: { type: boolean }
+ *                     prix: { type: number }
+ *               drink:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     name: { type: string }
+ *                     status: { type: boolean }
+ *                     prix: { type: number }
+ *               userData:
+ *                 type: object
+ *                 required: [firstName, lastName, email]
+ *                 properties:
+ *                   firstName: { type: string }
+ *                   lastName: { type: string }
+ *                   email: { type: string }
+ *                   phoneNumber:
+ *                     type: number
+ *                     description: Requis si `delivery.status` est true.
+ *                   photoUrl: { type: string }
+ *               delivery:
+ *                 $ref: '#/components/schemas/OrderDelivery'
  *               status:
  *                 type: string
- *                 enum: [pending, confirmed, preparing, ready, delivered, cancelled]
- *               delivery:
- *                 type: object
- *                 properties:
- *                   status:
- *                     type: boolean
- *                   location:
- *                     type: string
+ *                 enum: [pendingToBuy, pending, processing, finished, delivering, delivered, cancelByUser, cancelByFastFood]
+ *                 description: Défaut `pendingToBuy`.
+ *               clientId: { type: string }
+ *               clientName: { type: string }
+ *               periodKey: { type: string }
+ *               driverId: { type: string }
  *     responses:
  *       201:
- *         description: Order successfully created
+ *         description: Commande créée
  *         content:
  *           application/json:
  *             schema:
  *               type: object
  *               properties:
- *                 success:
- *                   type: boolean
  *                 message:
  *                   type: string
  *                 data:
  *                   $ref: '#/components/schemas/Order'
  *       400:
- *         description: Invalid input
+ *         description: Validation en échec, stock insuffisant, ou code bonus invalide
  */
 router.post('', createOrder);
 

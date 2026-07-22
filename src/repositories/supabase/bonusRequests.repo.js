@@ -92,8 +92,28 @@ exports.findByCode = async (code, bonusType) => {
   return m.bonusRequest.fromSupabase(data);
 };
 
-// Champs du cycle d'utilisation promus en colonnes réelles (migration 014).
-const USAGE_COLUMNS = { code: 'code', usageCount: 'usage_count', redeemed: 'redeemed' };
+/**
+ * Vrai si le code est déjà attribué. Sert au pré-contrôle anti-collision à la
+ * génération — l'index unique reste l'autorité finale.
+ */
+exports.codeExists = async code => {
+  const { data, error } = await supabase.from(TABLE).select('id').eq('code', code).limit(1).maybeSingle();
+  if (error) throw error;
+  return !!data;
+};
+
+/**
+ * Réclamations ARMÉES d'un user (armement global, depuis la page bonus).
+ * Lues à chaque affichage du home pour savoir où la livraison est offerte.
+ */
+exports.getArmedByUser = async userId => {
+  const { data, error } = await supabase.from(TABLE).select('*').eq('user_id', userId).eq('armed', true);
+  if (error) throw error;
+  return (data || []).map(m.bonusRequest.fromSupabase);
+};
+
+// Champs du cycle d'utilisation promus en colonnes réelles (migrations 014/018).
+const USAGE_COLUMNS = { code: 'code', usageCount: 'usage_count', redeemed: 'redeemed', armed: 'armed' };
 
 /**
  * Met à jour le cycle d'utilisation d'une réclamation (code, usageCount,

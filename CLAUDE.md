@@ -289,6 +289,20 @@ Après toute modif des services/routes/features, **mettre à jour** :
 - `architecture/README.md` : index + patterns clés
 - `architecture/<feature>.md` : routes, structures, flux, services
 
+### Incohérences doc ↔ code : signaler ET corriger (OBLIGATOIRE)
+
+Dès qu'une divergence est constatée entre le **code réel** et une doc
+(`architecture/*.md`, annotations Swagger, `src/config/swagger.js`, commentaires),
+il faut :
+
+1. **Le dire explicitement** dans la réponse — ne jamais contourner en silence.
+2. **Corriger la doc dans la foulée**, pour qu'elle reflète le code réel.
+
+Le code fait foi. Une doc périmée est un piège : elle induit en erreur les
+sessions suivantes et le frontend. Exemple vécu : le Swagger de `POST /order`
+documentait `items[]` / `totalPrice` alors que la commande réelle porte
+`menu` / `quantity` / `extra` / `drink` / `delivery` / `total`.
+
 ---
 
 ## Schema & Migrations (OBLIGATOIRE)

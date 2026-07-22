@@ -241,6 +241,10 @@ CREATE TABLE IF NOT EXISTS bonus_requests (
   code        TEXT,
   usage_count INTEGER DEFAULT 0,
   redeemed    BOOLEAN DEFAULT FALSE,
+  -- Armement global (page bonus) : le bonus s'applique à la prochaine commande
+  -- éligible. Persisté pour survivre à la fermeture de l'app. Armer ne consomme
+  -- rien — cf. architecture/bonus.md.
+  armed       BOOLEAN NOT NULL DEFAULT FALSE,
   extra_data  JSONB DEFAULT '{}'::jsonb,
   created_at  TIMESTAMPTZ DEFAULT NOW(),
   updated_at  TIMESTAMPTZ DEFAULT NOW(),
@@ -256,6 +260,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_bonus_requests_code
 
 CREATE INDEX IF NOT EXISTS idx_bonus_requests_status_gin
   ON bonus_requests USING GIN (status);
+
+-- Bonus armés d'un user : lus à chaque affichage du home (GET /fastfood/all).
+CREATE INDEX IF NOT EXISTS idx_bonus_requests_armed
+  ON bonus_requests(user_id) WHERE armed = TRUE;
 
 -- Réclamations en attente de livraison manuelle (consultées côté back-office).
 CREATE INDEX IF NOT EXISTS idx_bonus_requests_pending

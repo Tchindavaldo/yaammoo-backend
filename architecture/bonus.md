@@ -19,7 +19,10 @@ sur une fenêtre glissante (jour / semaine / mois), ou d'office (`welcome`).
 | POST | `/bonus` | `postBonusController` | **Oui** (`firebaseAuth`) | Crée un bonus (définition seule, **validée**, marchand propriétaire ou admin) |
 | GET | `/bonus/all` | `getBonusController` | **Oui** (`firebaseAuth`) | Liste les bonus **enrichis pour le user courant** |
 | POST | `/bonus/:id/claim` | `claimBonusController` | **Oui** (`firebaseAuth`) | **Réclame** un bonus (auto-approuvé, palier vérifié backend) → renvoie un **code** |
-| POST | `/bonus/redeem` | `redeemBonusController` | **Oui** (`firebaseAuth`) | **Consomme** une utilisation du code (à la commande) |
+| POST | `/bonus/:id/arm` | `armBonusController` | **Oui** (`firebaseAuth`) | **Arme** un bonus livraison pour la prochaine commande éligible — ne consomme rien |
+| DELETE | `/bonus/:id/arm` | `disarmBonusController` | **Oui** (`firebaseAuth`) | Désarme |
+| POST | `/bonus/verify` | `verifyBonusCodeController` | Non | **Vérifie** un code (lecture seule, aucune écriture) |
+| POST | `/bonus/redeem` | `redeemBonusController` | **Oui** (`firebaseAuth`) | **Consomme** une utilisation du code — saisie manuelle par le marchand |
 | PATCH | `/bonus/:id` | `patchBonusController` | **Oui** (`firebaseAuth`) | Modifie un bonus (champs de définition, `active`, `requiresProfile`…) — marchand propriétaire ou admin |
 | POST | `/bonus/request/:id/reward-credentials` | `rewardCredentialsBonusController` | **Oui** (`firebaseAuth`) | **Livre** une réclamation `pending`, ou **corrige** des identifiants déjà livrés — admin ou marchand propriétaire |
 | POST | `/bonusRequest/:totalBonus` | `postBonusRequestController` | — | Le user réclame un bonus |
@@ -105,14 +108,20 @@ src/
 │   ├── postBonus.controller.js                 # création
 │   ├── patchBonus.controller.js                # modification partielle
 │   ├── claimBonus.controller.js                # réclamation
-│   ├── redeemBonus.controller.js               # consommation d'un code
+│   ├── redeemBonus.controller.js               # consommation d'un code (marchand)
+│   ├── armBonus.controller.js                  # arm / disarm
+│   ├── verifyBonusCode.controller.js           # vérification lecture seule
 │   └── rewardCredentialsBonus.controller.js    # livraison/correction des accès
 ├── services/bonus/
 │   ├── getBonus.service.js                     # orchestration (charge + enrichit)
 │   ├── postBonus.service.js                    # création (autorisation + cible)
 │   ├── patchBonus.service.js                   # modification (mêmes autorisations)
 │   ├── claimBonus.service.js                   # réclamation (= activation) + code
-│   ├── redeemBonus.service.js                  # consommation d'une utilisation
+│   ├── redeemBonus.service.js                  # consommation manuelle (marchand)
+│   ├── armBonus.service.js                     # armement + offres armées d'un user
+│   ├── verifyBonusCode.service.js              # vérification LECTURE SEULE
+│   ├── applyDeliveryBonus.service.js           # resolve (avant) / consume (après commande)
+│   ├── deliveryOffer.js                        # forme unique `deliveryOffer` + contrôles
 │   ├── rewardCredentialsBonus.service.js       # livraison manuelle + validation `profile`
 │   ├── emitBonusStats.js                       # émet `bonus.stats_updated`
 │   ├── enrichBonusForUser.js                   # fusion définition + user + compteurs
@@ -123,7 +132,8 @@ src/
 └── repositories/supabase/
     ├── bonus.repo.js                           # getAll / getById / create / update
     └── bonusRequests.repo.js                   # + getByUser, claimCountsByBonus,
-                                                #   findByCode, updateUsage
+                                                #   findByCode, codeExists,
+                                                #   getArmedByUser, updateUsage
 ```
 
 **Flux `GET /bonus/all` :**
@@ -301,9 +311,15 @@ Implémentation : `bonusStats.util.js` → `consumedInWindow()` + `applyConsumpt
 
 ## Flux redemption (`POST /bonus/redeem`)
 
-À la réclamation, le backend génère un **code** (`bonusCode.util:generateBonusCode`,
-ex. `YAM-7K3F9Q`, alphabet sans caractères ambigus). Le user le présente à la
-commande ; le front appelle `/bonus/redeem` pour signaler la consommation.
+À la réclamation, le backend génère un **code** (`bonusCode.util`, ex.
+`YAM-7K3F9QW2`, alphabet sans caractères ambigus). `/bonus/redeem` sert désormais
+à la **saisie manuelle par le marchand** : pour la livraison offerte, c'est
+`POST /order` qui consomme (cf. [Livraison offerte](#livraison-offerte-armement--consommation)).
+
+> **Longueur du code : 8 caractères** (31⁸ ≈ 852 milliards). À 6, on tombait à
+> ~887 millions : avec 1M de codes vivants, ~0,1% de collision par génération —
+> soit un échec d'insert (index unique) remonté au user. `generateUniqueBonusCode()`
+> ajoute en plus un pré-contrôle avec retry (5 tentatives).
 
 Contrôles, dans l'ordre :
 
@@ -323,6 +339,90 @@ table via `extra_data->>'code'`.
 
 **Champs ajoutés au `GET /bonus/all`** : `code`, `expiresAt`, `expired`,
 `remainingUses`.
+
+---
+
+## Livraison offerte : armement & consommation
+
+Bonus de `type: "free_delivery"`. Deux notions **distinctes** :
+
+| | Quoi | Persisté ? | Consomme ? |
+|---|---|---|---|
+| **Réclamation** | `POST /bonus/:id/claim` — décrémente le solde, délivre un code | oui | non |
+| **Armement** | le user déclare que le bonus s'applique à sa prochaine commande | *selon l'origine* | **non** |
+| **Consommation** | `usageCount++` | oui | **oui** |
+
+### Deux origines d'armement
+
+- **Page bonus → armement GLOBAL, persisté.** `POST /bonus/:id/arm` écrit
+  `armed = true` (colonne, migration 018). Il doit survivre à la fermeture de
+  l'app : au retour, `GET /fastfood/all` renvoie `deliveryOffer` sur les
+  boutiques concernées. `DELETE /bonus/:id/arm` désarme — toujours autorisé,
+  même sur un bonus expiré, sinon il resterait armé indéfiniment.
+- **Écran de commande → armement LOCAL, non persisté.** Le front arme tout seul ;
+  il valide juste le code via `POST /bonus/verify` (lecture seule) pour son
+  rendu, puis envoie `bonusCode` dans `POST /order`.
+
+**Exclusivité** : armer un bonus désarme automatiquement tout autre bonus armé
+qui le **recouvre** (même boutique, ou l'un des deux plateforme) — sinon l'offre
+applicable serait ambiguë. Les bonus désarmés sont renvoyés dans
+`data.disarmedBonusIds`.
+
+### Consommation — uniquement à `POST /order`
+
+`applyDeliveryBonus.service` découpe en deux temps :
+
+1. **`resolveDeliveryBonus`, AVANT création** — un `bonusCode` fourni mais
+   invalide fait échouer la commande en 400 (le user croit bénéficier de la
+   gratuité, l'ignorer silencieusement serait trompeur). Sans `bonusCode`, on
+   retombe sur l'armement global ; son absence est normale, pas une erreur.
+2. **`consumeDeliveryBonus`, APRÈS création réussie** — `usageCount++`,
+   `redeemed` si limite atteinte, et **`armed = false`** systématiquement.
+   L'armement vaut pour UNE commande : sinon le bonus s'appliquerait à son insu
+   aux commandes suivantes.
+
+> C'est tout l'intérêt du découpage : **pas de commande = pas de consommation**.
+> Le user peut quitter l'écran de commande sans rien perdre.
+
+### `deliveryOffer` — objet unique partagé
+
+Même forme partout (`GET /fastfood/all`, `POST /bonus/verify`, `POST /bonus/:id/arm`,
+commande créée). Il porte des **données**, jamais une consigne d'affichage :
+
+```jsonc
+{
+  "active": true,
+  "reason": "bonus",            // "campaign" = mode gratuité globale plateforme
+  "coveredBy": "fastfood",      // qui renonce au montant : "fastfood" | "platform"
+  "bonusId": "b_12",
+  "bonusCode": "YAM-7K3F9QW2",
+  "bonusName": "Livraison offerte",
+  "fastFoodId": "ff_42"         // null = bonus plateforme, valable partout
+}
+```
+
+`null` quand aucune offre ne s'applique — ou, sur `/fastfood/all`, quand
+l'appelant n'est pas authentifié.
+
+> ⚠️ **Les montants de livraison ne sont JAMAIS forcés à 0.** `delivery.prix`
+> reste au prix réel ; `deliveryOffer` dit seulement que la livraison est
+> offerte, et le front décide du rendu (prix barré, libellé…).
+
+**Portée** : un bonus de boutique ne vaut que chez elle ; un bonus plateforme
+(`fastFoodId: null`) vaut partout. Un bonus de boutique prime sur un bonus
+plateforme quand les deux s'appliquent.
+
+**Propriété du code non vérifiée** : `/bonus/verify` et `POST /order` acceptent
+un code qui n'appartient pas à l'appelant — un code peut circuler entre users. Le
+code fait foi. (`/bonus/redeem`, lui, garde son contrôle de propriété.)
+
+### `GET /fastfood/all` — auth facultative
+
+La route est **publique**, mais `deliveryOffer` dépend du user. D'où
+`optionalFirebaseAuth` : token valide → `req.user` renseigné ; token absent **ou
+invalide** → on sert quand même la route, sans `deliveryOffer`. Les bonus armés
+sont lus **une seule fois** pour toute la liste (`getArmedByUser`, index partiel
+migration 018) — pas de N+1.
 
 ---
 

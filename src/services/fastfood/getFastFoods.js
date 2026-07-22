@@ -3,16 +3,24 @@
 // ============================================================================
 const repos = require('../../repositories');
 const { getMenuService } = require('../menu/getMenu.services');
+const { getArmedDeliveryOffers, pickOfferForFastFood } = require('../bonus/armBonus.service');
 
-exports.getFastFoodsService = async () => {
+/**
+ * @param {string} [userId] uid du user courant (auth FACULTATIVE sur cette route).
+ *   Fourni, chaque boutique porte l'offre de livraison applicable à CE user.
+ */
+exports.getFastFoodsService = async (userId) => {
   try {
     const fastfoods = await repos.fastfoods.getAll();
     if (!fastfoods || fastfoods.length === 0) return [];
 
+    // Une seule lecture des bonus armés pour toute la liste (pas de N+1).
+    const offers = await getArmedDeliveryOffers(userId);
+
     const fastfoodsWithMenus = await Promise.all(
       fastfoods.map(async (fastfood) => {
         const menus = await getMenuService(fastfood.id);
-        return { ...fastfood, menus };
+        return { ...fastfood, menus, deliveryOffer: pickOfferForFastFood(offers, fastfood.id) };
       })
     );
 

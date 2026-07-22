@@ -12,7 +12,7 @@ const repos = require('../../repositories');
 const { isBonusEligible, measureConsumption, collectSpentOrderIds } = require('./bonusStats.util');
 const { emitBonusStats } = require('./emitBonusStats');
 const { deriveRequestState, computeExpiresAt } = require('./enrichBonusForUser');
-const { generateBonusCode } = require('./bonusCode.util');
+const { generateUniqueBonusCode } = require('./bonusCode.util');
 const { postNotificationService } = require('../notification/request/postNotification.service');
 const { getIO } = require('../../socket');
 
@@ -113,8 +113,10 @@ exports.claimBonusService = async (userId, bonusId) => {
     // Chaque réclamation ouvre un nouveau cycle d'utilisation : code neuf,
     // compteur d'usage remis à zéro. En attente de livraison, aucun code n'est
     // délivré — il le sera par le rewardCredentials.
-    const code = needsRewardCredentials ? null : generateBonusCode();
-    const usageFields = { code, usageCount: 0, redeemed: false };
+    const code = needsRewardCredentials ? null : await generateUniqueBonusCode(c => repos.bonusRequests.codeExists(c));
+    // Un nouveau cycle repart désarmé : le user ré-arme explicitement s'il veut
+    // que le bonus s'applique à sa prochaine commande.
+    const usageFields = { code, usageCount: 0, redeemed: false, armed: false };
 
     let saved;
     if (existing) {

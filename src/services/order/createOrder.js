@@ -16,6 +16,7 @@ const { emitBonusStats } = require('../bonus/emitBonusStats');
 const { notifyOrderEvent } = require('../notification/helpers/notifyOrderEvent');
 const { reliableEmit } = require('../../utils/reliableEmit');
 const { validateOrder } = require('../../utils/validator/validateOrder');
+const { resolveDeliveryBonus, consumeDeliveryBonus } = require('../bonus/applyDeliveryBonus.service');
 
 exports.createOrderService = async (order) => {
   // Validation au niveau service : garantit qu'aucun chemin d'appel
@@ -24,12 +25,33 @@ exports.createOrderService = async (order) => {
   const errors = validateOrder(order);
   if (errors && errors.length > 0) return { error: errors };
 
-  const result = await repos.orders.createWithStockCheck(order);
+  // Bonus livraison — résolution AVANT création : un code invalide doit faire
+  // échouer la commande, pas la laisser passer sans la gratuité annoncée.
+  // `bonusCode` n'est pas un champ de commande : on ne le persiste pas tel quel.
+  const { bonusCode, ...orderData } = order;
+  const bonusResolution = await resolveDeliveryBonus({
+    userId: order.userId,
+    fastFoodId: order.fastFoodId,
+    bonusCode,
+  });
+  if (bonusResolution?.error) return { error: bonusResolution.error };
+
+  const result = await repos.orders.createWithStockCheck(orderData);
 
   if (result?.error) return { error: result.error };
 
   const createdOrder = result.order;
   const newStock = result.newStock;
+
+  // Consommation APRÈS création réussie : pas de commande = pas d'utilisation
+  // consommée. C'est ce qui permet au user de quitter l'écran de commande sans
+  // rien perdre. Les montants de livraison, eux, restent inchangés.
+  if (bonusResolution?.bonus) {
+    createdOrder.deliveryOffer = await consumeDeliveryBonus({
+      ...bonusResolution,
+      orderId: createdOrder.id,
+    });
+  }
 
   // Socket temps réel fiable vers le CLIENT : sa commande vient d'être créée
   // (rejoué au reconnect si le client est hors ligne)

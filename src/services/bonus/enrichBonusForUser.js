@@ -25,6 +25,7 @@ function deriveRequestState(request) {
     redeemed: false,
     userClaimedCount: 0,
     code: null,
+    armed: false,
     rewardCredentials: null,
   };
   if (!request) return base;
@@ -58,6 +59,7 @@ function deriveRequestState(request) {
   if (typeof request.usageCount === 'number') base.usageCount = request.usageCount;
   if (typeof request.redeemed === 'boolean') base.redeemed = request.redeemed;
   if (typeof request.code === 'string') base.code = request.code;
+  if (typeof request.armed === 'boolean') base.armed = request.armed;
 
   return base;
 }
@@ -138,6 +140,9 @@ function enrichBonusForUser(bonus, ctx) {
     claimedAt,
     usageCount: cycleClosed ? 0 : requestState.usageCount,
     redeemed: cycleClosed ? false : requestState.redeemed,
+    // Armement global (page bonus) : le bonus s'appliquera à la prochaine
+    // commande éligible. Un cycle terminé n'est plus armable.
+    armed: cycleClosed ? false : requestState.armed,
 
     // ── Code de réclamation & validité ──
     code,
