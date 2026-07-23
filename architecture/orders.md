@@ -60,11 +60,13 @@ paiement (qui appellent directement le service) échappaient au validateur.
 
 ### Bonus livraison offerte
 
-`POST /order` accepte un champ d'entrée **`bonusCode`** (non persisté ; il est
-retiré avant l'écriture, et le bonus appliqué est restitué via `deliveryOffer`).
+`POST /order` accepte un champ d'entrée **`bonus`** (`{ type, code }`, non
+persisté ; il est retiré avant l'écriture, et le bonus appliqué est restitué via
+`deliveryOffer`). `type` = catégorie du bonus (ex. `free_delivery`), `code` = le
+code présenté par le user. Seul `code` alimente le pipeline interne.
 
 1. **Avant création** — `resolveDeliveryBonus()` : un code fourni mais invalide
-   fait échouer la commande en `400`. Sans `bonusCode`, on retombe sur le bonus
+   fait échouer la commande en `400`. Sans `bonus`, on retombe sur le bonus
    éventuellement **armé** par le user (`GET /fastfood/all` l'expose déjà).
 2. **Après création réussie** — `consumeDeliveryBonus()` : `usageCount++`,
    `armed = false`. **Pas de commande = pas de consommation.**

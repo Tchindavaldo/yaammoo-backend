@@ -18,15 +18,17 @@ const { reliableEmit } = require('../../utils/reliableEmit');
 const { validateOrder } = require('../../utils/validator/validateOrder');
 const { settleDeliveryService } = require('./settleDelivery.service');
 
-exports.createOrderService = async (order) => {
+exports.createOrderService = async order => {
   // Validation au niveau service : garantit qu'aucun chemin d'appel
   // (HTTP POST /order OU flux paiement mwVerdict/postTransaction) ne
   // contourne le validateur.
   const errors = validateOrder(order);
   if (errors && errors.length > 0) return { error: errors };
 
-  // `bonusCode` est un champ d'ENTRÉE : il ne se persiste pas sur la commande.
-  const { bonusCode, ...orderData } = order;
+  // `bonus` est un champ d'ENTRÉE : il ne se persiste pas sur la commande. Le
+  // code présenté alimente le pipeline de livraison offerte (`bonusCode`).
+  const { bonus, ...orderData } = order;
+  const bonusCode = bonus?.code;
 
   const result = await repos.orders.createWithStockCheck(orderData);
 
@@ -51,7 +53,7 @@ exports.createOrderService = async (order) => {
     reliableEmit(getIO(), createdOrder.userId, 'newUserOrder', {
       message: 'Commande créée',
       data: createdOrder,
-    }).catch((e) => console.warn('[createOrder] reliableEmit newUserOrder:', e.message));
+    }).catch(e => console.warn('[createOrder] reliableEmit newUserOrder:', e.message));
   }
 
   // Socket : si stock modifié, prévenir tout le monde
@@ -76,7 +78,7 @@ exports.createOrderService = async (order) => {
   // plateforme intègre celles de tous les fastfoods). On pousse les soldes
   // recalculés pour que la progression se voie sans re-GET.
   if (createdOrder?.userId) {
-    emitBonusStats(createdOrder.userId).catch((e) => console.warn('[createOrder] emitBonusStats:', e.message));
+    emitBonusStats(createdOrder.userId).catch(e => console.warn('[createOrder] emitBonusStats:', e.message));
   }
 
   // Notification au marchand (si pending uniquement)
@@ -91,7 +93,7 @@ exports.createOrderService = async (order) => {
         reliableEmit(getIO(), merchantUserId, 'newFastFoodOrders', {
           message: 'Nouvelle commande',
           data: [createdOrder],
-        }).catch((e) => console.warn('[createOrder] reliableEmit newFastFoodOrders:', e.message));
+        }).catch(e => console.warn('[createOrder] reliableEmit newFastFoodOrders:', e.message));
 
         await notifyOrderEvent({
           targetUserId: merchantUserId,

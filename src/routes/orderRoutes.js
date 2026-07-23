@@ -119,13 +119,13 @@ router.get('/driver/:driverId', getDriverOrders);
  *       a pas de tableau `items`. Le validateur **refuse tout champ non listé**
  *       ci-dessous (`interface/orderFields.js`).
  *
- *       **Bonus livraison** : `bonusCode` est un champ d'entrée facultatif. Le
- *       backend rejoue tous les contrôles (code connu, réclamation approuvée, non
- *       expirée, utilisations restantes, boutique correspondante) ; un code
- *       fourni mais invalide fait échouer la commande en 400. L'utilisation n'est
- *       consommée **qu'après création effective** — le user peut donc quitter
- *       l'écran de commande sans rien perdre. Sans `bonusCode`, le backend
- *       retombe sur le bonus éventuellement **armé** par le user.
+ *       **Bonus livraison** : `bonus` (`{ type, code }`) est un champ d'entrée
+ *       facultatif. Le backend rejoue tous les contrôles (code connu, réclamation
+ *       approuvée, non expirée, utilisations restantes, boutique correspondante) ;
+ *       un code fourni mais invalide fait échouer la commande en 400. L'utilisation
+ *       n'est consommée **qu'après création effective** — le user peut donc quitter
+ *       l'écran de commande sans rien perdre. Sans `bonus`, le backend retombe sur
+ *       le bonus éventuellement **armé** par le user.
  *
  *       ⚠️ Les montants de livraison (`delivery.prix`) restent **inchangés**,
  *       jamais forcés à 0 : la gratuité est portée par `deliveryOffer` dans la
@@ -153,12 +153,19 @@ router.get('/driver/:driverId', getDriverOrders);
  *               selectedPriceIndex:
  *                 type: number
  *                 description: Index du prix retenu parmi prix1/prix2/prix3.
- *               bonusCode:
- *                 type: string
- *                 example: YAM-7K3F9QW2
+ *               bonus:
+ *                 type: object
+ *                 properties:
+ *                   type:
+ *                     type: string
+ *                     example: free_delivery
+ *                   code:
+ *                     type: string
+ *                     example: YAM-7K3F9QW2
  *                 description: >-
- *                   Code d'un bonus livraison offerte. Entrée seulement : non
- *                   persisté, restitué via `deliveryOffer`.
+ *                   Bonus livraison offerte à appliquer (`type` = catégorie,
+ *                   `code` = code présenté). Entrée seulement : non persisté,
+ *                   restitué via `deliveryOffer`.
  *               extra:
  *                 type: array
  *                 items:

@@ -24,7 +24,7 @@ const { reliableEmit } = require('../../utils/reliableEmit');
 const { settleDeliveryService } = require('./settleDelivery.service');
 const { generateId } = require('../../repositories/idGen');
 
-const buildTransitionNotif =({ prevStatus, newStatus, order, merchantUserId }) => {
+const buildTransitionNotif = ({ prevStatus, newStatus, order, merchantUserId }) => {
   const menuName = order.menu?.name || order.menu?.titre || 'Menu';
   const qty = order.quantity || 1;
   const total = order.total || 0;
@@ -212,8 +212,8 @@ exports.updateOrders = async (orders, userId) => {
         }
       }
 
-      // Le code bonus voyage avec le panier, pas avec un plat en particulier.
-      const bonusCode = updates.find(o => o && o.bonusCode)?.bonusCode;
+      // Le bonus voyage avec le panier, pas avec un plat en particulier.
+      const bonusCode = updates.find(o => o && o.bonus?.code)?.bonus?.code;
       const settled = await settleDeliveryService({ orders: becamePending, bonusCode });
       // Le front reçoit l'offre appliquée sans avoir à re-GET.
       if (settled.offer) {
