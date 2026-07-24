@@ -5,6 +5,7 @@ const repos = require('../../repositories');
 const { getIO } = require('../../socket');
 const { validateTransactionCreation } = require('../../utils/validator/validateTransactionCreation');
 const { validateCartDelivery } = require('../../utils/validator/validateCartDelivery');
+const { validatePaymentAmount } = require('../../utils/validator/validatePaymentAmount');
 const mobilewalletService = require('./mobilewalletService');
 const { computeNet } = require('../../utils/commission');
 const { generateId } = require('../../repositories/idGen');
@@ -46,8 +47,21 @@ exports.postTransactionService = async data => {
     }
 
     // remainingAmount calculé si paiement mobileApp partiel
-    if (payBy === 'mobileApp' && amount < currentAmount) {
+    const isPartialPayment = payBy === 'mobileApp' && amount < currentAmount;
+    if (isPartialPayment) {
       data.remainingAmount = +(currentAmount - amount).toFixed(2);
+    }
+
+    // Cohérence du montant — AVANT tout paiement. La livraison est déjà comprise
+    // dans le prix affiché des plats : `amount` doit égaler la somme des `total`
+    // des commandes, jamais la livraison en plus. Exclu pour un paiement partiel,
+    // qui encaisse volontairement moins que le total.
+    if (!isPartialPayment) {
+      const amountError = validatePaymentAmount(amount, items);
+      if (amountError) {
+        log.warn(`${logPrefix} ❌ Montant incohérent: ${amountError}`);
+        return { success: false, httpStatus: 400, message: amountError };
+      }
     }
 
     // =========================================================================
@@ -66,9 +80,7 @@ exports.postTransactionService = async data => {
         await createOrderService({ ...order, userId });
       }
       for (const item of orders) {
-        await creditMerchantForItem({ item, clientUserId: userId }).catch(e =>
-          log.error(`${logPrefix} ❌ Crédit marchand échoué: ${e.message}`)
-        );
+        await creditMerchantForItem({ item, clientUserId: userId }).catch(e => log.error(`${logPrefix} ❌ Crédit marchand échoué: ${e.message}`));
       }
 
       const totalAmount = orders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
@@ -107,7 +119,7 @@ exports.postTransactionService = async data => {
       // Le check atomique au verdict (create/update) reste le garde-fou final.
       // =======================================================================
       const qtyByMenu = {};
-      for (const it of (Array.isArray(items) ? items : [])) {
+      for (const it of Array.isArray(items) ? items : []) {
         const menuId = it?.menu?.id;
         if (!menuId) continue;
         qtyByMenu[menuId] = (qtyByMenu[menuId] || 0) + (Number(it.quantity) || 1);
@@ -185,9 +197,7 @@ exports.postTransactionService = async data => {
       if (!mwResult.success || mwResult.status === 'error') {
         log.warn(`${logPrefix} MobileWallet erreur: success=${mwResult.success}, code=${mwResult.code}, message=${mwResult.message}`);
         // Refus EXPLICITE de MobileWallet → aucun paiement ne sera traité → cancel.
-        await repos.pendingPayments.markSettled(paymentRef, 'cancelled').catch(e =>
-          log.error(`${logPrefix} ❌ markSettled(cancelled) échoué: ${e.message}`)
-        );
+        await repos.pendingPayments.markSettled(paymentRef, 'cancelled').catch(e => log.error(`${logPrefix} ❌ markSettled(cancelled) échoué: ${e.message}`));
         return {
           success: false,
           status: mwResult.status || 'error',
@@ -203,20 +213,18 @@ exports.postTransactionService = async data => {
       const mw_transaction_id = mwResult.transaction_id;
       log.info(`${logPrefix} ✓ MobileWallet success=${mwResult.success}, status=${mwResult.status}, transaction_id=${mw_transaction_id}`);
 
-      await repos.pendingPayments.setMwTransactionId(paymentRef, mw_transaction_id).catch(e =>
-        log.error(`${logPrefix} ❌ setMwTransactionId échoué: ${e.message}`)
-      );
+      await repos.pendingPayments.setMwTransactionId(paymentRef, mw_transaction_id).catch(e => log.error(`${logPrefix} ❌ setMwTransactionId échoué: ${e.message}`));
 
       log.info(`${logPrefix} ✓ Transaction initiée, en attente de webhook/socket`);
 
       // On renvoie au frontend la MÊME réponse que MobileWallet (success,
       // status, message, transaction_id, code) + le contexte utile (payment_number).
       return {
-        success: mwResult.success,           // true
-        status: mwResult.status,             // 'ussd_sent'
-        message: mwResult.message,           // "Composez #150*50# ..."
-        transaction_id: mw_transaction_id,   // "IN960#260613155908"
-        code: mwResult.code,                 // 200
+        success: mwResult.success, // true
+        status: mwResult.status, // 'ussd_sent'
+        message: mwResult.message, // "Composez #150*50# ..."
+        transaction_id: mw_transaction_id, // "IN960#260613155908"
+        code: mwResult.code, // 200
         payment_number: mwResult.payment_number,
       };
     }

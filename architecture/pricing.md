@@ -35,6 +35,19 @@ montant payé    = SOMME de ce que le user voit
 > prix affiché : le user paie tout sans voir de ligne de frais ni de taxe. Ils
 > sont appliqués **une fois par prix**, jamais multipliés par la quantité.
 
+### Contrôle du montant encaissé (`validatePaymentAmount`)
+
+La livraison étant **déjà comprise dans le prix affiché des plats**, le montant à
+payer est la simple **somme des `total`** des commandes — jamais la livraison en
+ligne séparée. Comme `amount` est fourni par le client, `postTransaction.service`
+le **vérifie avant tout appel MobileWallet** (`utils/validator/validatePaymentAmount.js`) :
+
+- `amount` doit égaler `Σ items[].total` (tolérance ±1 FCFA d'arrondi) ;
+- sinon → **400** avec message clair (surplus/double-livraison ou montant trafiqué),
+  **aucun paiement lancé** ;
+- **exclu** pour un paiement partiel (`mobileApp`, `amount < currentAmount`), qui
+  encaisse volontairement moins que le total.
+
 Les prix RÉELS des menus sont dans **`prices[]`** (`{price, description}`), pas
 dans `prix1/prix2/prix3` — ces colonnes existent dans le mapper mais sont NULL
 sur toute la base.
