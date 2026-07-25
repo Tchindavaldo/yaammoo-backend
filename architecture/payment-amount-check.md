@@ -41,8 +41,13 @@ Au **premier** écart → **400** immédiat, sans traiter les items suivants ni 
 Le backend rejoue le pipeline (`resolveDeliveryBonus` + `resolveOffer`) :
 
 - **mode campagne** (`delivery_free_mode`) → toutes les livraisons offertes ;
-- **bonus user valide** → offert, mais **une seule fois** pour le lot (comme
-  `settleDelivery`).
+- **bonus par code** (`bonusCode` présenté) → vérifié par code ;
+- **bonus armé** (le user a réclamé puis **armé** son bonus, sans présenter de
+  code) → `resolveDeliveryBonus` retombe sur l'armement global (`getArmedDeliveryOffers`).
+  ⚠️ On interroge donc le pipeline **même sans `bonusCode`**, dès qu'un `userId`
+  est présent — sinon un bonus armé serait ignoré et la commande refusée à tort.
+
+Dans tous les cas, un bonus vaut **une seule fois** pour le lot (comme `settleDelivery`).
 
 Une commande dont la livraison est offerte : `total = base` (pas de `delivery.prix`).
 La gratuité est ensuite absorbée par la marge côté `settleDelivery` (`covered_by`).

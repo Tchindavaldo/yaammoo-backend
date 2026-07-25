@@ -91,7 +91,10 @@ async function resolveOfferedDeliveries(orders, { userId, bonusCode }) {
       offered.add(i);
       continue;
     }
-    if (!bonusSpent && bonusCode) {
+    // Toujours interroger le pipeline (même sans `bonusCode`) : `resolveDeliveryBonus`
+    // retombe sur l'ARMEMENT global du user (après réclamation, le user arme son
+    // bonus au lieu de présenter un code). Un userId est requis pour l'armement.
+    if (!bonusSpent && (bonusCode || userId)) {
       const attempt = await resolveDeliveryBonus({ userId, fastFoodId: order.fastFoodId, bonusCode }).catch(() => null);
       if (attempt?.offer) {
         offered.add(i);
