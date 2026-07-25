@@ -3,7 +3,7 @@
 // ============================================================================
 const repos = require('../../../repositories');
 
-exports.markNotificationAsReadService = async (data) => {
+exports.markNotificationAsReadService = async data => {
   try {
     const { userId, notificationIdGroup, notificationId, io } = data;
 

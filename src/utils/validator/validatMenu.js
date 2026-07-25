@@ -94,7 +94,7 @@ exports.validateMenu = (data, checkRequired = true, formatErrors = false) => {
         });
       }
     }
-    
+
     // Cas particulier : validation des éléments dans le tableau `extra`
     if (field === 'extra') {
       if (!Array.isArray(data.extra)) {
@@ -116,14 +116,14 @@ exports.validateMenu = (data, checkRequired = true, formatErrors = false) => {
             });
             return;
           }
-          
+
           if (!item.name || typeof item.name !== 'string') {
             errors.push({
               field: `extra[${index}].name`,
               message: `"name" est obligatoire et doit être une chaîne de caractères`,
             });
           }
-          
+
           if (item.status === undefined || typeof item.status !== 'boolean') {
             errors.push({
               field: `extra[${index}].status`,
@@ -133,7 +133,7 @@ exports.validateMenu = (data, checkRequired = true, formatErrors = false) => {
         });
       }
     }
-    
+
     // Cas particulier : validation des éléments dans le tableau `drink`
     if (field === 'drink') {
       if (!Array.isArray(data.drink)) {
@@ -155,14 +155,14 @@ exports.validateMenu = (data, checkRequired = true, formatErrors = false) => {
             });
             return;
           }
-          
+
           if (!item.name || typeof item.name !== 'string') {
             errors.push({
               field: `drink[${index}].name`,
               message: `"name" est obligatoire et doit être une chaîne de caractères`,
             });
           }
-          
+
           if (item.status === undefined || typeof item.status !== 'boolean') {
             errors.push({
               field: `drink[${index}].status`,
@@ -198,6 +198,6 @@ exports.validateMenu = (data, checkRequired = true, formatErrors = false) => {
   if (formatErrors) {
     return errors.length > 0 ? errors.map(err => `${err.field}: ${err.message}`).join(', ') : null;
   }
-  
+
   return errors;
 };

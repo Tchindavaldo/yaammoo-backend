@@ -17,6 +17,7 @@ const { notifyOrderEvent } = require('../notification/helpers/notifyOrderEvent')
 const { reliableEmit } = require('../../utils/reliableEmit');
 const { validateOrder } = require('../../utils/validator/validateOrder');
 const { settleDeliveryService } = require('./settleDelivery.service');
+const { enrichMenuForClient } = require('../menu/enrichMenuForClient');
 
 exports.createOrderService = async order => {
   // Validation au niveau service : garantit qu'aucun chemin d'appel
@@ -25,10 +26,9 @@ exports.createOrderService = async order => {
   const errors = validateOrder(order);
   if (errors && errors.length > 0) return { error: errors };
 
-  // `bonus` est un champ d'ENTRÉE : il ne se persiste pas sur la commande. Le
-  // code présenté alimente le pipeline de livraison offerte (`bonusCode`).
-  const { bonus, ...orderData } = order;
-  const bonusCode = bonus?.code;
+  // `bonusCode` est un champ d'ENTRÉE : il ne se persiste pas sur la commande.
+  // Le code présenté alimente le pipeline de livraison offerte.
+  const { bonusCode, ...orderData } = order;
 
   const result = await repos.orders.createWithStockCheck(orderData);
 
@@ -49,7 +49,6 @@ exports.createOrderService = async order => {
   // Socket temps réel fiable vers le CLIENT : sa commande vient d'être créée
   // (rejoué au reconnect si le client est hors ligne)
   if (createdOrder?.userId) {
-    console.log('[createOrder] socket newUserOrder → userId:', createdOrder.userId, '| userData:', createdOrder.userData, '| selectedPriceIndex:', createdOrder.selectedPriceIndex);
     reliableEmit(getIO(), createdOrder.userId, 'newUserOrder', {
       message: 'Commande créée',
       data: createdOrder,
@@ -62,10 +61,12 @@ exports.createOrderService = async order => {
       const io = getIO();
       const fullMenu = await repos.menus.getById(order.menu.id);
       if (fullMenu) {
+        // Broadcast CLIENT : prix AFFICHÉ (livraison + marge + frais), pas le brut.
+        const clientMenu = await enrichMenuForClient({ ...fullMenu, stock: newStock });
         io.emit('globalMenuUpdated', {
           message: 'Stock mis à jour',
           menuId: order.menu.id,
-          menu: { ...fullMenu, stock: newStock },
+          menu: clientMenu,
         });
       }
     } catch (e) {
@@ -89,7 +90,6 @@ exports.createOrderService = async order => {
       if (merchantUserId) {
         // Socket temps réel fiable : boutique du marchand se met à jour en live
         // (rejoué au reconnect si le marchand est hors ligne)
-        console.log('[createOrder] socket newFastFoodOrders → merchantUserId:', merchantUserId, '| userData:', createdOrder.userData, '| selectedPriceIndex:', createdOrder.selectedPriceIndex);
         reliableEmit(getIO(), merchantUserId, 'newFastFoodOrders', {
           message: 'Nouvelle commande',
           data: [createdOrder],

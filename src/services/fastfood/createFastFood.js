@@ -5,11 +5,11 @@ const repos = require('../../repositories');
 const { getIO } = require('../../socket');
 const { validateFastfood } = require('../../utils/validator/validateFastfood');
 
-exports.createFastfoodService = async (data) => {
+exports.createFastfoodService = async data => {
   const io = getIO();
   const errors = validateFastfood(data);
   if (errors.length > 0) {
-    const formattedErrors = errors.map((err) => `${err.field}: ${err.message}`).join(', ');
+    const formattedErrors = errors.map(err => `${err.field}: ${err.message}`).join(', ');
     const error = new Error(`Erreur de validation: ${formattedErrors}`);
     error.code = 400;
     throw error;

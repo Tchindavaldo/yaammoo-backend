@@ -3,7 +3,7 @@
 // ============================================================================
 const repos = require('../../repositories');
 
-exports.getMenuService = async (fastFoodId) => {
+exports.getMenuService = async fastFoodId => {
   try {
     if (!fastFoodId) throw new Error('fastFoodId est requis');
     return await repos.menus.getByFastFood(fastFoodId);

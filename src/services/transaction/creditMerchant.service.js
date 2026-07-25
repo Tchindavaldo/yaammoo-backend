@@ -57,8 +57,6 @@ exports.creditMerchantForItem = async ({ item, clientUserId }) => {
     clientUserId: clientUserId || null,
   });
 
-  console.info(`${logPrefix} ✓ Crédit marchand ${merchantUserId} : +${net} FCFA (brut=${gross}, mw=${mwCommission}, yaammoo=${yaammooFee})`);
-
   // Notifier le marchand (émission FIABLE : rejouée si le marchand est hors ligne).
   try {
     await reliableEmit(getIO(), merchantUserId, 'wallet.credited', {

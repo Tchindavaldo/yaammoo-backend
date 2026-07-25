@@ -9,7 +9,7 @@ exports.uploadImageToFirebase = async file => {
   const bucketName = process.env.SUPABASE_BUCKET || 'public'; // 'public' par défaut ou nom du bucket
 
   if (!supabaseUrl || !supabaseKey) {
-    throw new Error('Variables d\'environnement Supabase manquantes (SUPABASE_URL, SUPABASE_KEY)');
+    throw new Error("Variables d'environnement Supabase manquantes (SUPABASE_URL, SUPABASE_KEY)");
   }
 
   const fileName = `fastFood/${uuidv4()}_${file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '')}`;
@@ -19,7 +19,7 @@ exports.uploadImageToFirebase = async file => {
     const response = await fetch(uploadUrl, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${supabaseKey}`,
+        Authorization: `Bearer ${supabaseKey}`,
         'Content-Type': file.mimetype,
       },
       body: file.buffer,
@@ -35,7 +35,7 @@ exports.uploadImageToFirebase = async file => {
     const publicUrl = `${supabaseUrl}/storage/v1/object/public/${bucketName}/${fileName}`;
     return publicUrl;
   } catch (error) {
-    console.error('Erreur lors de l\'envoi vers Supabase:', error);
+    console.error("Erreur lors de l'envoi vers Supabase:", error);
     throw error;
   }
 };

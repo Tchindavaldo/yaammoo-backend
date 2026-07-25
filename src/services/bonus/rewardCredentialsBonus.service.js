@@ -142,9 +142,7 @@ exports.rewardCredentialsBonusService = async (requestId, rewardCredentials, vie
 
     // Sur une correction, le user a pu déjà consommer des utilisations : on
     // préserve ses compteurs (les remettre à zéro lui rendrait des usages).
-    const usage = isCorrection
-      ? { code, usageCount: request.usageCount ?? 0, redeemed: request.redeemed ?? false }
-      : { code, usageCount: 0, redeemed: false };
+    const usage = isCorrection ? { code, usageCount: request.usageCount ?? 0, redeemed: request.redeemed ?? false } : { code, usageCount: 0, redeemed: false };
 
     const saved = await repos.bonusRequests.updateUsage(requestId, usage, entries);
 

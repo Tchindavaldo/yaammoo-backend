@@ -18,19 +18,13 @@ exports.OrderFields = {
   groupId: { type: 'string', required: false },
   driverId: { type: 'string', required: false },
   selectedPriceIndex: { type: 'number', required: false },
-  // Bonus livraison offerte à appliquer à cette commande. Champ d'ENTRÉE
+  // Code du bonus livraison offerte présenté par le user. Champ d'ENTRÉE
   // uniquement : il est retiré avant persistance (le bonus appliqué est restitué
-  // via `deliveryOffer`). `type` = catégorie du bonus (ex. `free_delivery`),
-  // `code` = code présenté par le user. Déclaré ici parce que le validateur
-  // refuse tout champ non listé.
-  bonus: {
-    type: 'object',
-    required: false,
-    properties: {
-      type: { type: 'string', required: true },
-      code: { type: 'string', required: true },
-    },
-  },
+  // via `deliveryOffer`). Le backend retrouve le bonus — et son type — à partir
+  // du code seul (`repos.bonusRequests.findByCode`) : on ne fait JAMAIS confiance
+  // à un `type` fourni par le client. Déclaré ici parce que le validateur refuse
+  // tout champ non listé.
+  bonusCode: { type: 'string', required: false },
   quantity: { type: 'number', required: true },
   userData: {
     type: 'object',
@@ -64,6 +58,9 @@ exports.OrderFields = {
         name: { type: 'string', required: true },
         status: { type: 'boolean', required: true },
         prix: { type: 'number', required: false },
+        // Quantité PROPRE au drink (indépendante de `quantity` du plat). Entre
+        // dans le total : un drink coché compte `prix × quantite`.
+        quantite: { type: 'number', required: false },
       },
     },
   },

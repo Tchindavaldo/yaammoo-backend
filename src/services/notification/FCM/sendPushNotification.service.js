@@ -32,22 +32,16 @@ const sendPushNotification = async ({ token, tokens, apnsTokens, title, body, da
 
   // === FCM (Android via Firebase Admin) ===
   if (fcmList.length > 0) {
-    const fcmResults = await Promise.all(
-      fcmList.map((tok) => sendSingleToken({ token: tok, title, body, data })),
-    );
+    const fcmResults = await Promise.all(fcmList.map(tok => sendSingleToken({ token: tok, title, body, data })));
     results.fcm = {
-      success: fcmResults.every((r) => r.success),
+      success: fcmResults.every(r => r.success),
       details: fcmResults,
     };
     // Identifier les tokens FCM invalides
     fcmResults.forEach((r, idx) => {
       if (!r.success && r.error) {
         const msg = r.error || '';
-        if (
-          msg.includes('registration-token-not-registered') ||
-          msg.includes('Requested entity was not found') ||
-          msg.includes('invalid-registration-token')
-        ) {
+        if (msg.includes('registration-token-not-registered') || msg.includes('Requested entity was not found') || msg.includes('invalid-registration-token')) {
           results.tokensToDelete.push(fcmList[idx]);
         }
       }

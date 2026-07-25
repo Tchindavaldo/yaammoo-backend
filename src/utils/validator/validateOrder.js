@@ -81,7 +81,7 @@ exports.validateOrder = (data, checkRequired = true, formatErrors = true) => {
   // Validation personnalisée pour le champ userData
   if (data.userData) {
     const { firstName, lastName, email, phoneNumber } = data.userData;
-    
+
     // Vérification des champs obligatoires de userData si checkRequired est true
     if (checkRequired) {
       if (!firstName || firstName.trim() === '') {
@@ -90,14 +90,14 @@ exports.validateOrder = (data, checkRequired = true, formatErrors = true) => {
           message: 'Le prénom du client est requis',
         });
       }
-      
+
       if (!lastName || lastName.trim() === '') {
         errors.push({
           field: 'userData.lastName',
           message: 'Le nom du client est requis',
         });
       }
-      
+
       if (!email || email.trim() === '') {
         errors.push({
           field: 'userData.email',
@@ -127,7 +127,7 @@ exports.validateOrder = (data, checkRequired = true, formatErrors = true) => {
         message: 'Le type de livraison est requis lorsque la livraison est activée',
       });
     }
-    
+
     // Vérifier que l'adresse de livraison est fournie lorsque la livraison est activée
     if (status === true && checkRequired && (!location || location.trim() === '')) {
       errors.push({
@@ -142,7 +142,7 @@ exports.validateOrder = (data, checkRequired = true, formatErrors = true) => {
       if (phoneNumber === undefined || phoneNumber === null) {
         errors.push({
           field: 'userData.phoneNumber',
-          message: "Le numéro de téléphone est requis lorsque la livraison est activée",
+          message: 'Le numéro de téléphone est requis lorsque la livraison est activée',
         });
       }
     }

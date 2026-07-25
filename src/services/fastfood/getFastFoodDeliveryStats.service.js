@@ -40,7 +40,7 @@ exports.getFastFoodDeliveryStats = async (fastFoodId, viewerUid) => {
   // --- self : le marchand propriétaire → stats globales des auto-livraisons ---
   if (viewerUid === ff.userId) {
     const all = await repos.orders.getByFastFood(fastFoodId);
-    const selfDelivered = all.filter((o) => o.driverId === fastFoodId);
+    const selfDelivered = all.filter(o => o.driverId === fastFoodId);
     return { success: true, scope: 'self', data: { ...info, stats: countBuckets(selfDelivered) } };
   }
 
@@ -50,7 +50,7 @@ exports.getFastFoodDeliveryStats = async (fastFoodId, viewerUid) => {
     return { success: false, code: 403, message: 'Accès réservé au propriétaire ou à un client de la boutique' };
   }
 
-  const mySelfDelivered = myOrders.filter((o) => o.driverId === fastFoodId);
+  const mySelfDelivered = myOrders.filter(o => o.driverId === fastFoodId);
   const myStats = countBuckets(mySelfDelivered);
   const existingRating = await repos.ratings.getUserRating({
     targetType: 'fastfoodDriver',

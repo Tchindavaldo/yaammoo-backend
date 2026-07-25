@@ -18,10 +18,7 @@
 const provider = (process.env.DB_PROVIDER || 'supabase').toLowerCase();
 
 if (provider !== 'supabase') {
-  console.warn(
-    `[dbProvider] DB_PROVIDER="${provider}" ignoré — la BD est désormais Supabase uniquement ` +
-    `(Firestore a été retiré de la couche données). Mets DB_PROVIDER=supabase dans .env.`
-  );
+  console.warn(`[dbProvider] DB_PROVIDER="${provider}" ignoré — la BD est désormais Supabase uniquement ` + `(Firestore a été retiré de la couche données). Mets DB_PROVIDER=supabase dans .env.`);
 }
 
 const config = {

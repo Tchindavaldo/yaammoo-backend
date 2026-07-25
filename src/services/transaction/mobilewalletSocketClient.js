@@ -80,7 +80,7 @@ function initMobileWalletSocket() {
     }
   });
 
-  mobilewalletSocket.on('disconnect', (reason) => {
+  mobilewalletSocket.on('disconnect', reason => {
     log.warn(`[MobileWallet Socket] Déconnecté: ${reason}`);
 
     // Planifier une tentative de reconnexion
@@ -93,8 +93,7 @@ function initMobileWalletSocket() {
     }
   });
 
-  mobilewalletSocket.on('connect_error', (error) => {
-    log.error(`[MobileWallet Socket] ❌ Erreur connexion: ${error.message}`);
+  mobilewalletSocket.on('connect_error', () => {
     armGiveUpTimer(); // limite les tentatives à MOBILEWALLET_RECONNECT_MAX_MS
   });
 
@@ -119,7 +118,7 @@ function initMobileWalletSocket() {
    *   }
    * }
    */
-  mobilewalletSocket.on('transaction.update', async (eventPayload) => {
+  mobilewalletSocket.on('transaction.update', async eventPayload => {
     const logPrefix = '[MobileWallet Socket] transaction.update';
 
     try {
@@ -156,7 +155,7 @@ function initMobileWalletSocket() {
   // =========================================================================
   // AUTRES ÉVÉNEMENTS
   // =========================================================================
-  mobilewalletSocket.on('error', (error) => {
+  mobilewalletSocket.on('error', error => {
     log.error(`[MobileWallet Socket] ❌ Erreur: ${error}`);
   });
 

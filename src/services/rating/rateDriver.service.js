@@ -37,7 +37,7 @@ exports.rateDriver = async ({ driverId, userId, orderId, value, comment = null }
     return { success: false, code: 403, message: "Cette commande n'appartient pas à cet utilisateur" };
   }
   if (order.status !== 'delivered') {
-    return { success: false, code: 403, message: 'Vous ne pouvez noter le livreur qu\'après réception (commande livrée)' };
+    return { success: false, code: 403, message: "Vous ne pouvez noter le livreur qu'après réception (commande livrée)" };
   }
   if (!order.driverId || order.driverId !== driverId) {
     return { success: false, code: 403, message: "Cette commande n'a pas été livrée par ce livreur" };
@@ -71,7 +71,7 @@ exports.rateDriver = async ({ driverId, userId, orderId, value, comment = null }
   return { success: true, message: 'Livreur noté', data: { rating, ratingAvg, ratingCount } };
 };
 
-exports.getDriverRatings = async (driverId) => {
+exports.getDriverRatings = async driverId => {
   if (!driverId) return { success: false, code: 400, message: 'driverId est requis' };
   const ratings = await repos.ratings.listByTarget({ targetType: 'driver', targetId: driverId });
   return { success: true, data: ratings };

@@ -10,7 +10,7 @@ const repos = require('../../repositories');
 const { getIO } = require('../../socket');
 const { resetCounter } = require('./rankQueue.service');
 
-exports.updateOrdersRankByDate = async (fastFoodId) => {
+exports.updateOrdersRankByDate = async fastFoodId => {
   try {
     if (!fastFoodId) return { success: false, message: 'fastFoodId est requis' };
 
@@ -26,7 +26,7 @@ exports.updateOrdersRankByDate = async (fastFoodId) => {
 
     // Groupage par (status, deliveryDate)
     const groups = {};
-    orders.forEach((order) => {
+    orders.forEach(order => {
       const deliveryDate = order.delivery?.date || new Date().toISOString().split('T')[0];
       // Garantit une structure delivery minimale
       if (!order.delivery) {
@@ -52,7 +52,7 @@ exports.updateOrdersRankByDate = async (fastFoodId) => {
     }
 
     await Promise.all(
-      Object.values(groups).map((g) =>
+      Object.values(groups).map(g =>
         resetCounter({
           fastFoodId,
           deliveryDate: g.date,

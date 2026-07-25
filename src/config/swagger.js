@@ -129,15 +129,13 @@ const options = {
               type: 'string',
               enum: ['pendingToBuy', 'pending', 'processing', 'finished', 'delivering', 'delivered', 'cancelByUser', 'cancelByFastFood'],
             },
-            rank: { type: 'number', description: "Rang dans la file du fastfood pour (statut, date de livraison)." },
+            rank: { type: 'number', description: 'Rang dans la file du fastfood pour (statut, date de livraison).' },
             clientId: { type: 'string' },
             periodKey: { type: 'string' },
             groupId: {
               type: 'string',
               nullable: true,
-              description:
-                "Commandes d'un même panier, à réafficher ensemble (une commande = un plat). " +
-                'Renseigné par le backend au passage en `pending`, jamais envoyé par le client.',
+              description: "Commandes d'un même panier, à réafficher ensemble (une commande = un plat). " + 'Renseigné par le backend au passage en `pending`, jamais envoyé par le client.',
             },
             driverId: { type: 'string', nullable: true, description: 'Livreur assigné à CETTE commande.' },
             userData: {
@@ -180,15 +178,13 @@ const options = {
         DeliveryOffer: {
           type: 'object',
           nullable: true,
-          description:
-            "Offre de livraison applicable. Porte des DONNÉES, pas une consigne d'affichage : le front décide seul du rendu. " +
-            "`null` quand aucune offre ne s'applique, ou quand l'appelant n'est pas authentifié.",
+          description: "Offre de livraison applicable. Porte des DONNÉES, pas une consigne d'affichage : le front décide seul du rendu. " + "`null` quand aucune offre ne s'applique, ou quand l'appelant n'est pas authentifié.",
           properties: {
             active: { type: 'boolean' },
             reason: {
               type: 'string',
               enum: ['bonus', 'campaign'],
-              description: "`bonus` = bonus du user ; `campaign` = mode gratuité globale plateforme.",
+              description: '`bonus` = bonus du user ; `campaign` = mode gratuité globale plateforme.',
             },
             coveredBy: {
               type: 'string',
@@ -221,9 +217,7 @@ const options = {
             cities: { type: 'array', items: { type: 'string' } },
             deliveryHours: {
               type: 'array',
-              description:
-                'Créneaux de livraison avec zones et prix. Deux formats coexistent selon la version du client ' +
-                '(cf. utils/deliveryHoursFormat.js) : legacy = tableau de "HH:mm", actuel = tableau d\'objets.',
+              description: 'Créneaux de livraison avec zones et prix. Deux formats coexistent selon la version du client ' + '(cf. utils/deliveryHoursFormat.js) : legacy = tableau de "HH:mm", actuel = tableau d\'objets.',
               items: { $ref: '#/components/schemas/DeliveryHour' },
             },
             driverRatingAvg: { type: 'number' },

@@ -39,6 +39,16 @@ montant payé    = SOMME de ce que le user voit
 > (campagne / bonus livraison), **le front retire lui-même la livraison** du total
 > avant d'envoyer le paiement — le backend ne recalcule ni ne déduit rien.
 
+### Contrôle du montant encaissé (`validatePaymentAmount`)
+
+`amount` et `items[].total` venant du client, `postTransaction.service` les
+**recalcule avant tout appel MobileWallet** — la livraison étant déjà fondue dans
+le prix du plat, elle n'est **jamais** ajoutée au total. Détail de la formule et
+des deux niveaux de contrôle : [orders.md](./orders.md#composition-et-contrôle-du-total--avant-le-paiement).
+
+En bref : total recalculé par commande (`plat×quantity + extras + drinks×quantite`),
+refus au premier écart, puis `amount == Σtotal`. `delivery.prix` hors calcul.
+
 Les prix RÉELS des menus sont dans **`prices[]`** (`{price, description}`), pas
 dans `prix1/prix2/prix3` — ces colonnes existent dans le mapper mais sont NULL
 sur toute la base.
@@ -95,6 +105,21 @@ L'arrondi au supérieur rend l'opération **non réversible** : plat 25 → affi
 Le prix réel n'est donc **jamais recalculé** : il est servi tel quel depuis la
 base, et le réel comme le facturé sont stockés côte à côte
 (`order_settlements`, `order_deliveries`).
+
+### Sockets menu — prix affiché (client) vs brut (marchand)
+
+Un menu émis en socket doit porter le **bon prix selon l'audience**, comme
+`getFastFoods` (raw pour le marchand, affiché pour le client) :
+
+| Événement | Audience | Prix |
+|---|---|---|
+| `globalMenuUpdated`, `newGlobalMenu`, `globalMenuDeleted` | broadcast **client** (home) | **affiché** (livraison + marge + frais) |
+| `fastFoodMenuUpdated`, `newFastFoodMenu`, `fastFoodMenuDeleted`, `newMenu` (room boutique) | **marchand** (gestion) | **brut** |
+
+Les émissions client passent par `services/menu/enrichMenuForClient.js` (recharge la
+boutique du menu → `applyDisplayPricing`). Avant, ces sockets renvoyaient le **prix
+brut** → le home affichait un prix sans livraison/marge/frais (bug au changement de
+stock pendant une commande, à la création/édition/suppression de menu).
 
 ### Vue marchand
 
@@ -331,3 +356,4 @@ src/
 | `023_order_settlements.sql` | table `order_settlements` (l'argent) ; sort les montants globaux de `order_deliveries`, qui ne garde que la course |
 | `024_platform_revenues.sql` | grand livre des revenus — **socle, pas encore alimenté** |
 | `025_fastfoods_pickup_allowed.sql` | `pickup_only` → `pickup_allowed` : le champ disait l'inverse de son usage |
+| `026_order_deliveries_platform_margin.sql` | ajoute `platform_margin` à `order_deliveries` (manquait en prod : `CREATE TABLE IF NOT EXISTS` de la 020 n'altère pas une table existante) |

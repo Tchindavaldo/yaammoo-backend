@@ -11,9 +11,7 @@ exports.webhookMobilewalletController = async (req, res) => {
     const { type, data } = payload;
     const { transaction_id, status } = data || {};
 
-    log.info(
-      `${logPrefix} Payload: type=${type}, tx_id=${transaction_id}, status=${status}`
-    );
+    log.info(`${logPrefix} Payload: type=${type}, tx_id=${transaction_id}, status=${status}`);
     log.debug(`${logPrefix} Payload complet:`, JSON.stringify(payload, null, 2));
 
     log.info(`${logPrefix} → Appel mwVerdictService...`);
@@ -25,10 +23,7 @@ exports.webhookMobilewalletController = async (req, res) => {
   } catch (error) {
     // Erreur de traitement : on log mais on retourne 200 quand même
     // pour éviter les boucles infinies de retry
-    log.error(
-      `${logPrefix} ❌ Erreur traitement: ${error.message}`,
-      error
-    );
+    log.error(`${logPrefix} ❌ Erreur traitement: ${error.message}`, error);
 
     // Retourner 200 même en cas d'erreur (évite retries inutiles)
     // Le webhook sera rejouabilisé manuellement via les logs

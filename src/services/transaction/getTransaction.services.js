@@ -3,7 +3,7 @@
 // ============================================================================
 const repos = require('../../repositories');
 
-exports.getTransactionService = async (userId) => {
+exports.getTransactionService = async userId => {
   try {
     if (!userId) return { success: false, message: 'userId est requis' };
     const data = await repos.transactions.getByUser(userId);
@@ -16,11 +16,11 @@ exports.getTransactionService = async (userId) => {
   }
 };
 
-exports.getTransactionByIdService = async (transactionId) => {
+exports.getTransactionByIdService = async transactionId => {
   try {
     if (!transactionId) throw new Error('transactionId est requis');
     const data = await repos.transactions.getById(transactionId);
-    if (!data) return { success: true, data: null, message: "Transaction non trouvée" };
+    if (!data) return { success: true, data: null, message: 'Transaction non trouvée' };
     return { success: true, data, message: 'transaction récupérée avec succès' };
   } catch (error) {
     return { success: false, message: error.message || 'Erreur lors de la récupération de la transaction' };

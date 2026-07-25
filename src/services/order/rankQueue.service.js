@@ -31,7 +31,7 @@ exports.reindexQueue = async ({ fastFoodId, deliveryDate, status, removedRank, f
   }
 
   let removedRanks = Array.isArray(removedRank) ? removedRank : [removedRank];
-  removedRanks = removedRanks.map(Number).filter((r) => !isNaN(r) && r > 0);
+  removedRanks = removedRanks.map(Number).filter(r => !isNaN(r) && r > 0);
   if (removedRanks.length === 0) return { updatedOrders: [] };
 
   let updatedOrders = [];
@@ -52,7 +52,7 @@ exports.reindexQueue = async ({ fastFoodId, deliveryDate, status, removedRank, f
   // Socket emissions
   try {
     const io = getIO();
-    updatedOrders.forEach((order) => {
+    updatedOrders.forEach(order => {
       if (order.userId) io.to(order.userId).emit('userOrderUpdated', { data: order });
     });
     if (fastFoodUserId) {
@@ -70,9 +70,9 @@ exports.reindexQueue = async ({ fastFoodId, deliveryDate, status, removedRank, f
   // Notification push : uniquement aux clients qui passent en tête de file (rank=1).
   // Les autres changements de rank ne déclenchent pas de notification — éviter le spam.
   try {
-    const firstOrders = updatedOrders.filter((o) => o.rank === 1);
+    const firstOrders = updatedOrders.filter(o => o.rank === 1);
     await Promise.all(
-      firstOrders.map((order) =>
+      firstOrders.map(order =>
         notifyOrderEvent({
           targetUserId: order.userId,
           type: 'order_rank_top',

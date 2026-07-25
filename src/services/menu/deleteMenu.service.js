@@ -6,6 +6,8 @@ const { getIO } = require('../../socket');
 const { getFastFoodService } = require('../fastfood/getFastFood');
 const { getMenuService } = require('./getMenu.services');
 const { reliableEmit } = require('../../utils/reliableEmit');
+const { getPricingSettings } = require('../settings/settings.service');
+const { applyDisplayPricing } = require('../pricing/deliveryPricing');
 
 exports.deleteMenuService = async menuId => {
   if (!menuId) return { success: false, message: 'ID du menu est requis' };
@@ -22,9 +24,12 @@ exports.deleteMenuService = async menuId => {
     const finalData = { ...fastFood, menus: { ...updatedMenus } };
 
     const io = getIO();
-    // Broadcast catalogue public : rechargé par re-fetch à la reconnexion (non persisté).
-    io.emit('globalMenuDeleted', { message: 'Menu supprimé', fastFood: finalData, menuId });
-    // Ciblé marchand propriétaire : émission fiable (rejouée si hors ligne).
+    // Broadcast catalogue public (CLIENT) : prix AFFICHÉ. On enrichit la boutique
+    // avec ses menus restants (en tableau) — livraison + marge + frais inclus.
+    const pricing = await getPricingSettings();
+    const clientData = applyDisplayPricing({ ...fastFood, menus: Array.isArray(updatedMenus) ? updatedMenus : Object.values(updatedMenus) }, pricing, false);
+    io.emit('globalMenuDeleted', { message: 'Menu supprimé', fastFood: clientData, menuId });
+    // Ciblé marchand propriétaire : prix BRUT (il gère son catalogue). Fiable.
     if (fastFood?.userId) {
       await reliableEmit(io, fastFood.userId, 'fastFoodMenuDeleted', { message: 'Menu supprimé', fastFood: finalData, menuId });
     }

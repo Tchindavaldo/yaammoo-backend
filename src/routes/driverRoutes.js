@@ -1,14 +1,5 @@
 const express = require('express');
-const {
-  apply,
-  getApplicationsController,
-  getDriversController,
-  getStoresController,
-  getMyApplicationsController,
-  removeDriverController,
-  decide,
-  getDriverProfileController,
-} = require('../controllers/driver/driverController');
+const { apply, getApplicationsController, getDriversController, getStoresController, getMyApplicationsController, removeDriverController, decide, getDriverProfileController } = require('../controllers/driver/driverController');
 const firebaseAuth = require('../middlewares/authMiddleware');
 const { rateDriverController, getDriverRatingsController } = require('../controllers/rating/rateDriver.controller');
 

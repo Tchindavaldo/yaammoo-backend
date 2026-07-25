@@ -16,7 +16,7 @@ const { supabase } = require('../../config/supabase');
 
 const TABLE = 'pending_payments';
 
-const fromRow = (row) =>
+const fromRow = row =>
   row
     ? {
         paymentRef: row.payment_ref,
@@ -49,40 +49,26 @@ exports.create = async (paymentRef, ctx) => {
     status: 'pending',
     updated_at: new Date().toISOString(),
   };
-  const { data, error } = await supabase
-    .from(TABLE)
-    .upsert(payload, { onConflict: 'payment_ref' })
-    .select()
-    .single();
+  const { data, error } = await supabase.from(TABLE).upsert(payload, { onConflict: 'payment_ref' }).select().single();
   if (error) throw error;
   return fromRow(data);
 };
 
 /** Attache le mw_transaction_id retourné par MobileWallet à l'init. */
 exports.setMwTransactionId = async (paymentRef, mwTransactionId) => {
-  const { error } = await supabase
-    .from(TABLE)
-    .update({ mw_transaction_id: mwTransactionId, updated_at: new Date().toISOString() })
-    .eq('payment_ref', paymentRef);
+  const { error } = await supabase.from(TABLE).update({ mw_transaction_id: mwTransactionId, updated_at: new Date().toISOString() }).eq('payment_ref', paymentRef);
   if (error) throw error;
 };
 
 /** Retrouve par payment_ref (= end_user_ref renvoyé par MobileWallet). */
-exports.getByRef = async (paymentRef) => {
-  const { data, error } = await supabase
-    .from(TABLE)
-    .select('*')
-    .eq('payment_ref', paymentRef)
-    .maybeSingle();
+exports.getByRef = async paymentRef => {
+  const { data, error } = await supabase.from(TABLE).select('*').eq('payment_ref', paymentRef).maybeSingle();
   if (error) throw error;
   return fromRow(data);
 };
 
 /** Marque le statut final (settled / cancelled). */
 exports.markSettled = async (paymentRef, status) => {
-  const { error } = await supabase
-    .from(TABLE)
-    .update({ status, updated_at: new Date().toISOString() })
-    .eq('payment_ref', paymentRef);
+  const { error } = await supabase.from(TABLE).update({ status, updated_at: new Date().toISOString() }).eq('payment_ref', paymentRef);
   if (error) throw error;
 };

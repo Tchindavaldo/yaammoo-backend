@@ -31,7 +31,7 @@ const { updateOrders } = require('./updateOrders.service');
 // (finished = prête → delivering ; delivering → delivered)
 const DRIVER_ADVANCE_FROM = new Set(['finished', 'delivering']);
 
-const notifyClientAndMerchant = async (order) => {
+const notifyClientAndMerchant = async order => {
   const io = getIO();
   await reliableEmit(io, order.userId, 'userOrderUpdated', { data: order });
   const fastFood = await getFastFoodService(order.fastFoodId);
@@ -117,7 +117,7 @@ exports.driverAdvanceStatus = async (orderId, driverId, prevData = null) => {
   return { success: true, message: result.message, data: updatedOrder };
 };
 
-exports.getDriverOrders = async (driverId) => {
+exports.getDriverOrders = async driverId => {
   if (!driverId) throw new Error('driverId requis');
   return repos.orders.getByDriver(driverId);
 };

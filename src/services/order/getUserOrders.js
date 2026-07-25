@@ -3,7 +3,7 @@
 // ============================================================================
 const repos = require('../../repositories');
 
-exports.getUserOrdersService = async (userId) => {
+exports.getUserOrdersService = async userId => {
   try {
     const user = await repos.users.getUserByIdSafe(userId);
     if (!user) throw new Error('user non trouvé');

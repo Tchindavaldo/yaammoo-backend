@@ -6,6 +6,7 @@ const { getIO } = require('../../socket');
 const { validateMenu } = require('../../utils/validator/validatMenu');
 const { getFastFoodService } = require('../fastfood/getFastFood');
 const { reliableEmit } = require('../../utils/reliableEmit');
+const { enrichMenuForClient } = require('./enrichMenuForClient');
 
 exports.postMenuService = async data => {
   try {
@@ -24,9 +25,10 @@ exports.postMenuService = async data => {
     const fastFood = await getFastFoodService(menuAdded.fastFoodId);
     const userId = fastFood.userId;
 
-    // Broadcast catalogue public : rechargé par re-fetch à la reconnexion (non persisté).
-    io.emit('newGlobalMenu', { message: 'Nouveau menu', menu: menuAdded });
-    // Ciblé marchand propriétaire : émission fiable (rejouée si hors ligne).
+    // Broadcast catalogue public (CLIENT) : prix AFFICHÉ (livraison + marge + frais).
+    const clientMenu = await enrichMenuForClient(menuAdded);
+    io.emit('newGlobalMenu', { message: 'Nouveau menu', menu: clientMenu });
+    // Ciblé marchand propriétaire : prix BRUT (il gère son catalogue). Fiable.
     if (userId) {
       await reliableEmit(io, userId, 'newFastFoodMenu', { message: 'Nouveau menu', menu: menuAdded });
     }

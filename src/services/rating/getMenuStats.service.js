@@ -23,7 +23,7 @@ const repos = require('../../repositories');
 const { countBuckets } = require('../../utils/orderBuckets');
 
 // Total « commandes reçues » = livrées + en cours + en attente (annulations exclues).
-const totalReceived = (b) => b.delivered + b.inProgress + b.pending;
+const totalReceived = b => b.delivered + b.inProgress + b.pending;
 
 /**
  * @param {string} menuId
@@ -48,9 +48,7 @@ exports.getMenuStats = async (menuId, viewerUid) => {
   };
 
   // --- commandes du plat (toutes, tous users) — commun self/client ---
-  const allMenuOrders = menu.fastFoodId
-    ? (await repos.orders.getByFastFood(menu.fastFoodId)).filter((o) => o.menu?.id === menuId)
-    : [];
+  const allMenuOrders = menu.fastFoodId ? (await repos.orders.getByFastFood(menu.fastFoodId)).filter(o => o.menu?.id === menuId) : [];
   const globalBuckets = countBuckets(allMenuOrders);
   const totalOrders = totalReceived(globalBuckets);
 
@@ -72,7 +70,7 @@ exports.getMenuStats = async (menuId, viewerUid) => {
   }
 
   // --- client : un user ayant commandé ce plat → total du plat + son total + canRate ---
-  const myMenuOrders = allMenuOrders.filter((o) => o.userId === viewerUid);
+  const myMenuOrders = allMenuOrders.filter(o => o.userId === viewerUid);
   if (myMenuOrders.length === 0) {
     return { success: false, code: 403, message: 'Accès réservé au propriétaire du plat ou à un client ayant commandé ce plat' };
   }

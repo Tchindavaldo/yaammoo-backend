@@ -8,7 +8,7 @@
 const repos = require('../../../repositories');
 const { postNotificationService } = require('../request/postNotification.service');
 
-const getUserTokens = async (userId) => {
+const getUserTokens = async userId => {
   try {
     const user = await repos.users.getUserByIdSafe(userId);
     if (!user) return { fcm: [], apns: [] };

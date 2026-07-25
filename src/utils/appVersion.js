@@ -15,8 +15,12 @@ const DEFAULT_APP_VERSION = process.env.FRONTEND_APP_VERSION || '1.0.0';
 
 // Compare deux versions sémantiques "x.y.z". Retourne >0 si a>b, <0 si a<b, 0 si égal.
 const compareVersions = (a, b) => {
-  const pa = String(a).split('.').map((n) => parseInt(n, 10) || 0);
-  const pb = String(b).split('.').map((n) => parseInt(n, 10) || 0);
+  const pa = String(a)
+    .split('.')
+    .map(n => parseInt(n, 10) || 0);
+  const pb = String(b)
+    .split('.')
+    .map(n => parseInt(n, 10) || 0);
   for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
     const diff = (pa[i] || 0) - (pb[i] || 0);
     if (diff !== 0) return diff;
@@ -26,7 +30,7 @@ const compareVersions = (a, b) => {
 
 // Résout la version d'app du client : header prioritaire, sinon var d'env.
 // `req` peut être absent (appel interne) → retombe sur DEFAULT_APP_VERSION.
-const resolveClientVersion = (req) => {
+const resolveClientVersion = req => {
   const headerVersion = req && req.headers && req.headers['x-app-version'];
   return headerVersion || DEFAULT_APP_VERSION;
 };

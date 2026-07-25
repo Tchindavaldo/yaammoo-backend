@@ -7,7 +7,7 @@ exports.createOrder = async (req, res) => {
   try {
     const io = getIO();
     if (!req.body || typeof req.body !== 'object') {
-      return res.status(400).json({ code: 400, message: 'Corps de requête manquant ou invalide. Assurez-vous d\'envoyer Content-Type: application/json.' });
+      return res.status(400).json({ code: 400, message: "Corps de requête manquant ou invalide. Assurez-vous d'envoyer Content-Type: application/json." });
     }
     const { fastFoodId, status } = req.body;
 

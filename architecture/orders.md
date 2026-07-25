@@ -60,13 +60,14 @@ paiement (qui appellent directement le service) échappaient au validateur.
 
 ### Bonus livraison offerte
 
-`POST /order` accepte un champ d'entrée **`bonus`** (`{ type, code }`, non
+`POST /order` accepte un champ d'entrée **`bonusCode`** (string à la racine, non
 persisté ; il est retiré avant l'écriture, et le bonus appliqué est restitué via
-`deliveryOffer`). `type` = catégorie du bonus (ex. `free_delivery`), `code` = le
-code présenté par le user. Seul `code` alimente le pipeline interne.
+`deliveryOffer`). Le backend retrouve le bonus **et son type** à partir du code
+seul (`repos.bonusRequests.findByCode`) : aucun `type` fourni par le client n'est
+utilisé. (Le champ objet `bonus: { type, code }` d'origine a été retiré.)
 
 1. **Avant création** — `resolveDeliveryBonus()` : un code fourni mais invalide
-   fait échouer la commande en `400`. Sans `bonus`, on retombe sur le bonus
+   fait échouer la commande en `400`. Sans `bonusCode`, on retombe sur le bonus
    éventuellement **armé** par le user (`GET /fastfood/all` l'expose déjà).
 2. **Après création réussie** — `consumeDeliveryBonus()` : `usageCount++`,
    `armed = false`. **Pas de commande = pas de consommation.**
@@ -79,7 +80,41 @@ Détail complet du modèle : [bonus.md](./bonus.md#livraison-offerte-armement--c
 **Arbitrage campagne / bonus** : si une campagne globale (`delivery_free_mode`)
 est active, elle prime et le bonus n'est **pas** consommé.
 
-### Cohérence du panier — contrôlée AVANT le paiement
+### Composition et contrôle du `total` — AVANT le paiement
+
+`order.total` (et `amount` à la racine du paiement) sont **fournis par le client**.
+Le backend les **RECALCULE** dans `validatePaymentAmount` (appelé par
+`postTransaction.service`, avant MobileWallet) — jamais de confiance au front :
+
+```
+total = (prices[selectedPriceIndex − 1].price × quantity)   // plat seul × quantité
+      + Σ(extra.prix        où status === true)              // extra coché : ×1
+      + Σ(drink.prix × drink.quantite   où status === true)  // drink coché : × sa quantite
+```
+
+> ⚠️ `selectedPriceIndex` est en **base 1** (1 = `prices[0]`).
+> ⚠️ `drink[].quantite` est **propre au drink**, indépendant de `quantity` du plat.
+> ⚠️ `delivery.prix` **n'entre jamais** dans le total : la livraison est déjà fondue
+> dans le prix affiché du plat (cf. [pricing.md](./pricing.md)). L'ajouter = double facturation.
+
+**Trois temps** :
+1. **Par commande** — `total` reçu doit égaler le total recalculé. Au **premier**
+   écart → **400** immédiat, sans traiter les items suivants ni sommer.
+2. **Déduction des livraisons groupées** — la livraison est fondue dans le prix de
+   **chaque** plat. Or plusieurs commandes livrées ensemble ne font qu'**une seule
+   course** : le user ne paie qu'une livraison, pas une par commande. On regroupe
+   les commandes livrées (`delivery.status === true`) :
+   - **express** → clé `(fastFoodId + zone)` ;
+   - **time** → clé `(fastFoodId + zone + heure)`.
+
+   Un groupe de N commandes ⇒ on déduit `(N−1) × delivery.prix` du total attendu
+   (`delivery.prix` pris tel quel du payload). Zones/créneaux différents = courses
+   distinctes, aucune déduction.
+3. **Panier** — `amount` (racine) doit égaler `Σtotaux − livraisons en double` → sinon **400**.
+
+Exclu pour un paiement partiel (`mobileApp`, `amount < currentAmount`).
+
+### Cohérence du panier (livraison) — contrôlée AVANT le paiement
 
 `validateCartDelivery()` (`utils/validator/`), appelé dans
 `postTransaction.service` **avant tout appel à MobileWallet** : une fois le

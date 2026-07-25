@@ -10,19 +10,13 @@ exports.getNotificationsService = async (userId, fastFoodId) => {
   try {
     if (!userId) return { success: false, message: 'userId est requis' };
 
-    const [broadcasts, personnels] = await Promise.all([
-      repos.notifications.getAllForTarget('all'),
-      repos.notifications.getAllForUser(userId),
-    ]);
+    const [broadcasts, personnels] = await Promise.all([repos.notifications.getAllForTarget('all'), repos.notifications.getAllForUser(userId)]);
 
-    let allNotif = [
-      ...(broadcasts || []).map((d) => ({ idGroup: d.id, ...d })),
-      ...(personnels || []).map((d) => ({ idGroup: d.id, ...d })),
-    ];
+    let allNotif = [...(broadcasts || []).map(d => ({ idGroup: d.id, ...d })), ...(personnels || []).map(d => ({ idGroup: d.id, ...d }))];
     allNotif.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
 
     if (fastFoodId !== undefined) {
-      allNotif = allNotif.filter((doc) => doc.fastFoodId !== fastFoodId);
+      allNotif = allNotif.filter(doc => doc.fastFoodId !== fastFoodId);
     }
 
     const finalData = flattenNotifications(allNotif);

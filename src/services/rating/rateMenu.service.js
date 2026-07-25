@@ -35,7 +35,7 @@ exports.rateMenu = async ({ menuId, userId, orderId, value, comment = null }) =>
     return { success: false, code: 403, message: "Cette commande n'appartient pas à cet utilisateur" };
   }
   if (order.status !== 'delivered') {
-    return { success: false, code: 403, message: 'Vous ne pouvez noter un plat qu\'après réception (commande livrée)' };
+    return { success: false, code: 403, message: "Vous ne pouvez noter un plat qu'après réception (commande livrée)" };
   }
   if (order.menu?.id !== menuId) {
     return { success: false, code: 403, message: 'Cette commande ne contient pas ce plat' };
@@ -64,7 +64,7 @@ exports.rateMenu = async ({ menuId, userId, orderId, value, comment = null }) =>
   return { success: true, message: 'Plat noté', data: { rating, ratingAvg, ratingCount } };
 };
 
-exports.getMenuRatings = async (menuId) => {
+exports.getMenuRatings = async menuId => {
   if (!menuId) return { success: false, code: 400, message: 'menuId est requis' };
   const ratings = await repos.ratings.listByTarget({ targetType: 'menu', targetId: menuId });
   return { success: true, data: ratings };

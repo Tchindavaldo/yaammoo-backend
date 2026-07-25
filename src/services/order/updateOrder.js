@@ -68,7 +68,7 @@ exports.updateOrderService = async (orderId, updateData) => {
     // Une annulation sort la commande du solde bonus (statuts exclus du brut) :
     // on repousse les soldes recalculés si le statut a changé.
     if (updateData.status && updateData.status !== prevData.status && updatedOrder.userId) {
-      emitBonusStats(updatedOrder.userId).catch((e) => console.warn('[updateOrder] emitBonusStats:', e.message));
+      emitBonusStats(updatedOrder.userId).catch(e => console.warn('[updateOrder] emitBonusStats:', e.message));
     }
 
     return { success: true, message: 'Commande mise à jour avec succès', data: updatedOrder };

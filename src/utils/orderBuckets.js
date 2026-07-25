@@ -17,8 +17,10 @@ const PENDING = new Set(['pending', 'pendingToBuy']);
  * @param {Array<{status:string}>} orders
  * @returns {{ delivered:number, inProgress:number, pending:number, total:number }}
  */
-const countBuckets = (orders) => {
-  let delivered = 0, inProgress = 0, pending = 0;
+const countBuckets = orders => {
+  let delivered = 0,
+    inProgress = 0,
+    pending = 0;
   for (const o of orders) {
     if (DELIVERED.has(o.status)) delivered += 1;
     else if (IN_PROGRESS.has(o.status)) inProgress += 1;

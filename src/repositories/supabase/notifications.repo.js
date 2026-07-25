@@ -7,50 +7,32 @@ const m = require('../mappers');
 
 const TABLE = 'notifications';
 
-exports.getGroupForUser = async (userId) => {
-  const { data, error } = await supabase
-    .from(TABLE)
-    .select('*')
-    .eq('user_id', userId)
-    .limit(1)
-    .maybeSingle();
+exports.getGroupForUser = async userId => {
+  const { data, error } = await supabase.from(TABLE).select('*').eq('user_id', userId).limit(1).maybeSingle();
   if (error) throw error;
   return m.notification.fromSupabase(data);
 };
 
-exports.getGroupForFastFood = async (fastFoodId) => {
-  const { data, error } = await supabase
-    .from(TABLE)
-    .select('*')
-    .eq('fastfood_id', fastFoodId)
-    .limit(1)
-    .maybeSingle();
+exports.getGroupForFastFood = async fastFoodId => {
+  const { data, error } = await supabase.from(TABLE).select('*').eq('fastfood_id', fastFoodId).limit(1).maybeSingle();
   if (error) throw error;
   return m.notification.fromSupabase(data);
 };
 
-exports.getById = async (id) => {
+exports.getById = async id => {
   const { data, error } = await supabase.from(TABLE).select('*').eq('id', id).maybeSingle();
   if (error) throw error;
   return m.notification.fromSupabase(data);
 };
 
 exports.getAllForTarget = async (target = 'all') => {
-  const { data, error } = await supabase
-    .from(TABLE)
-    .select('*')
-    .eq('target', target)
-    .order('updated_at', { ascending: false });
+  const { data, error } = await supabase.from(TABLE).select('*').eq('target', target).order('updated_at', { ascending: false });
   if (error) throw error;
   return (data || []).map(m.notification.fromSupabase);
 };
 
-exports.getAllForUser = async (userId) => {
-  const { data, error } = await supabase
-    .from(TABLE)
-    .select('*')
-    .eq('user_id', userId)
-    .order('updated_at', { ascending: false });
+exports.getAllForUser = async userId => {
+  const { data, error } = await supabase.from(TABLE).select('*').eq('user_id', userId).order('updated_at', { ascending: false });
   if (error) throw error;
   return (data || []).map(m.notification.fromSupabase);
 };

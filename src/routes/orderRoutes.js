@@ -153,19 +153,14 @@ router.get('/driver/:driverId', getDriverOrders);
  *               selectedPriceIndex:
  *                 type: number
  *                 description: Index du prix retenu parmi prix1/prix2/prix3.
- *               bonus:
- *                 type: object
- *                 properties:
- *                   type:
- *                     type: string
- *                     example: free_delivery
- *                   code:
- *                     type: string
- *                     example: YAM-7K3F9QW2
+ *               bonusCode:
+ *                 type: string
+ *                 example: YAM-7K3F9QW2
  *                 description: >-
- *                   Bonus livraison offerte à appliquer (`type` = catégorie,
- *                   `code` = code présenté). Entrée seulement : non persisté,
- *                   restitué via `deliveryOffer`.
+ *                   Code du bonus livraison offerte à appliquer. Entrée seulement :
+ *                   non persisté, restitué via `deliveryOffer`. Le backend retrouve
+ *                   le bonus (et son type) à partir du code — aucun `type` fourni
+ *                   par le client n'est utilisé.
  *               extra:
  *                 type: array
  *                 items:

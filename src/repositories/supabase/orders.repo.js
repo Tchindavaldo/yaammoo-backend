@@ -14,38 +14,26 @@ const m = require('../mappers');
 
 const TABLE = 'orders';
 
-exports.getById = async (id) => {
+exports.getById = async id => {
   const { data, error } = await supabase.from(TABLE).select('*').eq('id', id).maybeSingle();
   if (error) throw error;
   return m.order.fromSupabase(data);
 };
 
-exports.getByFastFood = async (fastFoodId) => {
-  const { data, error } = await supabase
-    .from(TABLE)
-    .select('*')
-    .eq('fastfood_id', fastFoodId)
-    .order('created_at', { ascending: false });
+exports.getByFastFood = async fastFoodId => {
+  const { data, error } = await supabase.from(TABLE).select('*').eq('fastfood_id', fastFoodId).order('created_at', { ascending: false });
   if (error) throw error;
   return (data || []).map(m.order.fromSupabase);
 };
 
-exports.getByUser = async (userId) => {
-  const { data, error } = await supabase
-    .from(TABLE)
-    .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false });
+exports.getByUser = async userId => {
+  const { data, error } = await supabase.from(TABLE).select('*').eq('user_id', userId).order('created_at', { ascending: false });
   if (error) throw error;
   return (data || []).map(m.order.fromSupabase);
 };
 
-exports.getByDriver = async (driverId) => {
-  const { data, error } = await supabase
-    .from(TABLE)
-    .select('*')
-    .eq('driver_id', driverId)
-    .order('created_at', { ascending: false });
+exports.getByDriver = async driverId => {
+  const { data, error } = await supabase.from(TABLE).select('*').eq('driver_id', driverId).order('created_at', { ascending: false });
   if (error) throw error;
   return (data || []).map(m.order.fromSupabase);
 };
@@ -72,10 +60,9 @@ exports.query = async ({ fastFoodId, userId, status, orderByCreated = 'desc' } =
  * Reproduit exactement la logique de createOrder.js Firestore.
  * @returns {Promise<{order?: object, error?: string}>}
  */
-exports.createWithStockCheck = async (order) => {
+exports.createWithStockCheck = async order => {
   const id = order.id || generateId();
-  const deliveryDate =
-    order.delivery?.date || new Date().toISOString().split('T')[0];
+  const deliveryDate = order.delivery?.date || new Date().toISOString().split('T')[0];
 
   const { data, error } = await supabase.rpc('create_order_with_stock_check', {
     p_order_id: id,
@@ -127,25 +114,21 @@ exports.update = async (id, fields) => {
   // delete des champs : si fields explicitement à null, on les set null
   if (fields.__delete) {
     for (const k of fields.__delete) {
-      const snake = ({
-        rank: 'rank',
-        clientId: 'client_id',
-        periodKey: 'period_key',
-      })[k] || k;
+      const snake =
+        {
+          rank: 'rank',
+          clientId: 'client_id',
+          periodKey: 'period_key',
+        }[k] || k;
       payload[snake] = null;
     }
   }
-  const { data, error } = await supabase
-    .from(TABLE)
-    .update(payload)
-    .eq('id', id)
-    .select()
-    .single();
+  const { data, error } = await supabase.from(TABLE).update(payload).eq('id', id).select().single();
   if (error) throw error;
   return m.order.fromSupabase(data);
 };
 
-exports.delete = async (id) => {
+exports.delete = async id => {
   const { error } = await supabase.from(TABLE).delete().eq('id', id);
   if (error) throw error;
 };
@@ -175,7 +158,7 @@ exports.assignRank = async ({ orderId, fastFoodId, deliveryDate, status }) => {
 
 exports.reindexQueue = async ({ fastFoodId, deliveryDate, status, removedRanks }) => {
   const ranks = Array.isArray(removedRanks) ? removedRanks : [removedRanks];
-  const cleaned = ranks.map(Number).filter((r) => !isNaN(r) && r > 0);
+  const cleaned = ranks.map(Number).filter(r => !isNaN(r) && r > 0);
   if (cleaned.length === 0) return [];
 
   const { data, error } = await supabase.rpc('reindex_queue', {
@@ -186,7 +169,7 @@ exports.reindexQueue = async ({ fastFoodId, deliveryDate, status, removedRanks }
   });
   if (error) throw error;
   // data: tableau de { out_id, out_user_id, out_rank, out_status, out_delivery }
-  return (data || []).map((row) => ({
+  return (data || []).map(row => ({
     id: row.out_id,
     userId: row.out_user_id,
     rank: row.out_rank,

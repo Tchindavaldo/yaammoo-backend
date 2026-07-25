@@ -24,12 +24,12 @@ const buildDisplayName = (infos = {}) => {
   if (nom || prenom) return { nom: nom || null, prenom: prenom || null, displayName: `${prenom} ${nom}`.trim() };
   // Fallback : partie locale de l'email (avant @) si pas de nom/prénom.
   const email = infos.email || '';
-  const fallback = email.includes('@') ? email.split('@')[0] : (email || null);
+  const fallback = email.includes('@') ? email.split('@')[0] : email || null;
   return { nom: null, prenom: null, displayName: fallback };
 };
 
 // Photo : pas de colonne dédiée sur users → pass-through extra_data.
-const pickPhoto = (user) => user.photo || user.image || user.avatar || user.photoURL || null;
+const pickPhoto = user => user.photo || user.image || user.avatar || user.photoURL || null;
 
 /**
  * @param {string} driverId  uid du livreur
@@ -68,14 +68,14 @@ exports.getDriverProfile = async (driverId, viewerUid) => {
     const viewerFf = await repos.fastfoods.getByUserId(viewerUid);
     if (viewerFf?.id) {
       const accepted = await repos.driverApplications.getByUser(driverId, { status: 'accepted' });
-      const servesViewer = (accepted || []).some((app) => app.fastFoodId === viewerFf.id);
+      const servesViewer = (accepted || []).some(app => app.fastFoodId === viewerFf.id);
       if (servesViewer) viewerFastFoodId = viewerFf.id;
     }
   }
 
   // Boutiques servies (info non sensible, utile aux 3 vues).
   const accepted = await repos.driverApplications.getByUser(driverId, { status: 'accepted' });
-  publicProfile.stores = (accepted || []).map((app) => ({ fastFoodId: app.fastFoodId }));
+  publicProfile.stores = (accepted || []).map(app => ({ fastFoodId: app.fastFoodId }));
 
   // Simple user (ni self, ni marchand de ce livreur) → profil public +
   // contexte PERSONNEL à la relation user↔livreur :
@@ -85,7 +85,7 @@ exports.getDriverProfile = async (driverId, viewerUid) => {
   //   • hasRated    : a-t-il déjà noté ce livreur ?
   if (!isSelf && !viewerFastFoodId) {
     if (viewerUid) {
-      const myOrders = (await repos.orders.getByDriver(driverId)).filter((o) => o.userId === viewerUid);
+      const myOrders = (await repos.orders.getByDriver(driverId)).filter(o => o.userId === viewerUid);
       const myStats = countBuckets(myOrders);
       const existingRating = await repos.ratings.getUserRating({
         targetType: 'driver',
@@ -113,7 +113,7 @@ exports.getDriverProfile = async (driverId, viewerUid) => {
   }
 
   // Marchand → stats limitées à SA boutique.
-  const scoped = allOrders.filter((o) => o.fastFoodId === viewerFastFoodId);
+  const scoped = allOrders.filter(o => o.fastFoodId === viewerFastFoodId);
   return {
     success: true,
     scope: 'merchant',

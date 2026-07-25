@@ -54,11 +54,7 @@ function validateCartDelivery(items) {
         if (field === 'time' && normalize(reference.type) !== 'time') continue;
         if (normalize(reference[field]) === normalize(order.delivery?.[field])) continue;
 
-        return (
-          `Les commandes d'une même boutique doivent partager la même livraison : ` +
-          `${LABELS[field]} différent (« ${reference[field] ?? '—'} » et « ${order.delivery?.[field] ?? '—'} »). ` +
-          `Boutique ${fastFoodId}.`
-        );
+        return `Les commandes d'une même boutique doivent partager la même livraison : ` + `${LABELS[field]} différent (« ${reference[field] ?? '—'} » et « ${order.delivery?.[field] ?? '—'} »). ` + `Boutique ${fastFoodId}.`;
       }
     }
   }
