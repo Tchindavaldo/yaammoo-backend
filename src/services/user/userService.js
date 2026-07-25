@@ -14,9 +14,9 @@ const repos = require('../../repositories');
 
 exports.getAllUsers = () => repos.users.getAllUsers();
 
-exports.getUserById = (id) => repos.users.getUserById(id);
+exports.getUserById = id => repos.users.getUserById(id);
 
-exports.createUser = (data) => repos.users.createUser(data);
+exports.createUser = data => repos.users.createUser(data);
 
 exports.saveUser = (id, data) => repos.users.saveUser(id, data);
 
@@ -26,11 +26,11 @@ exports.addPushToken = (userId, payload) => repos.users.addPushToken(userId, pay
 
 exports.removePushToken = (userId, payload) => repos.users.removePushToken(userId, payload);
 
-exports.collectUserTokens = (userData) => repos.users.collectUserTokens(userData);
+exports.collectUserTokens = userData => repos.users.collectUserTokens(userData);
 
-exports.getUserByEmail = (email) => repos.users.getUserByEmail(email);
+exports.getUserByEmail = email => repos.users.getUserByEmail(email);
 
-exports.getUserByPhone = (phone) => repos.users.getUserByPhone(phone);
+exports.getUserByPhone = phone => repos.users.getUserByPhone(phone);
 
 // ============================================================================
 // Suppression complète du compte (RGPD / Apple Guideline 5.1.1(v))
@@ -39,7 +39,7 @@ exports.getUserByPhone = (phone) => repos.users.getUserByPhone(phone);
 // ============================================================================
 const { admin } = require('../../config/firebase');
 
-exports.deleteUserAccount = async (uid) => {
+exports.deleteUserAccount = async uid => {
   if (!uid) throw new Error('UID requis pour la suppression');
 
   console.log(`🗑️  [DELETE-ACCOUNT] Début suppression pour UID: ${uid}`);

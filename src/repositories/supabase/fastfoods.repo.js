@@ -7,7 +7,7 @@ const m = require('../mappers');
 
 const TABLE = 'fastfoods';
 
-exports.create = async (data) => {
+exports.create = async data => {
   const id = data.id || generateId();
   const payload = m.fastfood.toSupabase({
     ...data,
@@ -19,7 +19,7 @@ exports.create = async (data) => {
   return m.fastfood.fromSupabase(row);
 };
 
-exports.getById = async (id) => {
+exports.getById = async id => {
   const { data, error } = await supabase.from(TABLE).select('*').eq('id', id).maybeSingle();
   if (error) throw error;
   return m.fastfood.fromSupabase(data);
@@ -31,12 +31,8 @@ exports.getAll = async () => {
   return (data || []).map(m.fastfood.fromSupabase);
 };
 
-exports.getByUserId = async (userId) => {
-  const { data, error } = await supabase
-    .from(TABLE)
-    .select('*')
-    .eq('user_id', userId)
-    .maybeSingle();
+exports.getByUserId = async userId => {
+  const { data, error } = await supabase.from(TABLE).select('*').eq('user_id', userId).maybeSingle();
   if (error) throw error;
   return m.fastfood.fromSupabase(data);
 };
@@ -47,12 +43,7 @@ exports.update = async (id, fields) => {
   if (!existing) throw new Error(`Fastfood ${id} introuvable`);
   const merged = { ...existing, ...fields, id, updatedAt: new Date().toISOString() };
   const payload = m.fastfood.toSupabase(merged);
-  const { data, error } = await supabase
-    .from(TABLE)
-    .update(payload)
-    .eq('id', id)
-    .select()
-    .single();
+  const { data, error } = await supabase.from(TABLE).update(payload).eq('id', id).select().single();
   if (error) throw error;
   return m.fastfood.fromSupabase(data);
 };
@@ -62,20 +53,13 @@ exports.update = async (id, fields) => {
 exports.searchByName = async (q, { limit = 20 } = {}) => {
   const term = (q || '').trim();
   if (!term) return [];
-  const { data, error } = await supabase
-    .from(TABLE)
-    .select('id, name')
-    .ilike('name', `%${term}%`)
-    .limit(limit);
+  const { data, error } = await supabase.from(TABLE).select('id, name').ilike('name', `%${term}%`).limit(limit);
   if (error) throw error;
-  return (data || []).map((r) => ({ id: r.id, nom: r.name }));
+  return (data || []).map(r => ({ id: r.id, nom: r.name }));
 };
 
-exports.exists = async (id) => {
-  const { count, error } = await supabase
-    .from(TABLE)
-    .select('*', { count: 'exact', head: true })
-    .eq('id', id);
+exports.exists = async id => {
+  const { count, error } = await supabase.from(TABLE).select('*', { count: 'exact', head: true }).eq('id', id);
   if (error) throw error;
   return (count || 0) > 0;
 };

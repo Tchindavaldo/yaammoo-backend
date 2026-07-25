@@ -47,7 +47,7 @@ async function generateUniqueBonusCode(isTaken, attempts = MAX_GENERATION_ATTEMP
     if (!(await isTaken(code))) return code;
     console.warn(`bonusCode: collision sur ${code}, nouvelle tentative (${i + 1}/${attempts}).`);
   }
-  throw new Error("Impossible de générer un code bonus unique après plusieurs tentatives.");
+  throw new Error('Impossible de générer un code bonus unique après plusieurs tentatives.');
 }
 
 /** Normalise un code saisi (casse/espaces) avant comparaison. */

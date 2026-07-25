@@ -19,7 +19,7 @@ const { buildCampaignOffer } = require('../pricing/deliveryOfferResolver');
  *   Fourni, chaque boutique porte l'offre de livraison applicable à CE user, et
  *   le propriétaire d'une boutique en voit les prix réels.
  */
-exports.getFastFoodsService = async (userId) => {
+exports.getFastFoodsService = async userId => {
   try {
     const fastfoods = await repos.fastfoods.getAll();
     if (!fastfoods || fastfoods.length === 0) return [];
@@ -33,7 +33,7 @@ exports.getFastFoodsService = async (userId) => {
     const campaignOffer = pricing.deliveryFreeMode ? buildCampaignOffer() : null;
 
     const fastfoodsWithMenus = await Promise.all(
-      fastfoods.map(async (fastfood) => {
+      fastfoods.map(async fastfood => {
         const menus = await getMenuService(fastfood.id);
         const isOwner = !!userId && fastfood.userId === userId;
         const priced = applyDisplayPricing({ ...fastfood, menus }, pricing, isOwner);
@@ -44,9 +44,7 @@ exports.getFastFoodsService = async (userId) => {
       })
     );
 
-    return fastfoodsWithMenus.filter(
-      (f) => Array.isArray(f.menus) && f.menus.length > 0
-    );
+    return fastfoodsWithMenus.filter(f => Array.isArray(f.menus) && f.menus.length > 0);
   } catch (error) {
     console.error('Erreur dans getFastfoods:', error);
     throw new Error(error.message || 'Erreur lors de la récupération du fastfood');

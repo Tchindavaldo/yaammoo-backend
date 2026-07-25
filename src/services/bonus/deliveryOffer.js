@@ -90,7 +90,7 @@ function buildDeliveryOffer(bonus, request, { reason = OFFER_REASON_BONUS } = {}
 const REASON_MESSAGES = {
   bonus_not_found: 'Bonus non trouvé.',
   bonus_inactive: "Ce bonus n'est pas actif.",
-  bonus_not_free_delivery: "Ce bonus ne donne pas droit à la livraison offerte.",
+  bonus_not_free_delivery: 'Ce bonus ne donne pas droit à la livraison offerte.',
   not_claimed: "Ce bonus n'a pas été réclamé.",
   expired: 'Ce code a expiré.',
   exhausted: 'Ce code a déjà été entièrement consommé.',

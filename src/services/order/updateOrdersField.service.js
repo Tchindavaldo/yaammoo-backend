@@ -10,7 +10,7 @@ const { getIO } = require('../../socket');
 const { validateOrder } = require('../../utils/validator/validateOrder');
 const { getFastFoodService } = require('../fastfood/getFastFood');
 
-exports.updateOrdersFieldService = async (params) => {
+exports.updateOrdersFieldService = async params => {
   const { fastFoodId, userId, fieldName, fieldValue, filterStatus } = params;
 
   if (!fieldName) return { success: false, message: 'Le nom du champ à mettre à jour est requis' };
@@ -51,7 +51,7 @@ exports.updateOrdersFieldService = async (params) => {
     const io = getIO();
     const groupedByFastFood = {};
     const groupedByUser = {};
-    updatedOrders.forEach((order) => {
+    updatedOrders.forEach(order => {
       if (!groupedByFastFood[order.fastFoodId]) groupedByFastFood[order.fastFoodId] = [];
       groupedByFastFood[order.fastFoodId].push(order);
       if (!groupedByUser[order.userId]) groupedByUser[order.userId] = [];
@@ -68,7 +68,9 @@ exports.updateOrdersFieldService = async (params) => {
             orders: groupedByFastFood[ffId],
           });
         }
-      } catch (_) { /* ignore */ }
+      } catch (_) {
+        /* ignore */
+      }
     }
 
     for (const uid in groupedByUser) {

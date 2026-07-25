@@ -7,12 +7,9 @@ const m = require('../mappers');
 const TABLE = 'users';
 const PUSH = 'user_push_tokens';
 
-const fetchUserBundle = async (userId) => {
+const fetchUserBundle = async userId => {
   if (!userId) return null;
-  const [{ data: userRow, error: e1 }, { data: pushRows, error: e2 }] = await Promise.all([
-    supabase.from(TABLE).select('*').eq('id', userId).maybeSingle(),
-    supabase.from(PUSH).select('*').eq('user_id', userId),
-  ]);
+  const [{ data: userRow, error: e1 }, { data: pushRows, error: e2 }] = await Promise.all([supabase.from(TABLE).select('*').eq('id', userId).maybeSingle(), supabase.from(PUSH).select('*').eq('user_id', userId)]);
   if (e1) throw e1;
   if (e2) throw e2;
   if (!userRow) return null;
@@ -23,25 +20,25 @@ exports.getAllUsers = async () => {
   const { data: users, error } = await supabase.from(TABLE).select('*');
   if (error) throw error;
   if (!users || users.length === 0) return [];
-  const ids = users.map((u) => u.id);
+  const ids = users.map(u => u.id);
   const { data: pushRows } = await supabase.from(PUSH).select('*').in('user_id', ids);
-  return users.map((row) =>
+  return users.map(row =>
     m.user.fromSupabase(
       row,
-      (pushRows || []).filter((t) => t.user_id === row.id)
+      (pushRows || []).filter(t => t.user_id === row.id)
     )
   );
 };
 
-exports.getUserById = async (id) => {
+exports.getUserById = async id => {
   const user = await fetchUserBundle(id);
   if (!user) throw new Error(`Aucun utilisateur trouvé avec l'ID : ${id}`);
   return user;
 };
 
-exports.getUserByIdSafe = async (id) => fetchUserBundle(id);
+exports.getUserByIdSafe = async id => fetchUserBundle(id);
 
-exports.createUser = async (data) => {
+exports.createUser = async data => {
   const userId = data.uid || data.id;
   const payload = m.user.toSupabase({
     ...data,
@@ -94,27 +91,16 @@ exports.addPushToken = async (userId, { token, platform, deviceId }) => {
   );
   if (error) throw error;
 
-  const { count } = await supabase
-    .from(PUSH)
-    .select('*', { count: 'exact', head: true })
-    .eq('user_id', userId);
+  const { count } = await supabase.from(PUSH).select('*', { count: 'exact', head: true }).eq('user_id', userId);
   return { count: count || 0 };
 };
 
 exports.removePushToken = async (userId, { deviceId }) => {
   if (!deviceId) throw new Error('deviceId requis');
-  const { data: removed, error: eDel } = await supabase
-    .from(PUSH)
-    .delete()
-    .eq('user_id', userId)
-    .eq('device_id', deviceId)
-    .select();
+  const { data: removed, error: eDel } = await supabase.from(PUSH).delete().eq('user_id', userId).eq('device_id', deviceId).select();
   if (eDel) throw eDel;
 
-  const { count } = await supabase
-    .from(PUSH)
-    .select('*', { count: 'exact', head: true })
-    .eq('user_id', userId);
+  const { count } = await supabase.from(PUSH).select('*', { count: 'exact', head: true }).eq('user_id', userId);
 
   return { removed: (removed || []).length, count: count || 0 };
 };
@@ -124,25 +110,15 @@ exports.cleanStaleTokens = async (userId, staleTokens) => {
   await supabase.from(PUSH).delete().eq('user_id', userId).in('token', staleTokens);
 };
 
-exports.getUserByEmail = async (email) => {
-  const { data, error } = await supabase
-    .from(TABLE)
-    .select('*')
-    .eq('email', email)
-    .limit(1)
-    .maybeSingle();
+exports.getUserByEmail = async email => {
+  const { data, error } = await supabase.from(TABLE).select('*').eq('email', email).limit(1).maybeSingle();
   if (error) throw error;
   if (!data) return null;
   return fetchUserBundle(data.id);
 };
 
-exports.getUserByPhone = async (phone) => {
-  const { data, error } = await supabase
-    .from(TABLE)
-    .select('*')
-    .eq('numero', parseInt(phone, 10))
-    .limit(1)
-    .maybeSingle();
+exports.getUserByPhone = async phone => {
+  const { data, error } = await supabase.from(TABLE).select('*').eq('numero', parseInt(phone, 10)).limit(1).maybeSingle();
   if (error) throw error;
   if (!data) return null;
   return fetchUserBundle(data.id);
@@ -154,12 +130,12 @@ exports.getUserByPhone = async (phone) => {
 // Firebase Auth (géré par le service, qui reste responsable de admin.auth()).
 // user_push_tokens et menus se suppriment en cascade via FK ON DELETE CASCADE.
 // ============================================================================
-exports.deleteCascade = async (uid) => {
+exports.deleteCascade = async uid => {
   if (!uid) throw new Error('uid requis');
 
   // Récupérer les fastfoods possédés pour supprimer leurs commandes/menus liés
   const { data: ffs } = await supabase.from('fastfoods').select('id').eq('user_id', uid);
-  const fastFoodIds = (ffs || []).map((f) => f.id);
+  const fastFoodIds = (ffs || []).map(f => f.id);
 
   // Données liées directement à l'utilisateur
   const byUser = [

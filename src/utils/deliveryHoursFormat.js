@@ -15,20 +15,20 @@ const { clientVersionAtLeast } = require('./appVersion');
 const NEW_FORMAT_MIN_VERSION = process.env.APP_DELIVERY_NEW_MIN_VERSION || '1.0.1';
 
 // Vrai si le client appelant supporte le format deliveryHours enrichi (objets).
-const clientSupportsNewDeliveryFormat = (req) => clientVersionAtLeast(req, NEW_FORMAT_MIN_VERSION);
+const clientSupportsNewDeliveryFormat = req => clientVersionAtLeast(req, NEW_FORMAT_MIN_VERSION);
 
 // Convertit un tableau deliveryHours vers le format legacy (strings "HH:mm").
 // - une string reste telle quelle
 // - un objet { hour, ... } est réduit à sa string `hour`
-const toLegacyDeliveryHours = (deliveryHours) => {
+const toLegacyDeliveryHours = deliveryHours => {
   if (!Array.isArray(deliveryHours)) return [];
   return deliveryHours
-    .map((h) => {
+    .map(h => {
       if (typeof h === 'string') return h;
       if (h && typeof h === 'object' && typeof h.hour === 'string') return h.hour;
       return null;
     })
-    .filter((h) => typeof h === 'string');
+    .filter(h => typeof h === 'string');
 };
 
 // Applique le bon format de deliveryHours à un objet fastfood (immuable).
@@ -41,7 +41,7 @@ const applyDeliveryFormatToFastfood = (fastfood, newFormat) => {
 // Applique le format à une liste de fastfoods selon la requête entrante.
 const formatFastfoodsForClient = (fastfoods, req) => {
   if (clientSupportsNewDeliveryFormat(req)) return fastfoods;
-  return (fastfoods || []).map((f) => applyDeliveryFormatToFastfood(f, false));
+  return (fastfoods || []).map(f => applyDeliveryFormatToFastfood(f, false));
 };
 
 module.exports = {

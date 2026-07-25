@@ -38,26 +38,14 @@ exports.rate = async ({ targetType, targetId, userId, orderId = null, value, com
 
 /** Note d'un user pour une cible donnée (ou null). */
 exports.getUserRating = async ({ targetType, targetId, userId }) => {
-  const { data, error } = await supabase
-    .from(TABLE)
-    .select('*')
-    .eq('target_type', targetType)
-    .eq('target_id', targetId)
-    .eq('user_id', userId)
-    .maybeSingle();
+  const { data, error } = await supabase.from(TABLE).select('*').eq('target_type', targetType).eq('target_id', targetId).eq('user_id', userId).maybeSingle();
   if (error) throw error;
   return m.rating.fromSupabase(data);
 };
 
 /** Liste des avis d'une cible (plus récent d'abord). */
 exports.listByTarget = async ({ targetType, targetId, limit = 50 }) => {
-  const { data, error } = await supabase
-    .from(TABLE)
-    .select('*')
-    .eq('target_type', targetType)
-    .eq('target_id', targetId)
-    .order('created_at', { ascending: false })
-    .limit(limit);
+  const { data, error } = await supabase.from(TABLE).select('*').eq('target_type', targetType).eq('target_id', targetId).order('created_at', { ascending: false }).limit(limit);
   if (error) throw error;
   return (data || []).map(m.rating.fromSupabase);
 };

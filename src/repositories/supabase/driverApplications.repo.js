@@ -7,7 +7,7 @@ const m = require('../mappers');
 
 const TABLE = 'driver_applications';
 
-exports.create = async (data) => {
+exports.create = async data => {
   const id = data.id || generateId();
   const payload = m.driverApplication.toSupabase({
     ...data,
@@ -20,7 +20,7 @@ exports.create = async (data) => {
   return m.driverApplication.fromSupabase(row);
 };
 
-exports.getById = async (id) => {
+exports.getById = async id => {
   const { data, error } = await supabase.from(TABLE).select('*').eq('id', id).maybeSingle();
   if (error) throw error;
   return data ? m.driverApplication.fromSupabase(data) : null;
@@ -46,21 +46,12 @@ exports.getByUser = async (userId, { status } = {}) => {
 
 // Retire l'association livreur↔boutique (toutes les lignes du couple).
 exports.deleteByUserFastFood = async ({ userId, fastFoodId }) => {
-  const { error } = await supabase
-    .from(TABLE)
-    .delete()
-    .eq('user_id', userId)
-    .eq('fastfood_id', fastFoodId);
+  const { error } = await supabase.from(TABLE).delete().eq('user_id', userId).eq('fastfood_id', fastFoodId);
   if (error) throw error;
 };
 
 exports.updateStatus = async (id, status) => {
-  const { data, error } = await supabase
-    .from(TABLE)
-    .update({ status, updated_at: new Date().toISOString() })
-    .eq('id', id)
-    .select()
-    .single();
+  const { data, error } = await supabase.from(TABLE).update({ status, updated_at: new Date().toISOString() }).eq('id', id).select().single();
   if (error) throw error;
   return m.driverApplication.fromSupabase(data);
 };

@@ -1,13 +1,5 @@
 // controllers/driver/driverController.js
-const {
-  applyAsDriver,
-  getApplications,
-  getDrivers,
-  getStores,
-  getMyApplications,
-  removeDriver,
-  decideApplication,
-} = require('../../services/driver/driverApplication.service');
+const { applyAsDriver, getApplications, getDrivers, getStores, getMyApplications, removeDriver, decideApplication } = require('../../services/driver/driverApplication.service');
 const { getDriverProfile } = require('../../services/driver/getDriverProfile.service');
 
 // GET /driver/:driverId — profil livreur adapté au demandeur (public | merchant | self)

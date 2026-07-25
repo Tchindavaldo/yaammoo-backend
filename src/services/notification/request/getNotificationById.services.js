@@ -3,7 +3,7 @@
 // ============================================================================
 const repos = require('../../../repositories');
 
-exports.getNotificationByIdService = async (id) => {
+exports.getNotificationByIdService = async id => {
   try {
     const doc = await repos.notifications.getById(id);
     if (!doc) return { success: false, message: 'Notification non trouvée' };

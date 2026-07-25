@@ -5,6 +5,7 @@ const repos = require('../../repositories');
 const { getIO } = require('../../socket');
 const { validateTransactionCreation } = require('../../utils/validator/validateTransactionCreation');
 const { validateCartDelivery } = require('../../utils/validator/validateCartDelivery');
+const { validatePaymentAmount } = require('../../utils/validator/validatePaymentAmount');
 const mobilewalletService = require('./mobilewalletService');
 const { computeNet } = require('../../utils/commission');
 const { generateId } = require('../../repositories/idGen');
@@ -46,8 +47,21 @@ exports.postTransactionService = async data => {
     }
 
     // remainingAmount calculé si paiement mobileApp partiel
-    if (payBy === 'mobileApp' && amount < currentAmount) {
+    const isPartialPayment = payBy === 'mobileApp' && amount < currentAmount;
+    if (isPartialPayment) {
       data.remainingAmount = +(currentAmount - amount).toFixed(2);
+    }
+
+    // Cohérence du montant — AVANT tout paiement. `amount` et `items[].total`
+    // viennent du client : le backend RECALCULE chaque total depuis les prix du
+    // menu, refuse au premier item incohérent, puis vérifie amount == Σtotal.
+    // Exclu pour un paiement partiel, qui encaisse volontairement moins.
+    if (!isPartialPayment) {
+      const amountError = validatePaymentAmount(amount, items);
+      if (amountError) {
+        log.warn(`${logPrefix} ❌ Montant incohérent: ${amountError}`);
+        return { success: false, httpStatus: 400, message: amountError };
+      }
     }
 
     // =========================================================================

@@ -55,7 +55,7 @@ const notifyApplicationCreated = async (application, candidate) => {
 };
 
 // À la décision → prévenir le candidat (room = son uid).
-const notifyApplicationDecided = async (application) => {
+const notifyApplicationDecided = async application => {
   try {
     const accepted = application.status === 'accepted';
     const payload = { data: application };
@@ -84,7 +84,7 @@ const notifyApplicationDecided = async (application) => {
   }
 };
 
-const publicUser = (user) => {
+const publicUser = user => {
   if (!user) return null;
   return {
     uid: user.uid || user.id,
@@ -94,7 +94,7 @@ const publicUser = (user) => {
   };
 };
 
-const storeOption = (fastfood) => (fastfood ? { id: fastfood.id, nom: fastfood.name } : null);
+const storeOption = fastfood => (fastfood ? { id: fastfood.id, nom: fastfood.name } : null);
 
 exports.applyAsDriver = async ({ userId, fastFoodIds }) => {
   if (!userId) return { success: false, code: 400, message: 'userId est requis' };
@@ -106,11 +106,11 @@ exports.applyAsDriver = async ({ userId, fastFoodIds }) => {
 
   // Idempotence par couple (userId, fastFoodId) : au plus une ligne par boutique.
   const existing = await repos.driverApplications.getByUser(userId);
-  const byFastFood = new Map(existing.map((a) => [a.fastFoodId, a]));
+  const byFastFood = new Map(existing.map(a => [a.fastFoodId, a]));
 
-  const created = [];      // nouvelles demandes
-  const reactivated = [];  // demandes refused repassées à pending (relance)
-  const skipped = [];      // déjà pending/accepted, ou boutique invalide
+  const created = []; // nouvelles demandes
+  const reactivated = []; // demandes refused repassées à pending (relance)
+  const skipped = []; // déjà pending/accepted, ou boutique invalide
   for (const fastFoodId of ids) {
     const ex = byFastFood.get(fastFoodId);
     if (ex) {
@@ -140,50 +140,50 @@ exports.applyAsDriver = async ({ userId, fastFoodIds }) => {
   }
 
   // Events + push + notif BD vers les marchands concernés (non bloquant).
-  await Promise.all([...created, ...reactivated].map((app) => notifyApplicationCreated(app, user)));
+  await Promise.all([...created, ...reactivated].map(app => notifyApplicationCreated(app, user)));
 
   return { success: true, message: `${total} demande(s) envoyée(s)`, data: { created, reactivated, skipped } };
 };
 
-exports.getApplications = async (fastFoodId) => {
+exports.getApplications = async fastFoodId => {
   if (!fastFoodId) throw new Error('fastFoodId requis');
   const applications = await repos.driverApplications.getByFastFood(fastFoodId);
   // Enrichir chaque demande avec les infos du candidat (affichage marchand).
   return Promise.all(
-    applications.map(async (app) => {
+    applications.map(async app => {
       const user = await repos.users.getUserByIdSafe(app.userId);
       return { ...app, user: publicUser(user) };
     })
   );
 };
 
-exports.getDrivers = async (fastFoodId) => {
+exports.getDrivers = async fastFoodId => {
   if (!fastFoodId) throw new Error('fastFoodId requis');
   const accepted = await repos.driverApplications.getByFastFood(fastFoodId, { status: 'accepted' });
   return Promise.all(
-    accepted.map(async (app) => {
+    accepted.map(async app => {
       const user = await repos.users.getUserByIdSafe(app.userId);
       return publicUser(user);
     })
   );
 };
 
-exports.getMyApplications = async (userId) => {
+exports.getMyApplications = async userId => {
   if (!userId) throw new Error('userId requis');
   const applications = await repos.driverApplications.getByUser(userId);
   return Promise.all(
-    applications.map(async (app) => {
+    applications.map(async app => {
       const fastfood = await repos.fastfoods.getById(app.fastFoodId);
       return { ...app, fastFoodName: fastfood?.name || null };
     })
   );
 };
 
-exports.getStores = async (driverId) => {
+exports.getStores = async driverId => {
   if (!driverId) throw new Error('driverId requis');
   const accepted = await repos.driverApplications.getByUser(driverId, { status: 'accepted' });
   const stores = await Promise.all(
-    accepted.map(async (app) => {
+    accepted.map(async app => {
       const fastfood = await repos.fastfoods.getById(app.fastFoodId);
       return storeOption(fastfood);
     })
@@ -219,7 +219,7 @@ exports.removeDriver = async (driverId, fastFoodId) => {
     await notifyOrderEvent({
       targetUserId: driverId,
       type: 'driver_removed',
-      title: 'Retrait de l\'équipe de livraison',
+      title: "Retrait de l'équipe de livraison",
       body: `Vous ne livrez plus pour ${ffName}`,
       orderId: fastFoodId,
       route: 'settings?section=my-applications',

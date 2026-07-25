@@ -20,21 +20,21 @@ exports.updateOrdersField = async (req, res) => {
     if (!fieldName) {
       return res.status(400).json({
         success: false,
-        message: 'Le nom du champ à mettre à jour est requis'
+        message: 'Le nom du champ à mettre à jour est requis',
       });
     }
 
     if (fieldValue === undefined) {
       return res.status(400).json({
         success: false,
-        message: 'La valeur du champ à mettre à jour est requise'
+        message: 'La valeur du champ à mettre à jour est requise',
       });
     }
 
     if (!fastFoodId && !userId) {
       return res.status(400).json({
         success: false,
-        message: 'Vous devez fournir soit un fastFoodId, soit un userId'
+        message: 'Vous devez fournir soit un fastFoodId, soit un userId',
       });
     }
 
@@ -43,7 +43,7 @@ exports.updateOrdersField = async (req, res) => {
       userId,
       fieldName,
       fieldValue,
-      filterStatus
+      filterStatus,
     });
 
     if (!result.success) {
@@ -55,7 +55,7 @@ exports.updateOrdersField = async (req, res) => {
     console.error('Erreur lors de la mise à jour des commandes:', error);
     return res.status(500).json({
       success: false,
-      message: error.message || 'Erreur serveur lors de la mise à jour des commandes'
+      message: error.message || 'Erreur serveur lors de la mise à jour des commandes',
     });
   }
 };

@@ -13,12 +13,10 @@ const { getIO } = require('../../../socket');
 const { validateNotificationData } = require('../../../utils/validator/validateNotificationData');
 const sendPushNotification = require('../FCM/sendPushNotification.service');
 
-exports.postNotificationService = async (dataGet) => {
+exports.postNotificationService = async dataGet => {
   try {
     const { data, userId, fastFoodId, token, tokens, apnsTokens, extraFcmData = {} } = dataGet;
-    const fcmTargets = Array.isArray(tokens) && tokens.length > 0
-      ? tokens
-      : (token ? [token] : []);
+    const fcmTargets = Array.isArray(tokens) && tokens.length > 0 ? tokens : token ? [token] : [];
     const apnsTargets = Array.isArray(apnsTokens) ? apnsTokens.filter(Boolean) : [];
 
     if (fastFoodId && userId) {
@@ -63,7 +61,7 @@ exports.postNotificationService = async (dataGet) => {
     };
 
     // Append (ou crée) le groupe de notifications
-    const target = userId ? null : (fastFoodId ? 'all' : null);
+    const target = userId ? null : fastFoodId ? 'all' : null;
     const groupDoc = await repos.notifications.appendNotification({
       userId: userId || null,
       fastFoodId: fastFoodId || null,

@@ -7,7 +7,7 @@ const m = require('../mappers');
 
 const TABLE = 'menus';
 
-exports.create = async (data) => {
+exports.create = async data => {
   const id = data.id || generateId();
   const payload = m.menu.toSupabase({
     ...data,
@@ -19,7 +19,7 @@ exports.create = async (data) => {
   return m.menu.fromSupabase(row);
 };
 
-exports.getById = async (id) => {
+exports.getById = async id => {
   const { data, error } = await supabase.from(TABLE).select('*').eq('id', id).maybeSingle();
   if (error) throw error;
   return m.menu.fromSupabase(data);
@@ -31,19 +31,15 @@ exports.getById = async (id) => {
  * @returns {Promise<{ exists: boolean, stock: number|null }>}
  *   stock === null → menu sans gestion de stock (illimité, cf. create_order_with_stock_check).
  */
-exports.getRawStock = async (id) => {
+exports.getRawStock = async id => {
   const { data, error } = await supabase.from(TABLE).select('stock').eq('id', id).maybeSingle();
   if (error) throw error;
   if (!data) return { exists: false, stock: null };
   return { exists: true, stock: data.stock };
 };
 
-exports.getByFastFood = async (fastFoodId) => {
-  const { data, error } = await supabase
-    .from(TABLE)
-    .select('*')
-    .eq('fastfood_id', fastFoodId)
-    .order('created_at', { ascending: false });
+exports.getByFastFood = async fastFoodId => {
+  const { data, error } = await supabase.from(TABLE).select('*').eq('fastfood_id', fastFoodId).order('created_at', { ascending: false });
   if (error) throw error;
   return (data || []).map(m.menu.fromSupabase);
 };
@@ -53,28 +49,18 @@ exports.update = async (id, fields) => {
   if (!existing) throw new Error(`Menu ${id} introuvable`);
   const merged = { ...existing, ...fields, id, updatedAt: new Date().toISOString() };
   const payload = m.menu.toSupabase(merged);
-  const { data, error } = await supabase
-    .from(TABLE)
-    .update(payload)
-    .eq('id', id)
-    .select()
-    .single();
+  const { data, error } = await supabase.from(TABLE).update(payload).eq('id', id).select().single();
   if (error) throw error;
   return m.menu.fromSupabase(data);
 };
 
 exports.updateStock = async (id, newStock) => {
-  const { data, error } = await supabase
-    .from(TABLE)
-    .update({ stock: newStock, updated_at: new Date().toISOString() })
-    .eq('id', id)
-    .select()
-    .single();
+  const { data, error } = await supabase.from(TABLE).update({ stock: newStock, updated_at: new Date().toISOString() }).eq('id', id).select().single();
   if (error) throw error;
   return m.menu.fromSupabase(data);
 };
 
-exports.delete = async (id) => {
+exports.delete = async id => {
   const { error } = await supabase.from(TABLE).delete().eq('id', id);
   if (error) throw error;
 };

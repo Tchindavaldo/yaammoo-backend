@@ -203,7 +203,7 @@ function splitDeliveryAmounts({ fastfood, zone, deliveryType, platformMargin, qu
   const due = delivered && courseBilled ? realPrice : 0;
 
   return {
-    zone: delivered ? zone ?? null : null,
+    zone: delivered ? (zone ?? null) : null,
     realPrice,
     chargedPrice,
     // Sans livraison, aucune course n'est portée par cette commande.

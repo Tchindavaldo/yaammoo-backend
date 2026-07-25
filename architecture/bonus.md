@@ -361,7 +361,7 @@ Bonus de `type: "free_delivery"`. Deux notions **distinctes** :
   même sur un bonus expiré, sinon il resterait armé indéfiniment.
 - **Écran de commande → armement LOCAL, non persisté.** Le front arme tout seul ;
   il valide juste le code via `POST /bonus/verify` (lecture seule) pour son
-  rendu, puis envoie `bonus: { type, code }` dans `POST /order`.
+  rendu, puis envoie `bonusCode` (string à la racine) dans `POST /order`.
 
 **Exclusivité** : armer un bonus désarme automatiquement tout autre bonus armé
 qui le **recouvre** (même boutique, ou l'un des deux plateforme) — sinon l'offre

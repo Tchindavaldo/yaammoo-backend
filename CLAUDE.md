@@ -3,6 +3,12 @@
 Ce fichier est **versionné** : ses règles s'appliquent automatiquement sur tout
 PC où le projet est cloné/pull, dans n'importe quelle session Claude Code.
 
+## Style de réponse (OBLIGATOIRE)
+
+**Toujours COURT et DROIT AU BUT.** Pas de longues explications, pas de tableaux
+à rallonge, pas de récapitulatifs verbeux. Répondre en quelques lignes. Le user
+veut l'essentiel, pas un cours. Développer uniquement s'il le demande explicitement.
+
 ## À lire en DÉBUT de session (OBLIGATOIRE)
 
 Lis **`architecture/README.md`** avant de travailler : il donne une vue 360 du backend
@@ -44,6 +50,23 @@ Chaque domaine (users, merchants, orders, payments, notifications) :
 - Services séparés
 - Routes séparées
 - Doc architecture dédiée (`architecture/<feature>.md`)
+
+### Champs & validation (OBLIGATOIRE)
+
+**Tout endpoint qui reçoit un payload DOIT avoir :**
+
+1. **Un fichier de field** (`src/interface/<domaine>Fields.js`) déclarant CHAQUE champ
+   reçu, y compris les sous-champs de tableaux/objets (ex. `drink[].quantite`,
+   `extra[].status`). Un champ envoyé par le front mais absent du field = **bug** :
+   le validateur l'ignore ou le rejette silencieusement.
+2. **Sa composition documentée** dans `architecture/<feature>.md` quand un champ est
+   **calculé** (ex. `order.total` = `plat×quantity + Σ extras + Σ drinks×quantite`).
+   Une formule métier ne doit jamais vivre uniquement dans la tête du dev.
+
+> ⚠️ Divergence vécue : `drink[].quantite` était envoyé par le front, utilisé dans
+> le calcul du `total`, mais **ni déclaré dans `orderFields.js` ni documenté**. Résultat :
+> impossible de recalculer/vérifier le total côté serveur. Toujours refléter le payload
+> réel dans le field ET la doc.
 
 ---
 

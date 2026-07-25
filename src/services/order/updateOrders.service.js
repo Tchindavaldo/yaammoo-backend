@@ -22,6 +22,7 @@ const { assignRank, reindexQueue } = require('./rankQueue.service');
 const { notifyOrderEvent } = require('../notification/helpers/notifyOrderEvent');
 const { reliableEmit } = require('../../utils/reliableEmit');
 const { settleDeliveryService } = require('./settleDelivery.service');
+const { enrichMenuForClient } = require('../menu/enrichMenuForClient');
 const { generateId } = require('../../repositories/idGen');
 
 const buildTransitionNotif = ({ prevStatus, newStatus, order, merchantUserId }) => {
@@ -159,7 +160,9 @@ exports.updateOrders = async (orders, userId) => {
             }
             const newStock = menu.stock - qty;
             const updatedMenu = await repos.menus.updateStock(menuId, newStock);
-            io.emit('globalMenuUpdated', { message: 'Stock mis à jour', menuId, menu: updatedMenu });
+            // Broadcast CLIENT : prix AFFICHÉ (livraison + marge + frais), pas le brut.
+            const clientMenu = await enrichMenuForClient(updatedMenu);
+            io.emit('globalMenuUpdated', { message: 'Stock mis à jour', menuId, menu: clientMenu });
           }
         }
       }
@@ -213,7 +216,7 @@ exports.updateOrders = async (orders, userId) => {
       }
 
       // Le bonus voyage avec le panier, pas avec un plat en particulier.
-      const bonusCode = updates.find(o => o && o.bonus?.code)?.bonus?.code;
+      const bonusCode = updates.find(o => o && o.bonusCode)?.bonusCode;
       const settled = await settleDeliveryService({ orders: becamePending, bonusCode });
       // Le front reçoit l'offre appliquée sans avoir à re-GET.
       if (settled.offer) {

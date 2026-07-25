@@ -32,11 +32,7 @@ async function emitBonusStats(userId, ctx = {}) {
   try {
     if (!userId) return null;
 
-    const [bonuses, orders, userRequests] = await Promise.all([
-      ctx.bonuses || repos.bonus.getAll(),
-      ctx.orders || repos.orders.getByUser(userId),
-      ctx.userRequests || repos.bonusRequests.getByUser(userId),
-    ]);
+    const [bonuses, orders, userRequests] = await Promise.all([ctx.bonuses || repos.bonus.getAll(), ctx.orders || repos.orders.getByUser(userId), ctx.userRequests || repos.bonusRequests.getByUser(userId)]);
 
     if (!bonuses || bonuses.length === 0) return null;
 
@@ -50,7 +46,9 @@ async function emitBonusStats(userId, ctx = {}) {
     }
 
     // Room nommée par l'uid, sans préfixe (cf. CLAUDE.md / socket.js).
-    getIO().to(userId).emit('bonus.stats_updated', { data: { bonusStats: statsByBonus } });
+    getIO()
+      .to(userId)
+      .emit('bonus.stats_updated', { data: { bonusStats: statsByBonus } });
 
     return statsByBonus;
   } catch (err) {

@@ -38,7 +38,7 @@ exports.postBonuRequestsService = async (data, totalBonus) => {
     }
 
     const existingStatusArray = response.data.status || [];
-    const bonusAlreadyRequested = existingStatusArray.some((entry) => totalBonus <= entry.totalBonus);
+    const bonusAlreadyRequested = existingStatusArray.some(entry => totalBonus <= entry.totalBonus);
     if (bonusAlreadyRequested) {
       return { success: false, message: 'Vous avez déjà soumis une demande pour ce bonus.' };
     }
