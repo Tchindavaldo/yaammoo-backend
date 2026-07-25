@@ -23,6 +23,7 @@ Documentation d'architecture du backend Node.js / Express / Supabase / Socket.io
 | [pricing.md](./pricing.md) | **Tarification** — prix affiché calculé (livraison + marge + frais), `settings` modifiables à chaud, `order_settlements` (l'argent) + `order_deliveries` (la course) | ✅ |
 | [ratings.md](./ratings.md) | Notes & Avis — table polymorphe `ratings`, note plat/livreur, moyennes pré-calculées | ✅ |
 | [payment.md](./payment.md) | Paiements — MobileWallet, `/transaction` → `/pay`, verdict double canal (webhook HTTP + socket), idempotence | ✅ |
+| [payment-amount-check.md](./payment-amount-check.md) | **Contrôle du montant** — recalcul serveur du `total`, livraison offerte (bonus) vs déduction panier groupé | ✅ |
 | [transactions.md](./transactions.md) | Transactions — historique paiements, portefeuille marchand, remboursements | ✅ |
 | [wallet.md](./wallet.md) | Portefeuille marchand — crédit au paiement, solde dérivé, commissions, retraits `/wallet` | ✅ |
 | [bonus.md](./bonus.md) | Bonus — fidélité par paliers, `bonusStats` recalculé au GET, livraison manuelle des accès, **livraison offerte : armement + `deliveryOffer`** | ✅ |

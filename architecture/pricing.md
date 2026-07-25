@@ -43,11 +43,8 @@ montant payé    = SOMME de ce que le user voit
 
 `amount` et `items[].total` venant du client, `postTransaction.service` les
 **recalcule avant tout appel MobileWallet** — la livraison étant déjà fondue dans
-le prix du plat, elle n'est **jamais** ajoutée au total. Détail de la formule et
-des deux niveaux de contrôle : [orders.md](./orders.md#composition-et-contrôle-du-total--avant-le-paiement).
-
-En bref : total recalculé par commande (`plat×quantity + extras + drinks×quantite`),
-refus au premier écart, puis `amount == Σtotal`. `delivery.prix` hors calcul.
+le prix du plat, elle n'est **jamais** ajoutée au total.
+Détail complet : **[payment-amount-check.md](./payment-amount-check.md)**.
 
 Les prix RÉELS des menus sont dans **`prices[]`** (`{price, description}`), pas
 dans `prix1/prix2/prix3` — ces colonnes existent dans le mapper mais sont NULL

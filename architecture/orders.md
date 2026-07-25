@@ -82,47 +82,13 @@ est active, elle prime et le bonus n'est **pas** consommé.
 
 ### Composition et contrôle du `total` — AVANT le paiement
 
-`order.total` (et `amount` à la racine du paiement) sont **fournis par le client**.
-Le backend les **RECALCULE** dans `validatePaymentAmount` (appelé par
-`postTransaction.service`, avant MobileWallet) — jamais de confiance au front :
+`order.total` (et `amount` racine) sont **fournis par le client** et **recalculés**
+côté serveur avant MobileWallet. Formule :
+`total = plat×quantity + Σ extras cochés + Σ (drinks cochés × quantite)` —
+`delivery.prix` **jamais** dedans.
 
-```
-total = (prices[selectedPriceIndex − 1].price × quantity)   // plat seul × quantité
-      + Σ(extra.prix        où status === true)              // extra coché : ×1
-      + Σ(drink.prix × drink.quantite   où status === true)  // drink coché : × sa quantite
-```
-
-> ⚠️ `selectedPriceIndex` est en **base 1** (1 = `prices[0]`).
-> ⚠️ `drink[].quantite` est **propre au drink**, indépendant de `quantity` du plat.
-> ⚠️ `delivery.prix` **n'entre jamais** dans le total : la livraison est déjà fondue
-> dans le prix affiché du plat (cf. [pricing.md](./pricing.md)). L'ajouter = double facturation.
-
-**Trois temps** :
-1. **Par commande** — `total` reçu doit égaler le total recalculé. Au **premier**
-   écart → **400** immédiat, sans traiter les items suivants ni sommer.
-2. **Déduction des livraisons groupées** — la livraison est fondue dans le prix de
-   **chaque** plat. Or plusieurs commandes livrées ensemble ne font qu'**une seule
-   course** : le user ne paie qu'une livraison, pas une par commande. On regroupe
-   les commandes livrées (`delivery.status === true`) :
-   - **express** → clé `(fastFoodId + zone)` ;
-   - **time** → clé `(fastFoodId + zone + heure)`.
-
-   Un groupe de N commandes ⇒ on déduit `(N−1) × delivery.prix` du total attendu
-   (`delivery.prix` pris tel quel du payload). Zones/créneaux différents = courses
-   distinctes, aucune déduction.
-3. **Panier** — `amount` (racine) doit égaler `Σtotaux − livraisons en double` → sinon **400**.
-
-Exclu pour un paiement partiel (`mobileApp`, `amount < currentAmount`).
-
-> ⚠️ **Bonus / campagne livraison offerte ≠ déduction.** Un `bonusCode` (ou le mode
-> campagne) **ne réduit PAS** le montant payé. La livraison est déjà fondue dans le
-> prix du plat (= la marge plateforme) ; en gratuité, `delivery.prix` n'est
-> **toujours pas** ajouté, et la gratuité est absorbée par la **marge** côté
-> `settleDelivery` (`covered_by`), pas par le paiement. Le user paie `total` plein,
-> `amount == Σtotal`, aucune déduction. Déduire `delivery.prix` ferait payer le user
-> "en moins" pour une livraison jamais ajoutée. La **seule** déduction est celle des
-> livraisons **groupées** (temps 2) : plusieurs commandes même zone+créneau où le
-> front a ajouté `delivery.prix` N fois → on retire les N−1 en trop.
+Détail complet (recalcul item, livraison offerte vs déduction panier groupé, tous
+les cas) : **[payment-amount-check.md](./payment-amount-check.md)**.
 
 ### Cohérence du panier (livraison) — contrôlée AVANT le paiement
 
