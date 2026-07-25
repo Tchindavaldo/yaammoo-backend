@@ -84,10 +84,11 @@ est active, elle prime et le bonus n'est **pas** consommé.
 
 `order.total` (et `amount` racine) sont **fournis par le client** et **recalculés**
 côté serveur avant MobileWallet. Formule :
-`total = plat×quantity + Σ extras cochés + Σ (drinks cochés × quantite)` —
-`delivery.prix` **jamais** dedans.
+`total = plat×quantity + Σ extras cochés + Σ (drinks cochés × quantite) + delivery.prix`,
+où `delivery.prix` n'est ajouté **que si la livraison est livrée ET non offerte**
+(offert = verdict serveur bonus/campagne).
 
-Détail complet (recalcul item, livraison offerte vs déduction panier groupé, tous
+Détail complet (recalcul item, offert vs non offert, déduction panier groupé, tous
 les cas) : **[payment-amount-check.md](./payment-amount-check.md)**.
 
 ### Cohérence du panier (livraison) — contrôlée AVANT le paiement

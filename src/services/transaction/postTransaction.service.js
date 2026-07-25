@@ -53,11 +53,12 @@ exports.postTransactionService = async data => {
     }
 
     // Cohérence du montant — AVANT tout paiement. `amount` et `items[].total`
-    // viennent du client : le backend RECALCULE chaque total depuis les prix du
-    // menu, refuse au premier item incohérent, puis vérifie amount == Σtotal.
-    // Exclu pour un paiement partiel, qui encaisse volontairement moins.
+    // viennent du client : le backend RECALCULE chaque total (livraison incluse
+    // si non offerte, verdict serveur pour l'offre), gère le panier groupé, puis
+    // vérifie amount == Σtotal. Exclu pour un paiement partiel.
     if (!isPartialPayment) {
-      const amountError = validatePaymentAmount(amount, items);
+      const bonusCode = (Array.isArray(items) ? items : []).find(o => o && o.bonusCode)?.bonusCode;
+      const amountError = await validatePaymentAmount(amount, items, { userId, bonusCode });
       if (amountError) {
         log.warn(`${logPrefix} ❌ Montant incohérent: ${amountError}`);
         return { success: false, httpStatus: 400, message: amountError };
