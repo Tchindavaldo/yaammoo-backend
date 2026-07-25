@@ -114,6 +114,16 @@ total = (prices[selectedPriceIndex − 1].price × quantity)   // plat seul × q
 
 Exclu pour un paiement partiel (`mobileApp`, `amount < currentAmount`).
 
+> ⚠️ **Bonus / campagne livraison offerte ≠ déduction.** Un `bonusCode` (ou le mode
+> campagne) **ne réduit PAS** le montant payé. La livraison est déjà fondue dans le
+> prix du plat (= la marge plateforme) ; en gratuité, `delivery.prix` n'est
+> **toujours pas** ajouté, et la gratuité est absorbée par la **marge** côté
+> `settleDelivery` (`covered_by`), pas par le paiement. Le user paie `total` plein,
+> `amount == Σtotal`, aucune déduction. Déduire `delivery.prix` ferait payer le user
+> "en moins" pour une livraison jamais ajoutée. La **seule** déduction est celle des
+> livraisons **groupées** (temps 2) : plusieurs commandes même zone+créneau où le
+> front a ajouté `delivery.prix` N fois → on retire les N−1 en trop.
+
 ### Cohérence du panier (livraison) — contrôlée AVANT le paiement
 
 `validateCartDelivery()` (`utils/validator/`), appelé dans
