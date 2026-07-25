@@ -98,8 +98,12 @@ amount == attendu ?   sinon → 400
 
 ## Fichiers
 
-- `src/utils/validator/validatePaymentAmount.js` — `validatePaymentAmount(amount, items)`,
-  `recomputeItemTotal`, `duplicateDeliveryDeduction`, `deliveryGroupKey`.
-- Appelé par `src/services/transaction/postTransaction.service.js` (avant MobileWallet).
+- `src/utils/validator/validatePaymentAmount.js` — exports :
+  `validatePaymentAmount(amount, items, ctx)` (async ; `ctx = { userId, bonusCode }`),
+  `recomputeItemBase`, `deliveryGroupKey`, `resolveOfferedDeliveries`, `AMOUNT_TOLERANCE`.
+- Appelé par `src/services/transaction/postTransaction.service.js` (avant MobileWallet,
+  avec `{ userId, bonusCode }` ; le `bonusCode` est extrait de `items[].bonusCode`).
+- Verdict d'offre : `resolveDeliveryBonus` (`services/bonus/applyDeliveryBonus.service.js`)
+  + `resolveOffer` (`services/pricing/deliveryOfferResolver.js`) + `getPricingSettings`.
 - Prix affiché : `src/services/pricing/deliveryPricing.js`.
 - Champs commande : `src/interface/orderFields.js`.
