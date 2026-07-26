@@ -72,9 +72,23 @@ async function countClaimsInApp(claimedStatuses) {
   return counts;
 }
 
+/**
+ * Réclamation COURANTE d'un user pour un bonus = la plus récente.
+ *
+ * ⚠️ Depuis la migration 029, chaque réclamation est une LIGNE distincte : un
+ * même (user, bonus) peut en avoir plusieurs (cycles successifs). Toute lecture
+ * par (userId, bonusId) doit donc trier — sans quoi Postgres renvoie un ordre
+ * arbitraire et l'état affiché saute d'un cycle à l'autre.
+ */
 exports.findByUserBonus = async ({ userId, bonusId }) => {
-  let q = supabase.from(TABLE).select('*').eq('user_id', userId).eq('bonus_id', bonusId);
-  const { data, error } = await q.limit(1).maybeSingle();
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select('*')
+    .eq('user_id', userId)
+    .eq('bonus_id', bonusId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
   if (error) throw error;
   return m.bonusRequest.fromSupabase(data);
 };

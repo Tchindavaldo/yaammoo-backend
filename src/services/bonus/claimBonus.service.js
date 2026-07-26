@@ -11,7 +11,7 @@
 const repos = require('../../repositories');
 const { isBonusEligible, measureConsumption, collectSpentOrderIds } = require('./bonusStats.util');
 const { emitBonusStats } = require('./emitBonusStats');
-const { deriveRequestState, computeExpiresAt } = require('./enrichBonusForUser');
+const { deriveRequestState, computeExpiresAt, pickCurrentRequest } = require('./enrichBonusForUser');
 const { generateUniqueBonusCode } = require('./bonusCode.util');
 const { postNotificationService } = require('../notification/request/postNotification.service');
 const { getIO } = require('../../socket');
@@ -55,7 +55,10 @@ exports.claimBonusService = async (userId, bonusId) => {
     // Toutes les réclamations du user : le décrément est un POT COMMUN partagé
     // entre tous les bonus (plateforme et fastfood confondus).
     const userRequests = await repos.bonusRequests.getByUser(userId);
-    const existing = userRequests.find(r => r.bonusId === bonusId) || null;
+    // Réclamation COURANTE de ce bonus = la plus récente. Les précédentes sont
+    // l'historique (une ligne par cycle depuis la migration 029) et ne servent
+    // qu'à l'anti-doublon / au pot commun.
+    const existing = pickCurrentRequest(userRequests.filter(r => r.bonusId === bonusId));
 
     // Anti-doublon : une réclamation reste active tant qu'elle n'est ni
     // entièrement consommée ni expirée.
@@ -105,7 +108,10 @@ exports.claimBonusService = async (userId, bonusId) => {
       consumedOrderIds,
       createdAt: now,
     };
-    const statusArray = existing ? [...(existing.status || []), entry] : [entry];
+    // Chaque réclamation ouvre sa PROPRE ligne : son tableau `status` ne porte
+    // que sa propre entrée. L'historique se lit en listant les lignes du user,
+    // plus en dépliant un JSONB accumulé.
+    const statusArray = [entry];
 
     // Chaque réclamation ouvre un nouveau cycle d'utilisation : code neuf,
     // compteur d'usage remis à zéro. En attente de livraison, aucun code n'est
@@ -115,17 +121,14 @@ exports.claimBonusService = async (userId, bonusId) => {
     // que le bonus s'applique à sa prochaine commande.
     const usageFields = { code, usageCount: 0, redeemed: false, armed: false };
 
-    let saved;
-    if (existing) {
-      saved = await repos.bonusRequests.updateUsage(existing.id, usageFields, statusArray);
-    } else {
-      saved = await repos.bonusRequests.create({
-        userId,
-        bonusId,
-        status: statusArray,
-        ...usageFields,
-      });
-    }
+    // TOUJOURS une nouvelle ligne : un cycle terminé (épuisé/expiré) reste en
+    // base comme historique consultable, au lieu d'être écrasé.
+    const saved = await repos.bonusRequests.create({
+      userId,
+      bonusId,
+      status: statusArray,
+      ...usageFields,
+    });
 
     const finalState = deriveRequestState(saved);
     const expiresAt = computeExpiresAt(finalState.claimedAt, bonus.claimDuration);
@@ -133,7 +136,7 @@ exports.claimBonusService = async (userId, bonusId) => {
     // POT COMMUN GLOBAL : le décrément touche le solde de TOUS les bonus, pas
     // seulement celui réclamé. On recalcule donc l'ensemble et on le pousse par
     // socket — le front applique la map sans avoir à re-GET.
-    const updatedRequests = existing ? userRequests.map(r => (r.id === saved.id ? saved : r)) : [...userRequests, saved];
+    const updatedRequests = [...userRequests, saved];
     const bonusStats = await emitBonusStats(userId, { orders, userRequests: updatedRequests });
 
     // État de CETTE réclamation. Le reste (nom, usageLimit…) est déjà connu via

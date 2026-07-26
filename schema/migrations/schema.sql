@@ -237,7 +237,11 @@ CREATE INDEX IF NOT EXISTS idx_bonus_active   ON bonus(active) WHERE active = TR
 -- ============================================================================
 -- TABLE: bonus_requests
 -- ============================================================================
--- status est un array d'objets {status, totalBonus, createdAt} en JSONB.
+-- UNE LIGNE = UNE RÉCLAMATION (migration 029). Un même (user, bonus) peut donc
+-- avoir plusieurs lignes : les cycles précédents restent comme historique.
+-- La réclamation COURANTE est la plus récente (created_at DESC) — c'est elle qui
+-- porte le code, les compteurs et l'armement affichés au user.
+-- `status` est un array JSONB ne contenant QUE l'entrée de cette réclamation.
 CREATE TABLE IF NOT EXISTS bonus_requests (
   id          TEXT PRIMARY KEY,
   user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -258,6 +262,10 @@ CREATE TABLE IF NOT EXISTS bonus_requests (
 
 CREATE INDEX IF NOT EXISTS idx_bonus_requests_lookup
   ON bonus_requests(bonus_id, user_id);
+
+-- Réclamation courante d'un (user, bonus) : toujours lue en created_at DESC.
+CREATE INDEX IF NOT EXISTS idx_bonus_requests_user_bonus_recent
+  ON bonus_requests(user_id, bonus_id, created_at DESC);
 
 -- Recherche par code (redemption) : indexée + unique.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_bonus_requests_code
