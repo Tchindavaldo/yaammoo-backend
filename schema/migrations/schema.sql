@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS users (
   numero          BIGINT,
   email           TEXT,
   password        TEXT,
-  fastfood_id     TEXT,
+  fastfood_id     TEXT REFERENCES fastfoods(id) ON DELETE SET NULL,
   is_marchand     BOOLEAN DEFAULT FALSE,
   is_admin        BOOLEAN DEFAULT FALSE,
   statistique     INTEGER DEFAULT 0,
@@ -74,7 +74,7 @@ CREATE INDEX IF NOT EXISTS idx_user_push_tokens_token ON user_push_tokens(token)
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS fastfoods (
   id                TEXT PRIMARY KEY,
-  user_id           TEXT NOT NULL,
+  user_id           TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   name              TEXT,
   number            TEXT,
   momo_number       TEXT,
@@ -133,9 +133,9 @@ CREATE INDEX IF NOT EXISTS idx_menus_fastfood_created ON menus(fastfood_id, crea
 -- delivery_date est dupliqué en colonne pour permettre indexation rapide.
 CREATE TABLE IF NOT EXISTS orders (
   id                TEXT PRIMARY KEY,
-  user_id           TEXT NOT NULL,
-  fastfood_id       TEXT NOT NULL,
-  menu_id           TEXT,
+  user_id           TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  fastfood_id       TEXT NOT NULL REFERENCES fastfoods(id) ON DELETE CASCADE,
+  menu_id           TEXT REFERENCES menus(id) ON DELETE SET NULL,
   menu_snapshot     JSONB,
   quantity          INTEGER DEFAULT 1,
   extra             JSONB DEFAULT '[]'::jsonb,
@@ -147,7 +147,7 @@ CREATE TABLE IF NOT EXISTS orders (
   rank              INTEGER,
   client_id         TEXT,
   period_key        TEXT,
-  driver_id         TEXT,
+  driver_id         TEXT REFERENCES users(id) ON DELETE SET NULL,
   -- Panier (migration 022) : une commande = un plat, donc un panier arrive comme
   -- plusieurs commandes. `group_id` permet de les réafficher ensemble.
   -- À distinguer de order_deliveries.delivery_group_id, qui groupe par
@@ -173,7 +173,7 @@ CREATE INDEX IF NOT EXISTS idx_orders_group ON orders(group_id) WHERE group_id I
 -- ID composite : {fastfood_id}_{delivery_date}_{status} (préservé depuis Firestore).
 CREATE TABLE IF NOT EXISTS rank_counters (
   id              TEXT PRIMARY KEY,
-  fastfood_id     TEXT NOT NULL,
+  fastfood_id     TEXT NOT NULL REFERENCES fastfoods(id) ON DELETE CASCADE,
   delivery_date   DATE NOT NULL,
   status          TEXT NOT NULL,
   value           INTEGER NOT NULL DEFAULT 0,
@@ -188,7 +188,7 @@ CREATE INDEX IF NOT EXISTS idx_rank_counters_lookup
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS transactions (
   id                  TEXT PRIMARY KEY,
-  user_id             TEXT NOT NULL,
+  user_id             TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   type                TEXT,
   amount              NUMERIC(12,2),
   current_amount      NUMERIC(12,2),
@@ -240,8 +240,8 @@ CREATE INDEX IF NOT EXISTS idx_bonus_active   ON bonus(active) WHERE active = TR
 -- status est un array d'objets {status, totalBonus, createdAt} en JSONB.
 CREATE TABLE IF NOT EXISTS bonus_requests (
   id          TEXT PRIMARY KEY,
-  user_id     TEXT NOT NULL,
-  bonus_id    TEXT NOT NULL,
+  user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  bonus_id    TEXT NOT NULL REFERENCES bonus(id) ON DELETE CASCADE,
   status      JSONB DEFAULT '[]'::jsonb,
   code        TEXT,
   usage_count INTEGER DEFAULT 0,
@@ -283,8 +283,8 @@ CREATE INDEX IF NOT EXISTS idx_bonus_requests_pending
 -- via array_append côté Node.
 CREATE TABLE IF NOT EXISTS notifications (
   id          TEXT PRIMARY KEY,
-  user_id     TEXT,
-  fastfood_id TEXT,
+  user_id     TEXT REFERENCES users(id) ON DELETE CASCADE,
+  fastfood_id TEXT REFERENCES fastfoods(id) ON DELETE CASCADE,
   target      TEXT,
   all_notif   JSONB DEFAULT '[]'::jsonb,
   updated_at  TIMESTAMPTZ DEFAULT NOW(),
@@ -308,8 +308,8 @@ CREATE INDEX IF NOT EXISTS idx_notifications_target ON notifications(target);
 -- l'appartenance boutique↔livreur = lignes status='accepted'. Refus → 'refused'.
 CREATE TABLE IF NOT EXISTS driver_applications (
   id            TEXT PRIMARY KEY,
-  user_id       TEXT NOT NULL,
-  fastfood_id   TEXT NOT NULL,
+  user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  fastfood_id   TEXT NOT NULL REFERENCES fastfoods(id) ON DELETE CASCADE,
   status        TEXT NOT NULL DEFAULT 'pending',
   extra_data    JSONB DEFAULT '{}'::jsonb,
   created_at    TIMESTAMPTZ DEFAULT NOW(),
@@ -673,15 +673,15 @@ ON CONFLICT (key) DO NOTHING;
 -- complète, elle ne le remplace pas.
 CREATE TABLE IF NOT EXISTS order_deliveries (
   order_id        TEXT PRIMARY KEY REFERENCES orders(id) ON DELETE CASCADE,
-  user_id         TEXT NOT NULL,
-  fastfood_id     TEXT,
+  user_id         TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  fastfood_id     TEXT REFERENCES fastfoods(id) ON DELETE SET NULL,
   zone            TEXT,
   real_price      NUMERIC(12,2) NOT NULL DEFAULT 0,
   charged_price   NUMERIC(12,2) NOT NULL DEFAULT 0,
   platform_margin NUMERIC(12,2) NOT NULL DEFAULT 0,
   free_reason     TEXT,
   covered_by      TEXT,
-  bonus_id        TEXT,
+  bonus_id        TEXT REFERENCES bonus(id) ON DELETE SET NULL,
   bonus_code      TEXT,
   -- Panier (migration 021) : une commande = un plat, donc plusieurs commandes
   -- pour un seul déplacement du livreur. `real_price` reste renseigné partout
@@ -724,8 +724,8 @@ CREATE INDEX IF NOT EXISTS idx_order_deliveries_billed
 --   Marge pure  =  order_settlements WHERE delivered = FALSE
 CREATE TABLE IF NOT EXISTS order_settlements (
   order_id        TEXT PRIMARY KEY REFERENCES orders(id) ON DELETE CASCADE,
-  user_id         TEXT NOT NULL,
-  fastfood_id     TEXT,
+  user_id         TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  fastfood_id     TEXT REFERENCES fastfoods(id) ON DELETE SET NULL,
   -- Recopié d'orders.group_id : agréger un panier sans jointure.
   group_id        TEXT,
   -- Plat + extras + boissons, hors livraison, hors frais, hors marge.
@@ -766,8 +766,8 @@ CREATE TABLE IF NOT EXISTS platform_revenues (
   id            TEXT PRIMARY KEY,
   source_type   TEXT NOT NULL,
   source_id     TEXT,
-  fastfood_id   TEXT,
-  user_id       TEXT,
+  fastfood_id   TEXT REFERENCES fastfoods(id) ON DELETE SET NULL,
+  user_id       TEXT REFERENCES users(id) ON DELETE SET NULL,
   gross_amount  NUMERIC(12,2) NOT NULL DEFAULT 0,
   platform_margin NUMERIC(12,2) NOT NULL DEFAULT 0,
   payment_fee   NUMERIC(12,2) NOT NULL DEFAULT 0,
