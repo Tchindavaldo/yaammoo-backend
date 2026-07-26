@@ -16,9 +16,6 @@ const { generateUniqueBonusCode } = require('./bonusCode.util');
 const { postNotificationService } = require('../notification/request/postNotification.service');
 const { getIO } = require('../../socket');
 
-// bonus_type isolant les réclamations du nouveau modèle du legacy referral/claim.
-const LOYALTY_TYPE = 'loyalty';
-
 // Le message diffère selon l'issue : un bonus à livraison manuelle n'est pas
 // encore utilisable, promettre le contraire serait trompeur.
 async function notifyUser(userId, pending) {
@@ -58,7 +55,7 @@ exports.claimBonusService = async (userId, bonusId) => {
     // Toutes les réclamations du user : le décrément est un POT COMMUN partagé
     // entre tous les bonus (plateforme et fastfood confondus).
     const userRequests = await repos.bonusRequests.getByUser(userId);
-    const existing = userRequests.find(r => r.bonusId === bonusId && r.bonusType === LOYALTY_TYPE) || null;
+    const existing = userRequests.find(r => r.bonusId === bonusId) || null;
 
     // Anti-doublon : une réclamation reste active tant qu'elle n'est ni
     // entièrement consommée ni expirée.
@@ -125,7 +122,6 @@ exports.claimBonusService = async (userId, bonusId) => {
       saved = await repos.bonusRequests.create({
         userId,
         bonusId,
-        bonusType: LOYALTY_TYPE,
         status: statusArray,
         ...usageFields,
       });

@@ -154,7 +154,16 @@ Détails feature : [ratings.md](./ratings.md).
 | `bonus.reward_credentials` | `userId` client | `services/bonus/rewardCredentialsBonus.service.js` | `{ data: { bonusId, requestId, requestStatus, code, rewardCredentials, claimedAt, expiresAt } }` |
 | `bonus.armed` | `userId` client | `services/bonus/armBonus.service.js` | `{ data: { bonusId, armed:true, disarmedBonusIds, deliveryOffer } }` |
 | `bonus.disarmed` | `userId` client | `services/bonus/armBonus.service.js` | `{ data: { bonusId, armed:false, disarmedBonusIds:[], deliveryOffer:null } }` |
+| `bonus.redeemed` | `userId` client | `services/bonus/applyDeliveryBonus.service.js` | `{ data: { bonusId, code, usageCount, usageLimit, remainingUses, redeemed } }` |
 
+- `bonus.redeemed` : émis à **chaque consommation d'une utilisation** (`usageCount++`),
+  par l'unique chemin de consommation — `consumeDeliveryBonus` (commande avec
+  livraison offerte). Porte le nouveau `usageCount`/`remainingUses` — c'est le seul
+  event qui suit le compteur d'utilisations. **Fiabilisé via `reliableEmit`**
+  (rejoué au `join_user`) pour que tous les appareils du user restent synchronisés.
+- Les bonus `requiresRewardCredentials` (Netflix…) **n'émettent pas** `bonus.redeemed` :
+  leur contrepartie est la livraison des identifiants, signalée par
+  `bonus.reward_credentials` + push. Cycle fermé à l'expiration, sans compteur.
 - `bonus.stats_updated` fait **seule autorité sur les soldes** : `bonus.claimed` n'en
   porte pas, pour éviter deux sources contradictoires.
 - `bonus.armed` / `bonus.disarmed` : deux events **distincts**, émis par

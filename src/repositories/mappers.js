@@ -419,7 +419,7 @@ const bonusFromSupabase = row => {
 // (avant : dans extra_data, d'où un findByCode non indexé qui scannait la table).
 const bonusRequestToSupabase = data => {
   const { createdAt, updatedAt, ...rest } = data;
-  const known = ['id', 'userId', 'bonusId', 'bonusType', 'status', 'code', 'usageCount', 'redeemed', 'armed'];
+  const known = ['id', 'userId', 'bonusId', 'status', 'code', 'usageCount', 'redeemed', 'armed'];
   const extra_data = {};
   for (const k of Object.keys(rest)) {
     if (!known.includes(k)) extra_data[k] = rest[k];
@@ -428,7 +428,6 @@ const bonusRequestToSupabase = data => {
     id: data.id,
     user_id: data.userId,
     bonus_id: data.bonusId,
-    bonus_type: data.bonusType ?? null,
     status: data.status ?? [],
     code: data.code ?? null,
     usage_count: data.usageCount ?? 0,
@@ -446,7 +445,6 @@ const bonusRequestFromSupabase = row => {
     id: row.id,
     userId: row.user_id,
     bonusId: row.bonus_id,
-    bonusType: row.bonus_type,
     status: row.status || [],
     code: row.code ?? null,
     usageCount: row.usage_count ?? 0,

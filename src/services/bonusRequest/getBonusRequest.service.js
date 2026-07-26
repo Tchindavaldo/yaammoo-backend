@@ -12,8 +12,8 @@ exports.getBonusRequestService = async (data, id) => {
     }
 
     if (id === undefined && data) {
-      const { bonusId, userId, bonusType } = data;
-      const found = await repos.bonusRequests.findByUserBonus({ bonusId, userId, bonusType });
+      const { bonusId, userId } = data;
+      const found = await repos.bonusRequests.findByUserBonus({ bonusId, userId });
       if (!found) return { found: false };
       return { found: true, data: found };
     }

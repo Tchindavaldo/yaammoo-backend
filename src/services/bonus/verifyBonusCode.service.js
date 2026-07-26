@@ -16,8 +16,6 @@ const repos = require('../../repositories');
 const { normalizeBonusCode } = require('./bonusCode.util');
 const { checkDeliveryBonusUsable, buildDeliveryOffer, messageForReason } = require('./deliveryOffer');
 
-const LOYALTY_TYPE = 'loyalty';
-
 /**
  * @param {string} rawCode    code présenté
  * @param {string} [fastFoodId] boutique visée — omis, la correspondance n'est pas testée
@@ -27,7 +25,7 @@ exports.verifyBonusCodeService = async (rawCode, fastFoodId) => {
     const code = normalizeBonusCode(rawCode);
     if (!code) return { success: false, status: 400, message: 'Code bonus requis.' };
 
-    const request = await repos.bonusRequests.findByCode(code, LOYALTY_TYPE);
+    const request = await repos.bonusRequests.findByCode(code);
     if (!request) {
       return { success: true, status: 200, message: messageForReason('code_not_found'), data: { valid: false, reason: 'code_not_found' } };
     }

@@ -22,7 +22,6 @@ sur une fenêtre glissante (jour / semaine / mois), ou d'office (`welcome`).
 | POST | `/bonus/:id/arm` | `armBonusController` | **Oui** (`firebaseAuth`) | **Arme** un bonus livraison pour la prochaine commande éligible — ne consomme rien |
 | DELETE | `/bonus/:id/arm` | `disarmBonusController` | **Oui** (`firebaseAuth`) | Désarme |
 | POST | `/bonus/verify` | `verifyBonusCodeController` | Non | **Vérifie** un code (lecture seule, aucune écriture) |
-| POST | `/bonus/redeem` | `redeemBonusController` | **Oui** (`firebaseAuth`) | **Consomme** une utilisation du code — saisie manuelle par le marchand |
 | PATCH | `/bonus/:id` | `patchBonusController` | **Oui** (`firebaseAuth`) | Modifie un bonus (champs de définition, `active`, `requiresProfile`…) — marchand propriétaire ou admin |
 | POST | `/bonus/request/:id/reward-credentials` | `rewardCredentialsBonusController` | **Oui** (`firebaseAuth`) | **Livre** une réclamation `pending`, ou **corrige** des identifiants déjà livrés — admin ou marchand propriétaire |
 | POST | `/bonusRequest/:totalBonus` | `postBonusRequestController` | — | Le user réclame un bonus |
@@ -108,7 +107,6 @@ src/
 │   ├── postBonus.controller.js                 # création
 │   ├── patchBonus.controller.js                # modification partielle
 │   ├── claimBonus.controller.js                # réclamation
-│   ├── redeemBonus.controller.js               # consommation d'un code (marchand)
 │   ├── armBonus.controller.js                  # arm / disarm
 │   ├── verifyBonusCode.controller.js           # vérification lecture seule
 │   └── rewardCredentialsBonus.controller.js    # livraison/correction des accès
@@ -117,7 +115,6 @@ src/
 │   ├── postBonus.service.js                    # création (autorisation + cible)
 │   ├── patchBonus.service.js                   # modification (mêmes autorisations)
 │   ├── claimBonus.service.js                   # réclamation (= activation) + code
-│   ├── redeemBonus.service.js                  # consommation manuelle (marchand)
 │   ├── armBonus.service.js                     # armement + offres armées d'un user
 │   ├── verifyBonusCode.service.js              # vérification LECTURE SEULE
 │   ├── applyDeliveryBonus.service.js           # resolve (avant) / consume (après commande)
@@ -183,7 +180,7 @@ Auto-approuvé, avec vérification d'éligibilité côté backend (source de vé
    - sinon → 400 « Palier non atteint (metric/target) ».
 4. **Anti-doublon** : 409 si une réclamation est déjà `pending` ou `approved` non consommée.
 5. Ajoute une entrée `{status:'approved', target, period, createdAt}` dans le
-   `bonus_request` (bonus_type = `loyalty`, isolé du legacy). Nouvelle demande →
+   `bonus_request`. Nouvelle demande →
    `create` avec `usageCount:0, redeemed:false`.
    ⚠️ Si le bonus est `requiresRewardCredentials`, l'entrée reste `pending` :
    cf. [Flux livraison manuelle](#flux-livraison-manuelle-post-bonusrequestidreward-credentials).
@@ -309,29 +306,39 @@ Implémentation : `bonusStats.util.js` → `consumedInWindow()` + `applyConsumpt
 
 ---
 
-## Flux redemption (`POST /bonus/redeem`)
+## Code bonus & consommation
 
 À la réclamation, le backend génère un **code** (`bonusCode.util`, ex.
-`YAM-7K3F9QW2`, alphabet sans caractères ambigus). `/bonus/redeem` sert désormais
-à la **saisie manuelle par le marchand** : pour la livraison offerte, c'est
-`POST /order` qui consomme (cf. [Livraison offerte](#livraison-offerte-armement--consommation)).
+`YAM-7K3F9QW2`, alphabet sans caractères ambigus). Il identifie la réclamation ;
+il n'existe **aucun endpoint de redemption manuelle** (`POST /bonus/redeem` a été
+supprimé — il n'était appelé par personne).
 
 > **Longueur du code : 8 caractères** (31⁸ ≈ 852 milliards). À 6, on tombait à
 > ~887 millions : avec 1M de codes vivants, ~0,1% de collision par génération —
 > soit un échec d'insert (index unique) remonté au user. `generateUniqueBonusCode()`
 > ajoute en plus un pré-contrôle avec retry (5 tentatives).
 
-Contrôles, dans l'ordre :
+### Un seul chemin de consommation (`usageCount++`)
 
-1. Code connu (`findByCode`) → 404 sinon.
-2. Code appartenant au user authentifié → 403 sinon.
-3. Réclamation `approved` et non entièrement consommée → 400 / 409.
-4. Non expiré : `claimedAt + claimDuration` jours → 400 sinon.
-5. `usageCount < usageLimit` → 409 sinon.
+| Déclencheur | Service | Fichier |
+| --- | --- | --- |
+| Commande avec livraison offerte | `consumeDeliveryBonus` | `services/bonus/applyDeliveryBonus.service.js` (appelé par `settleDeliveryService`) |
 
 Puis : `usageCount++`, et `redeemed = true` dès que `usageLimit` est atteint.
 Persisté via `bonusRequests.updateUsage()`. Une **nouvelle réclamation ouvre un
 nouveau cycle** : code neuf, `usageCount` remis à 0.
+
+**Les bonus `requiresRewardCredentials` (Netflix, clé…) ne consomment rien** :
+leur contrepartie est la **livraison des identifiants**
+(`POST /bonus/request/:id/reward-credentials`), qui notifie par le socket
+`bonus.reward_credentials` + push. Leur cycle se ferme à l'expiration
+(`claimedAt + claimDuration`), pas par un compteur.
+
+**Socket `bonus.redeemed`** (room `<userId>`, via `reliableEmit`) : émis à chaque
+consommation par `consumeDeliveryBonus`. Payload :
+`{ data: { bonusId, code, usageCount, usageLimit, remainingUses, redeemed } }`.
+C'est le seul event qui suit le compteur d'utilisations ; tous les appareils du user
+restent ainsi synchronisés sans re-GET.
 
 `code`, `usage_count` et `redeemed` sont des **colonnes réelles** (migration 014),
 avec un index **unique** sur `code` : `findByCode` scannait auparavant toute la
@@ -394,9 +401,9 @@ peut dédoublonner sur `__eventId`.
    gratuité, l'ignorer silencieusement serait trompeur). Sans `bonusCode`, on
    retombe sur l'armement global ; son absence est normale, pas une erreur.
 2. **`consumeDeliveryBonus`, APRÈS création réussie** — `usageCount++`,
-   `redeemed` si limite atteinte, et **`armed = false`** systématiquement.
-   L'armement vaut pour UNE commande : sinon le bonus s'appliquerait à son insu
-   aux commandes suivantes.
+   `redeemed` si limite atteinte, et **`armed = !redeemed`** : le bonus reste
+   armé tant qu'il reste des utilisations. Il n'est désarmé automatiquement qu'à
+   épuisement ; sinon c'est au user de le désarmer depuis le front.
 
 > C'est tout l'intérêt du découpage : **pas de commande = pas de consommation**.
 > Le user peut quitter l'écran de commande sans rien perdre.
@@ -431,7 +438,7 @@ plateforme quand les deux s'appliquent.
 
 **Propriété du code non vérifiée** : `/bonus/verify` et `POST /order` acceptent
 un code qui n'appartient pas à l'appelant — un code peut circuler entre users. Le
-code fait foi. (`/bonus/redeem`, lui, garde son contrôle de propriété.)
+code fait foi.
 
 ### `GET /fastfood/all` — auth facultative
 
