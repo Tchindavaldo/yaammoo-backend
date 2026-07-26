@@ -363,28 +363,6 @@ documentait `items[]` / `totalPrice` alors que la commande réelle porte
 - Chaque migration doit être **idempotente** : utiliser `IF NOT EXISTS` / `IF EXISTS` partout
 - Appliquer manuellement dans l'éditeur SQL du dashboard Supabase
 
-### Foreign keys (OBLIGATOIRE)
-
-**Toute colonne `*_id` qui pointe vers une autre table DOIT porter un
-`REFERENCES <table>(id)`.** Jamais un simple `TEXT` orphelin.
-
-Sans FK : aucune intégrité (un `bonus_id` peut désigner un bonus supprimé),
-et surtout **aucune navigation par clic dans le dashboard Supabase** — il faut
-copier l'id à la main et aller le chercher dans l'autre table.
-
-Choisir le `ON DELETE` selon la sémantique :
-
-- `ON DELETE CASCADE` — la ligne n'a **aucun sens** sans son parent
-  (ex. `bonus_requests` sans son user ou son bonus, `fastfoods` sans propriétaire).
-- `ON DELETE SET NULL` — la ligne **doit survivre** au parent : historique
-  financier (`platform_revenues`, `order_settlements`), ou référence accessoire
-  (`orders.menu_id` — la commande reste valide, son contenu est figé en JSONB).
-
-⚠️ Une FK ajoutée sur une table existante **échoue s'il y a des lignes
-orphelines**. La migration doit donc nettoyer AVANT de poser la contrainte
-(`UPDATE ... SET col = NULL` si nullable, `DELETE` sinon). Cf.
-`schema/migrations/028_foreign_keys.sql` — modèle à reprendre.
-
 ### Quand mettre à jour `schema.sql`
 
 `schema.sql` = état cible complet de la DB (snapshot). Le mettre à jour **après** avoir appliqué la migration en prod, pour qu'il reste la référence à jour.
