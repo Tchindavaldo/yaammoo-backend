@@ -11,9 +11,16 @@
 //
 // Exclusivité : deux bonus armés qui se recouvrent (même boutique, ou l'un des
 // deux plateforme) rendraient l'offre ambiguë. On désarme donc les recouvrants.
+//
+// Sockets : `bonus.armed` / `bonus.disarmed` (room `<userId>`), via reliableEmit
+// (persisté + rejoué au join_user). L'appareil appelant est déjà à jour par la
+// réponse HTTP — les events existent pour les AUTRES appareils du user, qui
+// sinon afficheraient un armement périmé, y compris après une période hors ligne.
 // ============================================================================
 const repos = require('../../repositories');
 const { checkDeliveryBonusUsable, buildDeliveryOffer, messageForReason, matchesFastFood } = require('./deliveryOffer');
+const { getIO } = require('../../socket');
+const { reliableEmit } = require('../../utils/reliableEmit');
 
 const LOYALTY_TYPE = 'loyalty';
 
@@ -51,6 +58,9 @@ exports.armBonusService = async (userId, bonusId, armed) => {
 
     const saved = await repos.bonusRequests.updateUsage(request.id, { armed: !!armed });
 
+    // [TEMP-LOG] à retirer
+    console.log('[ARM] userId=%s bonusId=%s type=%s ffId=%s | requestId=%s -> armed(saved)=%s extraArmed=%s', userId, bonusId, bonus.type, bonus.fastFoodId, request.id, saved?.armed, saved?.extraData?.armed);
+
     // Exclusivité : on désarme les autres bonus armés qui se recouvrent.
     let disarmed = [];
     if (armed) {
@@ -63,17 +73,33 @@ exports.armBonusService = async (userId, bonusId, armed) => {
       }
     }
 
+    const armState = {
+      bonusId,
+      armed: !!armed,
+      // Désarmés par recouvrement : le front peut mettre son état à jour sans re-GET.
+      disarmedBonusIds: disarmed,
+      deliveryOffer: armed ? buildDeliveryOffer(bonus, saved) : null,
+    };
+
+    // Room nommée par l'uid, sans préfixe (cf. CLAUDE.md / socket.js).
+    // Même payload que la réponse HTTP : l'appareil qui a armé est déjà à jour
+    // par le retour de la requête ; le socket sert aux AUTRES appareils du user,
+    // qui sinon garderaient un état d'armement périmé.
+    //
+    // reliableEmit (et non un emit nu) : un appareil hors ligne au moment de
+    // l'armement doit retrouver l'état au retour, sinon il proposerait encore
+    // une livraison offerte déjà désarmée ailleurs. Rejeu au prochain join_user.
+    try {
+      await reliableEmit(getIO(), userId, armed ? 'bonus.armed' : 'bonus.disarmed', { data: armState });
+    } catch (err) {
+      console.error('armBonus: émission socket échouée (non bloquant):', err.message);
+    }
+
     return {
       success: true,
       status: 200,
       message: armed ? 'Bonus armé.' : 'Bonus désarmé.',
-      data: {
-        bonusId,
-        armed: !!armed,
-        // Désarmés par recouvrement : le front peut mettre son état à jour sans re-GET.
-        disarmedBonusIds: disarmed,
-        deliveryOffer: armed ? buildDeliveryOffer(bonus, saved) : null,
-      },
+      data: armState,
     };
   } catch (error) {
     console.error('Erreur dans armBonusService:', error);
@@ -93,13 +119,18 @@ exports.getArmedDeliveryOffers = async userId => {
   if (!userId) return empty;
 
   const armedRequests = await repos.bonusRequests.getArmedByUser(userId);
+  // [TEMP-LOG] à retirer
+  console.log('[OFFERS] userId=%s armedRequests=%d ids=%j', userId, armedRequests.length, armedRequests.map(r => r.bonusId));
   if (armedRequests.length === 0) return empty;
 
   const result = { byFastFood: {}, platform: null };
   for (const request of armedRequests) {
     const bonus = await repos.bonus.getById(request.bonusId);
     // Un bonus armé puis expiré/épuisé reste armé en base : on ne l'expose pas.
-    if (!checkDeliveryBonusUsable(bonus, request).usable) continue;
+    const check = checkDeliveryBonusUsable(bonus, request);
+    // [TEMP-LOG] à retirer
+    console.log('[OFFERS] bonusId=%s type=%s ffId=%s active=%s | usable=%s reason=%s', request.bonusId, bonus?.type, bonus?.fastFoodId, bonus?.active, check.usable, check.reason);
+    if (!check.usable) continue;
 
     const offer = buildDeliveryOffer(bonus, request);
     if (bonus.fastFoodId == null) result.platform = offer;

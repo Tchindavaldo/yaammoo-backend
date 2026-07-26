@@ -9,6 +9,29 @@ PC où le projet est cloné/pull, dans n'importe quelle session Claude Code.
 à rallonge, pas de récapitulatifs verbeux. Répondre en quelques lignes. Le user
 veut l'essentiel, pas un cours. Développer uniquement s'il le demande explicitement.
 
+### Règles strictes (violations déjà constatées)
+
+- **Répondre à CE qui est demandé, rien de plus.** « donne les noms et data du
+  socket » = les noms et les data. Pas le contexte, pas les pièges, pas les
+  conséquences front, pas les « deux points restants ».
+- **JAMAIS créer un fichier `.md` récapitulatif** sans demande explicite. Un doc
+  de 159 lignes pour une question de 2 lignes = hors sujet.
+- **Pas de post-scriptum** : pas de « note : », « deux points à surveiller »,
+  « veux-tu que je… ». Si le user veut la suite, il la demandera.
+- **Ne pas re-répéter** ce qui a déjà été dit dans la session.
+- Un tableau ou 3 lignes suffisent presque toujours. Si la réponse dépasse
+  ~10 lignes sans qu'on l'ait demandé, c'est trop long.
+
+### Ne PAS tester sans demande (OBLIGATOIRE)
+
+- **Interdit** de lancer des tests (curl, scripts, listeners socket, node -e…)
+  pour « vérifier » son propre travail. Ça gaspille des tokens.
+- Faire le travail, puis **donner le résultat. Point final.**
+- Le user teste lui-même. On ne teste QUE s'il le demande explicitement.
+- **Ne jamais décider seul** d'un choix d'implémentation non demandé (ex. fusionner
+  deux events en un seul). En cas d'ambiguïté : demander, ou suivre littéralement
+  ce qui est écrit.
+
 ## À lire en DÉBUT de session (OBLIGATOIRE)
 
 Lis **`architecture/README.md`** avant de travailler : il donne une vue 360 du backend

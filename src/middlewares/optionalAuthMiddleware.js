@@ -13,10 +13,16 @@ const { admin } = require('../config/firebase');
 
 module.exports = async (req, res, next) => {
   const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) return next();
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    // [TEMP-LOG] à retirer
+    console.log('[OPTAUTH] %s — AUCUN Bearer envoyé → pas de deliveryOffer', req.originalUrl);
+    return next();
+  }
 
   try {
     req.user = await admin.auth().verifyIdToken(authHeader.split(' ')[1]);
+    // [TEMP-LOG] à retirer
+    console.log('[OPTAUTH] %s — token OK uid=%s', req.originalUrl, req.user.uid);
   } catch (error) {
     // Volontairement silencieux au niveau HTTP : la route reste servie.
     console.warn('optionalFirebaseAuth: token ignoré —', error.message);

@@ -368,6 +368,23 @@ qui le **recouvre** (même boutique, ou l'un des deux plateforme) — sinon l'of
 applicable serait ambiguë. Les bonus désarmés sont renvoyés dans
 `data.disarmedBonusIds`.
 
+**Sockets `bonus.armed` / `bonus.disarmed`** (room `<userId>`) : deux events
+distincts, émis respectivement par `POST` et `DELETE /bonus/:id/arm`, avec
+exactement le même payload que la réponse HTTP
+(`{bonusId, armed, disarmedBonusIds, deliveryOffer}`). Sur `bonus.disarmed`,
+`deliveryOffer` vaut `null` et `disarmedBonusIds` est toujours vide (l'exclusivité
+ne joue qu'à l'armement). L'appareil qui a appelé la route est déjà à jour par la
+réponse ; les events existent pour les **autres appareils** du user, qui
+garderaient sinon un état d'armement périmé. Émission non bloquante : un socket
+indisponible ne fait jamais échouer l'armement.
+
+Émis via **`reliableEmit`** (persisté dans `outbox_events`, rejoué au prochain
+`join_user`) : un appareil hors ligne au moment de l'armement doit retrouver
+l'état au retour, sinon il continuerait de proposer une livraison offerte déjà
+désarmée ailleurs. Le payload rejoué porte `__eventId` et `__replay: true` — le
+front **doit ACK** (callback socket.io) pour que l'event cesse d'être rejoué, et
+peut dédoublonner sur `__eventId`.
+
 ### Consommation — uniquement à `POST /order`
 
 `applyDeliveryBonus.service` découpe en deux temps :

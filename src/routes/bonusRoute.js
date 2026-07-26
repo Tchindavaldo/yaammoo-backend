@@ -537,6 +537,9 @@ route.post('/verify', verifyBonusCodeController);
  *       Réservé aux bonus de type `free_delivery` déjà réclamés, non expirés et
  *       non épuisés. Armer un bonus en désarme automatiquement tout autre qui le
  *       recouvre (même boutique, ou l'un des deux plateforme).
+ *
+ *       Émet le socket `bonus.armed` sur la room `<userId>` (même payload que
+ *       `data`), via reliableEmit, pour synchroniser les autres appareils du user.
  *     tags:
  *       - Bonus
  *     security:
@@ -579,6 +582,9 @@ route.post('/verify', verifyBonusCodeController);
  *     description: >-
  *       Toujours autorisé, même sur un bonus expiré ou épuisé — sinon un bonus
  *       armé devenu inutilisable resterait armé indéfiniment.
+ *
+ *       Émet le socket `bonus.disarmed` sur la room `<userId>` avec `armed: false`
+ *       et `deliveryOffer: null`, pour synchroniser les autres appareils du user.
  *     tags:
  *       - Bonus
  *     security:

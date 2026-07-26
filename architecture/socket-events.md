@@ -152,9 +152,20 @@ Détails feature : [ratings.md](./ratings.md).
 | `bonus.stats_updated` | `userId` client | `services/bonus/emitBonusStats.js` | `{ data: { bonusStats: { <bonusId>: {day,week,month} } } }` |
 | `bonus.claimed` | `userId` client | `services/bonus/claimBonus.service.js` | `{ data: { bonusId, requestId, requestStatus, code, claimedAt, expiresAt } }` |
 | `bonus.reward_credentials` | `userId` client | `services/bonus/rewardCredentialsBonus.service.js` | `{ data: { bonusId, requestId, requestStatus, code, rewardCredentials, claimedAt, expiresAt } }` |
+| `bonus.armed` | `userId` client | `services/bonus/armBonus.service.js` | `{ data: { bonusId, armed:true, disarmedBonusIds, deliveryOffer } }` |
+| `bonus.disarmed` | `userId` client | `services/bonus/armBonus.service.js` | `{ data: { bonusId, armed:false, disarmedBonusIds:[], deliveryOffer:null } }` |
 
 - `bonus.stats_updated` fait **seule autorité sur les soldes** : `bonus.claimed` n'en
   porte pas, pour éviter deux sources contradictoires.
+- `bonus.armed` / `bonus.disarmed` : deux events **distincts**, émis par
+  `POST` / `DELETE /bonus/:id/arm`, avec le **même payload que la réponse HTTP**.
+  L'appareil appelant est déjà à jour par cette réponse : les events servent aux
+  **autres appareils** du user, qui afficheraient sinon un armement périmé.
+  `disarmedBonusIds` liste les bonus désarmés par recouvrement (exclusivité) —
+  le front doit les repasser à non-armés ; il est toujours vide sur
+  `bonus.disarmed`, l'exclusivité ne jouant qu'à l'armement.
+  **Fiabilisés via `reliableEmit`** : rejoués au `join_user` si l'appareil était
+  hors ligne ; le front doit ACK pour arrêter le rejeu (cf. § Events fiables).
 - `bonus.reward_credentials` livre les accès des bonus `requiresRewardCredentials`
   (Netflix, clé…). `rewardCredentials` est un objet **libre** ; si le bonus est
   `requiresProfile`, il contient en plus `profile: { name, code }` (le profil

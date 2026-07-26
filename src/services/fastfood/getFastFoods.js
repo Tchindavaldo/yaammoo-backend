@@ -32,6 +32,9 @@ exports.getFastFoodsService = async userId => {
     // y compris aux visiteurs non connectés.
     const campaignOffer = pricing.deliveryFreeMode ? buildCampaignOffer() : null;
 
+    // [TEMP-LOG] à retirer
+    console.log('[FFALL] userId=%s campaign=%s byFastFood=%j platform=%s', userId || '(anonyme)', !!campaignOffer, Object.keys(offers.byFastFood || {}), !!offers.platform);
+
     const fastfoodsWithMenus = await Promise.all(
       fastfoods.map(async fastfood => {
         const menus = await getMenuService(fastfood.id);
