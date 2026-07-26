@@ -103,7 +103,7 @@ Fusionnés dans chaque bonus à la lecture, pour le user authentifié :
 | Champ | Source | Calcul |
 |---|---|---|
 | `bonusStats.{day,week,month}` | `orders` + `bonus_requests` | Agrégation `{count, amount}` des commandes **non annulées** du user pour `fastFoodId` (toutes si bonus plateforme), par fenêtre calendaire UTC, **moins les paliers déjà consommés** (cf. § Décrément). |
-| `requestId` | `bonus_requests` du user | Id de la réclamation **courante** (la plus récente). `null` si aucune n'est active. Sert au front à cibler une ligne précise. |
+| `requestId` | `bonus_requests` du user | Id de la réclamation **courante** (`is_current`). `null` si aucune n'est active. Sert au front à cibler une ligne précise (ex. livraison des accès). |
 | `code` | `bonus_requests` du user | Code de réclamation actif, `null` si non réclamé. |
 | `expiresAt` / `expired` | calculé | `claimedAt + claimDuration` jours, et comparaison à `now`. |
 | `remainingUses` | calculé | `usageLimit − usageCount`, `null` si pas de limite. |
@@ -155,7 +155,8 @@ src/
     ├── bonus.repo.js                           # getAll / getById / create / update
     └── bonusRequests.repo.js                   # + getByUser, claimCountsByBonus,
                                                 #   findByCode, codeExists,
-                                                #   getArmedByUser, updateUsage
+                                                #   getArmedByUser, updateUsage,
+                                                #   createCurrent (RPC atomique)
 ```
 
 **Flux `GET /bonus/all` :**
