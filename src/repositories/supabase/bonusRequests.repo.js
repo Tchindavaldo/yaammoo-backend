@@ -96,16 +96,46 @@ exports.findByUserBonus = async ({ userId, bonusId }) => {
  * Ouvre un nouveau cycle : démote la réclamation courante de ce (user, bonus)
  * puis insère la nouvelle. L'ancienne devient de l'historique consultable.
  *
+ * ATOMIQUE via la RPC `bonus_request_open_cycle` (migration 030) : les deux
+ * écritures s'appliquent ensemble ou pas du tout. Sans elle, un crash entre la
+ * démotion et l'insertion laisserait le (user, bonus) SANS ligne courante — le
+ * user paraîtrait n'avoir jamais réclamé alors que son historique existe.
+ *
  * ⚠️ La démotion précède l'insertion : l'index unique partiel
- * `idx_bonus_requests_current` interdit deux lignes courantes, donc l'ordre
- * inverse échouerait. Si l'insert échoue après la démotion, le (user, bonus)
- * se retrouve sans ligne courante — état équivalent à « jamais réclamé »,
- * récupérable par un nouveau claim (aucune donnée perdue : l'historique reste).
+ * `idx_bonus_requests_current` (migration 029) interdit deux lignes courantes.
  */
 exports.createCurrent = async data => {
+  const id = data.id || generateId();
+  const payload = m.bonusRequest.toSupabase({
+    ...data,
+    id,
+    isCurrent: true,
+    createdAt: data.createdAt || new Date().toISOString(),
+  });
+
+  const { data: row, error } = await supabase.rpc('bonus_request_open_cycle', {
+    p_id: payload.id,
+    p_user_id: payload.user_id,
+    p_bonus_id: payload.bonus_id,
+    p_status: payload.status,
+    p_code: payload.code,
+    p_usage_count: payload.usage_count,
+    p_redeemed: payload.redeemed,
+    p_armed: payload.armed,
+    p_extra_data: payload.extra_data,
+    p_created_at: payload.created_at,
+  });
+
+  // `RETURNS bonus_requests` donne un objet unique, mais PostgREST enveloppe
+  // certains retours dans un tableau : on normalise plutôt que de supposer.
+  if (!error) return m.bonusRequest.fromSupabase(Array.isArray(row) ? row[0] : row);
+
+  // Repli si la migration 030 n'est pas encore appliquée (fonction absente) :
+  // même effet, mais en deux appels — donc non atomique.
+  console.warn('bonus_request_open_cycle indisponible, repli non atomique:', error.message);
   await supabase.from(TABLE).update({ is_current: false, updated_at: new Date().toISOString() }).eq('user_id', data.userId).eq('bonus_id', data.bonusId).eq('is_current', true);
 
-  return exports.create({ ...data, isCurrent: true });
+  return exports.create({ ...data, id, isCurrent: true });
 };
 
 /**

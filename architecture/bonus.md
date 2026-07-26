@@ -43,7 +43,14 @@ sur une fenêtre glissante (jour / semaine / mois), ou d'office (`welcome`).
 > avoir à trier ni à arbitrer.
 >
 > Le claim passe par `createCurrent` : il **démote** le cycle précédent
-> (`is_current = false`) avant d'insérer le nouveau.
+> (`is_current = false`) avant d'insérer le nouveau. Les deux écritures sont
+> **atomiques** via la RPC `bonus_request_open_cycle` (migration 030) — sans
+> elle, un crash entre les deux laisserait le (user, bonus) sans ligne courante.
+>
+> ⚠️ Les lectures qui doivent voir TOUTES les lignes (historique inclus) sont
+> volontaires : `getByUser` (pot commun + `userClaimedCount`), `getById` (cible
+> un id précis), `claimCountsByBonus` / `codeExists` (portée globale). Ne pas y
+> ajouter de filtre `is_current`.
 >
 > Le tableau `status` d'une ligne ne contient plus qu'**une seule entrée** : la
 > sienne. L'historique se lit en listant les lignes, plus en dépliant du JSONB.
