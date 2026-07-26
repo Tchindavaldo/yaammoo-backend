@@ -4,8 +4,11 @@ const log = console;
 
 exports.postTransactionController = async (req, res) => {
   try {
-    log.info('[POST /transaction] Données reçues du frontend:');
-    log.info(JSON.stringify(req.body, null, 2));
+    // Résumé seulement : dumper `req.body` en entier noyait les logs sous le
+    // détail de chaque commande (menu, images, extras…). Le détail utile au
+    // diagnostic est déjà tracé, ligne par ligne, par `validatePaymentAmount`.
+    const { amount, payBy, userId, items } = req.body || {};
+    log.info(`[POST /transaction] payBy=${payBy} userId=${userId} amount=${amount} items=${Array.isArray(items) ? items.length : 0}`);
 
     const response = await postTransactionService(req.body);
 

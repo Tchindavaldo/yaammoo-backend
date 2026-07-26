@@ -52,7 +52,7 @@ function checkDeliveryBonusUsable(bonus, request, { fastFoodId, now = new Date()
   const state = deriveRequestState(request);
   if (state.requestStatus !== 'approved') return { usable: false, reason: 'not_claimed' };
 
-  const expiresAt = computeExpiresAt(state.claimedAt, bonus.claimDuration);
+  const expiresAt = computeExpiresAt(state.startsAt, bonus.claimDuration);
   if (expiresAt && new Date(expiresAt) < now) return { usable: false, reason: 'expired', expiresAt };
 
   const usageLimit = bonus.usageLimit != null ? Number(bonus.usageLimit) : null;

@@ -178,6 +178,15 @@ route.post('', firebaseAuth, postBonusController);
  *                       userClaimedCount: { type: number }
  *                       requestStatus: { type: string, enum: [none, pending, approved] }
  *                       claimedAt: { type: string, format: date-time, nullable: true }
+ *                       startsAt:
+ *                         type: string
+ *                         format: date-time
+ *                         nullable: true
+ *                         description: >
+ *                           Départ de la fenêtre de validité, porte `expiresAt`. Égal à
+ *                           `claimedAt`, sauf pour un bonus `requiresRewardCredentials` où
+ *                           il vaut la date de livraison des identifiants (null tant que la
+ *                           réclamation est `pending`).
  *                       usageCount: { type: number }
  *                       redeemed: { type: boolean }
  *                       armed:

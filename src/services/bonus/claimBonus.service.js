@@ -63,7 +63,7 @@ exports.claimBonusService = async (userId, bonusId) => {
     // Anti-doublon : une réclamation reste active tant qu'elle n'est ni
     // entièrement consommée ni expirée.
     const state = deriveRequestState(existing);
-    const currentExpiresAt = computeExpiresAt(state.claimedAt, bonus.claimDuration);
+    const currentExpiresAt = computeExpiresAt(state.startsAt, bonus.claimDuration);
     const stillValid = !currentExpiresAt || new Date(currentExpiresAt) >= new Date();
     if (state.requestStatus === 'pending' || (state.requestStatus === 'approved' && !state.redeemed && stillValid)) {
       return { success: false, status: 409, message: 'Vous avez déjà une réclamation active pour ce bonus.' };
@@ -131,7 +131,7 @@ exports.claimBonusService = async (userId, bonusId) => {
     });
 
     const finalState = deriveRequestState(saved);
-    const expiresAt = computeExpiresAt(finalState.claimedAt, bonus.claimDuration);
+    const expiresAt = computeExpiresAt(finalState.startsAt, bonus.claimDuration);
 
     // POT COMMUN GLOBAL : le décrément touche le solde de TOUS les bonus, pas
     // seulement celui réclamé. On recalcule donc l'ensemble et on le pousse par
@@ -147,6 +147,7 @@ exports.claimBonusService = async (userId, bonusId) => {
       requestStatus: finalState.requestStatus,
       code: finalState.code,
       claimedAt: finalState.claimedAt,
+      startsAt: finalState.startsAt,
       expiresAt,
     };
 

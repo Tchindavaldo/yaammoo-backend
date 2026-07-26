@@ -91,19 +91,33 @@ où `delivery.prix` n'est ajouté **que si la livraison est livrée ET non offer
 Détail complet (recalcul item, offert vs non offert, déduction panier groupé, tous
 les cas) : **[payment-amount-check.md](./payment-amount-check.md)**.
 
-### Cohérence du panier (livraison) — contrôlée AVANT le paiement
+### Panier libre — aucune contrainte d'uniformité
 
-`validateCartDelivery()` (`utils/validator/`), appelé dans
-`postTransaction.service` **avant tout appel à MobileWallet** : une fois le
-montant encaissé, refuser un panier incohérent obligerait à rembourser.
+Le panier est **libre** : un user peut mélanger modes, dates et créneaux, y
+compris **chez une même boutique**. Chaque combinaison distincte est simplement
+une **course distincte**, et le groupement de `validatePaymentAmount` facture
+exactement le bon nombre de courses. Il n'y a donc rien à interdire.
 
-Règle : **au sein d'une même boutique**, toutes les commandes livrées doivent
-partager le même `delivery.type`, la même `date` et la même `time`. Le livreur
-ne fait qu'un déplacement, il ne peut pas y avoir deux créneaux.
+> Historique : un validateur `validateCartDelivery` imposait `type`/`date`/`time`
+> identiques par boutique. Il a été **supprimé** — il bloquait des paniers
+> parfaitement facturables (ex. un plat en express + un plat programmé chez le
+> même marchand). La clé de groupe porte désormais elle-même toute la
+> distinction. Voir [payment-amount-check.md](./payment-amount-check.md).
 
-- Deux boutiques différentes → deux courses indépendantes, aucun contrôle entre elles.
+### Livraison express — jamais d'heure
+
+`validateExpressDelivery()` (`utils/validator/validateExpressDelivery.js`),
+appelé dans `postTransaction.service` **avant tout appel à MobileWallet** : une
+fois le montant encaissé, refuser une commande obligerait à rembourser.
+
+Règle : une commande livrée en `delivery.type === 'express'` ne peut **pas**
+porter de `delivery.time`. L'express signifie « dès que c'est prêt » — il n'y a
+pas de créneau. Un `time` présent = contradiction → **400**. Pour choisir un
+créneau, le front doit utiliser `type: 'time'`.
+
 - Commandes en retrait (`delivery.status !== true`) → ignorées.
-- Panier d'une seule commande → rien à comparer.
+- `delivery.date` reste **requis pour tous les modes** (cf. `orderFields.js`) :
+  seul `time` est refusé en express.
 
 ### `groupId` — commandes d'un même panier
 

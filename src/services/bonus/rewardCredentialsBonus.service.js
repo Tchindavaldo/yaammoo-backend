@@ -138,6 +138,11 @@ exports.rewardCredentialsBonusService = async (requestId, rewardCredentials, vie
       rewardCredentials,
       credentialsSentAt: now,
       credentialsSentBy: viewerUid,
+      // Départ de la validité : le user n'a rien à utiliser avant d'avoir reçu
+      // ses accès, donc la fenêtre court depuis la livraison et non depuis le
+      // claim. Figé à la PREMIÈRE livraison (`??`) : une correction ultérieure
+      // des identifiants ne doit pas prolonger la fenêtre.
+      validityStartsAt: entries[updateIndex]?.validityStartsAt ?? now,
     };
 
     // Sur une correction, le user a pu déjà consommer des utilisations : on
@@ -147,7 +152,7 @@ exports.rewardCredentialsBonusService = async (requestId, rewardCredentials, vie
     const saved = await repos.bonusRequests.updateUsage(requestId, usage, entries);
 
     const finalState = deriveRequestState(saved);
-    const expiresAt = computeExpiresAt(finalState.claimedAt, bonus.claimDuration);
+    const expiresAt = computeExpiresAt(finalState.startsAt, bonus.claimDuration);
 
     // Strictement ce qui change : la réclamation passe en `approved` et les
     // identifiants deviennent disponibles.
@@ -160,6 +165,8 @@ exports.rewardCredentialsBonusService = async (requestId, rewardCredentials, vie
       // `claimedAt` n'existe qu'à partir de l'approbation : au claim la
       // réclamation était `pending`, donc le front ne l'a jamais reçue.
       claimedAt: finalState.claimedAt,
+      // Départ réel de la validité = cette livraison (figé si correction).
+      startsAt: finalState.startsAt,
       expiresAt,
     };
 

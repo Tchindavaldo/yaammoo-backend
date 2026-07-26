@@ -4,7 +4,7 @@
 const repos = require('../../repositories');
 const { getIO } = require('../../socket');
 const { validateTransactionCreation } = require('../../utils/validator/validateTransactionCreation');
-const { validateCartDelivery } = require('../../utils/validator/validateCartDelivery');
+const { validateExpressDelivery } = require('../../utils/validator/validateExpressDelivery');
 const { validatePaymentAmount } = require('../../utils/validator/validatePaymentAmount');
 const mobilewalletService = require('./mobilewalletService');
 const { computeNet } = require('../../utils/commission');
@@ -36,14 +36,17 @@ exports.postTransactionService = async data => {
       return { success: false, httpStatus: 400, message: errors };
     }
 
-    // Cohérence des livraisons du panier — AVANT tout paiement : une fois le
-    // montant encaissé, refuser un panier incohérent obligerait à rembourser.
-    // Chez une même boutique, le livreur ne fait qu'un déplacement : mode, date
-    // et heure doivent donc être identiques sur toutes ses commandes.
-    const cartError = validateCartDelivery(items);
-    if (cartError) {
-      log.warn(`${logPrefix} ❌ Panier incohérent: ${cartError}`);
-      return { success: false, httpStatus: 400, message: cartError };
+    // Le panier est LIBRE : un user peut mélanger les modes et les créneaux, y
+    // compris chez une même boutique. Chaque combinaison distincte est une course
+    // distincte, et le groupement de `validatePaymentAmount` facture exactement
+    // le bon nombre de courses — il n'y a donc rien à interdire ici.
+    //
+    // Seule contradiction refusée, AVANT tout paiement (encaisser puis refuser
+    // obligerait à rembourser) : une livraison express portant une heure.
+    const expressError = validateExpressDelivery(items);
+    if (expressError) {
+      log.warn(`${logPrefix} ❌ Livraison express invalide: ${expressError}`);
+      return { success: false, httpStatus: 400, message: expressError };
     }
 
     // remainingAmount calculé si paiement mobileApp partiel

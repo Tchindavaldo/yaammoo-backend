@@ -58,7 +58,22 @@ function recomputeItemBase(item) {
   return { base: plat + extras + drinks, plat, extras, drinks, unitPlat, qty };
 }
 
-/** Clé de regroupement des livraisons — une seule course par groupe. */
+/**
+ * Clé de regroupement des livraisons — une seule course par groupe.
+ *
+ * Deux commandes ne partagent une course que si elles partent au même moment,
+ * de la même boutique, vers la même zone. La clé doit donc porter TOUT ce qui
+ * distingue un départ d'un autre — le panier étant libre, c'est elle seule qui
+ * décide de la facturation :
+ *
+ * - `fastFoodId` + `zone` : un déplacement, une destination ;
+ * - `type` : un express et un programmé ne partent jamais ensemble, même à la
+ *   même heure apparente ;
+ * - `date` : deux courses de jours différents sont deux courses ;
+ * - `time` : uniquement en `type === 'time'`. L'express n'a pas de créneau (il
+ *   part dès que c'est prêt) et `validateExpressDelivery` refuse en amont toute
+ *   commande express portant une heure — l'ignorer ici serait donc sans effet.
+ */
 function deliveryGroupKey(item) {
   const d = item?.delivery;
   if (!d || d.status !== true) return null; // retrait : aucune course
@@ -68,8 +83,9 @@ function deliveryGroupKey(item) {
   const type = String(d.type ?? '')
     .trim()
     .toLowerCase();
-  if (type === 'time') return `${item.fastFoodId}|${zone}|${String(d.time ?? '').trim()}`;
-  return `${item.fastFoodId}|${zone}`;
+  const date = String(d.date ?? '').trim();
+  const base = `${item.fastFoodId}|${zone}|${type}|${date}`;
+  return type === 'time' ? `${base}|${String(d.time ?? '').trim()}` : base;
 }
 
 /**
@@ -117,12 +133,20 @@ async function validatePaymentAmount(amount, items, ctx = {}) {
 
   const paid = toNumber(amount);
   const bonusCode = ctx.bonusCode || orders.find(o => o?.bonusCode)?.bonusCode || null;
-  console.log(`[payAmount] ── ${orders.length} commande(s), amount reçu=${paid}, bonusCode=${bonusCode || '∅'}`);
+  // Ligne vide + filet : le bloc doit se repérer d'un coup d'œil au milieu des
+  // logs applicatifs (keep-alive, wallet, fastfood…) qui défilent en continu.
+  console.log(`\n[payAmount] ═══ ${orders.length} commande(s) · amount reçu=${paid} · bonusCode=${bonusCode || '∅'} ═══`);
 
   // Verdict SERVEUR : quelles livraisons sont offertes.
   const offered = await resolveOfferedDeliveries(orders, { userId: ctx.userId, bonusCode });
 
   let sumTotal = 0;
+
+  // Lignes de log mises de côté puis affichées PAR GROUPE de livraison (plus bas) :
+  // à plat, 25 commandes se lisaient comme un mur indifférencié, alors que ce qui
+  // compte au diagnostic est justement « quelles commandes partagent une course ».
+  // La validation, elle, reste dans l'ordre reçu et s'arrête au 1er écart.
+  const logLines = [];
 
   // NIVEAU ITEM : recalcul (avec/sans livraison) + comparaison, stop au 1er écart.
   for (let i = 0; i < orders.length; i++) {
@@ -136,15 +160,34 @@ async function validatePaymentAmount(amount, items, ctx = {}) {
     const deliv = delivered && !isOffered ? Math.max(0, toNumber(item?.delivery?.prix)) : 0;
     const attendu = r.base + deliv;
 
-    console.log(`[payAmount]   #${i + 1} plat=${r.unitPlat}×${r.qty}=${r.plat} + extras=${r.extras} + drinks=${r.drinks}` + ` + livraison=${deliv}${isOffered ? ' (OFFERTE)' : ''} → attendu=${attendu} | reçu=${totalRecu}`);
+    logLines.push({
+      key: deliveryGroupKey(item),
+      text: `#${i + 1} plat=${r.unitPlat}×${r.qty}=${r.plat} + extras=${r.extras} + drinks=${r.drinks}` + ` + livraison=${deliv}${isOffered ? ' (OFFERTE)' : ''} → attendu=${attendu} | reçu=${totalRecu}`,
+    });
 
     if (Math.abs(totalRecu - attendu) > AMOUNT_TOLERANCE) {
-      console.log(`[payAmount] ✗ commande #${i + 1} : total reçu ${totalRecu} ≠ attendu ${attendu} → REFUS`);
+      logLines.forEach(l => console.log(`[payAmount]   ${l.text}`));
+      console.log(`[payAmount] ✗ commande #${i + 1} : total reçu ${totalRecu} ≠ attendu ${attendu} → REFUS\n`);
       return `Total incohérent sur la commande #${i + 1} : ${totalRecu} FCFA reçus, ${attendu} FCFA attendus ` + `(plat ${r.plat} + extras ${r.extras} + boissons ${r.drinks} + livraison ${deliv}${isOffered ? ' offerte' : ''}).`;
     }
 
     sumTotal += attendu;
   }
+
+  // Affichage groupé : une course = un bloc. Les commandes sans livraison
+  // (retrait) sont rassemblées à part — elles n'appartiennent à aucune course.
+  const byKey = new Map();
+  for (const line of logLines) {
+    const k = line.key || '(sans livraison)';
+    if (!byKey.has(k)) byKey.set(k, []);
+    byKey.get(k).push(line.text);
+  }
+  for (const [k, lines] of byKey) {
+    console.log(`[payAmount]`);
+    console.log(`[payAmount] ┌ ${k} — ${lines.length} cmd`);
+    lines.forEach(t => console.log(`[payAmount] │ ${t}`));
+  }
+  console.log(`[payAmount]`);
 
   // DÉDUCTION panier groupé : une seule course par (boutique+zone+créneau). Ne
   // comptent que les commandes livrées ET NON offertes (celles qui ont payé une
@@ -162,17 +205,17 @@ async function validatePaymentAmount(amount, items, ctx = {}) {
     const unitPrix = Math.max(0, toNumber(group[0]?.delivery?.prix));
     const dup = group.length - 1;
     deduction += dup * unitPrix;
-    console.log(`[payAmount]   ⤷ groupe [${key}] : ${group.length} cmd → 1 course, déduit ${dup}×${unitPrix}=${dup * unitPrix}`);
+    console.log(`[payAmount] ⤷ ${key} : ${group.length} cmd → 1 course, déduit ${dup}×${unitPrix}=${dup * unitPrix}`);
   }
 
   const expected = sumTotal - deduction;
   console.log(`[payAmount] Σtotal=${sumTotal} − groupé=${deduction} → attendu=${expected} | amount=${paid}`);
   if (Math.abs(paid - expected) > AMOUNT_TOLERANCE) {
-    console.log(`[payAmount] ✗ amount ${paid} ≠ attendu ${expected} → REFUS`);
+    console.log(`[payAmount] ✗ amount ${paid} ≠ attendu ${expected} → REFUS\n`);
     return `Montant incohérent : ${paid} FCFA demandés, ${expected} FCFA attendus (total ${sumTotal} − ${deduction} de livraisons groupées).`;
   }
 
-  console.log(`[payAmount] ✓ amount ${paid} == attendu ${expected} → OK`);
+  console.log(`[payAmount] ✓ amount ${paid} == attendu ${expected} → OK\n`);
   return null;
 }
 

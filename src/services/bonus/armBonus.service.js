@@ -119,8 +119,6 @@ exports.getArmedDeliveryOffers = async userId => {
   // `getArmedByUser` ne remonte que les lignes COURANTES : une ligne
   // d'historique restée `armed = true` est déjà écartée côté repo.
   const armedRequests = await repos.bonusRequests.getArmedByUser(userId);
-  // [TEMP-LOG] à retirer
-  console.log('[OFFERS] userId=%s armedRequests=%d ids=%j', userId, armedRequests.length, armedRequests.map(r => r.bonusId));
   if (armedRequests.length === 0) return empty;
 
   const result = { byFastFood: {}, platform: null };
@@ -128,8 +126,6 @@ exports.getArmedDeliveryOffers = async userId => {
     const bonus = await repos.bonus.getById(request.bonusId);
     // Un bonus armé puis expiré/épuisé reste armé en base : on ne l'expose pas.
     const check = checkDeliveryBonusUsable(bonus, request);
-    // [TEMP-LOG] à retirer
-    console.log('[OFFERS] bonusId=%s type=%s ffId=%s active=%s | usable=%s reason=%s', request.bonusId, bonus?.type, bonus?.fastFoodId, bonus?.active, check.usable, check.reason);
     if (!check.usable) continue;
 
     const offer = buildDeliveryOffer(bonus, request);

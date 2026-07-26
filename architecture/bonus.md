@@ -105,13 +105,14 @@ Fusionnés dans chaque bonus à la lecture, pour le user authentifié :
 | `bonusStats.{day,week,month}` | `orders` + `bonus_requests` | Agrégation `{count, amount}` des commandes **non annulées** du user pour `fastFoodId` (toutes si bonus plateforme), par fenêtre calendaire UTC, **moins les paliers déjà consommés** (cf. § Décrément). |
 | `requestId` | `bonus_requests` du user | Id de la réclamation **courante** (`is_current`). `null` si aucune n'est active. Sert au front à cibler une ligne précise (ex. livraison des accès). |
 | `code` | `bonus_requests` du user | Code de réclamation actif, `null` si non réclamé. |
-| `expiresAt` / `expired` | calculé | `claimedAt + claimDuration` jours, et comparaison à `now`. |
+| `expiresAt` / `expired` | calculé | `startsAt + claimDuration` jours, et comparaison à `now`. |
 | `remainingUses` | calculé | `usageLimit − usageCount`, `null` si pas de limite. |
 | `fastFoodBonusCount` | liste `bonus` | Nb de bonus partageant le même `fastFoodId`. |
 | `totalClaimedCount` | table `bonus_requests` | Nb total d'entrées de statut accordé (`approved`/`completed`) pour ce bonus, tous users. |
 | `userClaimedCount` | `bonus_requests` du user | Nb de réclamations accordées de ce user pour ce bonus — compté sur **toutes ses lignes** (une par cycle). |
 | `requestStatus` | `bonus_requests` du user | `none` / `pending` / `approved` (dérivé du tableau `status`). |
 | `claimedAt` | `bonus_requests` du user | `createdAt` de la dernière entrée accordée. |
+| `startsAt` | calculé | Départ de la fenêtre de validité, **porte `expiresAt`**. Vaut `claimedAt`, SAUF pour un bonus `requiresRewardCredentials` : alors la date de **livraison des accès** (`status[].validityStartsAt`). Voir § Départ de validité. |
 | `usageCount` | `bonus_requests` du user | Depuis `extra_data.usageCount` (flux de redemption à venir), défaut `0`. |
 | `redeemed` | `bonus_requests` du user | Depuis `extra_data.redeemed`, défaut `false`. |
 
@@ -244,6 +245,8 @@ faudrait re-livrer et invalider le code du user.
 
 Dans ce mode :
 - `code` et `claimedAt` d'origine sont **conservés** ;
+- `startsAt` / `expiresAt` sont **inchangés** : `validityStartsAt` reste figé à la
+  première livraison, une correction ne prolonge pas la validité ;
 - `usageCount` / `redeemed` sont **préservés** (les remettre à zéro rendrait au
   user des utilisations déjà consommées) ;
 - le socket `bonus.reward_credentials` est **réémis** avec les nouveaux identifiants ;
@@ -358,7 +361,30 @@ nouveau cycle** : code neuf, `usageCount` remis à 0.
 leur contrepartie est la **livraison des identifiants**
 (`POST /bonus/request/:id/reward-credentials`), qui notifie par le socket
 `bonus.reward_credentials` + push. Leur cycle se ferme à l'expiration
-(`claimedAt + claimDuration`), pas par un compteur.
+(`startsAt + claimDuration`), pas par un compteur.
+
+### Départ de validité (`startsAt`)
+
+`expiresAt` se calcule depuis **`startsAt`**, jamais depuis `claimedAt` :
+
+| Cas | `startsAt` |
+|---|---|
+| Bonus normal | `claimedAt` (date du claim) |
+| Bonus `requiresRewardCredentials` | date de **livraison** des accès |
+
+Pourquoi : l'entrée d'un bonus Netflix est créée `pending` au claim et n'est
+honorée qu'à la livraison par l'admin/marchand. Compter depuis `claimedAt` ferait
+perdre au user tous les jours d'attente — il pouvait même recevoir des accès déjà
+expirés.
+
+La date est persistée dans `status[].validityStartsAt` (JSONB, pas de migration) et
+**figée à la première livraison** : corriger/compléter des identifiants ensuite
+(`isCorrection`) réécrit `credentialsSentAt` mais **ne prolonge pas** la fenêtre.
+
+Tant que la réclamation est `pending`, `startsAt` et `expiresAt` valent `null` :
+rien n'expire avant d'avoir été livré. Implémenté par `deriveRequestState` /
+`computeExpiresAt` (`services/bonus/enrichBonusForUser.js`) — tous les call-sites
+(`claimBonus`, `deliveryOffer`, `rewardCredentialsBonus`) passent `startsAt`.
 
 **Socket `bonus.redeemed`** (room `<userId>`, via `reliableEmit`) : émis à chaque
 consommation par `consumeDeliveryBonus`. Payload :

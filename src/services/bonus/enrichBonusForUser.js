@@ -49,6 +49,7 @@ function deriveRequestState(request) {
   const base = {
     requestStatus: 'none',
     claimedAt: null,
+    startsAt: null,
     usageCount: 0,
     redeemed: false,
     userClaimedCount: 0,
@@ -81,6 +82,14 @@ function deriveRequestState(request) {
       { t: -Infinity, e: null }
     ).e;
     base.claimedAt = last ? last.createdAt || null : null;
+
+    // Point de départ de la validité. Pour un bonus à identifiants (Netflix…),
+    // l'entrée est créée `pending` au claim et n'est honorée qu'à la livraison :
+    // compter depuis `createdAt` ferait perdre au user tous les jours d'attente.
+    // `validityStartsAt` est figé à la PREMIÈRE livraison (cf.
+    // rewardCredentialsBonus.service) — une correction ultérieure des accès ne
+    // doit pas prolonger la fenêtre.
+    base.startsAt = last?.validityStartsAt || base.claimedAt;
   }
 
   // usageCount / redeemed / code : portés par extra_data de la demande
@@ -93,12 +102,16 @@ function deriveRequestState(request) {
 }
 
 /**
- * Date d'expiration du code = claimedAt + claimDuration (jours).
+ * Date d'expiration du code = startsAt + claimDuration (jours).
+ *
+ * `startsAt` vaut la date de réclamation dans le cas général, mais la date de
+ * LIVRAISON des identifiants pour un bonus `requiresRewardCredentials` : la
+ * validité ne peut pas courir avant que le user ait reçu ses accès.
  * @returns {string|null} ISO ou null si non réclamé / durée non définie
  */
-function computeExpiresAt(claimedAt, claimDuration) {
-  if (!claimedAt || !claimDuration) return null;
-  const at = new Date(claimedAt);
+function computeExpiresAt(startsAt, claimDuration) {
+  if (!startsAt || !claimDuration) return null;
+  const at = new Date(startsAt);
   if (Number.isNaN(at.getTime())) return null;
   at.setUTCDate(at.getUTCDate() + Number(claimDuration));
   return at.toISOString();
@@ -134,7 +147,7 @@ function enrichBonusForUser(bonus, ctx) {
   const rawStats = computeBonusStats(orders, { fastFoodId, now });
   const bonusStats = applyConsumption(rawStats, bonus, userRequests, orders, now);
 
-  const expiresAt = computeExpiresAt(requestState.claimedAt, bonus.claimDuration);
+  const expiresAt = computeExpiresAt(requestState.startsAt, bonus.claimDuration);
   const expired = expiresAt ? new Date(expiresAt) < now : false;
 
   // Cycle terminé (code épuisé ou périmé) : la réclamation n'est plus active.
@@ -146,6 +159,7 @@ function enrichBonusForUser(bonus, ctx) {
   const requestStatus = cycleClosed ? 'none' : requestState.requestStatus;
   const code = cycleClosed ? null : requestState.code;
   const claimedAt = cycleClosed ? null : requestState.claimedAt;
+  const startsAt = cycleClosed ? null : requestState.startsAt;
 
   return {
     // ── Définition (base) ──
@@ -178,6 +192,10 @@ function enrichBonusForUser(bonus, ctx) {
     // re-réclamer dès que le palier est de nouveau atteint.
     requestStatus,
     claimedAt,
+    // Départ de la fenêtre de validité : `claimedAt` en général, date de
+    // livraison des identifiants pour un bonus `requiresRewardCredentials`.
+    // C'est `startsAt` (et non `claimedAt`) qui porte `expiresAt`.
+    startsAt,
     usageCount: cycleClosed ? 0 : requestState.usageCount,
     redeemed: cycleClosed ? false : requestState.redeemed,
     // Armement global (page bonus) : le bonus s'appliquera à la prochaine

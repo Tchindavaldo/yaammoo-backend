@@ -150,8 +150,8 @@ Détails feature : [ratings.md](./ratings.md).
 | Event | Destination | Émetteur | Payload |
 |---|---|---|---|
 | `bonus.stats_updated` | `userId` client | `services/bonus/emitBonusStats.js` | `{ data: { bonusStats: { <bonusId>: {day,week,month} } } }` |
-| `bonus.claimed` | `userId` client | `services/bonus/claimBonus.service.js` | `{ data: { bonusId, requestId, requestStatus, code, claimedAt, expiresAt } }` |
-| `bonus.reward_credentials` | `userId` client | `services/bonus/rewardCredentialsBonus.service.js` | `{ data: { bonusId, requestId, requestStatus, code, rewardCredentials, claimedAt, expiresAt } }` |
+| `bonus.claimed` | `userId` client | `services/bonus/claimBonus.service.js` | `{ data: { bonusId, requestId, requestStatus, code, claimedAt, startsAt, expiresAt } }` |
+| `bonus.reward_credentials` | `userId` client | `services/bonus/rewardCredentialsBonus.service.js` | `{ data: { bonusId, requestId, requestStatus, code, rewardCredentials, claimedAt, startsAt, expiresAt } }` |
 | `bonus.armed` | `userId` client | `services/bonus/armBonus.service.js` | `{ data: { bonusId, armed:true, disarmedBonusIds, deliveryOffer } }` |
 | `bonus.disarmed` | `userId` client | `services/bonus/armBonus.service.js` | `{ data: { bonusId, armed:false, disarmedBonusIds:[], deliveryOffer:null } }` |
 | `bonus.redeemed` | `userId` client | `services/bonus/applyDeliveryBonus.service.js` | `{ data: { bonusId, code, usageCount, usageLimit, remainingUses, redeemed } }` |
@@ -180,6 +180,14 @@ Détails feature : [ratings.md](./ratings.md).
   `requiresProfile`, il contient en plus `profile: { name, code }` (le profil
   nominatif et son code d'accès). Réémis à l'identique si un admin **corrige** des
   identifiants déjà livrés. Cf. [bonus.md](./bonus.md).
+- `startsAt` porte le **départ de la validité** (`expiresAt = startsAt + claimDuration`),
+  distinct de `claimedAt` (date du claim). Sur `bonus.claimed` d'un bonus
+  `requiresRewardCredentials`, `startsAt` et `expiresAt` valent `null` : la
+  réclamation est `pending`, rien n'expire avant livraison. C'est
+  `bonus.reward_credentials` qui les renseigne (date de livraison), permettant au
+  front de rafraîchir les dates sans re-GET. Figé à la première livraison : une
+  correction d'identifiants ne prolonge pas la validité. Cf.
+  [bonus.md § Départ de validité](./bonus.md).
 
 ### Notifications
 
