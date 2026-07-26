@@ -116,6 +116,8 @@ exports.getArmedDeliveryOffers = async userId => {
   const empty = { byFastFood: {}, platform: null };
   if (!userId) return empty;
 
+  // `getArmedByUser` ne remonte que les lignes COURANTES : une ligne
+  // d'historique restée `armed = true` est déjà écartée côté repo.
   const armedRequests = await repos.bonusRequests.getArmedByUser(userId);
   // [TEMP-LOG] à retirer
   console.log('[OFFERS] userId=%s armedRequests=%d ids=%j', userId, armedRequests.length, armedRequests.map(r => r.bonusId));

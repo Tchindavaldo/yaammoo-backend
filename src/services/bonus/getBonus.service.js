@@ -6,7 +6,7 @@
 // puis fusionnés dans chaque bonus. Cf. architecture/bonus.md.
 // ============================================================================
 const repos = require('../../repositories');
-const { enrichBonusForUser, CLAIMED_ENTRY_STATUSES } = require('./enrichBonusForUser');
+const { enrichBonusForUser, indexCurrentRequestsByBonus, CLAIMED_ENTRY_STATUSES } = require('./enrichBonusForUser');
 
 /**
  * @param {string} userId  uid du user courant (issu du token Firebase)
@@ -26,10 +26,14 @@ exports.getBonusService = async userId => {
       repos.bonusRequests.claimCountsByBonus(CLAIMED_ENTRY_STATUSES),
     ]);
 
-    // Index demandes du user par bonusId
-    const userRequestByBonus = {};
+    // Index des demandes du user par bonusId. Une réclamation = une LIGNE
+    // (migration 029), donc un même bonus peut en avoir plusieurs :
+    //   - `userRequestByBonus`  → la COURANTE (état affiché : code, armed…)
+    //   - `userRequestsByBonus` → TOUTES (historique : userClaimedCount)
+    const userRequestByBonus = indexCurrentRequestsByBonus(userRequests);
+    const userRequestsByBonus = {};
     for (const req of userRequests) {
-      if (req && req.bonusId) userRequestByBonus[req.bonusId] = req;
+      if (req && req.bonusId) (userRequestsByBonus[req.bonusId] ||= []).push(req);
     }
 
     // Nb de bonus proposés par chaque fastfood (calculé depuis la liste)
@@ -39,7 +43,7 @@ exports.getBonusService = async userId => {
     }
 
     const now = new Date();
-    return bonuses.map(bonus => enrichBonusForUser(bonus, { orders, userRequestByBonus, userRequests, fastFoodBonusCounts, totalClaimCounts, now }));
+    return bonuses.map(bonus => enrichBonusForUser(bonus, { orders, userRequestByBonus, userRequestsByBonus, userRequests, fastFoodBonusCounts, totalClaimCounts, now }));
   } catch (error) {
     console.error('Erreur dans getBonusService:', error);
     throw new Error(error.message || 'Erreur lors de la récupération des bonus');

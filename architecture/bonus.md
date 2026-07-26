@@ -31,6 +31,30 @@ sur une fenêtre glissante (jour / semaine / mois), ou d'office (`welcome`).
 
 ## Modèle de données
 
+> **Une réclamation = une LIGNE de `bonus_requests`** (migration 029). Un même
+> couple (user, bonus) peut donc en avoir plusieurs : chaque claim ouvre un
+> nouveau cycle sans écraser le précédent, qui reste consultable en base.
+>
+> La réclamation **courante** est marquée **`is_current`** — c'est elle qui porte
+> le `code`, `usage_count` et `armed` affichés au user. Un **index unique partiel**
+> (`idx_bonus_requests_current`) garantit qu'il n'y en a jamais deux : les lectures
+> filtrent (`findByUserBonus`, `getArmedByUser`, `findByCode` côté repo ;
+> `pickCurrentRequest` / `indexCurrentRequestsByBonus` côté service) sans jamais
+> avoir à trier ni à arbitrer.
+>
+> Le claim passe par `createCurrent` : il **démote** le cycle précédent
+> (`is_current = false`) avant d'insérer le nouveau. Les deux écritures sont
+> **atomiques** via la RPC `bonus_request_open_cycle` (migration 030) — sans
+> elle, un crash entre les deux laisserait le (user, bonus) sans ligne courante.
+>
+> ⚠️ Les lectures qui doivent voir TOUTES les lignes (historique inclus) sont
+> volontaires : `getByUser` (pot commun + `userClaimedCount`), `getById` (cible
+> un id précis), `claimCountsByBonus` / `codeExists` (portée globale). Ne pas y
+> ajouter de filtre `is_current`.
+>
+> Le tableau `status` d'une ligne ne contient plus qu'**une seule entrée** : la
+> sienne. L'historique se lit en listant les lignes, plus en dépliant du JSONB.
+
 ### Stockage (table `bonus`)
 
 La table `bonus` ne stocke **QUE la définition** du bonus. Aucun champ dépendant
@@ -79,12 +103,13 @@ Fusionnés dans chaque bonus à la lecture, pour le user authentifié :
 | Champ | Source | Calcul |
 |---|---|---|
 | `bonusStats.{day,week,month}` | `orders` + `bonus_requests` | Agrégation `{count, amount}` des commandes **non annulées** du user pour `fastFoodId` (toutes si bonus plateforme), par fenêtre calendaire UTC, **moins les paliers déjà consommés** (cf. § Décrément). |
-| `code` | `bonus_requests` du user | Code de réclamation actif (`extra_data.code`), `null` si non réclamé. |
+| `requestId` | `bonus_requests` du user | Id de la réclamation **courante** (`is_current`). `null` si aucune n'est active. Sert au front à cibler une ligne précise (ex. livraison des accès). |
+| `code` | `bonus_requests` du user | Code de réclamation actif, `null` si non réclamé. |
 | `expiresAt` / `expired` | calculé | `claimedAt + claimDuration` jours, et comparaison à `now`. |
 | `remainingUses` | calculé | `usageLimit − usageCount`, `null` si pas de limite. |
 | `fastFoodBonusCount` | liste `bonus` | Nb de bonus partageant le même `fastFoodId`. |
 | `totalClaimedCount` | table `bonus_requests` | Nb total d'entrées de statut accordé (`approved`/`completed`) pour ce bonus, tous users. |
-| `userClaimedCount` | `bonus_requests` du user | Nb d'entrées accordées dans la demande du user pour ce bonus. |
+| `userClaimedCount` | `bonus_requests` du user | Nb de réclamations accordées de ce user pour ce bonus — compté sur **toutes ses lignes** (une par cycle). |
 | `requestStatus` | `bonus_requests` du user | `none` / `pending` / `approved` (dérivé du tableau `status`). |
 | `claimedAt` | `bonus_requests` du user | `createdAt` de la dernière entrée accordée. |
 | `usageCount` | `bonus_requests` du user | Depuis `extra_data.usageCount` (flux de redemption à venir), défaut `0`. |
@@ -130,7 +155,8 @@ src/
     ├── bonus.repo.js                           # getAll / getById / create / update
     └── bonusRequests.repo.js                   # + getByUser, claimCountsByBonus,
                                                 #   findByCode, codeExists,
-                                                #   getArmedByUser, updateUsage
+                                                #   getArmedByUser, updateUsage,
+                                                #   createCurrent (RPC atomique)
 ```
 
 **Flux `GET /bonus/all` :**

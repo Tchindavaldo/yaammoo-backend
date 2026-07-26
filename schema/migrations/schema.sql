@@ -237,7 +237,12 @@ CREATE INDEX IF NOT EXISTS idx_bonus_active   ON bonus(active) WHERE active = TR
 -- ============================================================================
 -- TABLE: bonus_requests
 -- ============================================================================
--- status est un array d'objets {status, totalBonus, createdAt} en JSONB.
+-- UNE LIGNE = UNE RÉCLAMATION (migration 029). Un même (user, bonus) peut donc
+-- avoir plusieurs lignes : les cycles précédents restent comme historique.
+-- La réclamation COURANTE est marquée `is_current` — c'est elle qui porte le
+-- code, les compteurs et l'armement affichés au user. L'index unique partiel
+-- `idx_bonus_requests_current` garantit qu'il n'y en a jamais deux.
+-- `status` est un array JSONB ne contenant QUE l'entrée de cette réclamation.
 CREATE TABLE IF NOT EXISTS bonus_requests (
   id          TEXT PRIMARY KEY,
   user_id     TEXT NOT NULL,
@@ -250,6 +255,8 @@ CREATE TABLE IF NOT EXISTS bonus_requests (
   -- éligible. Persisté pour survivre à la fermeture de l'app. Armer ne consomme
   -- rien — cf. architecture/bonus.md.
   armed       BOOLEAN NOT NULL DEFAULT FALSE,
+  -- Réclamation courante de ce (user, bonus). FALSE = cycle clos, historique.
+  is_current  BOOLEAN NOT NULL DEFAULT TRUE,
   extra_data  JSONB DEFAULT '{}'::jsonb,
   created_at  TIMESTAMPTZ DEFAULT NOW(),
   updated_at  TIMESTAMPTZ DEFAULT NOW(),
@@ -258,6 +265,11 @@ CREATE TABLE IF NOT EXISTS bonus_requests (
 
 CREATE INDEX IF NOT EXISTS idx_bonus_requests_lookup
   ON bonus_requests(bonus_id, user_id);
+
+-- Une SEULE réclamation courante par (user, bonus) : l'invariante est garantie
+-- par la base, pas par la discipline du code.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_bonus_requests_current
+  ON bonus_requests(user_id, bonus_id) WHERE is_current;
 
 -- Recherche par code (redemption) : indexée + unique.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_bonus_requests_code

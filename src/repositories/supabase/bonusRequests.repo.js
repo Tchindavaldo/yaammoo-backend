@@ -72,19 +72,81 @@ async function countClaimsInApp(claimedStatuses) {
   return counts;
 }
 
+/**
+ * Réclamation COURANTE d'un user pour un bonus.
+ *
+ * ⚠️ Depuis la migration 029, chaque réclamation est une LIGNE distincte : un
+ * même (user, bonus) peut en avoir plusieurs (cycles successifs). La courante
+ * est désignée par `is_current`, avec un index unique partiel qui garantit
+ * qu'il n'y en a jamais deux — inutile de trier ou de deviner.
+ */
 exports.findByUserBonus = async ({ userId, bonusId }) => {
-  let q = supabase.from(TABLE).select('*').eq('user_id', userId).eq('bonus_id', bonusId);
-  const { data, error } = await q.limit(1).maybeSingle();
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select('*')
+    .eq('user_id', userId)
+    .eq('bonus_id', bonusId)
+    .eq('is_current', true)
+    .maybeSingle();
   if (error) throw error;
   return m.bonusRequest.fromSupabase(data);
 };
 
 /**
+ * Ouvre un nouveau cycle : démote la réclamation courante de ce (user, bonus)
+ * puis insère la nouvelle. L'ancienne devient de l'historique consultable.
+ *
+ * ATOMIQUE via la RPC `bonus_request_open_cycle` (migration 030) : les deux
+ * écritures s'appliquent ensemble ou pas du tout. Sans elle, un crash entre la
+ * démotion et l'insertion laisserait le (user, bonus) SANS ligne courante — le
+ * user paraîtrait n'avoir jamais réclamé alors que son historique existe.
+ *
+ * ⚠️ La démotion précède l'insertion : l'index unique partiel
+ * `idx_bonus_requests_current` (migration 029) interdit deux lignes courantes.
+ */
+exports.createCurrent = async data => {
+  const id = data.id || generateId();
+  const payload = m.bonusRequest.toSupabase({
+    ...data,
+    id,
+    isCurrent: true,
+    createdAt: data.createdAt || new Date().toISOString(),
+  });
+
+  const { data: row, error } = await supabase.rpc('bonus_request_open_cycle', {
+    p_id: payload.id,
+    p_user_id: payload.user_id,
+    p_bonus_id: payload.bonus_id,
+    p_status: payload.status,
+    p_code: payload.code,
+    p_usage_count: payload.usage_count,
+    p_redeemed: payload.redeemed,
+    p_armed: payload.armed,
+    p_extra_data: payload.extra_data,
+    p_created_at: payload.created_at,
+  });
+
+  // `RETURNS bonus_requests` donne un objet unique, mais PostgREST enveloppe
+  // certains retours dans un tableau : on normalise plutôt que de supposer.
+  if (!error) return m.bonusRequest.fromSupabase(Array.isArray(row) ? row[0] : row);
+
+  // Repli si la migration 030 n'est pas encore appliquée (fonction absente) :
+  // même effet, mais en deux appels — donc non atomique.
+  console.warn('bonus_request_open_cycle indisponible, repli non atomique:', error.message);
+  await supabase.from(TABLE).update({ is_current: false, updated_at: new Date().toISOString() }).eq('user_id', data.userId).eq('bonus_id', data.bonusId).eq('is_current', true);
+
+  return exports.create({ ...data, id, isCurrent: true });
+};
+
+/**
  * Retrouve une réclamation par son code (unique par réclamation active).
+ *
+ * Restreint aux lignes COURANTES : un code de cycle clos ne doit plus rien
+ * ouvrir, même s'il traîne encore dans l'historique.
  */
 exports.findByCode = async code => {
   // Colonne indexée (unique) depuis la migration 014.
-  let q = supabase.from(TABLE).select('*').eq('code', code);
+  let q = supabase.from(TABLE).select('*').eq('code', code).eq('is_current', true);
   const { data, error } = await q.limit(1).maybeSingle();
   if (error) throw error;
   return m.bonusRequest.fromSupabase(data);
@@ -105,13 +167,15 @@ exports.codeExists = async code => {
  * Lues à chaque affichage du home pour savoir où la livraison est offerte.
  */
 exports.getArmedByUser = async userId => {
-  const { data, error } = await supabase.from(TABLE).select('*').eq('user_id', userId).eq('armed', true);
+  // `is_current` : un cycle clos ne doit jamais offrir une livraison, même si
+  // sa ligne d'historique a gardé `armed = true`.
+  const { data, error } = await supabase.from(TABLE).select('*').eq('user_id', userId).eq('armed', true).eq('is_current', true);
   if (error) throw error;
   return (data || []).map(m.bonusRequest.fromSupabase);
 };
 
 // Champs du cycle d'utilisation promus en colonnes réelles (migrations 014/018).
-const USAGE_COLUMNS = { code: 'code', usageCount: 'usage_count', redeemed: 'redeemed', armed: 'armed' };
+const USAGE_COLUMNS = { code: 'code', usageCount: 'usage_count', redeemed: 'redeemed', armed: 'armed', isCurrent: 'is_current' };
 
 /**
  * Met à jour le cycle d'utilisation d'une réclamation (code, usageCount,

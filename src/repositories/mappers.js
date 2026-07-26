@@ -419,7 +419,7 @@ const bonusFromSupabase = row => {
 // (avant : dans extra_data, d'où un findByCode non indexé qui scannait la table).
 const bonusRequestToSupabase = data => {
   const { createdAt, updatedAt, ...rest } = data;
-  const known = ['id', 'userId', 'bonusId', 'status', 'code', 'usageCount', 'redeemed', 'armed'];
+  const known = ['id', 'userId', 'bonusId', 'status', 'code', 'usageCount', 'redeemed', 'armed', 'isCurrent'];
   const extra_data = {};
   for (const k of Object.keys(rest)) {
     if (!known.includes(k)) extra_data[k] = rest[k];
@@ -433,6 +433,8 @@ const bonusRequestToSupabase = data => {
     usage_count: data.usageCount ?? 0,
     redeemed: data.redeemed ?? false,
     armed: data.armed ?? false,
+    // Réclamation courante de ce (user, bonus). Une nouvelle l'est par défaut.
+    is_current: data.isCurrent ?? true,
     extra_data,
     created_at: toIso(createdAt),
     updated_at: toIso(updatedAt) || toIso(createdAt),
@@ -450,6 +452,7 @@ const bonusRequestFromSupabase = row => {
     usageCount: row.usage_count ?? 0,
     redeemed: row.redeemed ?? false,
     armed: row.armed ?? false,
+    isCurrent: row.is_current ?? true,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     ...(row.extra_data || {}),

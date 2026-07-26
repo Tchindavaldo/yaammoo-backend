@@ -14,6 +14,34 @@ const { computeBonusStats, applyConsumption, CLAIMED_STATUSES } = require('./bon
 const CLAIMED_ENTRY_STATUSES = CLAIMED_STATUSES;
 
 /**
+ * Réclamation COURANTE parmi plusieurs lignes d'un même (user, bonus).
+ *
+ * Depuis la migration 029, chaque réclamation est une ligne distincte : les
+ * cycles précédents restent en base comme historique. La courante est marquée
+ * `isCurrent` — un index unique partiel garantit qu'il n'y en a jamais deux,
+ * donc pas de tri ni d'arbitrage à faire ici.
+ *
+ * @param {Array} requests réclamations d'un même bonus
+ * @returns {Object|null}
+ */
+function pickCurrentRequest(requests) {
+  return (requests || []).find(r => r && r.isCurrent) || null;
+}
+
+/**
+ * Indexe les réclamations d'un user par bonusId, en ne gardant que la COURANTE.
+ * @param {Array} userRequests toutes les lignes du user (tous bonus confondus)
+ * @returns {Object} map bonusId -> réclamation courante
+ */
+function indexCurrentRequestsByBonus(userRequests) {
+  const byBonus = {};
+  for (const req of userRequests || []) {
+    if (req && req.bonusId && req.isCurrent) byBonus[req.bonusId] = req;
+  }
+  return byBonus;
+}
+
+/**
  * Dérive l'état de demande d'un user à partir de son bonus_request.
  * `status` est un tableau d'entrées {status, totalBonus, createdAt}.
  */
@@ -80,18 +108,26 @@ function computeExpiresAt(claimedAt, claimDuration) {
  * @param {Object} bonus                définition du bonus (mappée)
  * @param {Object} ctx
  * @param {Array}  ctx.orders           commandes du user
- * @param {Object} ctx.userRequestByBonus  map bonusId -> bonus_request du user
+ * @param {Object} ctx.userRequestByBonus  map bonusId -> réclamation COURANTE du user
+ * @param {Object} ctx.userRequestsByBonus  map bonusId -> TOUTES ses réclamations
+ *                                          (historique : alimente userClaimedCount)
  * @param {Object} ctx.fastFoodBonusCounts map fastFoodId -> nb de bonus du fastfood
  * @param {Object} ctx.totalClaimCounts    map bonusId -> nb total de réclamations (tous users)
  * @param {Date}   [ctx.now]
  */
 function enrichBonusForUser(bonus, ctx) {
-  const { orders = [], userRequestByBonus = {}, userRequests = [], fastFoodBonusCounts = {}, totalClaimCounts = {}, now = new Date() } = ctx || {};
+  const { orders = [], userRequestByBonus = {}, userRequestsByBonus = {}, userRequests = [], fastFoodBonusCounts = {}, totalClaimCounts = {}, now = new Date() } = ctx || {};
 
   const fastFoodId = bonus.fastFoodId ?? null;
 
   const request = userRequestByBonus[bonus.id];
   const requestState = deriveRequestState(request);
+
+  // Historique : une réclamation = une LIGNE (migration 029), courante ou non.
+  // Le nombre de fois que CE user a réclamé CE bonus se compte donc sur toutes
+  // ses lignes, pas sur les seules entrées `status` de la courante.
+  const allForBonus = userRequestsByBonus[bonus.id] || (request ? [request] : []);
+  const userClaimedCount = allForBonus.reduce((n, r) => n + deriveRequestState(r).userClaimedCount, 0);
 
   // Solde affiché = brut (commandes) − paliers consommés sur la fenêtre.
   // Pot commun : on déduit les réclamations de TOUS les bonus du user.
@@ -131,9 +167,13 @@ function enrichBonusForUser(bonus, ctx) {
     // ── Compteurs ──
     fastFoodBonusCount: fastFoodId ? fastFoodBonusCounts[fastFoodId] || 0 : 0,
     totalClaimedCount: totalClaimCounts[bonus.id] || 0,
-    userClaimedCount: requestState.userClaimedCount,
+    userClaimedCount,
 
     // ── État de la demande de CE user ──
+    // `requestId` : identifie la réclamation COURANTE. Indispensable au front
+    // pour cibler une ligne précise (livraison des credentials, historique) —
+    // depuis la migration 029 il en existe une par cycle.
+    requestId: cycleClosed ? null : (request?.id ?? null),
     // Un cycle terminé (épuisé/expiré) est remis à zéro : le user peut
     // re-réclamer dès que le palier est de nouveau atteint.
     requestStatus,
@@ -155,4 +195,4 @@ function enrichBonusForUser(bonus, ctx) {
   };
 }
 
-module.exports = { enrichBonusForUser, deriveRequestState, computeExpiresAt, CLAIMED_ENTRY_STATUSES };
+module.exports = { enrichBonusForUser, deriveRequestState, computeExpiresAt, pickCurrentRequest, indexCurrentRequestsByBonus, CLAIMED_ENTRY_STATUSES };
