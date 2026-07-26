@@ -9,6 +9,19 @@
 -- (NULL pour les colonnes nullables, DELETE pour les lignes qui n'ont aucun sens
 -- sans leur parent), puis pose la contrainte. Migration idempotente.
 --
+-- ⚠️ AVANT DE LANCER : exécuter `028_foreign_keys_PRECHECK.sql` (lecture seule).
+-- Il compte exactement ce que les DELETE ci-dessous supprimeront. Si tous les
+-- compteurs sont à 0, cette migration n'efface AUCUNE donnée — elle ne fait
+-- qu'ajouter des contraintes.
+--
+-- ⚠️ EFFET DURABLE : les ON DELETE CASCADE changent le comportement FUTUR.
+-- Supprimer un user effacera désormais en cascade ses commandes, transactions,
+-- réclamations bonus, notifications et candidatures livreur. C'est voulu (un
+-- compte supprimé ne doit pas laisser de données rattachées), mais c'est un
+-- comportement NOUVEAU : avant, ces lignes survivaient orphelines.
+-- Les tables purement comptables (platform_revenues, order_settlements.fastfood_id)
+-- sont volontairement en SET NULL pour ne jamais perdre un montant encaissé.
+--
 -- Choix des ON DELETE :
 --   CASCADE  → la ligne n'a aucun sens sans son parent (réclamation, candidature…)
 --   SET NULL → la ligne doit survivre : historique financier, ou référence
