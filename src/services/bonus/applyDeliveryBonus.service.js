@@ -19,8 +19,8 @@ const repos = require('../../repositories');
 const { normalizeBonusCode } = require('./bonusCode.util');
 const { checkDeliveryBonusUsable, buildDeliveryOffer, messageForReason } = require('./deliveryOffer');
 const { getArmedDeliveryOffers, pickOfferForFastFood } = require('./armBonus.service');
-
-const LOYALTY_TYPE = 'loyalty';
+const { getIO } = require('../../socket');
+const { reliableEmit } = require('../../utils/reliableEmit');
 
 /**
  * Détermine le bonus livraison applicable à une commande.
@@ -35,7 +35,7 @@ exports.resolveDeliveryBonus = async ({ userId, fastFoodId, bonusCode }) => {
   const code = normalizeBonusCode(bonusCode);
 
   if (code) {
-    const request = await repos.bonusRequests.findByCode(code, LOYALTY_TYPE);
+    const request = await repos.bonusRequests.findByCode(code);
     // Un code explicitement fourni et invalide est une ERREUR : le user croit
     // bénéficier de la gratuité, on ne peut pas l'ignorer silencieusement.
     if (!request) return { error: messageForReason('code_not_found'), reason: 'code_not_found' };
@@ -54,7 +54,7 @@ exports.resolveDeliveryBonus = async ({ userId, fastFoodId, bonusCode }) => {
   const offer = pickOfferForFastFood(offers, fastFoodId);
   if (!offer) return null;
 
-  const request = await repos.bonusRequests.findByUserBonus({ userId, bonusId: offer.bonusId, bonusType: LOYALTY_TYPE });
+  const request = await repos.bonusRequests.findByUserBonus({ userId, bonusId: offer.bonusId });
   const bonus = await repos.bonus.getById(offer.bonusId);
   if (!request || !bonus) return null;
 
@@ -74,18 +74,31 @@ exports.consumeDeliveryBonus = async ({ bonus, request, offer, orderId }) => {
     const usageCount = (request.usageCount || 0) + 1;
     const redeemed = usageLimit != null ? usageCount >= usageLimit : false;
 
-    // Désarmement systématique : l'armement vaut pour UNE commande. S'il reste
-    // des utilisations, le user ré-arme explicitement — sinon un bonus armé
-    // s'appliquerait à son insu à toutes ses commandes suivantes.
-    const fields = { usageCount, redeemed, armed: false };
+    // On ne désarme QUE si les utilisations sont épuisées. Tant qu'il en reste,
+    // le bonus armé le reste : c'est au user de le désarmer manuellement
+    // (front → armBonusService(..., false)).
+    const fields = { usageCount, redeemed, armed: !redeemed };
     if (orderId) fields.lastOrderId = orderId;
 
     await repos.bonusRequests.updateUsage(request.id, fields);
 
+    const remainingUses = usageLimit != null ? Math.max(0, usageLimit - usageCount) : null;
+
+    // Même event que le redeem manuel : une utilisation vient d'être consommée
+    // (ici par une commande delivery). On notifie tous les appareils du user.
+    try {
+      const data = { bonusId: request.bonusId, code: request.code ?? null, usageCount, usageLimit, remainingUses, redeemed };
+      console.log(`[consumeDeliveryBonus] émission 'bonus.redeemed' → room ${request.userId}`, data);
+      await reliableEmit(getIO(), request.userId, 'bonus.redeemed', { data });
+      console.log(`[consumeDeliveryBonus] 'bonus.redeemed' émis à ${request.userId}`);
+    } catch (err) {
+      console.error('consumeDeliveryBonus: émission socket échouée (non bloquant):', err.message);
+    }
+
     return {
       ...offer,
       usageCount,
-      remainingUses: usageLimit != null ? Math.max(0, usageLimit - usageCount) : null,
+      remainingUses,
       redeemed,
     };
   } catch (error) {

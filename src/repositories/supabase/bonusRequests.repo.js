@@ -72,9 +72,8 @@ async function countClaimsInApp(claimedStatuses) {
   return counts;
 }
 
-exports.findByUserBonus = async ({ userId, bonusId, bonusType }) => {
+exports.findByUserBonus = async ({ userId, bonusId }) => {
   let q = supabase.from(TABLE).select('*').eq('user_id', userId).eq('bonus_id', bonusId);
-  if (bonusType) q = q.eq('bonus_type', bonusType);
   const { data, error } = await q.limit(1).maybeSingle();
   if (error) throw error;
   return m.bonusRequest.fromSupabase(data);
@@ -83,10 +82,9 @@ exports.findByUserBonus = async ({ userId, bonusId, bonusType }) => {
 /**
  * Retrouve une réclamation par son code (unique par réclamation active).
  */
-exports.findByCode = async (code, bonusType) => {
+exports.findByCode = async code => {
   // Colonne indexée (unique) depuis la migration 014.
   let q = supabase.from(TABLE).select('*').eq('code', code);
-  if (bonusType) q = q.eq('bonus_type', bonusType);
   const { data, error } = await q.limit(1).maybeSingle();
   if (error) throw error;
   return m.bonusRequest.fromSupabase(data);

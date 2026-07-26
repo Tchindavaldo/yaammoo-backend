@@ -242,7 +242,6 @@ CREATE TABLE IF NOT EXISTS bonus_requests (
   id          TEXT PRIMARY KEY,
   user_id     TEXT NOT NULL,
   bonus_id    TEXT NOT NULL,
-  bonus_type  TEXT,
   status      JSONB DEFAULT '[]'::jsonb,
   code        TEXT,
   usage_count INTEGER DEFAULT 0,
@@ -258,7 +257,7 @@ CREATE TABLE IF NOT EXISTS bonus_requests (
 );
 
 CREATE INDEX IF NOT EXISTS idx_bonus_requests_lookup
-  ON bonus_requests(bonus_id, user_id, bonus_type);
+  ON bonus_requests(bonus_id, user_id);
 
 -- Recherche par code (redemption) : indexée + unique.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_bonus_requests_code

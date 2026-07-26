@@ -22,8 +22,6 @@ const { checkDeliveryBonusUsable, buildDeliveryOffer, messageForReason, matchesF
 const { getIO } = require('../../socket');
 const { reliableEmit } = require('../../utils/reliableEmit');
 
-const LOYALTY_TYPE = 'loyalty';
-
 /** Deux bonus se recouvrent si l'un est plateforme, ou s'ils visent la même boutique. */
 function overlaps(a, b) {
   if (!a || !b) return false;
@@ -44,7 +42,7 @@ exports.armBonusService = async (userId, bonusId, armed) => {
     const bonus = await repos.bonus.getById(bonusId);
     if (!bonus) return { success: false, status: 404, message: 'Bonus non trouvé.' };
 
-    const request = await repos.bonusRequests.findByUserBonus({ userId, bonusId, bonusType: LOYALTY_TYPE });
+    const request = await repos.bonusRequests.findByUserBonus({ userId, bonusId });
     if (!request) return { success: false, status: 404, message: "Ce bonus n'a pas été réclamé." };
 
     // Désarmer est toujours permis : un bonus expiré ou épuisé doit pouvoir être
