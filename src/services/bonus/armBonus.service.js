@@ -19,7 +19,6 @@
 // ============================================================================
 const repos = require('../../repositories');
 const { checkDeliveryBonusUsable, buildDeliveryOffer, messageForReason, matchesFastFood } = require('./deliveryOffer');
-const { indexCurrentRequestsByBonus } = require('./enrichBonusForUser');
 const { getIO } = require('../../socket');
 const { reliableEmit } = require('../../utils/reliableEmit');
 
@@ -117,10 +116,9 @@ exports.getArmedDeliveryOffers = async userId => {
   const empty = { byFastFood: {}, platform: null };
   if (!userId) return empty;
 
-  const allArmed = await repos.bonusRequests.getArmedByUser(userId);
-  // Un même bonus peut avoir plusieurs lignes (une par cycle, migration 029) :
-  // une ancienne restée `armed=true` ne doit pas concurrencer le cycle courant.
-  const armedRequests = Object.values(indexCurrentRequestsByBonus(allArmed)).filter(Boolean);
+  // `getArmedByUser` ne remonte que les lignes COURANTES : une ligne
+  // d'historique restée `armed = true` est déjà écartée côté repo.
+  const armedRequests = await repos.bonusRequests.getArmedByUser(userId);
   // [TEMP-LOG] à retirer
   console.log('[OFFERS] userId=%s armedRequests=%d ids=%j', userId, armedRequests.length, armedRequests.map(r => r.bonusId));
   if (armedRequests.length === 0) return empty;

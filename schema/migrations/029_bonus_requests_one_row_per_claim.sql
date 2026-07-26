@@ -1,27 +1,45 @@
 -- 029_bonus_requests_one_row_per_claim.sql
--- Une réclamation = une LIGNE (au lieu d'une entrée empilée dans `status`).
+-- Une réclamation = une LIGNE, désignée explicitement par `is_current`.
 --
 -- AVANT : une seule ligne par (user, bonus). Chaque nouvelle réclamation ajoutait
 -- une entrée au tableau `status` JSONB et ÉCRASAIT les colonnes du cycle (code,
--- usage_count, armed). L'historique n'était donc lisible qu'en dépliant du JSONB,
--- et les cycles précédents perdaient leur code.
+-- usage_count, armed). L'historique n'était lisible qu'en dépliant du JSONB, et
+-- le code d'un cycle était perdu au claim suivant.
 --
 -- APRÈS : chaque claim insère sa propre ligne, dont le `status` ne porte que sa
--- propre entrée. Les lectures par (user, bonus) prennent la PLUS RÉCENTE
--- (`created_at DESC`) — cf. `pickCurrentRequest` / `findByUserBonus`.
+-- propre entrée. Les cycles précédents restent consultables.
 --
--- Cette migration DÉPLIE les lignes existantes : une ligne à N entrées devient
--- N lignes à 1 entrée. La ligne d'origine conserve la DERNIÈRE entrée (elle porte
--- déjà le code et les compteurs du cycle courant) ; les entrées antérieures
--- partent dans de nouvelles lignes d'historique.
+-- ⚠️ POURQUOI UNE COLONNE ET PAS UN TRI PAR DATE
+-- Éclater en lignes rend chaque ligne porteuse de colonnes (code, armed,
+-- usage_count) : sans marqueur, chaque lecture devrait DEVINER laquelle décrit
+-- le présent (tri created_at DESC), et rien n'empêcherait deux lignes de se
+-- prétendre courantes. `is_current` + index unique partiel font garantir
+-- l'invariante « une seule ligne vivante par (user, bonus) » par la BASE, pas
+-- par la discipline du code — c'est plus solide que l'ancien modèle.
 --
--- ⚠️ Idempotente : ne traite que les lignes ayant encore plus d'une entrée.
+-- Idempotente.
 
--- Les lignes d'historique créées ici n'ont pas de code propre (il avait été
--- écrasé par les cycles suivants) : NULL, donc hors de l'index unique partiel.
-INSERT INTO bonus_requests (id, user_id, bonus_id, status, code, usage_count, redeemed, armed, extra_data, created_at, updated_at)
+-- ============================================================================
+-- 1. Colonne
+-- ============================================================================
+ALTER TABLE bonus_requests
+  ADD COLUMN IF NOT EXISTS is_current BOOLEAN NOT NULL DEFAULT TRUE;
+
+COMMENT ON COLUMN bonus_requests.is_current IS
+  'Réclamation courante de ce (user, bonus). Une seule ligne à TRUE — garanti par idx_bonus_requests_current. Les lignes à FALSE sont l''historique des cycles précédents.';
+
+-- ============================================================================
+-- 2. Dépliage des lignes existantes : N entrées -> N lignes
+-- ============================================================================
+-- La ligne d'origine garde la DERNIÈRE entrée (elle porte déjà le code et les
+-- compteurs du cycle courant) et reste `is_current`. Les entrées antérieures
+-- partent dans des lignes d'historique (is_current = FALSE).
+--
+-- Ces lignes n'ont pas de code propre — il avait été écrasé par les cycles
+-- suivants : NULL, donc hors de l'index unique partiel sur `code`.
+INSERT INTO bonus_requests (id, user_id, bonus_id, status, code, usage_count, redeemed, armed, is_current, extra_data, created_at, updated_at)
 SELECT
-  -- id déterministe : rejouer la migration ne duplique pas (ON CONFLICT DO NOTHING).
+  -- id déterministe : rejouer la migration ne duplique pas.
   br.id || '_h' || (entry.ord - 1)                       AS id,
   br.user_id,
   br.bonus_id,
@@ -30,26 +48,44 @@ SELECT
   0                                                       AS usage_count,
   TRUE                                                    AS redeemed,   -- cycle clos
   FALSE                                                   AS armed,
+  FALSE                                                   AS is_current, -- historique
   '{}'::jsonb                                             AS extra_data,
-  -- Date du cycle historique : celle de son entrée, à défaut celle de la ligne.
   COALESCE((entry.value ->> 'createdAt')::timestamptz, br.created_at) AS created_at,
   NOW()                                                   AS updated_at
 FROM bonus_requests br
 CROSS JOIN LATERAL jsonb_array_elements(br.status) WITH ORDINALITY AS entry(value, ord)
 WHERE jsonb_typeof(br.status) = 'array'
   AND jsonb_array_length(br.status) > 1
-  -- toutes SAUF la dernière : celle-ci reste portée par la ligne d'origine
-  AND entry.ord < jsonb_array_length(br.status)
+  AND entry.ord < jsonb_array_length(br.status)   -- toutes sauf la dernière
 ON CONFLICT (id) DO NOTHING;
 
--- La ligne d'origine ne garde que sa dernière entrée (le cycle courant, dont
--- elle porte déjà code / usage_count / armed).
+-- La ligne d'origine ne garde que sa dernière entrée.
 UPDATE bonus_requests
    SET status     = jsonb_build_array(status -> (jsonb_array_length(status) - 1)),
        updated_at = NOW()
  WHERE jsonb_typeof(status) = 'array'
    AND jsonb_array_length(status) > 1;
 
--- Lecture par (user, bonus) : on trie systématiquement par created_at DESC.
-CREATE INDEX IF NOT EXISTS idx_bonus_requests_user_bonus_recent
-  ON bonus_requests(user_id, bonus_id, created_at DESC);
+-- ============================================================================
+-- 3. Filet de sécurité avant l'index unique
+-- ============================================================================
+-- Si un (user, bonus) avait plusieurs lignes courantes (données antérieures
+-- incohérentes), on ne garde que la plus récente — sinon la création de l'index
+-- échoue.
+UPDATE bonus_requests br
+   SET is_current = FALSE,
+       updated_at = NOW()
+ WHERE br.is_current
+   AND EXISTS (
+     SELECT 1 FROM bonus_requests other
+      WHERE other.user_id = br.user_id
+        AND other.bonus_id = br.bonus_id
+        AND other.is_current
+        AND (other.created_at, other.id) > (br.created_at, br.id)
+   );
+
+-- ============================================================================
+-- 4. L'invariante, garantie par la base
+-- ============================================================================
+CREATE UNIQUE INDEX IF NOT EXISTS idx_bonus_requests_current
+  ON bonus_requests(user_id, bonus_id) WHERE is_current;

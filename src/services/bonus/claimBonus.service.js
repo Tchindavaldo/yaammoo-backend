@@ -55,9 +55,9 @@ exports.claimBonusService = async (userId, bonusId) => {
     // Toutes les réclamations du user : le décrément est un POT COMMUN partagé
     // entre tous les bonus (plateforme et fastfood confondus).
     const userRequests = await repos.bonusRequests.getByUser(userId);
-    // Réclamation COURANTE de ce bonus = la plus récente. Les précédentes sont
-    // l'historique (une ligne par cycle depuis la migration 029) et ne servent
-    // qu'à l'anti-doublon / au pot commun.
+    // Réclamation COURANTE de ce bonus (`isCurrent`). Les autres lignes sont
+    // l'historique des cycles précédents : elles ne comptent que pour le pot
+    // commun et `userClaimedCount`.
     const existing = pickCurrentRequest(userRequests.filter(r => r.bonusId === bonusId));
 
     // Anti-doublon : une réclamation reste active tant qu'elle n'est ni
@@ -121,9 +121,9 @@ exports.claimBonusService = async (userId, bonusId) => {
     // que le bonus s'applique à sa prochaine commande.
     const usageFields = { code, usageCount: 0, redeemed: false, armed: false };
 
-    // TOUJOURS une nouvelle ligne : un cycle terminé (épuisé/expiré) reste en
-    // base comme historique consultable, au lieu d'être écrasé.
-    const saved = await repos.bonusRequests.create({
+    // TOUJOURS une nouvelle ligne : `createCurrent` démote le cycle précédent
+    // (il devient de l'historique consultable) avant d'insérer celle-ci.
+    const saved = await repos.bonusRequests.createCurrent({
       userId,
       bonusId,
       status: statusArray,

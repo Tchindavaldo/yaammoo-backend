@@ -73,12 +73,12 @@ async function countClaimsInApp(claimedStatuses) {
 }
 
 /**
- * Réclamation COURANTE d'un user pour un bonus = la plus récente.
+ * Réclamation COURANTE d'un user pour un bonus.
  *
  * ⚠️ Depuis la migration 029, chaque réclamation est une LIGNE distincte : un
- * même (user, bonus) peut en avoir plusieurs (cycles successifs). Toute lecture
- * par (userId, bonusId) doit donc trier — sans quoi Postgres renvoie un ordre
- * arbitraire et l'état affiché saute d'un cycle à l'autre.
+ * même (user, bonus) peut en avoir plusieurs (cycles successifs). La courante
+ * est désignée par `is_current`, avec un index unique partiel qui garantit
+ * qu'il n'y en a jamais deux — inutile de trier ou de deviner.
  */
 exports.findByUserBonus = async ({ userId, bonusId }) => {
   const { data, error } = await supabase
@@ -86,19 +86,37 @@ exports.findByUserBonus = async ({ userId, bonusId }) => {
     .select('*')
     .eq('user_id', userId)
     .eq('bonus_id', bonusId)
-    .order('created_at', { ascending: false })
-    .limit(1)
+    .eq('is_current', true)
     .maybeSingle();
   if (error) throw error;
   return m.bonusRequest.fromSupabase(data);
 };
 
 /**
+ * Ouvre un nouveau cycle : démote la réclamation courante de ce (user, bonus)
+ * puis insère la nouvelle. L'ancienne devient de l'historique consultable.
+ *
+ * ⚠️ La démotion précède l'insertion : l'index unique partiel
+ * `idx_bonus_requests_current` interdit deux lignes courantes, donc l'ordre
+ * inverse échouerait. Si l'insert échoue après la démotion, le (user, bonus)
+ * se retrouve sans ligne courante — état équivalent à « jamais réclamé »,
+ * récupérable par un nouveau claim (aucune donnée perdue : l'historique reste).
+ */
+exports.createCurrent = async data => {
+  await supabase.from(TABLE).update({ is_current: false, updated_at: new Date().toISOString() }).eq('user_id', data.userId).eq('bonus_id', data.bonusId).eq('is_current', true);
+
+  return exports.create({ ...data, isCurrent: true });
+};
+
+/**
  * Retrouve une réclamation par son code (unique par réclamation active).
+ *
+ * Restreint aux lignes COURANTES : un code de cycle clos ne doit plus rien
+ * ouvrir, même s'il traîne encore dans l'historique.
  */
 exports.findByCode = async code => {
   // Colonne indexée (unique) depuis la migration 014.
-  let q = supabase.from(TABLE).select('*').eq('code', code);
+  let q = supabase.from(TABLE).select('*').eq('code', code).eq('is_current', true);
   const { data, error } = await q.limit(1).maybeSingle();
   if (error) throw error;
   return m.bonusRequest.fromSupabase(data);
@@ -119,13 +137,15 @@ exports.codeExists = async code => {
  * Lues à chaque affichage du home pour savoir où la livraison est offerte.
  */
 exports.getArmedByUser = async userId => {
-  const { data, error } = await supabase.from(TABLE).select('*').eq('user_id', userId).eq('armed', true);
+  // `is_current` : un cycle clos ne doit jamais offrir une livraison, même si
+  // sa ligne d'historique a gardé `armed = true`.
+  const { data, error } = await supabase.from(TABLE).select('*').eq('user_id', userId).eq('armed', true).eq('is_current', true);
   if (error) throw error;
   return (data || []).map(m.bonusRequest.fromSupabase);
 };
 
 // Champs du cycle d'utilisation promus en colonnes réelles (migrations 014/018).
-const USAGE_COLUMNS = { code: 'code', usageCount: 'usage_count', redeemed: 'redeemed', armed: 'armed' };
+const USAGE_COLUMNS = { code: 'code', usageCount: 'usage_count', redeemed: 'redeemed', armed: 'armed', isCurrent: 'is_current' };
 
 /**
  * Met à jour le cycle d'utilisation d'une réclamation (code, usageCount,

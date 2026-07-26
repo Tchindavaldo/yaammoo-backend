@@ -17,21 +17,15 @@ const CLAIMED_ENTRY_STATUSES = CLAIMED_STATUSES;
  * Réclamation COURANTE parmi plusieurs lignes d'un même (user, bonus).
  *
  * Depuis la migration 029, chaque réclamation est une ligne distincte : les
- * cycles précédents restent en base comme historique. L'état affiché au user
- * (code, usageCount, armed, credentials) est TOUJOURS celui de la plus récente.
+ * cycles précédents restent en base comme historique. La courante est marquée
+ * `isCurrent` — un index unique partiel garantit qu'il n'y en a jamais deux,
+ * donc pas de tri ni d'arbitrage à faire ici.
  *
  * @param {Array} requests réclamations d'un même bonus
  * @returns {Object|null}
  */
 function pickCurrentRequest(requests) {
-  const list = (requests || []).filter(Boolean);
-  if (list.length === 0) return null;
-
-  return list.reduce((acc, r) => {
-    const t = new Date(r.createdAt || 0).getTime();
-    const accT = new Date(acc.createdAt || 0).getTime();
-    return t > accT ? r : acc;
-  });
+  return (requests || []).find(r => r && r.isCurrent) || null;
 }
 
 /**
@@ -42,11 +36,7 @@ function pickCurrentRequest(requests) {
 function indexCurrentRequestsByBonus(userRequests) {
   const byBonus = {};
   for (const req of userRequests || []) {
-    if (!req || !req.bonusId) continue;
-    (byBonus[req.bonusId] ||= []).push(req);
-  }
-  for (const bonusId of Object.keys(byBonus)) {
-    byBonus[bonusId] = pickCurrentRequest(byBonus[bonusId]);
+    if (req && req.bonusId && req.isCurrent) byBonus[req.bonusId] = req;
   }
   return byBonus;
 }
@@ -133,9 +123,9 @@ function enrichBonusForUser(bonus, ctx) {
   const request = userRequestByBonus[bonus.id];
   const requestState = deriveRequestState(request);
 
-  // Historique : une réclamation = une LIGNE (migration 029). Le nombre de fois
-  // que CE user a réclamé CE bonus se compte donc sur toutes ses lignes, pas
-  // sur les seules entrées `status` de la ligne courante.
+  // Historique : une réclamation = une LIGNE (migration 029), courante ou non.
+  // Le nombre de fois que CE user a réclamé CE bonus se compte donc sur toutes
+  // ses lignes, pas sur les seules entrées `status` de la courante.
   const allForBonus = userRequestsByBonus[bonus.id] || (request ? [request] : []);
   const userClaimedCount = allForBonus.reduce((n, r) => n + deriveRequestState(r).userClaimedCount, 0);
 

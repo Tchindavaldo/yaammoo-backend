@@ -35,10 +35,15 @@ sur une fenêtre glissante (jour / semaine / mois), ou d'office (`welcome`).
 > couple (user, bonus) peut donc en avoir plusieurs : chaque claim ouvre un
 > nouveau cycle sans écraser le précédent, qui reste consultable en base.
 >
-> La réclamation **courante** est la **plus récente** (`created_at DESC`) — c'est
-> elle qui porte le `code`, `usage_count` et `armed` affichés au user. Toute
-> lecture par (userId, bonusId) DOIT trier : `findByUserBonus` côté repo,
-> `pickCurrentRequest` / `indexCurrentRequestsByBonus` côté service.
+> La réclamation **courante** est marquée **`is_current`** — c'est elle qui porte
+> le `code`, `usage_count` et `armed` affichés au user. Un **index unique partiel**
+> (`idx_bonus_requests_current`) garantit qu'il n'y en a jamais deux : les lectures
+> filtrent (`findByUserBonus`, `getArmedByUser`, `findByCode` côté repo ;
+> `pickCurrentRequest` / `indexCurrentRequestsByBonus` côté service) sans jamais
+> avoir à trier ni à arbitrer.
+>
+> Le claim passe par `createCurrent` : il **démote** le cycle précédent
+> (`is_current = false`) avant d'insérer le nouveau.
 >
 > Le tableau `status` d'une ligne ne contient plus qu'**une seule entrée** : la
 > sienne. L'historique se lit en listant les lignes, plus en dépliant du JSONB.
