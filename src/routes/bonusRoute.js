@@ -8,6 +8,8 @@ const { patchBonusController } = require('../controllers/bonus/patchBonus.contro
 const { rewardCredentialsBonusController } = require('../controllers/bonus/rewardCredentialsBonus.controller');
 const { armBonusController, disarmBonusController } = require('../controllers/bonus/armBonus.controller');
 const { verifyBonusCodeController } = require('../controllers/bonus/verifyBonusCode.controller');
+const { downloadFlyerController } = require('../controllers/bonus/downloadFlyer.controller');
+const upload = require('../config/multer');
 
 const route = express.Router();
 
@@ -52,16 +54,19 @@ const route = express.Router();
  *               criteria:
  *                 type: object
  *                 description: >
- *                   `target` et `period` sont requis pour `order_count` et
- *                   `amount_spent`, et interdits pour `welcome`.
+ *                   `period` est toujours requis. `target` est requis pour
+ *                   `order_count` et `amount_spent`, et doit être null/absent
+ *                   pour `status_view` (bonus sans palier de commandes).
  *                 required:
  *                   - kind
+ *                   - period
  *                 properties:
  *                   kind:
  *                     type: string
- *                     enum: [welcome, order_count, amount_spent]
+ *                     enum: [order_count, amount_spent, status_view]
  *                   target:
  *                     type: number
+ *                     nullable: true
  *                     example: 50000
  *                   period:
  *                     type: string
@@ -158,7 +163,7 @@ route.post('', firebaseAuth, postBonusController);
  *                       criteria:
  *                         type: object
  *                         properties:
- *                           kind: { type: string, enum: [welcome, order_count, amount_spent] }
+ *                           kind: { type: string, enum: [order_count, amount_spent, status_view] }
  *                           target: { type: number }
  *                           period: { type: string, enum: [day, week, month] }
  *                       fastFoodId: { type: string, nullable: true }
@@ -215,7 +220,7 @@ route.get('/all', firebaseAuth, getBonusController);
  *     description: >
  *       Réclamation auto-approuvée : le backend vérifie que le palier
  *       (`criteria.target` sur `criteria.period`) est atteint via les commandes
- *       du user (ou `welcome` = toujours éligible), puis enregistre une
+ *       du user (ou `status_view` = toujours éligible, sans palier), puis enregistre une
  *       réclamation `approved`. Une seule réclamation active par bonus.
  *     tags:
  *       - Bonus
@@ -228,6 +233,20 @@ route.get('/all', firebaseAuth, getBonusController);
  *         schema:
  *           type: string
  *         description: Id du bonus à réclamer
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               proofVideo:
+ *                 type: string
+ *                 format: binary
+ *                 description: >
+ *                   Vidéo attestant la publication du flyer en statut WhatsApp.
+ *                   **Requise** pour un bonus `criteria.kind = status_view`,
+ *                   inutile pour les autres.
  *     responses:
  *       201:
  *         description: Bonus réclamé
@@ -246,7 +265,9 @@ route.get('/all', firebaseAuth, getBonusController);
  *                     claimedAt: { type: string, format: date-time, nullable: true }
  *                     userClaimedCount: { type: number }
  *       400:
- *         description: Bonus inactif ou palier non atteint
+ *         description: >
+ *           Bonus inactif, palier non atteint, ou — pour `status_view` — flyer
+ *           non téléchargé, délai `claimDelayHours` non écoulé, ou vidéo absente.
  *       401:
  *         description: Token manquant ou invalide
  *       404:
@@ -254,7 +275,59 @@ route.get('/all', firebaseAuth, getBonusController);
  *       409:
  *         description: Réclamation déjà active pour ce bonus
  */
-route.post('/:id/claim', firebaseAuth, claimBonusController);
+// `upload.single` accepte aussi bien un claim JSON vide (aucun fichier) qu'un
+// claim multipart portant la preuve vidéo.
+route.post('/:id/claim', firebaseAuth, upload.single('proofVideo'), claimBonusController);
+
+/**
+ * @swagger
+ * /bonus/{id}/flyer:
+ *   get:
+ *     summary: Télécharger le flyer d'un bonus et démarrer le délai d'attente
+ *     description: >
+ *       Renvoie `flyerUrl` et **horodate** le téléchargement : le claim d'un bonus
+ *       `status_view` n'est accepté qu'après `claimDelayHours` heures (le temps que
+ *       le statut WhatsApp reste publié). `downloadedAt` est figé au premier
+ *       téléchargement — re-télécharger ne relance pas le compte à rebours.
+ *       Émet le socket `bonus.flyer_downloaded` sur la room du user.
+ *     tags:
+ *       - Bonus
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Flyer téléchargé
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: boolean }
+ *                 message: { type: string }
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     bonusId: { type: string }
+ *                     flyerUrl: { type: string }
+ *                     downloadedAt: { type: string, format: date-time }
+ *                     lastDownloadedAt: { type: string, format: date-time }
+ *                     downloadCount: { type: number }
+ *                     claimDelayHours: { type: number }
+ *                     claimableAt: { type: string, format: date-time }
+ *       400:
+ *         description: Bonus inactif
+ *       401:
+ *         description: Token manquant ou invalide
+ *       404:
+ *         description: Bonus non trouvé ou sans flyer
+ */
+route.get('/:id/flyer', firebaseAuth, downloadFlyerController);
 
 /**
  * @swagger
@@ -292,7 +365,7 @@ route.post('/:id/claim', firebaseAuth, claimBonusController);
  *               criteria:
  *                 type: object
  *                 properties:
- *                   kind: { type: string, enum: [welcome, order_count, amount_spent] }
+ *                   kind: { type: string, enum: [order_count, amount_spent, status_view] }
  *                   target: { type: number }
  *                   period: { type: string, enum: [day, week, month] }
  *               fastFoodId: { type: string, nullable: true }

@@ -370,7 +370,7 @@ const withdrawalFromSupabase = row => {
 // Colonnes réelles depuis la migration 014 (avant : tout en `data` JSONB).
 // `criteria` reste JSONB : sous-objet {kind, target, period} lu d'un bloc.
 const bonusToSupabase = data => {
-  const { id, createdAt, type, name, description, criteria, fastFoodId, fastFoodName, active, requiresRewardCredentials, requiresProfile, claimDuration, usageLimit, createdBy, ...rest } = data;
+  const { id, createdAt, type, name, description, criteria, fastFoodId, fastFoodName, active, requiresRewardCredentials, requiresProfile, claimDuration, claimDelayHours, flyerUrl, usageLimit, createdBy, ...rest } = data;
 
   return {
     id,
@@ -384,6 +384,10 @@ const bonusToSupabase = data => {
     requires_reward_credentials: requiresRewardCredentials ?? false,
     requires_profile: requiresProfile ?? false,
     claim_duration: claimDuration ?? null,
+    // Délai d'attente avant claim (heures) : 0 = instantané pour tous les bonus
+    // sans preuve à constituer (migration 031).
+    claim_delay_hours: claimDelayHours ?? 0,
+    flyer_url: flyerUrl ?? null,
     usage_limit: usageLimit ?? null,
     created_by: createdBy ?? null,
     extra_data: rest,
@@ -405,6 +409,8 @@ const bonusFromSupabase = row => {
     requiresRewardCredentials: row.requires_reward_credentials ?? false,
     requiresProfile: row.requires_profile ?? false,
     claimDuration: row.claim_duration,
+    claimDelayHours: row.claim_delay_hours ?? 0,
+    flyerUrl: row.flyer_url ?? null,
     usageLimit: row.usage_limit,
     createdBy: row.created_by,
     createdAt: row.created_at,

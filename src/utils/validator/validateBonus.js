@@ -1,4 +1,4 @@
-const { bonusFields, criteriaKinds, criteriaPeriods } = require('../../interface/bonusFields');
+const { bonusFields, criteriaKinds, criteriaPeriods, targetlessCriteriaKinds } = require('../../interface/bonusFields');
 
 /**
  * Valide `criteria` : le cœur du modèle (c'est lui qui pilote l'éligibilité et
@@ -21,7 +21,22 @@ function validateCriteria(criteria, errors) {
     return; // sans kind valide, inutile de valider target/period
   }
 
-  // Palier + fenêtre toujours obligatoires.
+  // Kinds sans palier chiffré (status_view) : `target` doit rester vide — accepter
+  // un nombre laisserait croire à un palier que rien ne mesure.
+  if (targetlessCriteriaKinds.includes(kind)) {
+    if (target != null && target !== '') {
+      errors.push({ field: 'criteria.target', message: `"criteria.target" doit être null ou absent pour kind=${kind}` });
+    }
+    if (!period || !criteriaPeriods.includes(period)) {
+      errors.push({
+        field: 'criteria.period',
+        message: `"criteria.period" est requis pour kind=${kind} et doit être l'un de [${criteriaPeriods.join(', ')}]`,
+      });
+    }
+    return;
+  }
+
+  // Palier + fenêtre obligatoires pour les kinds chiffrés.
   if (typeof target !== 'number' || Number.isNaN(target)) {
     errors.push({ field: 'criteria.target', message: `"criteria.target" est requis (nombre) pour kind=${kind}` });
   } else if (target <= 0) {
@@ -86,8 +101,13 @@ exports.validateBonus = (data, { partial = false } = {}) => {
       errors.push({ field, message: `"${field}" ne doit pas être vide` });
     }
 
-    if (rules.type === 'number' && value <= 0) {
-      errors.push({ field, message: `"${field}" doit être supérieur à 0` });
+    // `allowZero` : un délai de 0 h est légitime (claim instantané), contrairement
+    // à une durée de validité ou une limite d'usage nulles.
+    if (rules.type === 'number' && (rules.allowZero ? value < 0 : value <= 0)) {
+      errors.push({
+        field,
+        message: rules.allowZero ? `"${field}" ne peut pas être négatif` : `"${field}" doit être supérieur à 0`,
+      });
     }
   }
 
@@ -99,6 +119,13 @@ exports.validateBonus = (data, { partial = false } = {}) => {
   }
 
   if ('criteria' in data) validateCriteria(data.criteria, errors);
+
+  // Un bonus `status_view` sans flyer n'a rien à faire poster : il serait
+  // inréclamable (GET /bonus/:id/flyer renverrait 404 et le claim resterait bloqué).
+  // En PATCH, le flyer peut déjà être en base : on n'exige que si le criteria change.
+  if (targetlessCriteriaKinds.includes(data.criteria?.kind) && !partial && !data.flyerUrl) {
+    errors.push({ field: 'flyerUrl', message: `"flyerUrl" est requis pour kind=${data.criteria.kind}` });
+  }
 
   // `fastFoodName` est TOUJOURS résolu côté backend depuis la boutique (le nom
   // envoyé par un client pourrait ne pas correspondre au fastFoodId).

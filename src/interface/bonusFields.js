@@ -26,6 +26,14 @@ exports.bonusFields = {
   // PATCH /bonus/:id sans redéploiement.
   requiresProfile: { type: 'bool', required: false },
   claimDuration: { type: 'number', required: true },
+  // Heures à attendre entre le téléchargement du flyer et le claim (migration 031).
+  // 0 (défaut) = claim instantané, cas de tous les bonus sans preuve à constituer.
+  // Porté par le bonus et non par une env : modifiable à chaud via PATCH /bonus/:id,
+  // sans redéploiement.
+  claimDelayHours: { type: 'number', required: false, allowZero: true },
+  // Flyer à poster (image/vidéo) servi par GET /bonus/:id/flyer. Requis pour un
+  // bonus `status_view` : sans lui le user n'a rien à publier.
+  flyerUrl: { type: 'string', required: false },
   usageLimit: { type: 'number', required: true },
   createdAt: { type: 'string', required: false },
   // Renseigné par le backend (uid du créateur), jamais envoyé par le client.
@@ -33,6 +41,13 @@ exports.bonusFields = {
 };
 
 // Sous-champs de `criteria`
-// Tout bonus a un palier : `target` + `period` sont toujours requis.
-exports.criteriaKinds = ['order_count', 'amount_spent'];
+// `order_count` / `amount_spent` : palier chiffré → `target` + `period` requis.
+// `status_view` : aucun palier de commandes — le bonus s'obtient par une action
+// externe (poster le flyer Yaammoo en statut WhatsApp), vérifiée manuellement par
+// un admin à la livraison des identifiants. `target` doit être absent ou null ;
+// `period` reste requis (fenêtre de re-réclamation, ex. `day`).
+exports.criteriaKinds = ['order_count', 'amount_spent', 'status_view'];
 exports.criteriaPeriods = ['day', 'week', 'month'];
+
+// Kinds sans palier chiffré : éligibilité immédiate, rien à consommer.
+exports.targetlessCriteriaKinds = ['status_view'];

@@ -10,6 +10,8 @@
 // ne calcule que la progression brute lue au GET.
 // ============================================================================
 
+const { targetlessCriteriaKinds } = require('../../interface/bonusFields');
+
 // Statuts de commande EXCLUS du calcul (commande annulée = ne compte pas).
 // Cohérent avec les statuts utilisés dans le domaine `order`.
 const EXCLUDED_STATUSES = ['cancelByUser', 'cancelByFastFood'];
@@ -287,6 +289,15 @@ function isBonusEligible(bonus, orders, requests = null, now = new Date()) {
   const kind = criteria.kind;
   const period = criteria.period || 'month';
   const target = Number(criteria.target) || 0;
+
+  // Kinds sans palier (status_view) : aucune commande n'est requise. Le droit au
+  // bonus vient d'une action externe (flyer posté en statut WhatsApp) vérifiée
+  // manuellement par l'admin avant la livraison des identifiants — le claim
+  // ouvre juste la demande.
+  if (targetlessCriteriaKinds.includes(kind)) {
+    return { eligible: true, metric: 0, target: null, kind };
+  }
+
   const raw = computeBonusStats(orders, { fastFoodId: bonus.fastFoodId ?? null, now });
   const stats = applyConsumption(raw, bonus, requests, orders, now);
   const window = stats[period] || { count: 0, amount: 0 };

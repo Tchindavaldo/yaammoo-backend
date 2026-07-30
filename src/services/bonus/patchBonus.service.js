@@ -14,6 +14,7 @@
 // ============================================================================
 const repos = require('../../repositories');
 const { validateBonus } = require('../../utils/validator/validateBonus');
+const { broadcastBonusActivation } = require('./broadcastBonusActivation');
 
 /**
  * @param {string} bonusId
@@ -70,5 +71,13 @@ exports.patchBonusService = async (bonusId, data, viewerUid) => {
   }
 
   const updated = await repos.bonus.update(bonusId, fields);
+
+  // Bascule active/inactive : tous les clients doivent le savoir (socket + push).
+  // On ne diffuse que sur un CHANGEMENT réel, pour ne pas notifier un PATCH qui
+  // renvoie la même valeur.
+  if ('active' in fields && !!fields.active !== !!bonus.active) {
+    await broadcastBonusActivation(updated, !!fields.active);
+  }
+
   return { success: true, status: 200, message: 'Bonus mis à jour avec succès.', data: updated };
 };

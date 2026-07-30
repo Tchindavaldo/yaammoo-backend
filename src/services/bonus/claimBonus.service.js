@@ -14,7 +14,36 @@ const { emitBonusStats } = require('./emitBonusStats');
 const { deriveRequestState, computeExpiresAt, pickCurrentRequest } = require('./enrichBonusForUser');
 const { generateUniqueBonusCode } = require('./bonusCode.util');
 const { postNotificationService } = require('../notification/request/postNotification.service');
+const { uploadFileToSupabase } = require('../storage/uploadFile.service');
+const { targetlessCriteriaKinds } = require('../../interface/bonusFields');
 const { getIO } = require('../../socket');
+
+/**
+ * Garde des bonus à preuve (`status_view`) : le user doit avoir téléchargé le
+ * flyer, l'avoir posté, et laissé s'écouler `claimDelayHours` heures — sinon la
+ * preuve ne vaut rien (un statut publié 2 minutes n'a été vu de personne).
+ * @returns {Promise<{blocked:boolean, message?:string}>}
+ */
+async function checkProofDelay(userId, bonus) {
+  const download = await repos.bonusFlyerDownloads.getByUserAndBonus(userId, bonus.id);
+  if (!download) {
+    return { blocked: true, message: "Vous devez d'abord télécharger le flyer à poster." };
+  }
+
+  const delayHours = Number(bonus.claimDelayHours) || 0;
+  if (delayHours <= 0) return { blocked: false };
+
+  const claimableAt = new Date(new Date(download.downloadedAt).getTime() + delayHours * 3600 * 1000);
+  if (new Date() < claimableAt) {
+    const remaining = Math.ceil((claimableAt - new Date()) / 3600000);
+    return {
+      blocked: true,
+      message: `Le flyer doit rester posté ${delayHours}h. Réclamation possible dans ${remaining}h.`,
+      claimableAt: claimableAt.toISOString(),
+    };
+  }
+  return { blocked: false };
+}
 
 // Le message diffère selon l'issue : un bonus à livraison manuelle n'est pas
 // encore utilisable, promettre le contraire serait trompeur.
@@ -41,9 +70,12 @@ async function notifyUser(userId, pending) {
 /**
  * @param {string} userId   uid du user courant (token Firebase)
  * @param {string} bonusId  id du bonus à réclamer
+ * @param {Object} [opts]
+ * @param {Object} [opts.proofVideo] fichier multer : vidéo attestant que le flyer
+ *                                   a été posté (bonus `status_view` uniquement)
  * @returns {Promise<{success:boolean, status?:number, message:string, data?:object}>}
  */
-exports.claimBonusService = async (userId, bonusId) => {
+exports.claimBonusService = async (userId, bonusId, { proofVideo = null } = {}) => {
   try {
     if (!userId) return { success: false, status: 401, message: 'Utilisateur non authentifié.' };
     if (!bonusId) return { success: false, status: 400, message: 'bonusId requis.' };
@@ -67,6 +99,22 @@ exports.claimBonusService = async (userId, bonusId) => {
     const stillValid = !currentExpiresAt || new Date(currentExpiresAt) >= new Date();
     if (state.requestStatus === 'pending' || (state.requestStatus === 'approved' && !state.redeemed && stillValid)) {
       return { success: false, status: 409, message: 'Vous avez déjà une réclamation active pour ce bonus.' };
+    }
+
+    // Bonus à preuve (`status_view`) : pas de palier de commandes, mais une vidéo
+    // obligatoire + le délai d'affichage du statut. On contrôle AVANT d'uploader
+    // quoi que ce soit, pour ne pas stocker un fichier d'un claim qui sera refusé.
+    const needsProof = targetlessCriteriaKinds.includes(bonus.criteria?.kind);
+    let proofVideoUrl = null;
+    if (needsProof) {
+      const delay = await checkProofDelay(userId, bonus);
+      if (delay.blocked) {
+        return { success: false, status: 400, message: delay.message, data: delay.claimableAt ? { claimableAt: delay.claimableAt } : undefined };
+      }
+      if (!proofVideo) {
+        return { success: false, status: 400, message: 'La vidéo attestant la publication du statut est requise.' };
+      }
+      proofVideoUrl = await uploadFileToSupabase(proofVideo, 'bonusProofs');
     }
 
     // Éligibilité sur le solde DÉCRÉMENTÉ (source de vérité backend) : un palier
@@ -106,6 +154,9 @@ exports.claimBonusService = async (userId, bonusId) => {
       consumedCount,
       consumedAmount,
       consumedOrderIds,
+      // Preuve du bonus `status_view` : l'admin la visionne avant de livrer les
+      // identifiants. Elle reste attachée à SON cycle de réclamation.
+      ...(proofVideoUrl ? { proofVideoUrl } : {}),
       createdAt: now,
     };
     // Chaque réclamation ouvre sa PROPRE ligne : son tableau `status` ne porte
@@ -130,6 +181,16 @@ exports.claimBonusService = async (userId, bonusId) => {
       ...usageFields,
     });
 
+    // Le téléchargement a été « consommé » par ce claim : le prochain cycle
+    // exigera un nouveau flyer téléchargé, donc un nouveau statut posté.
+    if (needsProof) {
+      try {
+        await repos.bonusFlyerDownloads.clear(userId, bonusId);
+      } catch (err) {
+        console.error('claimBonus: purge du téléchargement échouée (non bloquant):', err.message);
+      }
+    }
+
     const finalState = deriveRequestState(saved);
     const expiresAt = computeExpiresAt(finalState.startsAt, bonus.claimDuration);
 
@@ -149,6 +210,7 @@ exports.claimBonusService = async (userId, bonusId) => {
       claimedAt: finalState.claimedAt,
       startsAt: finalState.startsAt,
       expiresAt,
+      proofVideoUrl,
     };
 
     // Room nommée par l'uid, sans préfixe (cf. CLAUDE.md / socket.js).

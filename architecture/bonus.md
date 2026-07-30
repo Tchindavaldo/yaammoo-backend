@@ -5,7 +5,8 @@
 Système de récompenses par **paliers** : un fastfood (ou la plateforme Yaammoo)
 propose des bonus (Netflix offert, livraison gratuite, repas offert, réduction…)
 débloqués quand le user atteint un quota — nombre de commandes OU montant dépensé —
-sur une fenêtre glissante (jour / semaine / mois), ou d'office (`welcome`).
+sur une fenêtre glissante (jour / semaine / mois), ou via une **action externe**
+(`status_view` : poster le flyer Yaammoo en statut WhatsApp).
 
 > ⚠️ Doc réécrite pour le nouveau modèle. L'ancien système (codes promo
 > `SUMMER2025`, `percentage/fixed`, parrainage) est obsolète.
@@ -16,13 +17,14 @@ sur une fenêtre glissante (jour / semaine / mois), ou d'office (`welcome`).
 
 | Méthode | Endpoint | Contrôleur | Protégé | Rôle |
 |---------|----------|-----------|---------|------|
-| POST | `/bonus` | `postBonusController` | **Oui** (`firebaseAuth`) | Crée un bonus (définition seule, **validée**, marchand propriétaire ou admin) |
+| POST | `/bonus` | `postBonusController` | **Oui** (`firebaseAuth`) | Crée un bonus (définition seule, **validée**, marchand propriétaire ou admin). Émet `bonus.created` (broadcast global, **sans payload**) |
 | GET | `/bonus/all` | `getBonusController` | **Oui** (`firebaseAuth`) | Liste les bonus **enrichis pour le user courant** |
-| POST | `/bonus/:id/claim` | `claimBonusController` | **Oui** (`firebaseAuth`) | **Réclame** un bonus (auto-approuvé, palier vérifié backend) → renvoie un **code** |
+| POST | `/bonus/:id/claim` | `claimBonusController` | **Oui** (`firebaseAuth`) | **Réclame** un bonus (auto-approuvé, palier vérifié backend) → renvoie un **code**. **Multipart** (`proofVideo`) pour un bonus `status_view` |
+| GET | `/bonus/:id/flyer` | `downloadFlyerController` | **Oui** (`firebaseAuth`) | Renvoie le **flyer** à poster et **démarre le délai** avant claim (`claimDelayHours`) |
 | POST | `/bonus/:id/arm` | `armBonusController` | **Oui** (`firebaseAuth`) | **Arme** un bonus livraison pour la prochaine commande éligible — ne consomme rien |
 | DELETE | `/bonus/:id/arm` | `disarmBonusController` | **Oui** (`firebaseAuth`) | Désarme |
 | POST | `/bonus/verify` | `verifyBonusCodeController` | Non | **Vérifie** un code (lecture seule, aucune écriture) |
-| PATCH | `/bonus/:id` | `patchBonusController` | **Oui** (`firebaseAuth`) | Modifie un bonus (champs de définition, `active`, `requiresProfile`…) — marchand propriétaire ou admin |
+| PATCH | `/bonus/:id` | `patchBonusController` | **Oui** (`firebaseAuth`) | Modifie un bonus (champs de définition, `active`, `requiresProfile`, `flyerUrl`, `claimDelayHours`…) — marchand propriétaire ou admin. Un changement d'`active` **diffuse** `bonus.activation_changed` + push à tous |
 | POST | `/bonus/request/:id/reward-credentials` | `rewardCredentialsBonusController` | **Oui** (`firebaseAuth`) | **Livre** une réclamation `pending`, ou **corrige** des identifiants déjà livrés — admin ou marchand propriétaire |
 | POST | `/bonusRequest/:totalBonus` | `postBonusRequestController` | — | Le user réclame un bonus |
 | GET | `/bonusRequest/status/:id` | `getBonusRequestStatusController` | — | Statut d'une demande |
@@ -81,20 +83,66 @@ du user n'est persisté ici.
   "name": "1 mois Netflix offert",
   "description": "…",
   "criteria": {
-    "kind": "amount_spent",     // "welcome" | "order_count" | "amount_spent"
-    "target": 50000,            // palier (nb commandes OU montant FCFA) ; absent si welcome
-    "period": "month"           // "day" | "week" | "month" ; ignoré si welcome
+    "kind": "amount_spent",     // "order_count" | "amount_spent" | "status_view"
+    "target": 50000,            // palier (nb commandes OU montant FCFA) ; null/absent si status_view
+    "period": "month"           // "day" | "week" | "month" — toujours requis
   },
   "fastFoodId": "ff_42",        // null/absent = bonus plateforme Yaammoo
   "fastFoodName": "Burger Palace", // requis si fastFoodId présent
   "active": true,
   "requiresRewardCredentials": true, // claim non auto-approuvé : reste `pending` jusqu'à livraison manuelle
   "requiresProfile": true,      // accès via profil nominatif + son code → `profile {name, code}` exigé à la livraison
+  "flyerUrl": "https://…/flyer.png", // flyer à poster (requis si kind = status_view)
+  "claimDelayHours": 22,        // heures entre téléchargement du flyer et claim ; 0 = instantané
   "claimDuration": 30,          // validité du code après réclamation (jours)
   "usageLimit": 3,              // nb d'utilisations autorisées du code
   "createdAt": "2026-06-18T10:00:00.000Z"
 }
 ```
+
+### `criteria.kind = "status_view"` — bonus sans palier de commandes
+
+Bonus **plateforme** obtenu par une action externe : le user poste le flyer Yaammoo
+en **statut WhatsApp**. Aucune commande n'est requise, donc :
+
+- `criteria.target` = `null` (obligatoire — un nombre serait un palier que rien ne mesure) ;
+- `criteria.period` reste requis (`day` = un cycle par jour) ;
+- `isBonusEligible` retourne `eligible: true` d'office (aucun palier à mesurer) ;
+- **aucun décrément** du solde : `measureConsumption` renvoie 0, `consumedOrderIds` vide ;
+- combiné à `requiresRewardCredentials: true`, la demande reste `pending` : c'est
+  **l'admin qui vérifie la preuve** (vidéo du statut) avant de livrer les identifiants.
+  Le refus se matérialise en ne livrant pas.
+
+**Deux colonnes dédiées (migration 031)** :
+
+| Colonne | Champ API | Rôle |
+|---|---|---|
+| `flyer_url` | `flyerUrl` | Flyer à poster, servi par `GET /bonus/:id/flyer`. **Requis** à la création d'un bonus `status_view` (sinon rien à publier). |
+| `claim_delay_hours` | `claimDelayHours` | Heures à attendre entre le téléchargement du flyer et le claim (ex. **22**). `0` = instantané, valeur par défaut de tous les autres bonus. Modifiable à chaud via `PATCH /bonus/:id` — **pas d'env**, donc pas de redéploiement. |
+
+#### Parcours complet
+
+1. **`GET /bonus/:id/flyer`** → renvoie `flyerUrl` **et horodate** le téléchargement
+   dans `bonus_flyer_downloads` (une ligne par `(user, bonus)`).
+   `downloadedAt` est **figé au premier téléchargement** du cycle : re-télécharger
+   ne relance pas le compte à rebours (ni ne le raccourcit). La réponse porte
+   `claimableAt` = `downloadedAt + claimDelayHours`, pour le compte à rebours front.
+   Socket : `bonus.flyer_downloaded` sur la room du user.
+2. Le user poste le flyer en statut et le laisse `claimDelayHours` heures.
+3. **`POST /bonus/:id/claim`** en **multipart** avec le fichier `proofVideo`
+   (vidéo du statut posté). Refus **400** si : flyer jamais téléchargé, délai non
+   écoulé (message + `data.claimableAt`), ou vidéo absente. La vidéo est uploadée
+   dans le bucket Supabase (dossier `bonusProofs`) et son URL est stockée dans
+   l'entrée `status[].proofVideoUrl` de la réclamation. Le claim renvoie et émet
+   `proofVideoUrl` dans `bonus.claimed`.
+   La ligne de téléchargement est **purgée** : le cycle suivant exige un nouveau
+   téléchargement, donc un nouveau statut posté.
+4. La demande reste `pending` (`requiresRewardCredentials`) → l'admin visionne la
+   preuve puis livre les accès via
+   `POST /bonus/request/:id/reward-credentials` (flux inchangé).
+
+> ⚠️ Les contrôles (téléchargement + délai) sont faits **avant** l'upload : on ne
+> stocke jamais le fichier d'un claim qui sera refusé.
 
 ### Champs recalculés au `GET /bonus/all` (jamais persistés dans `bonus`)
 
@@ -201,9 +249,10 @@ Auto-approuvé, avec vérification d'éligibilité côté backend (source de vé
 1. `firebaseAuth` → `req.user.uid` ; `:id` = bonusId.
 2. Charge la définition (`bonus.getById`) → 404 si absent ; 400 si `active === false`.
 3. **Éligibilité** (`bonusStats.util:isBonusEligible`) :
-   - `welcome` → toujours éligible.
    - `order_count` → `bonusStats[period].count >= criteria.target`.
    - `amount_spent` → `bonusStats[period].amount >= criteria.target`.
+   - `status_view` → **toujours éligible** (aucun palier de commandes ; la preuve
+     est l'action externe, contrôlée par l'admin avant livraison des accès).
    - sinon → 400 « Palier non atteint (metric/target) ».
 4. **Anti-doublon** : 409 si une réclamation est déjà `pending` ou `approved` non consommée.
 5. Ajoute une entrée `{status:'approved', target, period, createdAt}` dans le
@@ -327,7 +376,8 @@ puis remonte » :
 - Seule la métrique du `criteria.kind` est décrémentée (`order_count` → `count`,
   `amount_spent` → `amount`), et uniquement sur `criteria.period`.
 - Jamais en dessous de 0.
-- `welcome` → aucun décrément.
+- `status_view` → **aucun décrément** : sans `target`, `measureConsumption()`
+  renvoie 0 et le claim ne dépense aucune commande.
 - **L'éligibilité s'évalue sur le solde décrémenté** : un palier déjà consommé
   ne peut pas être re-réclamé sans nouvelles commandes.
 
@@ -514,9 +564,12 @@ Règles :
 |---|---|
 | Champs requis | `type`, `name`, `criteria`, `claimDuration`, `usageLimit` |
 | Champs inconnus | Rejetés (`Champ non autorisé`) — bloque l'envoi de `bonusStats`, `requestStatus`… qui sont recalculés au GET |
-| `criteria.kind` | Doit valoir `welcome` \| `order_count` \| `amount_spent` |
-| `criteria.target` / `period` | **Requis** si `order_count`/`amount_spent` ; **interdits** si `welcome` |
+| `criteria.kind` | Doit valoir `order_count` \| `amount_spent` \| `status_view` |
+| `criteria.period` | **Toujours requis** (`day` \| `week` \| `month`), y compris pour `status_view` |
+| `criteria.target` | **Requis** si `order_count`/`amount_spent` ; **doit être null/absent** si `status_view` |
 | `criteria.target` | > 0 ; entier si `order_count` |
+| `flyerUrl` | **Requis** à la création si `criteria.kind = status_view` |
+| `claimDelayHours` | Optionnel, ≥ 0 (défaut 0). Seul champ numérique qui accepte `0` |
 | `fastFoodId` / `fastFoodName` | L'un implique l'autre (absents tous deux = bonus plateforme) |
 | Nombres / chaînes | `claimDuration`/`usageLimit` > 0 ; chaînes non vides |
 

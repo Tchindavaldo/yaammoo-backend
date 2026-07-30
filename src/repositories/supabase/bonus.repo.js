@@ -68,6 +68,8 @@ exports.update = async (id, fields) => {
     fastFoodName: 'fastfood_name',
     active: 'active',
     claimDuration: 'claim_duration',
+    claimDelayHours: 'claim_delay_hours',
+    flyerUrl: 'flyer_url',
     usageLimit: 'usage_limit',
   };
   for (const key of Object.keys(fields)) {

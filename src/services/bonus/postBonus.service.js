@@ -12,6 +12,7 @@
 // ============================================================================
 const repos = require('../../repositories');
 const { validateBonus } = require('../../utils/validator/validateBonus');
+const { getIO } = require('../../socket');
 
 /**
  * @param {Object} data      définition du bonus
@@ -68,6 +69,18 @@ exports.postBonusService = async (data, viewerUid) => {
     active: data.active ?? true,
     createdBy: viewerUid,
   });
+
+  // Un nouveau bonus est visible de TOUS : broadcast global (il n'existe pas de
+  // room « app » côté serveur, cf. socket.js).
+  // Signal SANS payload volontairement : le front refait un GET /bonus/all pour
+  // récupérer la liste enrichie POUR LUI (soldes, requestStatus…) — un payload
+  // brut de définition ne saurait pas les porter et créerait deux sources.
+  // Non bloquant : le bonus est déjà persisté, un échec socket ne l'annule pas.
+  try {
+    getIO().emit('bonus.created');
+  } catch (err) {
+    console.error('postBonus: émission socket échouée (non bloquant):', err.message);
+  }
 
   return { success: true, status: 201, message: 'Bonus créé avec succès.', data: created };
 };

@@ -150,7 +150,10 @@ Détails feature : [ratings.md](./ratings.md).
 | Event | Destination | Émetteur | Payload |
 |---|---|---|---|
 | `bonus.stats_updated` | `userId` client | `services/bonus/emitBonusStats.js` | `{ data: { bonusStats: { <bonusId>: {day,week,month} } } }` |
-| `bonus.claimed` | `userId` client | `services/bonus/claimBonus.service.js` | `{ data: { bonusId, requestId, requestStatus, code, claimedAt, startsAt, expiresAt } }` |
+| `bonus.claimed` | `userId` client | `services/bonus/claimBonus.service.js` | `{ data: { bonusId, requestId, requestStatus, code, claimedAt, startsAt, expiresAt, proofVideoUrl } }` |
+| `bonus.flyer_downloaded` | `userId` client | `services/bonus/downloadFlyer.service.js` | `{ data: { bonusId, flyerUrl, downloadedAt, lastDownloadedAt, downloadCount, claimDelayHours, claimableAt } }` |
+| `bonus.activation_changed` | **broadcast global** (tous les sockets) | `services/bonus/broadcastBonusActivation.js` | `{ data: { bonusId, active, type, name, fastFoodId, fastFoodName, changedAt } }` |
+| `bonus.created` | **broadcast global** (tous les sockets) | `services/bonus/postBonus.service.js` | **aucun payload** |
 | `bonus.reward_credentials` | `userId` client | `services/bonus/rewardCredentialsBonus.service.js` | `{ data: { bonusId, requestId, requestStatus, code, rewardCredentials, claimedAt, startsAt, expiresAt } }` |
 | `bonus.armed` | `userId` client | `services/bonus/armBonus.service.js` | `{ data: { bonusId, armed:true, disarmedBonusIds, deliveryOffer } }` |
 | `bonus.disarmed` | `userId` client | `services/bonus/armBonus.service.js` | `{ data: { bonusId, armed:false, disarmedBonusIds:[], deliveryOffer:null } }` |
@@ -164,6 +167,21 @@ Détails feature : [ratings.md](./ratings.md).
 - Les bonus `requiresRewardCredentials` (Netflix…) **n'émettent pas** `bonus.redeemed` :
   leur contrepartie est la livraison des identifiants, signalée par
   `bonus.reward_credentials` + push. Cycle fermé à l'expiration, sans compteur.
+- `bonus.flyer_downloaded` : émis par `GET /bonus/:id/flyer`, qui **démarre le délai**
+  avant claim (`claimableAt = downloadedAt + claimDelayHours`). Sert aux autres
+  appareils du user à afficher le même compte à rebours. `proofVideoUrl` sur
+  `bonus.claimed` n'est renseigné que pour un bonus `status_view`.
+- `bonus.created` : émis à la création (`POST /bonus`), **sans payload** — c'est un
+  simple signal « la liste a changé ». Le front réagit par un `GET /bonus/all`, seul
+  capable de renvoyer les bonus **enrichis pour le user courant** (soldes,
+  `requestStatus`…) : un payload de définition brute créerait une seconde source
+  de vérité, incomplète.
+- `bonus.activation_changed` : **`io.emit` global**, pas de room — un bonus activé
+  ou désactivé change ce que tous les users voient. Accompagné d'un **push** à tous
+  les users (`broadcastBonusActivation`). Émis uniquement sur un **changement réel**
+  de `active` via `PATCH /bonus/:id` (un PATCH qui renvoie la même valeur ne diffuse rien).
+  ⚠️ La room `app:<appId>` mentionnée ailleurs n'existe pas côté serveur : aucun
+  `socket.join` ne la crée (cf. `socket.js`).
 - `bonus.stats_updated` fait **seule autorité sur les soldes** : `bonus.claimed` n'en
   porte pas, pour éviter deux sources contradictoires.
 - `bonus.armed` / `bonus.disarmed` : deux events **distincts**, émis par

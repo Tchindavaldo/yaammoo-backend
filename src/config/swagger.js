@@ -282,7 +282,7 @@ const options = {
             criteria: {
               type: 'object',
               properties: {
-                kind: { type: 'string', enum: ['order_count', 'amount_spent'] },
+                kind: { type: 'string', enum: ['order_count', 'amount_spent', 'status_view'] },
                 target: { type: 'number' },
                 period: { type: 'string', enum: ['day', 'week', 'month'] },
               },

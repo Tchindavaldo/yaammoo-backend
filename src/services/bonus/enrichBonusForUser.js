@@ -172,6 +172,12 @@ function enrichBonusForUser(bonus, ctx) {
     fastFoodName: bonus.fastFoodName ?? null,
     active: bonus.active ?? true,
     claimDuration: bonus.claimDuration ?? null,
+    // Bonus à preuve (`status_view`) : le front a besoin du flyer à poster et du
+    // délai d'attente pour afficher le parcours sans second appel.
+    claimDelayHours: bonus.claimDelayHours ?? 0,
+    flyerUrl: bonus.flyerUrl ?? null,
+    requiresRewardCredentials: bonus.requiresRewardCredentials ?? false,
+    requiresProfile: bonus.requiresProfile ?? false,
     usageLimit: bonus.usageLimit ?? null,
     createdAt: bonus.createdAt ?? null,
 
