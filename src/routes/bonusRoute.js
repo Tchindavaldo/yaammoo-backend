@@ -71,6 +71,33 @@ const route = express.Router();
  *                   period:
  *                     type: string
  *                     enum: [day, week, month]
+ *                   schedule:
+ *                     type: object
+ *                     nullable: true
+ *                     description: >
+ *                       Campagne datée, `status_view` **uniquement** (rejeté sur les
+ *                       autres kinds). Le flyer se retire le jour `downloadDate`,
+ *                       se poste le jour `postDate` (défaut J+1) dans `postWindow`,
+ *                       et le claim s'ouvre à `postWindow.end + claimDelayHours`.
+ *                     required:
+ *                       - downloadDate
+ *                       - postWindow
+ *                     properties:
+ *                       downloadDate: { type: string, example: '2026-08-05' }
+ *                       postDate:
+ *                         type: string
+ *                         example: '2026-08-06'
+ *                         description: Optionnel, défaut `downloadDate + 1`. Jamais antérieur à `downloadDate`.
+ *                       postWindow:
+ *                         type: object
+ *                         required: [start, end]
+ *                         properties:
+ *                           start: { type: string, example: '18:00' }
+ *                           end: { type: string, example: '21:00' }
+ *                       timezone:
+ *                         type: string
+ *                         example: Africa/Douala
+ *                         description: Optionnel, défaut `Africa/Douala`.
  *               fastFoodId:
  *                 type: string
  *                 description: >
@@ -166,10 +193,39 @@ route.post('', firebaseAuth, postBonusController);
  *                           kind: { type: string, enum: [order_count, amount_spent, status_view] }
  *                           target: { type: number }
  *                           period: { type: string, enum: [day, week, month] }
+ *                           schedule:
+ *                             type: object
+ *                             nullable: true
+ *                             description: >
+ *                               Campagne brute, servie **aux admins uniquement**.
+ *                               Retirée pour un user non-admin, qui reçoit
+ *                               `campaignSchedule` à la place.
  *                       fastFoodId: { type: string, nullable: true }
  *                       fastFoodName: { type: string, nullable: true }
  *                       active: { type: boolean }
  *                       claimDuration: { type: number, description: validité du code (jours) }
+ *                       canDownload:
+ *                         type: boolean
+ *                         description: >
+ *                           Le flyer peut-il encore être retiré (bonus actif et
+ *                           `downloadDate` non passée) ? Toujours `false` sans `flyerUrl`.
+ *                       canUpload:
+ *                         type: boolean
+ *                         description: >
+ *                           Le délai post-publication est-il écoulé
+ *                           (`postWindowEnd + claimDelayHours`) ? Le front active alors
+ *                           l'envoi de la vidéo preuve. Indicatif : le claim revérifie tout.
+ *                       campaignSchedule:
+ *                         type: object
+ *                         nullable: true
+ *                         description: >
+ *                           Calendrier résolu, servi **aux users non-admins**
+ *                           (`null` pour un admin ou un bonus sans campagne).
+ *                         properties:
+ *                           downloadDate: { type: string, example: '2026-08-05' }
+ *                           postDate: { type: string, example: '2026-08-06' }
+ *                           postWindowStart: { type: string, format: date-time }
+ *                           postWindowEnd: { type: string, format: date-time }
  *                       usageLimit: { type: number }
  *                       createdAt: { type: string, format: date-time }
  *                       bonusStats:
@@ -285,10 +341,11 @@ route.post('/:id/claim', firebaseAuth, upload.single('proofVideo'), claimBonusCo
  *   get:
  *     summary: Télécharger le flyer d'un bonus et démarrer le délai d'attente
  *     description: >
- *       Renvoie `flyerUrl` et **horodate** le téléchargement : le claim d'un bonus
- *       `status_view` n'est accepté qu'après `claimDelayHours` heures (le temps que
- *       le statut WhatsApp reste publié). `downloadedAt` est figé au premier
- *       téléchargement — re-télécharger ne relance pas le compte à rebours.
+ *       Renvoie `flyerUrl` et **horodate** le téléchargement. Avec une campagne
+ *       (`criteria.schedule`), le retrait n'est ouvert que le jour `downloadDate`
+ *       — mais autant de fois que voulu dans la journée — et le claim n'est
+ *       accepté qu'à `postWindow.end + claimDelayHours` (le temps que le statut
+ *       WhatsApp reste publié). `downloadedAt` est figé au premier téléchargement.
  *       Émet le socket `bonus.flyer_downloaded` sur la room du user.
  *     tags:
  *       - Bonus
@@ -320,8 +377,17 @@ route.post('/:id/claim', firebaseAuth, upload.single('proofVideo'), claimBonusCo
  *                     downloadCount: { type: number }
  *                     claimDelayHours: { type: number }
  *                     claimableAt: { type: string, format: date-time }
+ *                     postWindow:
+ *                       type: object
+ *                       nullable: true
+ *                       description: Créneau de publication (null si pas de campagne)
+ *                       properties:
+ *                         date: { type: string, example: '2026-08-06' }
+ *                         start: { type: string, format: date-time }
+ *                         end: { type: string, format: date-time }
+ *                         timezone: { type: string, example: Africa/Douala }
  *       400:
- *         description: Bonus inactif
+ *         description: Bonus inactif, ou date de retrait passée (`download_closed`)
  *       401:
  *         description: Token manquant ou invalide
  *       404:
@@ -364,17 +430,28 @@ route.get('/:id/flyer', firebaseAuth, downloadFlyerController);
  *               description: { type: string }
  *               criteria:
  *                 type: object
+ *                 description: >
+ *                   **Fusionné** avec l'existant sur trois niveaux (`criteria`,
+ *                   `criteria.schedule`, `criteria.schedule.postWindow`) : envoyer
+ *                   le seul champ à changer suffit, les autres sont conservés.
+ *                   `"schedule": null` supprime explicitement la campagne.
  *                 properties:
  *                   kind: { type: string, enum: [order_count, amount_spent, status_view] }
  *                   target: { type: number }
  *                   period: { type: string, enum: [day, week, month] }
+ *                   schedule: { type: object, nullable: true }
  *               fastFoodId: { type: string, nullable: true }
  *               active: { type: boolean }
  *               requiresRewardCredentials: { type: boolean }
+ *               requiresProfile: { type: boolean }
+ *               flyerUrl: { type: string }
+ *               claimDelayHours: { type: number }
  *               claimDuration: { type: number }
  *               usageLimit: { type: number }
  *             example:
- *               active: false
+ *               criteria:
+ *                 schedule:
+ *                   postDate: '2026-08-09'
  *     responses:
  *       200:
  *         description: Bonus mis à jour
@@ -386,6 +463,10 @@ route.get('/:id/flyer', firebaseAuth, downloadFlyerController);
  *         description: Pas propriétaire, ou bonus plateforme sans droits admin
  *       404:
  *         description: Bonus, FastFood ou utilisateur non trouvé
+ *       409:
+ *         description: >
+ *           `criteria` a été modifié par quelqu'un d'autre depuis la lecture
+ *           (verrou optimiste) — recharger le bonus puis réessayer.
  */
 route.patch('/:id', firebaseAuth, patchBonusController);
 

@@ -1,4 +1,87 @@
-const { bonusFields, criteriaKinds, criteriaPeriods, targetlessCriteriaKinds } = require('../../interface/bonusFields');
+const { bonusFields, criteriaKinds, criteriaPeriods, targetlessCriteriaKinds, scheduleFields, postWindowFields } = require('../../interface/bonusFields');
+const { DATE_RE, TIME_RE, nextDay, zonedTimeToUtc, DEFAULT_TIMEZONE } = require('../../services/bonus/statusViewSchedule.util');
+
+/**
+ * Valide `criteria.schedule` — la campagne d'un bonus `status_view` : jour de
+ * retrait du flyer, créneau de publication le lendemain, fuseau.
+ * Optionnel : un bonus sans campagne garde l'ancien comportement (téléchargement
+ * libre), on ne casse donc pas les bonus déjà en base.
+ */
+function validateSchedule(schedule, errors) {
+  if (typeof schedule !== 'object' || schedule === null || Array.isArray(schedule)) {
+    errors.push({ field: 'criteria.schedule', message: '"criteria.schedule" doit être un objet' });
+    return;
+  }
+
+  for (const key in schedule) {
+    if (!scheduleFields.includes(key)) {
+      errors.push({ field: `criteria.schedule.${key}`, message: `Champ non autorisé : criteria.schedule.${key}` });
+    }
+  }
+
+  const { downloadDate, postDate, postWindow, timezone } = schedule;
+
+  if (!DATE_RE.test(downloadDate || '')) {
+    errors.push({ field: 'criteria.schedule.downloadDate', message: '"downloadDate" est requis au format YYYY-MM-DD' });
+  }
+
+  // Optionnel : par défaut le lendemain du retrait. Fourni, il ne peut pas être
+  // antérieur au retrait (on ne poste pas un flyer qu'on n'a pas encore).
+  if (postDate != null) {
+    if (!DATE_RE.test(postDate)) {
+      errors.push({ field: 'criteria.schedule.postDate', message: '"postDate" doit être au format YYYY-MM-DD' });
+    } else if (DATE_RE.test(downloadDate || '') && postDate < downloadDate) {
+      errors.push({ field: 'criteria.schedule.postDate', message: '"postDate" ne peut pas précéder "downloadDate"' });
+    }
+  }
+
+  if (typeof postWindow !== 'object' || postWindow === null || Array.isArray(postWindow)) {
+    errors.push({ field: 'criteria.schedule.postWindow', message: '"postWindow" est requis ({start, end})' });
+  } else {
+    for (const key in postWindow) {
+      if (!postWindowFields.includes(key)) {
+        errors.push({ field: `criteria.schedule.postWindow.${key}`, message: `Champ non autorisé : criteria.schedule.postWindow.${key}` });
+      }
+    }
+    for (const key of postWindowFields) {
+      if (!TIME_RE.test(postWindow[key] || '')) {
+        errors.push({ field: `criteria.schedule.postWindow.${key}`, message: `"postWindow.${key}" est requis au format HH:mm` });
+      }
+    }
+    // Un créneau inversé (21:00 → 18:00) donnerait un claimableAt antérieur au
+    // post : le délai serait déjà écoulé avant même la publication.
+    if (TIME_RE.test(postWindow.start || '') && TIME_RE.test(postWindow.end || '') && postWindow.start >= postWindow.end) {
+      errors.push({ field: 'criteria.schedule.postWindow', message: '"postWindow.start" doit être antérieur à "postWindow.end"' });
+    }
+  }
+
+  if (timezone != null) {
+    if (typeof timezone !== 'string' || timezone.trim() === '') {
+      errors.push({ field: 'criteria.schedule.timezone', message: '"timezone" doit être une chaîne non vide' });
+    } else {
+      // Un fuseau invalide ferait planter Intl à la lecture, très loin d'ici.
+      try {
+        new Intl.DateTimeFormat('en-US', { timeZone: timezone });
+      } catch {
+        errors.push({ field: 'criteria.schedule.timezone', message: `"timezone" inconnu : ${timezone}` });
+      }
+    }
+  }
+
+  // Si le créneau de publication est déjà passé, la campagne naît morte
+  // (personne ne pourra jamais réclamer).
+  if (DATE_RE.test(downloadDate || '') && postWindow && TIME_RE.test(postWindow.end || '')) {
+    const tz = typeof timezone === 'string' && timezone.trim() !== '' ? timezone : DEFAULT_TIMEZONE;
+    const effectivePostDate = DATE_RE.test(postDate || '') ? postDate : nextDay(downloadDate);
+    try {
+      if (zonedTimeToUtc(effectivePostDate, postWindow.end, tz) < new Date()) {
+        errors.push({ field: 'criteria.schedule', message: 'Le créneau de publication est déjà passé' });
+      }
+    } catch {
+      // Fuseau invalide : déjà signalé plus haut.
+    }
+  }
+}
 
 /**
  * Valide `criteria` : le cœur du modèle (c'est lui qui pilote l'éligibilité et
@@ -11,7 +94,7 @@ function validateCriteria(criteria, errors) {
     return;
   }
 
-  const { kind, target, period } = criteria;
+  const { kind, target, period, schedule } = criteria;
 
   if (!kind || !criteriaKinds.includes(kind)) {
     errors.push({
@@ -33,7 +116,14 @@ function validateCriteria(criteria, errors) {
         message: `"criteria.period" est requis pour kind=${kind} et doit être l'un de [${criteriaPeriods.join(', ')}]`,
       });
     }
+    if (schedule != null) validateSchedule(schedule, errors);
     return;
+  }
+
+  // La campagne (jour de retrait + créneau de publication) n'a de sens que pour
+  // un bonus obtenu par une action externe datée.
+  if (schedule != null) {
+    errors.push({ field: 'criteria.schedule', message: `"criteria.schedule" n'est pas autorisé pour kind=${kind}` });
   }
 
   // Palier + fenêtre obligatoires pour les kinds chiffrés.
