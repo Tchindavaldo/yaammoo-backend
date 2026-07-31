@@ -120,10 +120,18 @@ stock pendant une commande, à la création/édition/suppression de menu).
 
 ### Vue marchand
 
-Le propriétaire d'une boutique reçoit ses **prix réels** — plat, extras et
-boissons (`pricing.applied: false`) : sinon il ne pourrait plus gérer son
-catalogue. Même endpoint, réponse différente selon l'appelant : c'est une
-distinction de **rôle**, pas de version d'app.
+**`GET /fastfood/all` sert le prix affiché à TOUT LE MONDE**, propriétaire
+compris (`pricing.applied: true` toujours). Cette route alimente le **home**,
+donc un écran d'**achat** : un marchand qui commande y est un client comme un
+autre, et lui montrer ses prix réels afficherait un prix qu'il ne paierait pas.
+
+Le catalogue réel se lit sur **`GET /menu/:fastFoodId`**, qui n'applique aucune
+surcharge — c'est l'endpoint de **gestion**. La distinction est donc portée par
+l'**endpoint** (acheter vs gérer), plus par le rôle de l'appelant.
+
+> ⚠️ Auparavant `getFastFoods` passait `isOwner` à `applyDisplayPricing` : le
+> propriétaire voyait ses prix bruts sur le home, donc un prix inférieur à celui
+> qu'il aurait payé en commandant.
 
 ### Quantité — asymétrie voulue
 
