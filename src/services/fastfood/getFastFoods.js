@@ -1,10 +1,13 @@
 // ============================================================================
 // getFastFoodsService — Liste des boutiques, enrichie pour l'appelant
 // ============================================================================
-// Deux enrichissements dépendant de QUI appelle :
-//   • `pricing` / prix affichés — le client voit prix plat + livraison la plus
-//     chère + marge ; le MARCHAND PROPRIÉTAIRE voit ses prix réels, sinon il ne
-//     pourrait plus gérer son catalogue.
+// Prix : TOUJOURS le prix affiché (plat + livraison la plus chère + marge, le
+// tout majoré des frais), pour TOUS les appelants. Cette route alimente le home,
+// donc un écran d'achat : le propriétaire d'une boutique qui y commande paie le
+// même prix que n'importe qui. Sa gestion de catalogue passe par
+// `GET /menu/:fastFoodId`, qui sert les prix bruts.
+//
+// Un seul enrichissement dépend de QUI appelle :
 //   • `deliveryOffer` — offre de livraison applicable au user courant.
 // ============================================================================
 const repos = require('../../repositories');
@@ -16,8 +19,7 @@ const { buildCampaignOffer } = require('../pricing/deliveryOfferResolver');
 
 /**
  * @param {string} [userId] uid du user courant (auth FACULTATIVE sur cette route).
- *   Fourni, chaque boutique porte l'offre de livraison applicable à CE user, et
- *   le propriétaire d'une boutique en voit les prix réels.
+ *   Fourni, chaque boutique porte l'offre de livraison applicable à CE user.
  */
 exports.getFastFoodsService = async userId => {
   try {
@@ -38,8 +40,13 @@ exports.getFastFoodsService = async userId => {
     const fastfoodsWithMenus = await Promise.all(
       fastfoods.map(async fastfood => {
         const menus = await getMenuService(fastfood.id);
-        const isOwner = !!userId && fastfood.userId === userId;
-        const priced = applyDisplayPricing({ ...fastfood, menus }, pricing, isOwner);
+        // Prix AFFICHÉ pour tout le monde, y compris le propriétaire de la
+        // boutique : `/fastfood/all` alimente le HOME, donc un écran d'achat.
+        // Un marchand qui commande y est un client comme un autre — lui servir
+        // ses prix réels afficherait un prix qu'il ne paierait pas.
+        // Sa gestion de catalogue passe par `GET /menu/:fastFoodId`, qui sert
+        // les prix bruts.
+        const priced = applyDisplayPricing({ ...fastfood, menus }, pricing, false);
         return {
           ...priced,
           deliveryOffer: campaignOffer || pickOfferForFastFood(offers, fastfood.id),
