@@ -53,7 +53,7 @@ exports.broadcastBonusActivation = async (bonus, active) => {
     await sendPushNotification({
       tokens: fcm,
       apnsTokens: apns,
-      title: active ? 'Nouveau bonus disponible 🎁' : 'Bonus indisponible',
+      title: active ? 'Nouveau bonus disponible ' : 'Bonus indisponible',
       body: active ? `${bonus.name} est désormais disponible.` : `${bonus.name} n'est plus disponible.`,
       data: { type: 'Bonus', event: EVENT, bonusId: bonus.id, active: String(active) },
     });

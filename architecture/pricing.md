@@ -35,7 +35,7 @@ montant payé    = SOMME de ce que le user voit
 > prix affiché : le user paie tout sans voir de ligne de frais ni de taxe. Ils
 > sont appliqués **une fois par prix**, jamais multipliés par la quantité.
 
-> 💡 **Montant encaissé** : `amount` est fourni par le front. En cas de gratuité
+> **Montant encaissé** : `amount` est fourni par le front. En cas de gratuité
 > (campagne / bonus livraison), **le front retire lui-même la livraison** du total
 > avant d'envoyer le paiement — le backend ne recalcule ni ne déduit rien.
 

@@ -115,7 +115,7 @@ Retour unifié : `{ success: boolean, response?, error? }`.
 ## Rank Queue Notifications (rankQueue.service.js)
 
 Filtre sur `rank <= 5` uniquement (anti-spam) :
-- Rank 1 : `"🎉 Vous êtes le prochain !"` / `"Votre commande va être traitée."`
+- Rank 1 : `"Vous êtes le prochain !"` / `"Votre commande va être traitée."`
 - Rank 2-5 : `"Votre commande avance"` / `"Position {rank} dans la file..."`
 
 ## Test manuel (curl)

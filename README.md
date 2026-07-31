@@ -1,10 +1,10 @@
-# 🍔 Yaammoo Backend - Documentation Complète
+# Yaammoo Backend - Documentation Complète
 
 > **Plateforme de gestion de commandes de fast-food en temps réel avec notifications en direct**
 
 ---
 
-## 📋 Table des matières
+## Table des matières
 
 1. [Vue d'ensemble](#vue-densemble)
 2. [Architecture](#architecture)
@@ -21,7 +21,7 @@
 
 ---
 
-## 🎯 Vue d'ensemble
+## Vue d'ensemble
 
 **Yaammoo Backend** est une API REST Node.js/Express conçue pour gérer une plateforme complète de commandes de fast-food. Elle offre :
 
@@ -35,7 +35,7 @@
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ### Pattern MVC (Model-View-Controller)
 
@@ -67,7 +67,7 @@ Tous les services retournent un objet uniforme :
 
 ---
 
-## 🛠️ Stack technologique
+## Stack technologique
 
 | Package | Version | Utilisation |
 |---------|---------|-------------|
@@ -86,7 +86,7 @@ Tous les services retournent un objet uniforme :
 
 ---
 
-## 📦 Installation
+## Installation
 
 ### Prérequis
 
@@ -117,7 +117,7 @@ npm start          # Mode production
 
 ---
 
-## ⚙️ Configuration
+## Configuration
 
 ### Variables d'environnement (.env)
 
@@ -153,7 +153,7 @@ FIREBASE_AUTH_EMULATOR_HOST=localhost:9099
 
 ---
 
-## 📁 Structure des dossiers
+## Structure des dossiers
 
 ```
 src/
@@ -191,7 +191,7 @@ src/
 
 ---
 
-## 🔌 Endpoints API
+## Endpoints API
 
 ### Authentification (`/auth`)
 
@@ -284,7 +284,7 @@ src/
 
 ---
 
-## 📊 Modèles de données
+## Modèles de données
 
 ### Menu
 
@@ -350,7 +350,7 @@ src/
 
 ---
 
-## 🔧 Services et logique métier
+## Services et logique métier
 
 ### Validation des données
 
@@ -376,7 +376,7 @@ Options de validation :
 
 ---
 
-## 📡 Système de notifications
+## Système de notifications
 
 ### Socket.io (Temps réel)
 
@@ -398,7 +398,7 @@ Envoie des messages via Twilio.
 
 ---
 
-## 🐳 Déploiement
+## Déploiement
 
 ### Docker
 
@@ -424,7 +424,7 @@ Configuration dans `fly.toml`.
 
 ---
 
-## 🚀 Commandes utiles
+## Commandes utiles
 
 ```bash
 # Développement
@@ -445,13 +445,13 @@ npm test               # Lancer les tests (à configurer)
 
 ---
 
-## 🔍 Diagnostic Firebase
+## Diagnostic Firebase
 
 Accédez à `http://localhost:5000/debug-firebase` pour vérifier la configuration Firebase.
 
 ---
 
-## 📝 Notes importantes
+## Notes importantes
 
 1. **Validation stricte** : Tous les champs obligatoires sont validés
 2. **Gestion des erreurs** : Format de réponse uniforme avec codes HTTP appropriés
@@ -461,7 +461,7 @@ Accédez à `http://localhost:5000/debug-firebase` pour vérifier la configurati
 
 ---
 
-## 📞 Support
+## Support
 
 Pour toute question ou problème, consultez la documentation Firebase ou contactez l'équipe de développement.
 

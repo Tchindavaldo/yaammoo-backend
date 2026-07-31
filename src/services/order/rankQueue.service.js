@@ -76,7 +76,7 @@ exports.reindexQueue = async ({ fastFoodId, deliveryDate, status, removedRank, f
         notifyOrderEvent({
           targetUserId: order.userId,
           type: 'order_rank_top',
-          title: '🎉 Vous êtes le prochain !',
+          title: 'Vous êtes le prochain !',
           body: 'Votre commande va être traitée.',
           orderId: order.id,
           route: status === 'pending' ? '/(tabs)/cart?section=pending' : '/(tabs)/cart?section=active',

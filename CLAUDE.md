@@ -3,8 +3,8 @@
 Ce fichier est **versionné** : ses règles s'appliquent automatiquement sur tout
 PC où le projet est cloné/pull, dans n'importe quelle session Claude Code.
 
-> 📏 **18 règles numérotées R1 → R18.** Toute nouvelle règle ajoutée à ce fichier
-> DOIT recevoir le numéro suivant (R19, R20, …) et le total ci-dessus doit être
+> **19 règles numérotées R1 → R19.** Toute nouvelle règle ajoutée à ce fichier
+> DOIT recevoir le numéro suivant (R20, R21, …) et le total ci-dessus doit être
 > mis à jour. On cite une règle par son numéro (ex. « R1 » pour le style de réponse).
 
 ## R1 — Style de réponse (OBLIGATOIRE)
@@ -38,7 +38,7 @@ veut l'essentiel, pas un cours. Développer uniquement s'il le demande explicite
 
 ## R2 — À lire en DÉBUT de session (OBLIGATOIRE)
 
-> 🚨 **AU TOUT PREMIER MESSAGE de chaque conversation**, le hook
+> **AU TOUT PREMIER MESSAGE de chaque conversation**, le hook
 > `.claude/hooks/session-start-read.sh` (déclaré dans `.claude/settings.json`)
 > injecte automatiquement **ce fichier** et `architecture/README.md` en entier.
 > La lecture est donc garantie côté harness — rien à invoquer.
@@ -301,7 +301,7 @@ on l'applique.
 - ❌ Hardcoder une version ou un seuil dans le code (toujours via `.env`).
 - ❌ Dupliquer la détection de version : réutiliser l'utilitaire central.
 
-> 💡 `FRONTEND_APP_VERSION` est **générique et réutilisable** : tout nouvel endpoint
+> `FRONTEND_APP_VERSION` est **générique et réutilisable** : tout nouvel endpoint
 > soumis à cette règle s'appuie sur la même variable et le même utilitaire.
 
 ### ⚠️ Déploiement Fly — piège connu
@@ -428,3 +428,20 @@ ALTER TABLE orders
 - Lint check : `npm run lint`
 
 Run both before pushing!
+
+## R19 — Emojis : statut SEULEMENT (OBLIGATOIRE)
+
+**Aucun emoji décoratif**, nulle part : ni dans le code, ni dans les commentaires,
+ni dans la doc, ni dans les logs, ni dans les messages de commit.
+
+INTERDIT (décoratif) : `🎉` `🚀` `📡` `💡` `🔔` `🔍` `📦` `🗑` `🔧` `📝` `📏` `⭐`…
+Pour mettre en avant, utiliser du **texte** (`IMPORTANT`, `NOTE`, `OBLIGATOIRE`)
+ou le gras Markdown.
+
+AUTORISÉ (statut, valeur sémantique) : `⚠️` avertissement · `✅` / `✓` succès ·
+`❌` / `✗` erreur · `☑` case cochée. Ils portent une information lue d'un coup
+d'œil dans les logs et les tableaux de doc — on les garde.
+
+> Règle identique côté **frontend** (`yaammoo/CLAUDE.md`, R15).
+> Un emoji décoratif croisé dans un fichier qu'on touche = le retirer avant de
+> clore, même s'il était déjà là. Les emojis de statut, on n'y touche pas.

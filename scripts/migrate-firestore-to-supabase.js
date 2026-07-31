@@ -272,7 +272,7 @@ const main = async () => {
     }
   }
 
-  console.log('\n🎉 Migration terminée avec succès');
+  console.log('\nMigration terminée avec succès');
   process.exit(0);
 };
 
