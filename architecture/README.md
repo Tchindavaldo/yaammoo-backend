@@ -26,7 +26,7 @@ Documentation d'architecture du backend Node.js / Express / Supabase / Socket.io
 | [payment-amount-check.md](./payment-amount-check.md) | **Contrôle du montant** — recalcul serveur du `total`, livraison offerte (bonus) vs déduction panier groupé | ✅ |
 | [transactions.md](./transactions.md) | Transactions — historique paiements, portefeuille marchand, remboursements | ✅ |
 | [wallet.md](./wallet.md) | Portefeuille marchand — crédit au paiement, solde dérivé, commissions, retraits `/wallet` | ✅ |
-| [bonus.md](./bonus.md) | Bonus — fidélité par paliers, `bonusStats` recalculé au GET, livraison manuelle des accès, **livraison offerte : armement + `deliveryOffer`**, **une réclamation = une ligne (`is_current`)**, **`status_view` : flyer à poster + preuve vidéo + délai `claimDelayHours`** | ✅ |
+| [bonus.md](./bonus.md) | Bonus — fidélité par paliers, `bonusStats` recalculé au GET, livraison manuelle des accès, **livraison offerte : armement + `deliveryOffer`**, **une réclamation = une ligne (`is_current`)**, **`status_view` : campagne datée (`criteria.schedule`), flyer à poster + preuve vidéo, `canDownload`/`canUpload`** | ✅ |
 | [notifications.md](./notifications.md) | Notifications — FCM/Expo dispatcher, routes `/notification` | ✅ |
 | [socket-events.md](./socket-events.md) | Événements Socket.io — émetteurs, destinataires, rooms | ✅ |
 | [auth.md](./auth.md) | Authentification — middleware Bearer, routes `/auth`, Firebase tokens | ✅ |

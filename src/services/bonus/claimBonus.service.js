@@ -16,6 +16,7 @@ const { generateUniqueBonusCode } = require('./bonusCode.util');
 const { postNotificationService } = require('../notification/request/postNotification.service');
 const { uploadFileToSupabase } = require('../storage/uploadFile.service');
 const { targetlessCriteriaKinds } = require('../../interface/bonusFields');
+const { computeClaimableAt } = require('./statusViewSchedule.util');
 const { getIO } = require('../../socket');
 
 /**
@@ -31,6 +32,24 @@ async function checkProofDelay(userId, bonus) {
   }
 
   const delayHours = Number(bonus.claimDelayHours) || 0;
+
+  // Bonus à campagne : le délai court depuis la FIN du créneau de publication du
+  // lendemain, pas depuis le téléchargement. C'est l'heure de post qui dicte —
+  // télécharger le flyer à 8h ou à 22h ne change rien à la date de claim.
+  const campaignClaimableAt = computeClaimableAt(bonus);
+  if (campaignClaimableAt) {
+    if (new Date() < campaignClaimableAt) {
+      const remaining = Math.ceil((campaignClaimableAt - new Date()) / 3600000);
+      return {
+        blocked: true,
+        message: `Le flyer doit rester posté ${delayHours}h après le créneau de publication. Réclamation possible dans ${remaining}h.`,
+        claimableAt: campaignClaimableAt.toISOString(),
+      };
+    }
+    return { blocked: false };
+  }
+
+  // Bonus sans campagne (existant) : délai depuis le téléchargement.
   if (delayHours <= 0) return { blocked: false };
 
   const claimableAt = new Date(new Date(download.downloadedAt).getTime() + delayHours * 3600 * 1000);

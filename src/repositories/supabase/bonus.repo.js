@@ -51,7 +51,15 @@ exports.getById = async id => {
  * @param {string} id
  * @param {Object} fields champs (camelCase) à modifier
  */
-exports.update = async (id, fields) => {
+/**
+ * @param {string} id
+ * @param {Object} fields  colonnes à écrire (seules celles présentes sont touchées)
+ * @param {Object} [opts]
+ * @param {Object} [opts.expectedCriteria] valeur de `criteria` sur laquelle la
+ *   fusion appelante s'est basée. Fournie, l'écriture n'a lieu que si la colonne
+ *   n'a pas bougé entre-temps (verrouillage optimiste) — sinon `conflict`.
+ */
+exports.update = async (id, fields, { expectedCriteria } = {}) => {
   const existing = await exports.getById(id);
   if (!existing) return null;
 
@@ -78,7 +86,18 @@ exports.update = async (id, fields) => {
   }
   if (Object.keys(payload).length === 0) return existing;
 
-  const { data, error } = await supabase.from(TABLE).update(payload).eq('id', id).select().single();
+  // `criteria` est le seul champ que l'appelant fusionne à partir d'une lecture :
+  // entre son GET et cet UPDATE, un autre admin a pu le réécrire. On compare la
+  // valeur attendue à celle en base au moment de l'écriture — sinon la
+  // modification concurrente serait perdue sans que personne ne le sache.
+  let query = supabase.from(TABLE).update(payload).eq('id', id);
+  if (expectedCriteria !== undefined) {
+    query = query.eq('criteria', expectedCriteria === null ? null : JSON.stringify(expectedCriteria));
+  }
+
+  const { data, error } = await query.select().maybeSingle();
   if (error) throw error;
+  // Aucune ligne touchée alors qu'elle existe : `criteria` a changé entre-temps.
+  if (!data) return { conflict: true };
   return m.bonus.fromSupabase(data);
 };

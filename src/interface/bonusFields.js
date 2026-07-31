@@ -51,3 +51,11 @@ exports.criteriaPeriods = ['day', 'week', 'month'];
 
 // Kinds sans palier chiffré : éligibilité immédiate, rien à consommer.
 exports.targetlessCriteriaKinds = ['status_view'];
+
+// Sous-champs de `criteria.schedule` (campagne d'un bonus `status_view`).
+// `downloadDate` : jour PRÉCIS où le flyer peut être retiré — passé ce jour, le
+// téléchargement est fermé. Le post a lieu le LENDEMAIN, dans `postWindow`.
+// `claimDelayHours` court depuis `postWindow.end` (cf. statusViewSchedule.util).
+// `postDate` est optionnel : par défaut le lendemain de `downloadDate`.
+exports.scheduleFields = ['downloadDate', 'postDate', 'postWindow', 'timezone'];
+exports.postWindowFields = ['start', 'end'];

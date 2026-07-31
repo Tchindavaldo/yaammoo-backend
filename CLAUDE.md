@@ -3,7 +3,11 @@
 Ce fichier est **versionné** : ses règles s'appliquent automatiquement sur tout
 PC où le projet est cloné/pull, dans n'importe quelle session Claude Code.
 
-## Style de réponse (OBLIGATOIRE)
+> 📏 **18 règles numérotées R1 → R18.** Toute nouvelle règle ajoutée à ce fichier
+> DOIT recevoir le numéro suivant (R19, R20, …) et le total ci-dessus doit être
+> mis à jour. On cite une règle par son numéro (ex. « R1 » pour le style de réponse).
+
+## R1 — Style de réponse (OBLIGATOIRE)
 
 **Toujours COURT et DROIT AU BUT.** Pas de longues explications, pas de tableaux
 à rallonge, pas de récapitulatifs verbeux. Répondre en quelques lignes. Le user
@@ -32,7 +36,17 @@ veut l'essentiel, pas un cours. Développer uniquement s'il le demande explicite
   deux events en un seul). En cas d'ambiguïté : demander, ou suivre littéralement
   ce qui est écrit.
 
-## À lire en DÉBUT de session (OBLIGATOIRE)
+## R2 — À lire en DÉBUT de session (OBLIGATOIRE)
+
+> 🚨 **AU TOUT PREMIER MESSAGE de chaque conversation**, le hook
+> `.claude/hooks/session-start-read.sh` (déclaré dans `.claude/settings.json`)
+> injecte automatiquement **ce fichier** et `architecture/README.md` en entier.
+> La lecture est donc garantie côté harness — rien à invoquer.
+>
+> **Accusé obligatoire** : la toute première réponse de la session doit commencer
+> par la ligne fournie par le hook, seule sur sa ligne :
+> `✅ CLAUDE.md lu en entier (N l., 18 règles R1→R18) + architecture/README.md (M l.)`
+> Absence de cette ligne = hook non déclenché : le signaler et le réparer.
 
 Lis **`architecture/README.md`** avant de travailler : il donne une vue 360 du backend
 (structure services, routes, controllers, repositories, mappers Firestore/Supabase).
@@ -49,7 +63,7 @@ Ne lance un agent Explore que si tu cherches quelque chose d'ultra-précis intro
 
 ---
 
-## Architecture & Modularité (OBLIGATOIRE)
+## R3 — Architecture & Modularité (OBLIGATOIRE)
 
 L'architecture doit rester **propre, moderne, modulaire**. Règles non négociables :
 
@@ -93,7 +107,7 @@ Chaque domaine (users, merchants, orders, payments, notifications) :
 
 ---
 
-## Database Pattern (OBLIGATOIRE)
+## R4 — Database Pattern (OBLIGATOIRE)
 
 **Repository Pattern** : Services ne connaissent PAS la DB utilisée.
 
@@ -123,7 +137,7 @@ couche données pures) :
 
 ---
 
-## isMarchand Logic (IMPORTANT)
+## R5 — isMarchand Logic (IMPORTANT)
 
 **Rule** : `isMarchand` n'est JAMAIS un champ figé. Il est **calculé** à chaque lecture basé sur `fastFoodId`.
 
@@ -148,7 +162,7 @@ isMarchand: !!row.fastfood_id;
 
 ---
 
-## API REST & Swagger
+## R6 — API REST & Swagger
 
 - Endpoint base : `${Config.apiUrl}` (env var)
 - Doc Swagger : `/api-docs`
@@ -157,7 +171,7 @@ isMarchand: !!row.fastfood_id;
 
 ---
 
-## Authentication & Authorization
+## R7 — Authentication & Authorization
 
 **Middleware** : `firebaseAuth` (src/middlewares/authMiddleware.js)
 
@@ -173,7 +187,7 @@ router.get('/user/:id', getOneUserByIdController); // Public (TODO: protect?)
 
 ---
 
-## Socket.io & Realtime
+## R8 — Socket.io & Realtime
 
 **Rooms** :
 
@@ -194,7 +208,7 @@ Voir `architecture/socket-events.md` pour la liste complète.
 
 ---
 
-## Validation & Erreurs
+## R9 — Validation & Erreurs
 
 **Validation** : `src/utils/validator/` — chaque domaine a son validateur
 
@@ -215,7 +229,7 @@ try {
 
 ---
 
-## Variables d'environnement
+## R10 — Variables d'environnement
 
 **Règle d'or:**
 
@@ -238,7 +252,7 @@ Voir `.env` pour la liste complète des variables.
 
 ---
 
-## Versioning par version d'app (OBLIGATOIRE — compatibilité ascendante)
+## R11 — Versioning par version d'app (OBLIGATOIRE — compatibilité ascendante)
 
 > ⚠️ Règle **non négociable**. Le but : ne JAMAIS casser une version d'app déjà
 > publiée sur les stores quand on change la forme des données renvoyées au frontend.
@@ -298,7 +312,7 @@ l'**image existante**. Pour déployer du **code** modifié, toujours lancer
 
 ---
 
-## Conventions de branches Git
+## R12 — Conventions de branches Git
 
 > ⚠️ Cette section parle **exclusivement de branches Git** (`git checkout -b ...`).
 > Elle n'a rien à voir avec l'organisation des dossiers/modules dans le code.
@@ -328,7 +342,7 @@ Règles de création :
 
 ---
 
-## Documentation
+## R13 — Documentation
 
 Après toute modif des services/routes/features, **mettre à jour** :
 
@@ -351,7 +365,7 @@ documentait `items[]` / `totalPrice` alors que la commande réelle porte
 
 ---
 
-## Schema & Migrations (OBLIGATOIRE)
+## R14 — Schema & Migrations (OBLIGATOIRE)
 
 **Ne jamais modifier `schema/migrations/schema.sql` directement** pour un changement incrémental.
 
@@ -378,7 +392,7 @@ ALTER TABLE orders
 
 ---
 
-## Tests & Validation
+## R15 — Tests & Validation
 
 - **API** : Swagger endpoint manual + Postman/curl
 - **DB** : Vérifier lecture/écriture en Firestore ET Supabase (si migration en cours)
@@ -389,7 +403,7 @@ ALTER TABLE orders
 
 ---
 
-## Deploy
+## R16 — Deploy
 
 - Docker : `Dockerfile`
 - Platform : Fly.io (`fly.toml`)
@@ -398,7 +412,7 @@ ALTER TABLE orders
 
 ---
 
-## Performance & Monitoring
+## R17 — Performance & Monitoring
 
 - Queries N+1 : éviter (batch Firestore.in() ou Supabase joins)
 - Timeouts : MobileWallet API peut être lente (retry logic)
@@ -406,7 +420,7 @@ ALTER TABLE orders
 
 ---
 
-## Code Style
+## R18 — Code Style
 
 - ESLint config : `.eslintrc`
 - Prettier config : `.prettierrc.js`

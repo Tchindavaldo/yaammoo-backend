@@ -20,11 +20,15 @@ exports.getBonusService = async userId => {
     // Contexte user : commandes + demandes du user, + compteurs globaux.
     // Sans userId (fallback), on renvoie quand même la définition + compteurs
     // globaux, avec une progression/état vides.
-    const [orders, userRequests, totalClaimCounts] = await Promise.all([
+    const [orders, userRequests, totalClaimCounts, viewer] = await Promise.all([
       userId ? repos.orders.getByUser(userId) : Promise.resolve([]),
       userId ? repos.bonusRequests.getByUser(userId) : Promise.resolve([]),
       repos.bonusRequests.claimCountsByBonus(CLAIMED_ENTRY_STATUSES),
+      // Le rôle décide de la FORME du calendrier de campagne servi (config brute
+      // pour l'admin qui l'édite, dates calculées pour le user qui les affiche).
+      userId ? repos.users.getUserByIdSafe(userId) : Promise.resolve(null),
     ]);
+    const isAdmin = !!viewer?.isAdmin;
 
     // Index des demandes du user par bonusId. Une réclamation = une LIGNE
     // (migration 029), donc un même bonus peut en avoir plusieurs :
@@ -43,7 +47,7 @@ exports.getBonusService = async userId => {
     }
 
     const now = new Date();
-    return bonuses.map(bonus => enrichBonusForUser(bonus, { orders, userRequestByBonus, userRequestsByBonus, userRequests, fastFoodBonusCounts, totalClaimCounts, now }));
+    return bonuses.map(bonus => enrichBonusForUser(bonus, { orders, userRequestByBonus, userRequestsByBonus, userRequests, fastFoodBonusCounts, totalClaimCounts, isAdmin, now }));
   } catch (error) {
     console.error('Erreur dans getBonusService:', error);
     throw new Error(error.message || 'Erreur lors de la récupération des bonus');

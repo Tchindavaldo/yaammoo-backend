@@ -9,6 +9,7 @@
 // ============================================================================
 
 const { computeBonusStats, applyConsumption, CLAIMED_STATUSES } = require('./bonusStats.util');
+const { evaluateDownload, resolveCampaign, canUploadProof } = require('./statusViewSchedule.util');
 
 // Statuts d'une entrée de demande considérés comme "réclamé/accordé".
 const CLAIMED_ENTRY_STATUSES = CLAIMED_STATUSES;
@@ -129,9 +130,44 @@ function computeExpiresAt(startsAt, claimDuration) {
  * @param {Date}   [ctx.now]
  */
 function enrichBonusForUser(bonus, ctx) {
-  const { orders = [], userRequestByBonus = {}, userRequestsByBonus = {}, userRequests = [], fastFoodBonusCounts = {}, totalClaimCounts = {}, now = new Date() } = ctx || {};
+  const { orders = [], userRequestByBonus = {}, userRequestsByBonus = {}, userRequests = [], fastFoodBonusCounts = {}, totalClaimCounts = {}, isAdmin = false, now = new Date() } = ctx || {};
 
   const fastFoodId = bonus.fastFoodId ?? null;
+
+  // Le retrait du flyer est ouvert le jour de campagne, autant de fois que voulu :
+  // seule la date le ferme. Ne dépend donc que du bonus, pas du user.
+  // Seuls les bonus à flyer sont concernés — pour les autres, `false` sans objet.
+  const canDownload = bonus.flyerUrl ? evaluateDownload(bonus, null, now).canDownload : false;
+  // Pendant du précédent, côté claim : le délai post-publication est-il écoulé ?
+  // Le front active son bouton d'envoi de la vidéo sans rejouer le calcul.
+  const canUpload = bonus.flyerUrl ? canUploadProof(bonus, now) : false;
+
+  // Calendrier de la campagne : le front affiche « retrait le 5, poste le 6 entre
+  // 18h et 21h » sans rejouer la règle du J+1. Les bornes du créneau sont des
+  // instants absolus (ISO), déjà résolus dans le fuseau du bonus — le front les
+  // rend directement. `null` si le bonus n'a pas de campagne.
+  const campaign = resolveCampaign(bonus);
+  // UNE SEULE forme selon l'appelant, jamais les deux — sinon le front reçoit
+  // deux fois la même information :
+  //   - admin : `criteria.schedule` brut (c'est ce qu'il édite et renvoie en PATCH) ;
+  //   - user  : `campaignSchedule`, dates déjà résolues, prêtes à afficher.
+  const campaignSchedule =
+    !isAdmin && campaign
+      ? {
+          downloadDate: campaign.downloadDate,
+          postDate: campaign.postDate,
+          postWindowStart: campaign.postWindowStart.toISOString(),
+          postWindowEnd: campaign.postWindowEnd.toISOString(),
+        }
+      : null;
+
+  // Le user n'a que faire de la config brute (règle du J+1, fuseau…) : elle est
+  // déjà résolue dans `campaignSchedule`. On ne la sert qu'à l'admin.
+  let criteria = bonus.criteria ?? null;
+  if (!isAdmin && criteria && typeof criteria === 'object' && 'schedule' in criteria) {
+    const { schedule, ...rest } = criteria;
+    criteria = rest;
+  }
 
   const request = userRequestByBonus[bonus.id];
   const requestState = deriveRequestState(request);
@@ -167,15 +203,19 @@ function enrichBonusForUser(bonus, ctx) {
     type: bonus.type ?? null,
     name: bonus.name ?? null,
     description: bonus.description ?? null,
-    criteria: bonus.criteria ?? null,
+    criteria,
     fastFoodId,
     fastFoodName: bonus.fastFoodName ?? null,
     active: bonus.active ?? true,
     claimDuration: bonus.claimDuration ?? null,
-    // Bonus à preuve (`status_view`) : le front a besoin du flyer à poster et du
-    // délai d'attente pour afficher le parcours sans second appel.
-    claimDelayHours: bonus.claimDelayHours ?? 0,
-    flyerUrl: bonus.flyerUrl ?? null,
+    // ⚠️ `flyerUrl` et `claimDelayHours` ne sont PAS exposés ici : le flyer ne
+    // s'obtient que par GET /bonus/:id/flyer, qui seul horodate le retrait. Les
+    // servir au GET permettrait de récupérer le visuel sans déclencher le délai.
+    // Le front n'a besoin que de savoir si le retrait est encore ouvert, et
+    // QUAND poster / réclamer :
+    canDownload,
+    canUpload,
+    campaignSchedule,
     requiresRewardCredentials: bonus.requiresRewardCredentials ?? false,
     requiresProfile: bonus.requiresProfile ?? false,
     usageLimit: bonus.usageLimit ?? null,
