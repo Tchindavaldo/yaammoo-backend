@@ -40,6 +40,9 @@ Socket.io est fire-and-forget : un event émis pendant que l'utilisateur est hor
 | `newFastFoodMenu` / `fastFoodMenuUpdated` / `fastFoodMenuDeleted` | `services/menu/*` | marchand |
 | `menuRatingUpdated` | `services/rating/rateMenu.service.js` | marchand + user |
 | `driverRatingUpdated` | `services/rating/rateDriver.service.js` | livreur + user + marchand |
+| `bonus.reward_credentials` | `services/bonus/rewardCredentialsBonus.service.js` | client |
+| `bonus.redeemed` | `services/bonus/applyDeliveryBonus.service.js` | client |
+| `bonus.armed` / `bonus.disarmed` | `services/bonus/armBonus.service.js` | client |
 
 > Les broadcasts catalogue (`globalMenu*`) restent **fire-and-forget** : le front recharge le
 > catalogue (GET) à la reconnexion plutôt que de rejouer des events à tous. Les events de file
@@ -151,10 +154,10 @@ Détails feature : [ratings.md](./ratings.md).
 |---|---|---|---|
 | `bonus.stats_updated` | `userId` client | `services/bonus/emitBonusStats.js` | `{ data: { bonusStats: { <bonusId>: {day,week,month} } } }` |
 | `bonus.claimed` | `userId` client | `services/bonus/claimBonus.service.js` | `{ data: { bonusId, requestId, requestStatus, code, claimedAt, startsAt, expiresAt, proofVideoUrl } }` |
-| `bonus.flyer_downloaded` | `userId` client | `services/bonus/downloadFlyer.service.js` | `{ data: { bonusId, flyerUrl, downloadedAt, lastDownloadedAt, downloadCount, claimDelayHours, claimableAt } }` |
+| `bonus.flyer_downloaded` | `userId` client | `services/bonus/downloadFlyer.service.js` | `{ data: { bonusId, flyerUrl, downloadedAt, lastDownloadedAt, downloadCount, claimDelayHours, claimableAt, postWindow } }` |
 | `bonus.activation_changed` | **broadcast global** (tous les sockets) | `services/bonus/broadcastBonusActivation.js` | `{ data: { bonusId, active, type, name, fastFoodId, fastFoodName, changedAt } }` |
 | `bonus.created` | **broadcast global** (tous les sockets) | `services/bonus/postBonus.service.js` | **aucun payload** |
-| `bonus.reward_credentials` | `userId` client | `services/bonus/rewardCredentialsBonus.service.js` | `{ data: { bonusId, requestId, requestStatus, code, rewardCredentials, claimedAt, startsAt, expiresAt } }` |
+| `bonus.reward_credentials` | `userId` client | `services/bonus/rewardCredentialsBonus.service.js` (**reliableEmit**) | `{ data: { bonusId, requestId, requestStatus, code, rewardCredentials, claimedAt, startsAt, expiresAt } }` |
 | `bonus.armed` | `userId` client | `services/bonus/armBonus.service.js` | `{ data: { bonusId, armed:true, disarmedBonusIds, deliveryOffer } }` |
 | `bonus.disarmed` | `userId` client | `services/bonus/armBonus.service.js` | `{ data: { bonusId, armed:false, disarmedBonusIds:[], deliveryOffer:null } }` |
 | `bonus.redeemed` | `userId` client | `services/bonus/applyDeliveryBonus.service.js` | `{ data: { bonusId, code, usageCount, usageLimit, remainingUses, redeemed } }` |
@@ -167,9 +170,11 @@ Détails feature : [ratings.md](./ratings.md).
 - Les bonus `requiresRewardCredentials` (Netflix…) **n'émettent pas** `bonus.redeemed` :
   leur contrepartie est la livraison des identifiants, signalée par
   `bonus.reward_credentials` + push. Cycle fermé à l'expiration, sans compteur.
-- `bonus.flyer_downloaded` : émis par `GET /bonus/:id/flyer`, qui **démarre le délai**
-  avant claim (`claimableAt = downloadedAt + claimDelayHours`). Sert aux autres
-  appareils du user à afficher le même compte à rebours. `proofVideoUrl` sur
+- `bonus.flyer_downloaded` : émis par `GET /bonus/:id/flyer`. `claimableAt` vaut
+  `postWindow.end + claimDelayHours` sur un bonus à campagne (`criteria.schedule`),
+  et `downloadedAt + claimDelayHours` sur un bonus sans campagne. Sert aux autres
+  appareils du user à afficher le même compte à rebours ; `postWindow` porte le
+  créneau de publication (`null` sans campagne). `proofVideoUrl` sur
   `bonus.claimed` n'est renseigné que pour un bonus `status_view`.
 - `bonus.created` : émis à la création (`POST /bonus`), **sans payload** — c'est un
   simple signal « la liste a changé ». Le front réagit par un `GET /bonus/all`, seul

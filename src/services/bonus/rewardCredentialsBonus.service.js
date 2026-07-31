@@ -10,13 +10,15 @@
 //   2. Autorisation : admin, ou propriétaire de la boutique du bonus.
 //   3. Refuse si aucune entrée `pending` (déjà livrée / rien à livrer).
 //   4. Passe l'entrée en `approved`, y attache `rewardCredentials` et délivre le code.
-//   5. Notifie le user : socket `bonus.reward_credentials` + push.
+//   5. Notifie le user : socket `bonus.reward_credentials` (via `reliableEmit`,
+//      donc rejoué si le user est hors ligne) + push.
 //
 // ⚠️ Le solde a DÉJÀ été décrémenté au claim (cf. claimBonus.service) : la
 // livraison ne touche pas aux `consumedOrderIds`.
 // ============================================================================
 const repos = require('../../repositories');
 const { getIO } = require('../../socket');
+const { reliableEmit } = require('../../utils/reliableEmit');
 const { generateBonusCode } = require('./bonusCode.util');
 const { deriveRequestState, computeExpiresAt } = require('./enrichBonusForUser');
 const { postNotificationService } = require('../notification/request/postNotification.service');
@@ -171,8 +173,12 @@ exports.rewardCredentialsBonusService = async (requestId, rewardCredentials, vie
     };
 
     // Room nommée par l'uid, sans préfixe (cf. CLAUDE.md / socket.js).
+    // `reliableEmit` (et non un emit nu) : la livraison des accès est le moment
+    // où le bonus devient réellement utilisable. Un user hors ligne à cet instant
+    // ne recevrait jamais l'event et resterait sur une réclamation `pending`
+    // jusqu'à son prochain GET. L'event est donc persisté et rejoué au join_user.
     try {
-      getIO().to(request.userId).emit('bonus.reward_credentials', { data: payload });
+      await reliableEmit(getIO(), request.userId, 'bonus.reward_credentials', { data: payload });
     } catch (err) {
       console.error('rewardCredentialsBonus: émission socket échouée (non bloquant):', err.message);
     }

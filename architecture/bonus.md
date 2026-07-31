@@ -219,8 +219,18 @@ d'`Intl`, créneau de publication non déjà passé, champs inconnus rejetés.
    dans le bucket Supabase (dossier `bonusProofs`) et son URL est stockée dans
    l'entrée `status[].proofVideoUrl` de la réclamation. Le claim renvoie et émet
    `proofVideoUrl` dans `bonus.claimed`.
-   La ligne de téléchargement est **purgée** : le cycle suivant exige un nouveau
-   téléchargement, donc un nouveau statut posté.
+   La ligne de téléchargement est **marquée** (`proof_uploaded_at`, `proof_video_url` —
+   migration 032), jamais supprimée : la trace du retrait et de la preuve envoyée
+   survit au claim. C'est ce marqueur qui interdit une seconde réclamation sur le
+   même retrait ; le cycle suivant se rouvre au prochain `GET /bonus/:id/flyer`
+   (`record()` remet le marqueur à zéro et repart de `downloadedAt = now`).
+
+   > **Rejouer un test** : remettre le marqueur à `NULL` rouvre l'upload sans
+   > toucher au reste du cycle.
+   > ```sql
+   > UPDATE bonus_flyer_downloads SET proof_uploaded_at = NULL
+   > WHERE user_id = '<uid>' AND bonus_id = '<bonusId>';
+   > ```
 4. La demande reste `pending` (`requiresRewardCredentials`) → l'admin visionne la
    preuve puis livre les accès via
    `POST /bonus/request/:id/reward-credentials` (flux inchangé).
@@ -235,7 +245,7 @@ Fusionnés dans chaque bonus à la lecture, pour le user authentifié :
 | Champ | Source | Calcul |
 |---|---|---|
 | `canDownload` | `bonus` (définition) | `true` si le flyer peut **encore** être retiré : bonus actif et `downloadDate` non passée. Toujours `false` pour un bonus sans `flyerUrl`. Ne dépend **pas** du user : le retrait est illimité dans la journée. |
-| `canUpload` | `criteria.schedule` + `claimDelayHours` | `true` quand le délai post-publication est écoulé (`postWindowEnd + claimDelayHours`) : le front active son bouton d'envoi de la **vidéo preuve**. Pendant de `canDownload`, côté claim. Ne présume ni du flyer téléchargé ni de la vidéo fournie — ces contrôles restent au claim (`checkProofDelay`), seul juge en écriture. |
+| `canUpload` | `criteria.schedule` + `claimDelayHours` + `bonus_flyer_downloads` | `true` quand **les trois** conditions du claim sont réunies : délai post-publication écoulé (`postWindowEnd + claimDelayHours`), flyer téléchargé, et téléchargement pas encore consommé (`proof_uploaded_at IS NULL`). Le front active son bouton d'envoi de la **vidéo preuve** sans risquer un 400. Le claim (`checkProofDelay`) reste seul juge en écriture. |
 | `campaignSchedule` | `criteria.schedule` | **User non-admin uniquement.** Calendrier de la campagne : `{downloadDate, postDate, postWindowStart, postWindowEnd}`. Les deux bornes du créneau sont des **instants absolus ISO**, déjà résolus dans le fuseau du bonus — le front les rend directement, sans rejouer la règle du J+1 ni convertir un fuseau. `null` pour un admin ou un bonus sans campagne. |
 | `bonusStats.{day,week,month}` | `orders` + `bonus_requests` | Agrégation `{count, amount}` des commandes **non annulées** du user pour `fastFoodId` (toutes si bonus plateforme), par fenêtre calendaire UTC, **moins les paliers déjà consommés** (cf. § Décrément). |
 | `requestId` | `bonus_requests` du user | Id de la réclamation **courante** (`is_current`). `null` si aucune n'est active. Sert au front à cibler une ligne précise (ex. livraison des accès). |
@@ -370,6 +380,18 @@ ou le **marchand propriétaire** (bonus de boutique) fournisse les identifiants.
 5. L'entrée passe `approved` + `rewardCredentials`, `credentialsSentAt`,
    `credentialsSentBy` ; le code est généré s'il n'existe pas encore.
 6. Notifie le user : socket `bonus.reward_credentials` (room `<userId>`) + push.
+
+> **Relance hors ligne** : cet event passe par **`reliableEmit`** (persisté dans
+> `outbox_events`, rejoué au prochain `join_user`). C'est le moment où le bonus
+> devient réellement utilisable : un user hors ligne à la livraison resterait
+> sinon sur une réclamation `pending` jusqu'à son prochain `GET /bonus/all`.
+> Le payload rejoué porte `__eventId` et `__replay: true` — le front **doit ACK**
+> (callback socket.io) pour que l'event cesse d'être rejoué.
+>
+> Les autres events du parcours (`bonus.claimed`, `bonus.flyer_downloaded`) restent
+> en émission simple : ils confirment une action que le user vient de faire, donc
+> il est en ligne par construction. `bonus.activation_changed` est un **broadcast
+> global**, hors du mécanisme de rejeu qui est par user.
 
 > Le solde a **déjà** été décrémenté au claim : la livraison ne touche pas aux
 > `consumedOrderIds`.

@@ -127,10 +127,22 @@ function computeExpiresAt(startsAt, claimDuration) {
  *                                          (historique : alimente userClaimedCount)
  * @param {Object} ctx.fastFoodBonusCounts map fastFoodId -> nb de bonus du fastfood
  * @param {Object} ctx.totalClaimCounts    map bonusId -> nb total de réclamations (tous users)
+ * @param {Object} [ctx.flyerDownload]     ligne `bonus_flyer_downloads` du user pour CE bonus
+ *                                          (null si jamais téléchargé) — pilote `canUpload`
  * @param {Date}   [ctx.now]
  */
 function enrichBonusForUser(bonus, ctx) {
-  const { orders = [], userRequestByBonus = {}, userRequestsByBonus = {}, userRequests = [], fastFoodBonusCounts = {}, totalClaimCounts = {}, isAdmin = false, now = new Date() } = ctx || {};
+  const {
+    orders = [],
+    userRequestByBonus = {},
+    userRequestsByBonus = {},
+    userRequests = [],
+    fastFoodBonusCounts = {},
+    totalClaimCounts = {},
+    isAdmin = false,
+    flyerDownload = null,
+    now = new Date(),
+  } = ctx || {};
 
   const fastFoodId = bonus.fastFoodId ?? null;
 
@@ -140,7 +152,10 @@ function enrichBonusForUser(bonus, ctx) {
   const canDownload = bonus.flyerUrl ? evaluateDownload(bonus, null, now).canDownload : false;
   // Pendant du précédent, côté claim : le délai post-publication est-il écoulé ?
   // Le front active son bouton d'envoi de la vidéo sans rejouer le calcul.
-  const canUpload = bonus.flyerUrl ? canUploadProof(bonus, now) : false;
+  // Les deux conditions du claim sont reprises telles quelles (`checkProofDelay`) :
+  // un flyer retiré, et pas encore consommé par une réclamation (migration 032).
+  // Sans elles, le bouton s'afficherait alors que le claim répondrait 400.
+  const canUpload = bonus.flyerUrl ? canUploadProof(bonus, now) && !!flyerDownload && !flyerDownload.proofUploadedAt : false;
 
   // Calendrier de la campagne : le front affiche « retrait le 5, poste le 6 entre
   // 18h et 21h » sans rejouer la règle du J+1. Les bornes du créneau sont des
