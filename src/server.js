@@ -19,4 +19,4 @@ startKeepAlive(4);
 // (pour recevoir les événements de verdict de paiement)
 initMobileWalletSocket();
 
-server.listen(PORT, HOST, () => console.log(`🚀 Serveur lancé sur http://localhost:${PORT}`));
+server.listen(PORT, HOST, () => console.log(`Serveur lancé sur http://localhost:${PORT}`));

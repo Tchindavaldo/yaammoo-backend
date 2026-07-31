@@ -31,7 +31,7 @@ async function notifyUser(userId, bonus, isCorrection = false) {
         // Le user possède déjà les accès sur une correction : annoncer une
         // nouvelle livraison serait trompeur.
         title: isCorrection ? 'Bonus mis à jour' : 'Bonus disponible',
-        body: isCorrection ? `Vos accès « ${bonus.name} » ont été mis à jour.` : `Vos accès « ${bonus.name} » sont disponibles 🎉`,
+        body: isCorrection ? `Vos accès « ${bonus.name} » ont été mis à jour.` : `Vos accès « ${bonus.name} » sont disponibles `,
         type: 'Bonus',
       },
       tokens: fcm,

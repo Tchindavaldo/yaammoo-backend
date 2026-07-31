@@ -59,7 +59,7 @@ const sendSingleToken = async ({ token, title, body, data = {} }) => {
   const shortToken = String(token).substring(0, 40) + '...';
 
   if (typeof token === 'string' && token.startsWith('ExponentPushToken[')) {
-    console.log(`\n🟠 EXPO PUSH → ${shortToken}`);
+    console.log(`\nEXPO PUSH → ${shortToken}`);
     console.log(`   Title: "${title}" | Body: "${body}"`);
     const result = await sendExpoPushNotification({ token, title, body, data });
     if (result.success) {
@@ -70,7 +70,7 @@ const sendSingleToken = async ({ token, title, body, data = {} }) => {
     return result;
   }
 
-  console.log(`\n🔵 FCM NATIVE → ${shortToken}`);
+  console.log(`\nFCM NATIVE → ${shortToken}`);
   console.log(`   Title: "${title}" | Body: "${body}"`);
 
   const message = {

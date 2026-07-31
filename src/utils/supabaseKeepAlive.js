@@ -74,7 +74,7 @@ const pingAll = async () => {
     console.warn('⚠️ [keep-alive] Aucune cible Supabase configurée — ping ignoré.');
     return;
   }
-  console.log(`[${new Date().toISOString()}] 📡 Keep-alive sur ${targets.length} projet(s) : ` + targets.map(t => t.name).join(', '));
+  console.log(`[${new Date().toISOString()}] Keep-alive sur ${targets.length} projet(s) : ` + targets.map(t => t.name).join(', '));
   await Promise.all(targets.map(pingOne));
 };
 
@@ -83,7 +83,7 @@ const pingAll = async () => {
  * @param {number} intervalHours - Fréquence en heures (défaut 72h / 3 jours).
  */
 const startKeepAlive = (intervalHours = 72) => {
-  console.log('🚀 Supabase keep-alive : premier ping maintenant…');
+  console.log('Supabase keep-alive : premier ping maintenant…');
   pingAll();
 
   const intervalMs = intervalHours * 60 * 60 * 1000;

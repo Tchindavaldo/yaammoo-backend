@@ -72,7 +72,7 @@ exports.postTransactionService = async data => {
     // Apple Review Mode : bypass total MobileWallet → createOrder direct
     // =========================================================================
     if (APPLE_REVIEW_MODE && payBy === 'mobilemoney') {
-      log.info(`${logPrefix} 🍎 APPLE_REVIEW_MODE → createOrder direct sans paiement`);
+      log.info(`${logPrefix} APPLE_REVIEW_MODE → createOrder direct sans paiement`);
       const orders = Array.isArray(items) ? items : [];
       const toUpdate = orders.filter(o => o && o.id);
       const toCreate = orders.filter(o => o && !o.id);

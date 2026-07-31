@@ -12,7 +12,7 @@ exports.postNotificationController = async (req, res) => {
       const collected = await getUserTokens(userId);
       tokens = collected.fcm || [];
       apnsTokens = collected.apns || [];
-      console.log(`🔔 [postNotif] userId=${userId} → FCM=${tokens.length}, APNs=${apnsTokens.length}`);
+      console.log(`[postNotif] userId=${userId} → FCM=${tokens.length}, APNs=${apnsTokens.length}`);
     }
 
     const data = { data: req.body, userId: userId || undefined, fastFoodId: fastFoodId || undefined, tokens, apnsTokens };

@@ -42,7 +42,7 @@ const { admin } = require('../../config/firebase');
 exports.deleteUserAccount = async uid => {
   if (!uid) throw new Error('UID requis pour la suppression');
 
-  console.log(`🗑️  [DELETE-ACCOUNT] Début suppression pour UID: ${uid}`);
+  console.log(`[DELETE-ACCOUNT] Début suppression pour UID: ${uid}`);
 
   // Données BD (Supabase) via le repository — cascade géré côté repo
   try {
@@ -64,6 +64,6 @@ exports.deleteUserAccount = async uid => {
     }
   }
 
-  console.log(`🎉 [DELETE-ACCOUNT] Suppression complète terminée pour ${uid}`);
+  console.log(`[DELETE-ACCOUNT] Suppression complète terminée pour ${uid}`);
   return { uid, deletedAt: new Date().toISOString() };
 };

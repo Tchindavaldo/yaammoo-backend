@@ -74,7 +74,7 @@ async function notifyUser(userId, pending) {
     await postNotificationService({
       data: {
         title: 'Bonus',
-        body: pending ? 'Votre réclamation est en cours de traitement ⏳' : 'Votre bonus a été réclamé avec succès 🎉',
+        body: pending ? 'Votre réclamation est en cours de traitement ⏳' : 'Votre bonus a été réclamé avec succès ',
         type: 'Bonus',
       },
       tokens: fcm,

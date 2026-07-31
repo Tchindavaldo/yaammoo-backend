@@ -138,7 +138,7 @@ Le token APNs hex peut être récupéré dans Firestore →
 Tu dois voir :
 ```
 ✅ [APNS] Provider initialisé (production=true, keyId=...)
-📤 [APNS] Envoi vers 1 token(s) iOS
+[APNS] Envoi vers 1 token(s) iOS
 ✅ [APNS] Résultat : 1 succès, 0 échecs
 ```
 

@@ -43,7 +43,7 @@ Le backend renvoie **la même réponse que MobileWallet**. Se baser sur `success
   payment_number: "..."
 }
 ```
-➡️ Afficher l'overlay « En attente de paiement » + afficher `message` (il contient le code
+Afficher l'overlay « En attente de paiement » + afficher `message` (il contient le code
 USSD exact à composer). Puis **écouter le socket** (étape 3).
 
 ### Cas B — Erreur / doublon / opérateur indisponible (HTTP 400)
@@ -56,13 +56,13 @@ USSD exact à composer). Puis **écouter le socket** (étape 3).
   retry_after_s: 30   // présent uniquement sur certaines erreurs
 }
 ```
-➡️ Afficher `message` en erreur.
+Afficher `message` en erreur.
 
 ### Cas C — Validation backend échouée (HTTP 400)
 ```javascript
 { success: false, message: [ { field: "phone", message: "..." } ] }
 ```
-➡️ `message` est un tableau de champs invalides.
+`message` est un tableau de champs invalides.
 
 ---
 
