@@ -31,6 +31,13 @@ async function checkProofDelay(userId, bonus) {
     return { blocked: true, message: "Vous devez d'abord télécharger le flyer à poster." };
   }
 
+  // Téléchargement déjà consommé par une réclamation (migration 032) : la ligne
+  // survit désormais au claim, c'est ce marqueur — et non sa disparition — qui
+  // interdit de réclamer deux fois sur le même retrait.
+  if (download.proofUploadedAt) {
+    return { blocked: true, message: 'Vous avez déjà envoyé votre preuve. Téléchargez à nouveau le flyer pour un nouveau cycle.' };
+  }
+
   const delayHours = Number(bonus.claimDelayHours) || 0;
 
   // Bonus à campagne : le délai court depuis la FIN du créneau de publication du
@@ -200,13 +207,14 @@ exports.claimBonusService = async (userId, bonusId, { proofVideo = null } = {}) 
       ...usageFields,
     });
 
-    // Le téléchargement a été « consommé » par ce claim : le prochain cycle
-    // exigera un nouveau flyer téléchargé, donc un nouveau statut posté.
+    // Le téléchargement a été « consommé » par ce claim : on le MARQUE au lieu de
+    // le supprimer (migration 032). La trace du retrait et de la preuve envoyée
+    // survit, et le prochain cycle se rouvre au prochain téléchargement.
     if (needsProof) {
       try {
-        await repos.bonusFlyerDownloads.clear(userId, bonusId);
+        await repos.bonusFlyerDownloads.markProofUploaded(userId, bonusId, proofVideoUrl);
       } catch (err) {
-        console.error('claimBonus: purge du téléchargement échouée (non bloquant):', err.message);
+        console.error('claimBonus: marquage du téléchargement échoué (non bloquant):', err.message);
       }
     }
 

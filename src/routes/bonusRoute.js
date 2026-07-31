@@ -212,9 +212,11 @@ route.post('', firebaseAuth, postBonusController);
  *                       canUpload:
  *                         type: boolean
  *                         description: >
- *                           Le délai post-publication est-il écoulé
- *                           (`postWindowEnd + claimDelayHours`) ? Le front active alors
- *                           l'envoi de la vidéo preuve. Indicatif : le claim revérifie tout.
+ *                           Les trois conditions du claim sont-elles réunies : délai
+ *                           post-publication écoulé (`postWindowEnd + claimDelayHours`),
+ *                           flyer téléchargé, et téléchargement pas encore consommé par
+ *                           une réclamation ? Le front active alors l'envoi de la vidéo
+ *                           preuve. Indicatif : le claim revérifie tout.
  *                       campaignSchedule:
  *                         type: object
  *                         nullable: true
@@ -323,7 +325,9 @@ route.get('/all', firebaseAuth, getBonusController);
  *       400:
  *         description: >
  *           Bonus inactif, palier non atteint, ou — pour `status_view` — flyer
- *           non téléchargé, délai `claimDelayHours` non écoulé, ou vidéo absente.
+ *           non téléchargé, preuve déjà envoyée pour ce téléchargement (il faut
+ *           re-télécharger le flyer pour ouvrir un nouveau cycle), délai
+ *           `claimDelayHours` non écoulé, ou vidéo absente.
  *       401:
  *         description: Token manquant ou invalide
  *       404:
