@@ -28,7 +28,8 @@ src/
 │   ├── bonusRoute.js          → /bonus
 │   ├── bonusRequestRoute.js   → /bonusRequest
 │   ├── imageRoutes.js         → /image
-│   └── smsRoutes.js           → /sms (WhatsApp)
+│   ├── smsRoutes.js           → /sms (WhatsApp)
+│   └── supportRoutes.js       → /support (chat support client/marchand)
 │
 ├── controllers/               # HTTP → service
 │   ├── auth/
@@ -41,6 +42,7 @@ src/
 │   │   ├── FCM/               # sendPushNotification.controller
 │   │   └── whatsapp/
 │   ├── order/
+│   ├── support/               # threads, messages, markRead
 │   ├── transaction/
 │   └── user/
 │
@@ -57,6 +59,7 @@ src/
 │   │   ├── socket/            # helpers d'émission socket
 │   │   └── whatsapp/
 │   ├── order/                 # createOrder, updateOrders, rankQueue…
+│   ├── support/               # fils + messages, emitSupportMessage, notifySupportMessage
 │   ├── transaction/
 │   └── user/                  # userService (fcmTokens arrayUnion)
 │
@@ -84,6 +87,7 @@ app.use('/bonus', bonusRoutes);
 app.use('/bonusRequest', bonusRequestRoutes);
 app.use('/image', imageRoutes);
 app.use('/sms', smsRoutes);
+app.use('/support', supportRoutes);
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 ```
 
