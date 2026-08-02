@@ -12,7 +12,7 @@ const MESSAGES = 'support_messages';
 
 // Jointures : la boutique (titre cote client) et le client (titre cote
 // marchand). Sans elles chaque cote afficherait un identifiant brut.
-const THREAD_SELECT = '*, fastfoods:fastfood_id (id, nom), users:user_id (id, nom, prenom)';
+const THREAD_SELECT = '*, fastfoods:fastfood_id (id, name), users:user_id (id, nom, prenom)';
 
 exports.createThread = async data => {
   const id = data.id || generateId();

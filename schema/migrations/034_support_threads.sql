@@ -4,6 +4,7 @@
 
 CREATE TABLE IF NOT EXISTS support_threads (
   id            TEXT PRIMARY KEY,
+  -- FK ajoutees par la migration 035 (obligatoires pour les jointures PostgREST).
   user_id       TEXT NOT NULL,
   fastfood_id   TEXT,
   topic         TEXT NOT NULL,

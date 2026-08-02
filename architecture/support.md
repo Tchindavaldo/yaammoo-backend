@@ -12,7 +12,11 @@ son cote : `fastFood` (`{ id, nom }` ou `null`) pour le client, et `client`
 (`{ id, nom }`, nom reconstitue depuis `users.prenom` + `users.nom`) pour la
 boutique. Les deux viennent de jointures dans `THREAD_SELECT`.
 
-## Tables (migration `034_support_threads.sql`)
+## Tables (migrations `034_support_threads.sql` + `035_support_threads_fks.sql`)
+
+> ⚠️ Les jointures `fastfoods` / `users` du repository exigent de **vraies cles
+> etrangeres** : sans elles PostgREST renvoie `PGRST200`. C'est l'objet de la
+> migration 035, qui termine par `NOTIFY pgrst, 'reload schema'`.
 
 | Table | Colonnes |
 |---|---|

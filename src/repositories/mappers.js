@@ -558,7 +558,7 @@ const supportThreadFromSupabase = row => {
     id: row.id,
     userId: row.user_id,
     client: { id: row.user_id, nom: clientName || 'Client' },
-    fastFood: row.fastfood_id ? { id: row.fastfood_id, nom: ff ? ff.nom : null } : null,
+    fastFood: row.fastfood_id ? { id: row.fastfood_id, nom: ff ? ff.name || ff.nom || null : null } : null,
     topic: row.topic,
     title: row.title || '',
     status: row.status,
