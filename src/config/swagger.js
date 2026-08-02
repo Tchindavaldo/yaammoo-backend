@@ -138,6 +138,19 @@ const options = {
               description: "Commandes d'un même panier, à réafficher ensemble (une commande = un plat). " + 'Renseigné par le backend au passage en `pending`, jamais envoyé par le client.',
             },
             driverId: { type: 'string', nullable: true, description: 'Livreur assigné à CETTE commande.' },
+            deliveryGroupId: {
+              type: 'string',
+              description:
+                "Commandes du même panier ET de la même boutique, qui ne valent qu'UNE seule course. " +
+                "À distinguer de `groupId`, qui groupe le panier entier (il peut couvrir deux boutiques). " +
+                "Absent si la commande est à emporter (pas de course).",
+            },
+            courseBilled: {
+              type: 'boolean',
+              description:
+                'true sur UNE SEULE commande du `deliveryGroupId` : celle qui porte réellement la course. ' +
+                'Les autres valent `false` — leur livraison est payée par celle-là. Absent si la commande est à emporter.',
+            },
             userData: {
               type: 'object',
               properties: {

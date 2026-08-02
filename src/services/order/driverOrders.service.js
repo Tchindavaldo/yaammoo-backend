@@ -26,6 +26,7 @@ const { getIO } = require('../../socket');
 const { getFastFoodService } = require('../fastfood/getFastFood');
 const { reliableEmit } = require('../../utils/reliableEmit');
 const { updateOrders } = require('./updateOrders.service');
+const { enrichOrdersWithCourse } = require('./enrichOrdersWithCourse');
 
 // Étapes depuis lesquelles le livreur peut faire avancer la commande.
 // (finished = prête → delivering ; delivering → delivered)
@@ -119,5 +120,5 @@ exports.driverAdvanceStatus = async (orderId, driverId, prevData = null) => {
 
 exports.getDriverOrders = async driverId => {
   if (!driverId) throw new Error('driverId requis');
-  return repos.orders.getByDriver(driverId);
+  return enrichOrdersWithCourse(await repos.orders.getByDriver(driverId));
 };

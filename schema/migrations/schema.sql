@@ -298,7 +298,7 @@ CREATE TABLE IF NOT EXISTS notifications (
   user_id     TEXT,
   fastfood_id TEXT,
   target      TEXT,
-  all_notif   JSONB DEFAULT '[]'::jsonb,
+  all_notif   JSONB NOT NULL DEFAULT '[]'::jsonb,
   updated_at  TIMESTAMPTZ DEFAULT NOW(),
   created_at  TIMESTAMPTZ DEFAULT NOW(),
   CONSTRAINT notifications_owner CHECK (
@@ -603,7 +603,7 @@ BEGIN
   ELSE
     -- Prepend dans l'array existant
     UPDATE notifications
-       SET all_notif = jsonb_build_array(p_notif) || all_notif,
+       SET all_notif = jsonb_build_array(p_notif) || COALESCE(all_notif, '[]'::jsonb),
            updated_at = v_now
      WHERE id = v_existing_id
     RETURNING to_jsonb(notifications.*) INTO v_result;

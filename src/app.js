@@ -7,6 +7,7 @@ const swaggerSpecs = require('./config/swagger');
 const { admin } = require('./config/firebase');
 
 const smsRoutes = require('./routes/smsRoutes');
+const supportRoutes = require('./routes/supportRoutes');
 const bonusRoutes = require('./routes/bonusRoute');
 const imageRoutes = require('./routes/imageRoutes');
 
@@ -34,6 +35,7 @@ app.use(cors({ origin: '*', methods: '*', allowedHeaders: '*', credentials: true
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpecs, { explorer: true }));
 
 app.use('/sms', smsRoutes);
+app.use('/support', supportRoutes);
 
 app.use('/auth', authRoutes);
 app.use('/user', userRoutes);

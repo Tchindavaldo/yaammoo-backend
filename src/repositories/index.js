@@ -35,6 +35,7 @@ const sb = {
   settings: require('./supabase/settings.repo'),
   orderDeliveries: require('./supabase/orderDeliveries.repo'),
   orderSettlements: require('./supabase/orderSettlements.repo'),
+  supportThreads: require('./supabase/supportThreads.repo'),
 };
 
 // ===========================================================================
@@ -76,5 +77,6 @@ module.exports = {
   settings: sb.settings,
   orderDeliveries: sb.orderDeliveries,
   orderSettlements: sb.orderSettlements,
+  supportThreads: sb.supportThreads,
   supabase: sb,
 };

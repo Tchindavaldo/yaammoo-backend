@@ -130,6 +130,48 @@ ensemble : un seul client, une seule livraison.
 > (panier, **boutique**) pour la comptabilité : un panier peut couvrir deux
 > boutiques — deux courses, mais un seul panier côté client.
 
+### `deliveryGroupId` / `courseBilled` — qui porte la course
+
+Le livreur ne se déplace qu'**une fois par boutique**, mais le panier produit
+une commande par plat. Sans indication, le front affiche N frais de livraison
+pour une seule course. Les GET commandes exposent donc deux champs, lus depuis
+`order_deliveries` (migration 021) :
+
+| Champ | Type | Sens |
+|---|---|---|
+| `deliveryGroupId` | string | Commandes du même panier partageant un **même départ** |
+| `courseBilled` | boolean | `true` sur **une seule** commande du groupe : celle qui porte la course |
+
+**Règle de groupage** — un « départ », c'est la clé
+`services/pricing/deliveryGroupKey.js` :
+
+```
+fastFoodId | zone | type | date            (+ | time  si type === 'time')
+```
+
+Cette clé est **partagée** avec `validatePaymentAmount` : le nombre de courses
+versées est exactement celui facturé au user. Une commande en retrait
+(`delivery.status !== true`) retourne `null` — aucune course, aucun groupe.
+
+> ⚠️ Corrigé : `settleDelivery` groupait sur le seul `fastFoodId`. C'était juste
+> tant qu'un validateur imposait zone/date/créneau identiques par boutique, mais
+> ce validateur a été supprimé (panier libre). Un panier avec un plat en express
+> et un autre programmé le lendemain dans une autre zone était alors facturé
+> **2 courses** au user et n'en versait qu'**1**, l'écart tombant silencieusement
+> en marge plateforme.
+
+Lecture front : parmi les commandes partageant un `deliveryGroupId`, une seule a
+`courseBilled: true` — les autres sont couvertes par elle.
+
+- Servis par les **trois** GET : `/order/user/all/:userId`, `/order/all/:fastFoodId`,
+  `/order/driver/:driverId` (service `services/order/enrichOrdersWithCourse.js`,
+  une seule lecture DB par requête).
+- **Absents** — pas `null` — si la commande est à emporter (`delivery.status !== true`)
+  ou antérieure à la migration 021 : il n'y a alors aucune course.
+- Les montants de `order_deliveries` (`realPrice`, `chargedPrice`,
+  `platformMargin`) restent comptables et ne sont **jamais** exposés.
+- Ajout purement additif : aucun champ existant modifié, R11 ne s'applique pas.
+
 ### Règlement livraison — au passage en `pending`
 
 `settleDeliveryService()` écrit la répartition réelle des montants —

@@ -11,10 +11,15 @@
 //   • achat direct → createOrderService, uniquement si status === 'pending'.
 //
 // Ce que fait ce module :
-//   1. UNE seule course par boutique. Une commande = un plat, donc un panier de
-//      3 plats fait 3 commandes — mais le livreur ne se déplace qu'une fois.
-//      Les autres lignes gardent leur `realPrice` (traçabilité) avec
+//   1. UNE seule course par DÉPART. Une commande = un plat, donc un panier de
+//      3 plats fait 3 commandes — mais le livreur ne se déplace qu'une fois par
+//      départ. Les autres lignes gardent leur `realPrice` (traçabilité) avec
 //      `courseBilled = false`, et `deliveryGroupId` les relie.
+//      Un « départ » = `deliveryGroupKey` (boutique + zone + type + date [+ heure]),
+//      la clé PARTAGÉE avec `validatePaymentAmount`. Grouper sur le seul
+//      `fastFoodId` était juste tant qu'un validateur imposait zone/date/créneau
+//      identiques par boutique ; depuis que le panier est libre, ça versait moins
+//      de courses qu'on n'en facturait.
 //   2. Le bonus est consommé UNE fois pour le lot, pas une fois par plat.
 //   3. DEUX écritures, volontairement séparées :
 //        • `order_settlements` — l'ARGENT. Une ligne par commande, TOUJOURS.
@@ -31,6 +36,9 @@ const { getPricingSettings } = require('../settings/settings.service');
 const { resolveOffer } = require('../pricing/deliveryOfferResolver');
 const { resolveDeliveryBonus, consumeDeliveryBonus } = require('../bonus/applyDeliveryBonus.service');
 const { splitDeliveryAmounts, toNumber, feeIncludedIn } = require('../pricing/deliveryPricing');
+// Clé PARTAGÉE avec `validatePaymentAmount` : on verse exactement le nombre de
+// courses qu'on a facturé au user.
+const { deliveryGroupKey } = require('../pricing/deliveryGroupKey');
 
 /**
  * @param {Array}  orders     commandes venant de passer en `pending`
@@ -74,9 +82,11 @@ exports.settleDeliveryService = async ({ orders, bonusCode }) => {
       settled.offer = await consumeDeliveryBonus({ ...bonusResolution, orderId: list[0].id });
     }
 
-    // ── Une seule course par boutique ───────────────────────────────────────
-    const groupIdByFastFood = {};
-    const billedFastFoods = new Set();
+    // ── Une seule course par DÉPART réel ────────────────────────────────────
+    // La clé est celle de `validatePaymentAmount` : ce qu'on verse doit compter
+    // exactement les mêmes courses que ce qu'on a facturé au user.
+    const groupIdByKey = {};
+    const billedKeys = new Set();
 
     for (const order of list) {
       // ⚠️ Une commande à emporter est réglée AUSSI : le user a bien payé le
@@ -86,11 +96,13 @@ exports.settleDeliveryService = async ({ orders, bonusCode }) => {
       const delivered = order.delivery?.status === true;
 
       const ffId = order.fastFoodId;
-      if (delivered && !groupIdByFastFood[ffId]) groupIdByFastFood[ffId] = generateId();
+      // `null` en retrait : aucune course, donc aucun groupe.
+      const groupKey = deliveryGroupKey(order);
+      if (groupKey && !groupIdByKey[groupKey]) groupIdByKey[groupKey] = generateId();
 
-      // Une seule course facturée par boutique — sans objet si pas de livraison.
-      const courseBilled = delivered && !billedFastFoods.has(ffId);
-      if (delivered) billedFastFoods.add(ffId);
+      // Une seule course facturée par départ — sans objet si pas de livraison.
+      const courseBilled = !!groupKey && !billedKeys.has(groupKey);
+      if (groupKey) billedKeys.add(groupKey);
 
       const fastfood = await repos.fastfoods.getById(ffId);
 
@@ -146,7 +158,7 @@ exports.settleDeliveryService = async ({ orders, bonusCode }) => {
           orderId: order.id,
           userId: order.userId,
           fastFoodId: ffId,
-          deliveryGroupId: groupIdByFastFood[ffId],
+          deliveryGroupId: groupIdByKey[groupKey],
           zone: amounts.zone,
           realPrice: amounts.realPrice,
           chargedPrice: amounts.chargedPrice,

@@ -28,6 +28,7 @@ Documentation d'architecture du backend Node.js / Express / Supabase / Socket.io
 | [wallet.md](./wallet.md) | Portefeuille marchand — crédit au paiement, solde dérivé, commissions, retraits `/wallet` | ✅ |
 | [bonus.md](./bonus.md) | Bonus — fidélité par paliers, `bonusStats` recalculé au GET, livraison manuelle des accès, **livraison offerte : armement + `deliveryOffer`**, **une réclamation = une ligne (`is_current`)**, **`status_view` : campagne datée (`criteria.schedule`), flyer à poster + preuve vidéo, `canDownload`/`canUpload`, téléchargement marqué et non purgé au claim** | ✅ |
 | [notifications.md](./notifications.md) | Notifications — FCM/Expo dispatcher, routes `/notification` | ✅ |
+| [support.md](./support.md) | Chat support client (fils, messages, socket `support.message`) | ✅ |
 | [socket-events.md](./socket-events.md) | Événements Socket.io — émetteurs, destinataires, rooms | ✅ |
 | [auth.md](./auth.md) | Authentification — middleware Bearer, routes `/auth`, Firebase tokens | ✅ |
 

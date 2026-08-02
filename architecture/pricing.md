@@ -266,6 +266,17 @@ ligne**, et `course_billed` marque celle qui porte réellement la course.
 > La comptabilité somme `real_price WHERE course_billed = TRUE`.
 
 Deux boutiques dans un même panier = **deux courses**, chacune facturée une fois.
+Plus généralement, la clé de groupe est
+`services/pricing/deliveryGroupKey.js` — `fastFoodId | zone | type | date`
+(+ `time` en `type === 'time'`) — **partagée** entre `validatePaymentAmount` (ce
+qui est facturé) et `settleDelivery` (ce qui est versé). Deux départs distincts
+de la même boutique (express + programmé, ou deux zones) = **deux courses**.
+
+`delivery_group_id` et `course_billed` sont désormais **lisibles par le front** :
+les GET commandes les exposent en `deliveryGroupId` / `courseBilled` pour que le
+client n'affiche pas N frais de livraison là où il n'y a qu'une course. Les
+montants de la table (`real_price`, `charged_price`, `platform_margin`) restent,
+eux, strictement comptables. Voir [orders.md](./orders.md).
 
 ### À emporter : marge pure
 
