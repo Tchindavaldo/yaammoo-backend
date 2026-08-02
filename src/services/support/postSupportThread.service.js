@@ -5,6 +5,7 @@
 const repos = require('../../repositories');
 const { validateSupportThread } = require('../../utils/validator/validateSupport');
 const { emitSupportMessage } = require('./emitSupportMessage');
+const { notifySupportMessage } = require('./notifySupportMessage');
 
 /** Resume du fil : premiere ligne du message, tronquee. */
 const buildTitle = text => {
@@ -24,6 +25,8 @@ exports.postSupportThreadService = async data => {
       title: data.title || buildTitle(data.text),
       status: 'open',
       unreadCount: 0,
+      // Le fil s'ouvre sur un message client : c'est le support qui a a lire.
+      supportUnreadCount: 1,
       lastMessage: data.text,
     });
 
@@ -34,6 +37,7 @@ exports.postSupportThreadService = async data => {
     });
 
     emitSupportMessage({ userId: data.userId, thread, message });
+    await notifySupportMessage({ thread, message });
 
     return { success: true, data: { thread, message } };
   } catch (error) {

@@ -12,15 +12,30 @@ const route = express.Router();
  * @swagger
  * /support/threads:
  *   get:
- *     summary: Liste des discussions support d'un utilisateur (sans les messages)
+ *     summary: Liste des discussions support (sans les messages)
+ *     description: >
+ *       Fournir exactement un critere : `userId` (fils du client),
+ *       `fastFoodId` (fils recus par une boutique) ou `scope=platform`
+ *       (fils adresses a la plateforme yaammoo, back-office).
  *     tags:
  *       - Support
  *     parameters:
  *       - in: query
  *         name: userId
- *         required: true
+ *         required: false
  *         schema:
  *           type: string
+ *       - in: query
+ *         name: fastFoodId
+ *         required: false
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: scope
+ *         required: false
+ *         schema:
+ *           type: string
+ *           enum: [platform]
  *     responses:
  *       200:
  *         description: Liste des fils, du plus recent au plus ancien
@@ -57,6 +72,10 @@ const route = express.Router();
  *                         enum: [open, pending, closed]
  *                       unreadCount:
  *                         type: integer
+ *                         description: Non-lus cote client
+ *                       supportUnreadCount:
+ *                         type: integer
+ *                         description: Non-lus cote boutique / back-office
  *                       lastMessage:
  *                         type: string
  *                       updatedAt:
@@ -200,6 +219,13 @@ route.post('/threads/:id/messages', postSupportMessageController);
  *         required: true
  *         schema:
  *           type: string
+ *       - in: query
+ *         name: side
+ *         required: false
+ *         description: "'user' (defaut) = non-lus du client ; 'support' = ceux de la boutique / du back-office"
+ *         schema:
+ *           type: string
+ *           enum: [user, support]
  *     responses:
  *       200:
  *         description: Discussion mise a jour

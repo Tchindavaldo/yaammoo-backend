@@ -540,6 +540,7 @@ const supportThreadToSupabase = data => {
   if (data.title !== undefined) out.title = data.title;
   if (data.status !== undefined) out.status = data.status;
   if (data.unreadCount !== undefined) out.unread_count = data.unreadCount;
+  if (data.supportUnreadCount !== undefined) out.support_unread_count = data.supportUnreadCount;
   if (data.lastMessage !== undefined) out.last_message = data.lastMessage;
   if (data.createdAt !== undefined) out.created_at = toDate(data.createdAt);
   if (data.updatedAt !== undefined) out.updated_at = toDate(data.updatedAt);
@@ -558,6 +559,7 @@ const supportThreadFromSupabase = row => {
     title: row.title || '',
     status: row.status,
     unreadCount: row.unread_count || 0,
+    supportUnreadCount: row.support_unread_count || 0,
     lastMessage: row.last_message || '',
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),

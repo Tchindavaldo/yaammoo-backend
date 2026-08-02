@@ -2,7 +2,7 @@ const { markSupportThreadReadService } = require('../../services/support/markSup
 
 exports.markSupportThreadReadController = async (req, res) => {
   try {
-    const response = await markSupportThreadReadService(req.params.id);
+    const response = await markSupportThreadReadService(req.params.id, req.query.side);
     const status = response.success ? 200 : response.notFound ? 404 : 400;
     return res.status(status).json(response);
   } catch (error) {

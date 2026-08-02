@@ -41,6 +41,19 @@ exports.getThreadsByUser = async userId => {
   return (data || []).map(m.supportThread.fromSupabase);
 };
 
+exports.getThreadsByFastFood = async fastFoodId => {
+  const { data, error } = await supabase.from(THREADS).select(THREAD_SELECT).eq('fastfood_id', fastFoodId).order('updated_at', { ascending: false });
+  if (error) throw error;
+  return (data || []).map(m.supportThread.fromSupabase);
+};
+
+// Fils adresses a la plateforme yaammoo (aucune boutique concernee).
+exports.getPlatformThreads = async () => {
+  const { data, error } = await supabase.from(THREADS).select(THREAD_SELECT).is('fastfood_id', null).order('updated_at', { ascending: false });
+  if (error) throw error;
+  return (data || []).map(m.supportThread.fromSupabase);
+};
+
 exports.updateThread = async (id, patch) => {
   const payload = m.supportThread.toSupabase({ ...patch, updatedAt: patch.updatedAt || new Date().toISOString() });
   const { data, error } = await supabase.from(THREADS).update(payload).eq('id', id).select(THREAD_SELECT).single();

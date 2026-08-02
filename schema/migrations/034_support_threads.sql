@@ -9,7 +9,9 @@ CREATE TABLE IF NOT EXISTS support_threads (
   topic         TEXT NOT NULL,
   title         TEXT NOT NULL DEFAULT '',
   status        TEXT NOT NULL DEFAULT 'open',
-  unread_count  INTEGER NOT NULL DEFAULT 0,
+  unread_count          INTEGER NOT NULL DEFAULT 0,
+  -- Non-lus cote support/boutique (miroir de unread_count cote client).
+  support_unread_count  INTEGER NOT NULL DEFAULT 0,
   last_message  TEXT NOT NULL DEFAULT '',
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()

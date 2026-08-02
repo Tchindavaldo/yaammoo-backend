@@ -4,6 +4,7 @@
 const repos = require('../../repositories');
 const { validateSupportMessage } = require('../../utils/validator/validateSupport');
 const { emitSupportMessage } = require('./emitSupportMessage');
+const { notifySupportMessage } = require('./notifySupportMessage');
 
 exports.postSupportMessageService = async (threadId, data) => {
   try {
@@ -18,13 +19,17 @@ exports.postSupportMessageService = async (threadId, data) => {
     const author = data.author || 'user';
     const message = await repos.supportThreads.createMessage({ threadId, author, text: data.text });
 
-    // Un message du support incremente les non-lus du client ; les siens non.
+    // Chaque partie a son compteur : un message incremente celui d'en face et
+    // remet a zero celui de son auteur (il vient de lire le fil).
+    const fromSupport = author === 'support';
     const updated = await repos.supportThreads.updateThread(threadId, {
       lastMessage: data.text,
-      unreadCount: author === 'support' ? (thread.unreadCount || 0) + 1 : 0,
+      unreadCount: fromSupport ? (thread.unreadCount || 0) + 1 : 0,
+      supportUnreadCount: fromSupport ? 0 : (thread.supportUnreadCount || 0) + 1,
     });
 
     emitSupportMessage({ userId: thread.userId, thread: updated, message });
+    await notifySupportMessage({ thread: updated, message });
 
     return { success: true, data: { thread: updated, message } };
   } catch (error) {
