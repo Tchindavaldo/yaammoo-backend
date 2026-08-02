@@ -31,6 +31,9 @@ const { toNumber } = require('../../services/pricing/deliveryPricing');
 const { getPricingSettings } = require('../../services/settings/settings.service');
 const { resolveDeliveryBonus } = require('../../services/bonus/applyDeliveryBonus.service');
 const { resolveOffer } = require('../../services/pricing/deliveryOfferResolver');
+// Clé PARTAGÉE avec `settleDelivery` : ce qui est facturé et ce qui est versé
+// doivent compter exactement le même nombre de courses.
+const { deliveryGroupKey } = require('../../services/pricing/deliveryGroupKey');
 
 // Tolérance d'arrondi (FCFA).
 const AMOUNT_TOLERANCE = 1;
@@ -56,36 +59,6 @@ function recomputeItemBase(item) {
   const drinks = sumChecked(item?.drink, d => Math.max(1, toNumber(d?.quantite) || 1));
 
   return { base: plat + extras + drinks, plat, extras, drinks, unitPlat, qty };
-}
-
-/**
- * Clé de regroupement des livraisons — une seule course par groupe.
- *
- * Deux commandes ne partagent une course que si elles partent au même moment,
- * de la même boutique, vers la même zone. La clé doit donc porter TOUT ce qui
- * distingue un départ d'un autre — le panier étant libre, c'est elle seule qui
- * décide de la facturation :
- *
- * - `fastFoodId` + `zone` : un déplacement, une destination ;
- * - `type` : un express et un programmé ne partent jamais ensemble, même à la
- *   même heure apparente ;
- * - `date` : deux courses de jours différents sont deux courses ;
- * - `time` : uniquement en `type === 'time'`. L'express n'a pas de créneau (il
- *   part dès que c'est prêt) et `validateExpressDelivery` refuse en amont toute
- *   commande express portant une heure — l'ignorer ici serait donc sans effet.
- */
-function deliveryGroupKey(item) {
-  const d = item?.delivery;
-  if (!d || d.status !== true) return null; // retrait : aucune course
-  const zone = String(d.zone ?? '')
-    .trim()
-    .toLowerCase();
-  const type = String(d.type ?? '')
-    .trim()
-    .toLowerCase();
-  const date = String(d.date ?? '').trim();
-  const base = `${item.fastFoodId}|${zone}|${type}|${date}`;
-  return type === 'time' ? `${base}|${String(d.time ?? '').trim()}` : base;
 }
 
 /**

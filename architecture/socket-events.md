@@ -43,6 +43,7 @@ Socket.io est fire-and-forget : un event émis pendant que l'utilisateur est hor
 | `bonus.reward_credentials` | `services/bonus/rewardCredentialsBonus.service.js` | client |
 | `bonus.redeemed` | `services/bonus/applyDeliveryBonus.service.js` | client |
 | `bonus.armed` / `bonus.disarmed` | `services/bonus/armBonus.service.js` | client |
+| `support.message` | `services/support/emitSupportMessage.js` | client + marchand |
 
 > Les broadcasts catalogue (`globalMenu*`) restent **fire-and-forget** : le front recharge le
 > catalogue (GET) à la reconnexion plutôt que de rejouer des events à tous. Les events de file
@@ -77,6 +78,7 @@ Le même pattern (`ack?.()` + dédoublonnage `__eventId`) s'applique à tous les
 | `newUserOrder` | `userId` client | `services/order/createOrder.js` (reliableEmit) | `{ message, data: order }` |
 | `userOrderUpdated` | `userId` client | `updateOrders.service.js` | `{ data: order }` |
 | `userOrdersUpdated` | `userId` client | `updateOrdersField.service.js` | `{ message, field, orders: order[] }` |
+| `support.message` | `userId` client **et** `fastFoodId` boutique (si le fil en vise une) | `services/support/emitSupportMessage.js` | `{ threadId, thread, message }` |
 
 ### Commandes — marchand
 

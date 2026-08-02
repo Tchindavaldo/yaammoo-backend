@@ -527,6 +527,70 @@ const driverApplicationFromSupabase = row => {
   };
 };
 
+// ---------------------------------------------------------------------------
+// SUPPORT (chat client <-> support yaammoo)
+// ---------------------------------------------------------------------------
+// fastFoodId null = demande adressee a la plateforme yaammoo (pas de boutique).
+const supportThreadToSupabase = data => {
+  const out = {};
+  if (data.id !== undefined) out.id = data.id;
+  if (data.userId !== undefined) out.user_id = data.userId;
+  if (data.fastFoodId !== undefined) out.fastfood_id = data.fastFoodId || null;
+  if (data.topic !== undefined) out.topic = data.topic;
+  if (data.title !== undefined) out.title = data.title;
+  if (data.status !== undefined) out.status = data.status;
+  if (data.unreadCount !== undefined) out.unread_count = data.unreadCount;
+  if (data.supportUnreadCount !== undefined) out.support_unread_count = data.supportUnreadCount;
+  if (data.lastMessage !== undefined) out.last_message = data.lastMessage;
+  if (data.createdAt !== undefined) out.created_at = toDate(data.createdAt);
+  if (data.updatedAt !== undefined) out.updated_at = toDate(data.updatedAt);
+  return out;
+};
+
+const supportThreadFromSupabase = row => {
+  if (!row) return null;
+  // La boutique est jointe quand elle existe ; sinon le fil vise yaammoo.
+  const ff = row.fastfoods || row.fastfood || null;
+  // Client a l'origine du fil : affiche en titre cote marchand.
+  const u = row.users || row.user || null;
+  const clientName = u ? [u.prenom, u.nom].filter(Boolean).join(' ').trim() : '';
+  return {
+    id: row.id,
+    userId: row.user_id,
+    client: { id: row.user_id, nom: clientName || 'Client' },
+    fastFood: row.fastfood_id ? { id: row.fastfood_id, nom: ff ? ff.name || ff.nom || null : null } : null,
+    topic: row.topic,
+    title: row.title || '',
+    status: row.status,
+    unreadCount: row.unread_count || 0,
+    supportUnreadCount: row.support_unread_count || 0,
+    lastMessage: row.last_message || '',
+    createdAt: toIso(row.created_at),
+    updatedAt: toIso(row.updated_at),
+  };
+};
+
+const supportMessageToSupabase = data => {
+  const out = {};
+  if (data.id !== undefined) out.id = data.id;
+  if (data.threadId !== undefined) out.thread_id = data.threadId;
+  if (data.author !== undefined) out.author = data.author;
+  if (data.text !== undefined) out.text = data.text;
+  if (data.createdAt !== undefined) out.created_at = toDate(data.createdAt);
+  return out;
+};
+
+const supportMessageFromSupabase = row => {
+  if (!row) return null;
+  return {
+    id: row.id,
+    threadId: row.thread_id,
+    author: row.author,
+    text: row.text,
+    createdAt: toIso(row.created_at),
+  };
+};
+
 module.exports = {
   toIso,
   toDate,
@@ -541,4 +605,6 @@ module.exports = {
   bonusRequest: { toSupabase: bonusRequestToSupabase, fromSupabase: bonusRequestFromSupabase },
   notification: { toSupabase: notificationToSupabase, fromSupabase: notificationFromSupabase },
   driverApplication: { toSupabase: driverApplicationToSupabase, fromSupabase: driverApplicationFromSupabase },
+  supportThread: { toSupabase: supportThreadToSupabase, fromSupabase: supportThreadFromSupabase },
+  supportMessage: { toSupabase: supportMessageToSupabase, fromSupabase: supportMessageFromSupabase },
 };
