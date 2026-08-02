@@ -10,8 +10,9 @@ const m = require('../mappers');
 const THREADS = 'support_threads';
 const MESSAGES = 'support_messages';
 
-// Jointure boutique : le frontend affiche son nom en titre du fil.
-const THREAD_SELECT = '*, fastfoods:fastfood_id (id, nom)';
+// Jointures : la boutique (titre cote client) et le client (titre cote
+// marchand). Sans elles chaque cote afficherait un identifiant brut.
+const THREAD_SELECT = '*, fastfoods:fastfood_id (id, nom), users:user_id (id, nom, prenom)';
 
 exports.createThread = async data => {
   const id = data.id || generateId();

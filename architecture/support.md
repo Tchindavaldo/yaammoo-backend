@@ -7,6 +7,11 @@ cote frontend. Un fil peut concerner une boutique ou la plateforme.
 > plateforme yaammoo**. Le frontend affiche alors « yaammoo » en titre du fil,
 > sinon le nom de la boutique.
 
+Chaque fil renvoye porte **les deux interlocuteurs**, chacun servant de titre de
+son cote : `fastFood` (`{ id, nom }` ou `null`) pour le client, et `client`
+(`{ id, nom }`, nom reconstitue depuis `users.prenom` + `users.nom`) pour la
+boutique. Les deux viennent de jointures dans `THREAD_SELECT`.
+
 ## Tables (migration `034_support_threads.sql`)
 
 | Table | Colonnes |

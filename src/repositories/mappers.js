@@ -551,9 +551,13 @@ const supportThreadFromSupabase = row => {
   if (!row) return null;
   // La boutique est jointe quand elle existe ; sinon le fil vise yaammoo.
   const ff = row.fastfoods || row.fastfood || null;
+  // Client a l'origine du fil : affiche en titre cote marchand.
+  const u = row.users || row.user || null;
+  const clientName = u ? [u.prenom, u.nom].filter(Boolean).join(' ').trim() : '';
   return {
     id: row.id,
     userId: row.user_id,
+    client: { id: row.user_id, nom: clientName || 'Client' },
     fastFood: row.fastfood_id ? { id: row.fastfood_id, nom: ff ? ff.nom : null } : null,
     topic: row.topic,
     title: row.title || '',
