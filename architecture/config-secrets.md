@@ -52,6 +52,9 @@ SETTINGS_CACHE_TTL_MS=30000
 MOBILEWALLET_URL=https://api.mobilewallet.com
 MOBILEWALLET_API_KEY=sk_live_xxxx...
 MOBILEWALLET_WEBHOOK_SECRET=whsec_xxxx...
+# Délai artificiel avant de servir GET /payment-page (test du squelette côté app)
+# Absent ou 0 = aucun délai
+PAYMENT_PAGE_DELAY_MS=0
 
 # Push Notifications
 FCM_PROJECT_ID=yaammoo-fcm

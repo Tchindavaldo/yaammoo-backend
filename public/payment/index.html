@@ -400,6 +400,10 @@
       html = '<div class="centered"><span class="success-text">Paiement réussi ! Création de la commande en cours...</span></div>';
     } else if (STATE === 'success_created') {
       html = '<div class="centered success-created"><ion-icon name="checkmark-circle"></ion-icon><span>Commande créée avec succès !</span></div>';
+      // Dernière étape : on laisse le message visible, puis l'app ferme.
+      setTimeout(function () {
+        if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage('done');
+      }, 2500);
     }
     contentRow.innerHTML = html;
     // relance le fondu de changement d'étape
@@ -431,6 +435,10 @@
 
     var payBtn = document.getElementById('payBtn');
     if (payBtn) {
+      // Empêche le blur de l'input AVANT le clic : sinon la classe .kb est
+      // déjà retirée et le bouton lance le paiement (toast "numéro vide")
+      // alors qu'il devait juste refermer le clavier.
+      payBtn.addEventListener('pointerdown', function (e) { e.preventDefault(); });
       payBtn.addEventListener('click', function () {
         // Clavier ouvert : le bouton referme le clavier (chevron), comme
         // l'overlay natif — il ne lance pas le paiement.
@@ -441,6 +449,15 @@
         var phone = (document.getElementById('phone').value || '').trim();
         if (!phone) { showToast('Veuillez remplir le numéro de paiement'); return; }
         setState('waiting');
+        // L'app lance la vraie transaction et nous renverra les étapes.
+        if (window.ReactNativeWebView) {
+          var net = document.querySelector('.network-chip.active');
+          window.ReactNativeWebView.postMessage(JSON.stringify({
+            type: 'pay',
+            phone: phone,
+            network: net ? net.dataset.net : 'orange',
+          }));
+        }
       });
     }
     sizeGlow();
@@ -486,6 +503,30 @@
     document.querySelector('.scene').classList.toggle('kb', !!open);
     var icon = document.querySelector('#payBtn ion-icon');
     if (icon) icon.setAttribute('name', open ? 'chevron-down' : 'arrow-forward-outline');
+  }
+
+  // Étape poussée par l'app : input / waiting / ussd_sent / success /
+  // success_created. Le second argument remplace le message affiché en
+  // `ussd_sent` (message opérateur ou libellé de validation).
+  window.__setState = function (state, message) {
+    if (message) USSD_MESSAGE = message;
+    // Mode review (?review=1) : le backend crée la commande de façon
+    // synchrone. La page déroule elle-même les étapes de validation.
+    if (state === 'success_created' && Q.get('review') === '1') {
+      runReviewSequence();
+      return;
+    }
+    setState(state);
+  };
+
+  // Séquence review : vérification → succès → commande créée (2,5 s chacune).
+  function runReviewSequence() {
+    if (runReviewSequence.started) return;
+    runReviewSequence.started = true;
+    USSD_MESSAGE = 'Vérification du paiement auprès de l\'opérateur...';
+    setState('ussd_sent');
+    setTimeout(function () { setState('success'); }, 2500);
+    setTimeout(function () { setState('success_created'); }, 5000);
   }
 
   // Appelé par l'app (injectJavaScript) avec la hauteur du clavier : seule la

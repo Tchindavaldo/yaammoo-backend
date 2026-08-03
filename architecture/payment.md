@@ -43,6 +43,26 @@ Le frontend appelle `POST /transaction` ; le backend yaammoo **proxie** vers Mob
 | POST | `/transaction` | `postTransactionController` | Initie une transaction (proxy MobileWallet `/pay` si `payBy=mobilemoney`) |
 | POST | `/transaction/webhook/mobilewallet` | `webhookMobilewalletController` | Reçoit le verdict via **webhook HTTP** (callback MobileWallet) |
 | GET | `/transaction/:userId` | `getTransactions` | Récupère les transactions d'un user (fallback polling frontend) |
+| GET | `/payment-page` | `paymentPageRoutes` | Page HTML du paiement, chargée par la WebView de l'app |
+
+### `GET /payment-page` — page de paiement (WebView)
+
+Page **statique** `public/payment/index.html` (route `src/routes/paymentPageRoutes.js`).
+Elle reproduit les deux overlays natifs : panel récap + choix réseau, et capsule de
+saisie du numéro avec ses états `input` → `waiting` → `ussd_sent` → `success` →
+`success_created`.
+
+- **Paramètres (query string)** : `title`, `image`, `menuPrice`, `drinksPrice`,
+  `extrasPrice`, `deliveryPrice`, `deliveryFree`, `total`, `review`, `debug`.
+- **Pont avec l'app** (`window.ReactNativeWebView.postMessage`) : `close`,
+  `keyboard:open` / `keyboard:close`, `done`, et `{type:'pay', phone, network}`.
+  L'app injecte en retour `window.__setState(state, message)` et
+  `window.__setKeyboard(height)`. **La page n'appelle aucune API** : c'est l'app qui
+  poste `/transaction`.
+- **`review=1`** : le backend crée la commande de façon synchrone, la page déroule
+  seule vérification → succès → commande créée (2,5 s par étape) puis poste `done`.
+- **`PAYMENT_PAGE_DELAY_MS`** (`.env`) : délai artificiel avant de servir la page,
+  pour voir le squelette de chargement côté app. Absent ou `0` = aucun délai.
 
 > Le backend est aussi **client Socket.io** de MobileWallet (pas une route) — voir
 > `mobilewalletSocketClient.js`, événement `transaction.update`.
