@@ -29,7 +29,8 @@ src/
 │   ├── bonusRequestRoute.js   → /bonusRequest
 │   ├── imageRoutes.js         → /image
 │   ├── smsRoutes.js           → /sms (WhatsApp)
-│   └── supportRoutes.js       → /support (chat support client/marchand)
+│   ├── supportRoutes.js       → /support (chat support client/marchand)
+│   └── paymentPageRoutes.js   → /payment-page (page HTML paiement, WebView app)
 │
 ├── controllers/               # HTTP → service
 │   ├── auth/
@@ -65,6 +66,8 @@ src/
 │
 ├── interface/                 # Définitions champs Firestore (schemas logiques)
 │
+│   (hors src/) public/payment/index.html  # Page servie par /payment-page
+│
 └── utils/
     ├── validator/             # validateOrder, validateNotificationData, validateUser…
     ├── flattenNotifications.js
@@ -88,6 +91,7 @@ app.use('/bonusRequest', bonusRequestRoutes);
 app.use('/image', imageRoutes);
 app.use('/sms', smsRoutes);
 app.use('/support', supportRoutes);
+app.use('/payment-page', paymentPageRoutes);
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 ```
 
