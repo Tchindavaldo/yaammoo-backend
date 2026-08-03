@@ -140,9 +140,11 @@
   .capsule {
     position: relative;
     width: 100%; height: var(--capsule-h);
-    background: rgba(0,0,0,0.4);
-    -webkit-backdrop-filter: blur(20px);
-    backdrop-filter: blur(20px);
+    /* Équivalent du BlurView tint="dark" intensity=80 + fond rgba(0,0,0,0.4)
+       de la capsule native : plus flouté et plus sombre. */
+    background: rgba(0,0,0,0.72);
+    -webkit-backdrop-filter: blur(28px) saturate(120%);
+    backdrop-filter: blur(28px) saturate(120%);
     border-radius: 80px;
     display: flex; flex-direction: row; align-items: center; justify-content: space-between;
     padding: 0 16px;
@@ -226,19 +228,12 @@
   /* Clavier ouvert : le panel du haut s'efface, la capsule seule remonte
      (la WebView, elle, ne bouge pas). */
   .scene.kb .top-wrapper { opacity: 0; pointer-events: none; }
-  /* Comme l'overlay natif : voile sombre sur la zone quand le clavier est là. */
-  .scene.kb::before { background: rgba(0, 0, 0, 0.55); }
   /* La croix disparaît → l'input s'élargit (comportement d'origine). */
   .scene.kb .close-circle { display: none; }
   /* Pendant le déplacement, la capsule perd son propre backdrop-filter :
      deux flous superposés dont un qui bouge = compositing très coûteux
      (scintillement / à-coups sur iOS). */
-  .scene.kb .capsule {
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-    background: rgba(0, 0, 0, 0.72);
-  }
-  .top-wrapper { transition: opacity 180ms ease; }
+    .top-wrapper { transition: opacity 180ms ease; }
 
   /* Sélecteur d'état (outil de preview, hors design) */
   .state-picker {
