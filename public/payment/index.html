@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<title>Yaammoo — Overlays de paiement</title>
+<!-- Ionicons (mêmes noms de glyphes que @expo/vector-icons/Ionicons dans l'app) -->
+<script type="module" src="https://cdn.jsdelivr.net/npm/ionicons@7.4.0/dist/ionicons/ionicons.esm.js"></script>
+<script nomodule src="https://cdn.jsdelivr.net/npm/ionicons@7.4.0/dist/ionicons/ionicons.js"></script>
+<style>
+  :root {
+    --orange: #ec4913;
+    --ink: #1f2937;
+    --sheet-h: 384px;
+    --capsule-h: 70px;
+    --gap: 12px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  /* La WebView fait exactement la hauteur du sheet : rien ne défile. */
+  html, body {
+    height: 100%; margin: 0;
+    overflow: hidden; overscroll-behavior: none; touch-action: manipulation;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    /* Fond transparent : la WebView laisse voir le sheet natif en dessous. */
+    background: transparent;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  /* Scène = zone du sheet checkout, ancrée en bas */
+  .scene {
+    position: relative;
+    width: 100%; max-width: 430px; height: 100%;
+    background: transparent;
+    overflow: hidden;
+  }
+  /* Zone des deux overlays (hauteur du sheet) : fond flouté, pas toute la page. */
+  .scene::before {
+    content: "";
+    position: absolute; left: 0; right: 0; bottom: 0;
+    height: var(--sheet-h);
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+    backdrop-filter: blur(18px) saturate(140%);
+    background: rgba(0, 0, 0, 0.18);
+    z-index: 1;
+  }
+
+  /* ---------------- TOP OVERLAY ---------------- */
+  .top-wrapper {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    height: var(--sheet-h);
+    padding: 8px 8px calc(var(--capsule-h) + var(--gap)) 8px;
+    z-index: 99;
+    pointer-events: none;
+  }
+  .top-panel {
+    height: 100%;
+    border-radius: 18px;
+    overflow: hidden;
+    background: rgba(255,255,255,0.85);
+    -webkit-backdrop-filter: blur(20px) saturate(150%);
+    backdrop-filter: blur(20px) saturate(150%);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    pointer-events: auto;
+    display: flex; flex-direction: column;
+    padding: 14px;
+    animation: topIn 420ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
+  }
+  @keyframes topIn {
+    from { opacity: 0; transform: translateY(16px) scale(0.98); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  .menu-header { display: flex; flex-direction: row; align-items: center; gap: 12px; }
+  .menu-image {
+    width: 56px; height: 56px; border-radius: 12px;
+    background: rgba(0,0,0,0.05) center/cover no-repeat;
+    flex: 0 0 auto;
+  }
+  .menu-info { flex: 1; min-width: 0; }
+  .menu-title {
+    color: var(--ink); font-size: 16px; font-weight: 700;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .menu-desc {
+    color: rgba(31,41,55,0.55); font-size: 12px; margin-top: 2px;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+
+  .recap-row { display: flex; justify-content: space-between; margin-top: 16px; }
+  .recap-item {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+  }
+  .recap-item ion-icon { font-size: 16px; color: var(--orange); }
+  .recap-label { color: rgba(31,41,55,0.6); font-size: 11px; }
+  .recap-value { color: var(--ink); font-size: 12px; font-weight: 600; }
+  .recap-value.free { color: var(--orange); font-weight: 800; }
+
+  .total-row {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-top: 16px; padding-top: 14px;
+    border-top: 0.5px solid rgba(0,0,0,0.1);
+  }
+  .total-label { color: rgba(31,41,55,0.8); font-size: 14px; font-weight: 600; }
+  .total-value { color: var(--orange); font-size: 24px; font-weight: 800; }
+
+  .action-area { margin-top: auto; }
+  .action-title {
+    color: rgba(31,41,55,0.85); font-size: 13px; font-weight: 600; margin-bottom: 10px;
+  }
+  .network-row { display: flex; flex-direction: row; gap: 10px; }
+  .network-chip {
+    flex: 1; padding: 12px 0; border-radius: 12px;
+    background: rgba(0,0,0,0.05);
+    text-align: center;
+    border: 1px solid transparent;
+    color: rgba(31,41,55,0.7); font-size: 13px; font-weight: 600;
+    cursor: pointer; font-family: inherit;
+  }
+  .network-chip.active {
+    background: rgba(236,73,19,0.12);
+    border-color: var(--orange);
+    color: var(--orange);
+  }
+
+  /* ---------------- BOTTOM CAPSULE ---------------- */
+  .capsule-wrapper {
+    position: absolute; inset: 0; z-index: 100;
+    display: flex; align-items: flex-end; justify-content: center;
+    padding: 0 8px 2px;
+    pointer-events: none;
+    /* --kb = hauteur du clavier envoyée par l'app : SEULE la capsule remonte.
+       On translate (composité GPU) au lieu d'animer le padding, qui relayoute
+       à chaque frame et fait scintiller le flou en dessous. */
+    transform: translateY(calc(-1 * var(--kb, 0px)));
+    transition: transform 220ms cubic-bezier(0.2, 0.9, 0.3, 1);
+    will-change: transform;
+  }
+  .capsule {
+    position: relative;
+    width: 100%; height: var(--capsule-h);
+    background: rgba(0,0,0,0.4);
+    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px);
+    border-radius: 80px;
+    display: flex; flex-direction: row; align-items: center; justify-content: space-between;
+    padding: 0 16px;
+    overflow: hidden;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    pointer-events: auto;
+    animation: capsuleIn 450ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
+  }
+  @keyframes capsuleIn {
+    from { transform: translateY(300px); }
+    to   { transform: none; }
+  }
+
+  .content-row {
+    flex: 1; display: flex; flex-direction: row; align-items: center; justify-content: space-between;
+    animation: fadeStep 260ms linear both;
+  }
+  @keyframes fadeStep { from { opacity: 0; } to { opacity: 1; } }
+
+  .action-col { display: flex; flex-direction: row; align-items: center; gap: 8px; }
+
+  .close-circle {
+    width: 40px; height: 40px; border-radius: 40px; border: 0;
+    background: #ef4444; color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 6px rgba(239,68,68,0.3);
+    cursor: pointer;
+  }
+  .close-circle ion-icon { font-size: 16px; }
+
+  .input-wrapper {
+    flex: 1; display: flex; flex-direction: row; align-items: center;
+    background: rgba(255,255,255,0.1);
+    height: 45px; border-radius: 22.5px;
+    padding: 0 12px; margin: 0 10px;
+  }
+  .input-wrapper ion-icon { color: #fff; font-size: 16px; margin-right: 8px; }
+  .input-wrapper input {
+    flex: 1; min-width: 0;
+    background: transparent; border: 0; outline: none; padding: 0;
+    color: #fff; font-size: 14px; font-weight: 500; font-family: inherit;
+  }
+  .input-wrapper input::placeholder { color: rgba(255,255,255,0.5); }
+
+  .payer-btn {
+    height: 40px; min-width: 40px; border-radius: 145px; border: 0;
+    background: var(--orange); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+  }
+  .payer-btn ion-icon { font-size: 14px; }
+  .payer-btn:disabled { background: #94a3b8; }
+
+  .centered {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    padding: 0 20px; text-align: center;
+  }
+  .waiting-text { color: #fff; font-size: 14px; font-weight: 500; }
+  .ussd-text { color: #fff; font-size: 14px; font-weight: 600; }
+  .success-text { color: #fff; font-size: 14px; font-weight: 600; }
+  .success-created { gap: 8px; flex-direction: row; }
+  .success-created ion-icon { color: #10b981; font-size: 20px; }
+  .success-created span { color: #10b981; font-size: 14px; font-weight: 600; }
+
+  /* Bordure lumineuse animée (AnimatedBorderGlow) */
+  .glow { position: absolute; inset: 0; pointer-events: none; display: none; }
+  .capsule[data-state]:not([data-state="input"]) .glow { display: block; }
+  .glow rect { animation: glowSpin 1800ms linear infinite; }
+  @keyframes glowSpin { to { stroke-dashoffset: var(--dash-end); } }
+
+  /* Toast d'erreur (1er plan, dans le modal) */
+  .toast {
+    position: absolute; top: 60px; left: 16px; right: 16px; z-index: 200;
+    background: rgba(239,68,68,0.95); color: #fff;
+    border-radius: 12px; padding: 12px 14px; font-size: 13px; font-weight: 600;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+    display: none;
+  }
+  .toast.show { display: block; animation: fadeStep 200ms linear both; }
+
+  /* Clavier ouvert : le panel du haut s'efface, la capsule seule remonte
+     (la WebView, elle, ne bouge pas). */
+  .scene.kb .top-wrapper { opacity: 0; pointer-events: none; }
+  /* Comme l'overlay natif : voile sombre sur la zone quand le clavier est là. */
+  .scene.kb::before { background: rgba(0, 0, 0, 0.55); }
+  /* La croix disparaît → l'input s'élargit (comportement d'origine). */
+  .scene.kb .close-circle { display: none; }
+  /* Pendant le déplacement, la capsule perd son propre backdrop-filter :
+     deux flous superposés dont un qui bouge = compositing très coûteux
+     (scintillement / à-coups sur iOS). */
+  .scene.kb .capsule {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: rgba(0, 0, 0, 0.72);
+  }
+  .top-wrapper { transition: opacity 180ms ease; }
+
+  /* Sélecteur d'état (outil de preview, hors design) */
+  .state-picker {
+    position: absolute; top: 8px; left: 8px; right: 8px; z-index: 300;
+    display: flex; gap: 6px; flex-wrap: wrap;
+  }
+  .state-picker button {
+    font-size: 11px; padding: 5px 9px; border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.25); background: rgba(0,0,0,0.45);
+    color: rgba(255,255,255,0.75); cursor: pointer; font-family: inherit;
+  }
+  .state-picker button.on { background: var(--orange); border-color: var(--orange); color: #fff; }
+</style>
+</head>
+<body>
+
+<div class="scene">
+
+  <!-- Preview only : bascule d'état de la capsule -->
+  <div class="state-picker" id="statePicker">
+    <button data-s="input" class="on">input</button>
+    <button data-s="waiting">waiting</button>
+    <button data-s="ussd_sent">ussd_sent</button>
+    <button data-s="success">success</button>
+    <button data-s="success_created">success_created</button>
+  </div>
+
+  <div class="toast" id="toast">Veuillez remplir le numéro de paiement</div>
+
+  <!-- ===== TOP OVERLAY : récap + choix réseau ===== -->
+  <div class="top-wrapper">
+    <div class="top-panel">
+      <div class="menu-header">
+        <div class="menu-image" id="menuImage"></div>
+        <div class="menu-info">
+          <div class="menu-title" id="menuTitle">Poulet DG</div>
+          <div class="menu-desc">
+            Produit de qualité supérieure préparé avec soin par nos chefs Yaammoo.
+          </div>
+        </div>
+      </div>
+
+      <div class="recap-row">
+        <div class="recap-item">
+          <ion-icon name="fast-food-outline"></ion-icon>
+          <div class="recap-label">Menu</div>
+          <div class="recap-value">3500 F</div>
+        </div>
+        <div class="recap-item">
+          <ion-icon name="wine-outline"></ion-icon>
+          <div class="recap-label">Boisson</div>
+          <div class="recap-value">500 F</div>
+        </div>
+        <div class="recap-item">
+          <ion-icon name="add-circle-outline"></ion-icon>
+          <div class="recap-label">Extras</div>
+          <div class="recap-value">200 F</div>
+        </div>
+        <div class="recap-item">
+          <ion-icon name="bicycle-outline"></ion-icon>
+          <div class="recap-label">Livraison</div>
+          <div class="recap-value">700 F</div>
+        </div>
+      </div>
+
+      <div class="total-row">
+        <div class="total-label">Total à payer</div>
+        <div class="total-value">4900 FCFA</div>
+      </div>
+
+      <div class="action-area">
+        <div class="action-title">Sélectionnez le réseau utilisé pour le paiement</div>
+        <div class="network-row" id="networkRow">
+          <button class="network-chip active" data-net="orange">Orange Money</button>
+          <button class="network-chip" data-net="mtn">MTN MoMo</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== CAPSULE BAS : saisie + étapes ===== -->
+  <div class="capsule-wrapper">
+    <div class="capsule" id="capsule" data-state="input">
+      <svg class="glow" id="glow" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="glowGrad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#ec4913" />
+            <stop offset="0.33" stop-color="#f59e0b" />
+            <stop offset="0.66" stop-color="#10b981" />
+            <stop offset="1" stop-color="#3b82f6" />
+          </linearGradient>
+        </defs>
+        <rect fill="none" stroke="url(#glowGrad)" stroke-width="3" stroke-linecap="round" />
+      </svg>
+
+      <div class="content-row" id="contentRow"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  var STATE = 'input';
+  var capsule = document.getElementById('capsule');
+  var contentRow = document.getElementById('contentRow');
+  var toast = document.getElementById('toast');
+  var USSD_MESSAGE = 'Composez #150*50# pour valider le paiement de 4900 FCFA';
+
+  // Données passées par l'app via la query string de la WebView.
+  var Q = new URLSearchParams(location.search);
+  function money(v) { return (v === null || v === '' || isNaN(v)) ? null : Number(v); }
+
+  (function hydrate() {
+    if (Q.get('title')) document.getElementById('menuTitle').textContent = Q.get('title');
+    if (Q.get('image')) {
+      document.getElementById('menuImage').style.backgroundImage =
+        'url("' + Q.get('image').replace(/"/g, '%22') + '")';
+    }
+    var order = ['menuPrice', 'drinksPrice', 'extrasPrice', 'deliveryPrice'];
+    var cells = document.querySelectorAll('.recap-item .recap-value');
+    order.forEach(function (k, i) {
+      var v = money(Q.get(k));
+      if (v !== null) cells[i].textContent = v + ' F';
+    });
+    if (Q.get('deliveryFree') === '1') {
+      cells[3].textContent = 'Gratuit';
+      cells[3].classList.add('free');
+    }
+    var total = money(Q.get('total'));
+    if (total !== null) {
+      document.querySelector('.total-value').textContent = total + ' FCFA';
+      USSD_MESSAGE = 'Composez #150*50# pour valider le paiement de ' + total + ' FCFA';
+    }
+    // Sélecteur d'états réservé à la preview : ?debug=1
+    if (Q.get('debug') !== '1') document.getElementById('statePicker').style.display = 'none';
+  })();
+
+  function showToast(msg) {
+    toast.textContent = msg;
+    toast.classList.add('show');
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(function () { toast.classList.remove('show'); }, 7000);
+  }
+
+  function render() {
+    capsule.setAttribute('data-state', STATE);
+    var html = '';
+    if (STATE === 'input') {
+      html =
+        '<div class="action-col">' +
+          '<button class="close-circle" id="closeBtn"><ion-icon name="close"></ion-icon></button>' +
+        '</div>' +
+        '<div class="input-wrapper">' +
+          '<ion-icon name="call-outline"></ion-icon>' +
+          '<input id="phone" type="tel" inputmode="tel" placeholder="saisir le numéro de paiement" />' +
+        '</div>' +
+        '<div class="action-col">' +
+          '<button class="payer-btn" id="payBtn"><ion-icon name="arrow-forward-outline"></ion-icon></button>' +
+        '</div>';
+    } else if (STATE === 'waiting') {
+      html = '<div class="centered"><span class="waiting-text">Veuillez patienter...</span></div>';
+    } else if (STATE === 'ussd_sent') {
+      html = '<div class="centered"><span class="ussd-text">' + USSD_MESSAGE + '</span></div>';
+    } else if (STATE === 'success') {
+      html = '<div class="centered"><span class="success-text">Paiement réussi ! Création de la commande en cours...</span></div>';
+    } else if (STATE === 'success_created') {
+      html = '<div class="centered success-created"><ion-icon name="checkmark-circle"></ion-icon><span>Commande créée avec succès !</span></div>';
+    }
+    contentRow.innerHTML = html;
+    // relance le fondu de changement d'étape
+    contentRow.style.animation = 'none';
+    void contentRow.offsetWidth;
+    contentRow.style.animation = '';
+
+    var closeBtn = document.getElementById('closeBtn');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', function () {
+        // Demande à l'app de fermer la WebView.
+        if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage('close');
+      });
+    }
+
+    // Focus du numéro : on prévient l'app pour qu'elle remonte la capsule
+    // au-dessus du clavier (le panel du haut s'efface via la classe .kb).
+    var phoneInput = document.getElementById('phone');
+    if (phoneInput) {
+      phoneInput.addEventListener('focus', function () {
+        setKeyboardUI(true);
+        if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage('keyboard:open');
+      });
+      phoneInput.addEventListener('blur', function () {
+        setKeyboardUI(false);
+        if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage('keyboard:close');
+      });
+    }
+
+    var payBtn = document.getElementById('payBtn');
+    if (payBtn) {
+      payBtn.addEventListener('click', function () {
+        // Clavier ouvert : le bouton referme le clavier (chevron), comme
+        // l'overlay natif — il ne lance pas le paiement.
+        if (document.querySelector('.scene').classList.contains('kb')) {
+          document.getElementById('phone').blur();
+          return;
+        }
+        var phone = (document.getElementById('phone').value || '').trim();
+        if (!phone) { showToast('Veuillez remplir le numéro de paiement'); return; }
+        setState('waiting');
+      });
+    }
+    sizeGlow();
+  }
+
+  function setState(s) {
+    STATE = s;
+    render();
+    Array.prototype.forEach.call(document.querySelectorAll('#statePicker button'), function (b) {
+      b.classList.toggle('on', b.dataset.s === s);
+    });
+  }
+
+  // Bordure lumineuse : segment de 25 % du périmètre qui parcourt le contour
+  function sizeGlow() {
+    var svg = document.getElementById('glow');
+    var rect = svg.querySelector('rect');
+    var w = capsule.offsetWidth, h = capsule.offsetHeight;
+    var sw = 3, r = 35;
+    svg.setAttribute('width', w); svg.setAttribute('height', h);
+    rect.setAttribute('x', sw / 2); rect.setAttribute('y', sw / 2);
+    rect.setAttribute('width', w - sw); rect.setAttribute('height', h - sw);
+    rect.setAttribute('rx', r); rect.setAttribute('ry', r);
+    var perimeter = 2 * (w + h) - 8 * r + 2 * Math.PI * r;
+    var dash = perimeter * 0.25;
+    rect.setAttribute('stroke-dasharray', dash + ' ' + (perimeter - dash));
+    rect.style.setProperty('--dash-end', (-perimeter) + 'px');
+  }
+
+  document.getElementById('networkRow').addEventListener('click', function (e) {
+    var chip = e.target.closest('.network-chip');
+    if (!chip) return;
+    Array.prototype.forEach.call(this.children, function (c) { c.classList.remove('active'); });
+    chip.classList.add('active');
+  });
+
+  document.getElementById('statePicker').addEventListener('click', function (e) {
+    if (e.target.dataset.s) setState(e.target.dataset.s);
+  });
+
+  // Bascule l'UI clavier : croix masquée (input élargi) + bouton en chevron.
+  function setKeyboardUI(open) {
+    document.querySelector('.scene').classList.toggle('kb', !!open);
+    var icon = document.querySelector('#payBtn ion-icon');
+    if (icon) icon.setAttribute('name', open ? 'chevron-down' : 'arrow-forward-outline');
+  }
+
+  // Appelé par l'app (injectJavaScript) avec la hauteur du clavier : seule la
+  // capsule remonte, la WebView et le panel du haut ne bougent pas.
+  window.__setKeyboard = function (height) {
+    document.documentElement.style.setProperty('--kb', (height || 0) + 'px');
+    setKeyboardUI((height || 0) > 0);
+  };
+
+  window.addEventListener('resize', sizeGlow);
+  render();
+</script>
+</body>
+</html>
