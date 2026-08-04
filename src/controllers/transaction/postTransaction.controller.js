@@ -10,7 +10,7 @@ exports.postTransactionController = async (req, res) => {
     const { amount, payBy, userId, items } = req.body || {};
     log.info(`[POST /transaction] payBy=${payBy} userId=${userId} amount=${amount} items=${Array.isArray(items) ? items.length : 0}`);
 
-    const response = await postTransactionService(req.body);
+    const response = await postTransactionService(req.body, req);
 
     if (!response.success) {
       log.warn('[POST /transaction] ❌ Erreurs:', response.message);

@@ -670,7 +670,10 @@ CREATE TABLE IF NOT EXISTS settings (
 INSERT INTO settings (key, value, description) VALUES
   ('platform_margin',     '100'::jsonb,   'Marge Yaammoo ajoutée au prix affiché de chaque plat (FCFA).'),
   ('payment_fee_percent', '5'::jsonb,     'Frais du prestataire de paiement, en % du montant payé. Arrondi à l''entier SUPÉRIEUR.'),
-  ('delivery_free_mode',  'false'::jsonb, 'Campagne « livraison offerte » globale.')
+  ('delivery_free_mode',  'false'::jsonb, 'Campagne « livraison offerte » globale.'),
+  -- migration 036 : Apple Review Mode, sorti de .env pour basculer sans redéployer.
+  ('apple_review_mode',         'false'::jsonb, 'Mode Apple Review global. Exposé au frontend par GET /fastFood/all (appleReviewMode).'),
+  ('apple_version_review_mode', '""'::jsonb,    'Version d''app exacte en cours de review App Store. POST /transaction bypasse le paiement seulement si le header x-app-version est identique. Vide = aucune.')
 ON CONFLICT (key) DO NOTHING;
 
 -- ============================================================================

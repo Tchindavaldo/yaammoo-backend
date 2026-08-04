@@ -12,12 +12,14 @@ const { generateId } = require('../../repositories/idGen');
 const { createOrderService } = require('../order/createOrder');
 const { updateOrders } = require('../order/updateOrders.service');
 const { creditMerchantForItem } = require('./creditMerchant.service');
+const { isAppleReviewClient } = require('../settings/settings.service');
 
 const log = console;
 
-const APPLE_REVIEW_MODE = process.env.APPLE_REVIEW_MODE === 'true';
-
-exports.postTransactionService = async data => {
+// `req` sert uniquement à lire le header `x-app-version` : le bypass Apple Review
+// ne s'applique qu'à la build exactement en cours de review (réglage `settings`,
+// modifiable à chaud). Absent sur un appel interne → aucun bypass.
+exports.postTransactionService = async (data, req) => {
   const io = getIO();
   const { amount, currentAmount, payBy, userId, phone, email, network, items } = data;
 
@@ -69,10 +71,12 @@ exports.postTransactionService = async data => {
     }
 
     // =========================================================================
-    // Apple Review Mode : bypass total MobileWallet → createOrder direct
+    // Apple Review Mode : bypass total MobileWallet → createOrder direct.
+    // Déclenché par ÉGALITÉ STRICTE entre le header `x-app-version` du client et
+    // le réglage `apple_version_review_mode` — les autres versions paient.
     // =========================================================================
-    if (APPLE_REVIEW_MODE && payBy === 'mobilemoney') {
-      log.info(`${logPrefix} APPLE_REVIEW_MODE → createOrder direct sans paiement`);
+    if (payBy === 'mobilemoney' && (await isAppleReviewClient(req))) {
+      log.info(`${logPrefix} apple_version_review_mode → createOrder direct sans paiement`);
       const orders = Array.isArray(items) ? items : [];
       const toUpdate = orders.filter(o => o && o.id);
       const toCreate = orders.filter(o => o && !o.id);
@@ -99,7 +103,7 @@ exports.postTransactionService = async data => {
       });
 
       log.info(`${logPrefix} ✓ Apple Review : commandes créées, transaction enregistrée`);
-      return { success: true };
+      return { success: true, appleReviewMode: true };
     }
 
     // =========================================================================
