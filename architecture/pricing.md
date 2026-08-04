@@ -158,6 +158,8 @@ Table clé/valeur (migration 019), lue via `services/settings/settings.service`.
 | `platform_margin` | 100 | Marge Yaammoo ajoutée au prix affiché de chaque plat (FCFA) |
 | `payment_fee_percent` | 5 | Frais prestataire, en % du montant payé, **arrondi à l'entier supérieur** |
 | `delivery_free_mode` | false | Campagne « livraison offerte » globale |
+| `apple_review_mode` | false | Mode Apple Review exposé au frontend (migration 036) — voir [payment.md](./payment.md) |
+| `apple_version_review_mode` | `""` | Version d'app exacte en review ; déclenche le bypass paiement (migration 036) — voir [payment.md](./payment.md) |
 
 **Pourquoi en base et pas dans `.env`** : ce sont des décisions **commerciales**,
 prises et annulées en cours de journée. `flyctl secrets set` ne rebuild pas le
@@ -373,3 +375,4 @@ src/
 | `024_platform_revenues.sql` | grand livre des revenus — **socle, pas encore alimenté** |
 | `025_fastfoods_pickup_allowed.sql` | `pickup_only` → `pickup_allowed` : le champ disait l'inverse de son usage |
 | `026_order_deliveries_platform_margin.sql` | ajoute `platform_margin` à `order_deliveries` (manquait en prod : `CREATE TABLE IF NOT EXISTS` de la 020 n'altère pas une table existante) |
+| `036_settings_apple_review.sql` | `apple_review_mode` + `apple_version_review_mode` — sort le mode Apple Review de `.env` |

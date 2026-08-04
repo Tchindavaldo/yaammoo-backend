@@ -6,7 +6,10 @@
 // pouvoir basculer sans redéployer (`flyctl secrets set` redémarre la machine
 // et ne rebuild pas le code — cf. CLAUDE.md).
 //
-// Les seuils de version d'app, eux, restent en `.env` : liés au déploiement.
+// Les seuils de version d'app (compatibilité ascendante des données) restent en
+// `.env` : ils sont liés au déploiement. Exception : `apple_version_review_mode`,
+// qui n'est pas un seuil de compatibilité mais la désignation ponctuelle de la
+// build soumise à Apple — elle doit basculer sans redéployer.
 //
 // Cache mémoire court : ces valeurs sont lues à CHAQUE affichage du home. Sans
 // cache, chaque écran coûterait une requête de plus. La contrepartie est qu'une
@@ -14,6 +17,7 @@
 // cache local, mais pas celui des autres machines.
 // ============================================================================
 const repos = require('../../repositories');
+const { resolveClientVersion } = require('../../utils/appVersion');
 
 const CACHE_TTL_MS = Number(process.env.SETTINGS_CACHE_TTL_MS);
 
@@ -24,12 +28,16 @@ const KEYS = {
   PLATFORM_MARGIN: 'platform_margin',
   PAYMENT_FEE_PERCENT: 'payment_fee_percent',
   DELIVERY_FREE_MODE: 'delivery_free_mode',
+  APPLE_REVIEW_MODE: 'apple_review_mode',
+  APPLE_VERSION_REVIEW_MODE: 'apple_version_review_mode',
 };
 
 const FALLBACKS = {
   [KEYS.PLATFORM_MARGIN]: 0,
   [KEYS.PAYMENT_FEE_PERCENT]: 0,
   [KEYS.DELIVERY_FREE_MODE]: false,
+  [KEYS.APPLE_REVIEW_MODE]: false,
+  [KEYS.APPLE_VERSION_REVIEW_MODE]: '',
 };
 
 let cache = null;
@@ -72,10 +80,28 @@ async function getPricingSettings() {
   };
 }
 
+/** Mode Apple Review global, tel qu'exposé au frontend. */
+async function getAppleReviewMode() {
+  const s = await getSettings();
+  return s[KEYS.APPLE_REVIEW_MODE] === true;
+}
+
+/**
+ * Vrai si la version d'app du client est EXACTEMENT celle en cours de review.
+ * Égalité stricte, pas un seuil : seule la build soumise à Apple doit sauter le
+ * paiement — toutes les autres versions paient normalement.
+ */
+async function isAppleReviewClient(req) {
+  const s = await getSettings();
+  const reviewVersion = String(s[KEYS.APPLE_VERSION_REVIEW_MODE] || '').trim();
+  if (!reviewVersion) return false;
+  return resolveClientVersion(req) === reviewVersion;
+}
+
 async function setSetting(key, value) {
   const saved = await repos.settings.set(key, value);
   invalidate();
   return saved;
 }
 
-module.exports = { KEYS, getSettings, getPricingSettings, setSetting, invalidate };
+module.exports = { KEYS, getSettings, getPricingSettings, getAppleReviewMode, isAppleReviewClient, setSetting, invalidate };

@@ -2,20 +2,34 @@
 
 ## Apple Review Mode
 
-Quand `APPLE_REVIEW_MODE=true` (env var), tout appel `POST /transaction` avec `payBy=mobilemoney`
-**bypasse entièrement MobileWallet** :
+Piloté par **deux réglages de la table `settings`** (migration 036), modifiables à chaud
+via `PATCH /settings/:key` — plus aucune variable d'env :
+
+| Clé | Type | Rôle |
+|-----|------|------|
+| `apple_review_mode` | booléen | Exposé au frontend dans `GET /fastFood/all` (champ `appleReviewMode`). N'a **aucun** effet sur le paiement. |
+| `apple_version_review_mode` | string | Version d'app exacte en review (ex. `"1.4.2"`). Vide = aucune. Seule clé qui déclenche le bypass paiement. |
+
+Le bypass de `POST /transaction` (`payBy=mobilemoney`) se déclenche sur **égalité stricte**
+entre le header `x-app-version` du client et `apple_version_review_mode` : la build soumise
+à Apple ne paie pas, toutes les autres versions paient normalement. Il **bypasse entièrement
+MobileWallet** :
 1. Validation normale (`items`, `phone`, etc.) — le frontend envoie exactement la même requête
 2. `createOrderService` / `updateOrders` appelés directement sur les `items`
 3. Crédit marchand appliqué normalement
 4. `repos.transactions.create` enregistre la transaction — aucun socket émis
-5. Retourne `{ success: true }` — pas de `payment.settled`, pas d'écran USSD
+5. Retourne `{ success: true, appleReviewMode: true }` — pas de `payment.settled`, pas d'écran USSD
+   (le flag est absent de la réponse en mode normal, qui renvoie `status`/`mw_transaction_id`/`payment_number`)
 
 **Détection côté frontend** : `GET /fastFood/all` retourne `appleReviewMode: true|false` dans la réponse racine.
 Le frontend lit ce flag au démarrage pour adapter son rendu (sauter l'écran USSD/attente).
 
-**Env var** : `APPLE_REVIEW_MODE=true` dans `.env` ou variable Fly.io pour la soumission App Store.
+**Activation** : `PATCH /settings/apple_review_mode` (`true`) et
+`PATCH /settings/apple_version_review_mode` (la version soumise). Aucun redéploiement.
 
-> ⚠️ À activer **uniquement** pour les soumissions App Store Review. Ne jamais laisser en prod normale.
+> ⚠️ À activer **uniquement** pour les soumissions App Store Review, et à remettre
+> à `false` / `""` dès la review terminée. Ne jamais laisser en prod normale.
+> La bascule met au plus `SETTINGS_CACHE_TTL_MS` à se propager (cache du service settings).
 
 ---
 
