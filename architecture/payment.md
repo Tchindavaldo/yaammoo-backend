@@ -31,6 +31,12 @@ Le frontend lit ce flag au démarrage pour adapter son rendu (sauter l'écran US
 > à `false` / `""` dès la review terminée. Ne jamais laisser en prod normale.
 > La bascule met au plus `SETTINGS_CACHE_TTL_MS` à se propager (cache du service settings).
 
+**Aucun repli local** : contrairement aux réglages tarifaires, ces deux clés n'ont pas de
+valeur par défaut en code. Si elles sont absentes de la base (migration 036 non appliquée)
+ou si `settings` est injoignable, `getAppleReviewMode()` / `isAppleReviewClient()` **lèvent**
+— `GET /fastFood/all` répond alors 500. Inventer une valeur ouvrirait ou fermerait
+silencieusement un bypass de paiement.
+
 ---
 
 ## Rôle

@@ -21,9 +21,9 @@ const { resolveClientVersion } = require('../../utils/appVersion');
 
 const CACHE_TTL_MS = Number(process.env.SETTINGS_CACHE_TTL_MS);
 
-// Clés connues + valeur de repli si la table est injoignable ou la clé absente.
-// Le repli doit être le comportement le PLUS SÛR : pas de campagne en cours,
-// et une tarification qui n'invente pas de marge.
+// Clés connues. Un repli n'est défini que pour les réglages TARIFAIRES, où le
+// comportement le PLUS SÛR existe : pas de campagne en cours, et une tarification
+// qui n'invente pas de marge. Les réglages Apple Review, eux, n'en ont pas.
 const KEYS = {
   PLATFORM_MARGIN: 'platform_margin',
   PAYMENT_FEE_PERCENT: 'payment_fee_percent',
@@ -36,9 +36,17 @@ const FALLBACKS = {
   [KEYS.PLATFORM_MARGIN]: 0,
   [KEYS.PAYMENT_FEE_PERCENT]: 0,
   [KEYS.DELIVERY_FREE_MODE]: false,
-  [KEYS.APPLE_REVIEW_MODE]: true,
-  [KEYS.APPLE_VERSION_REVIEW_MODE]: '',
 };
+
+// Les réglages Apple Review n'ont VOLONTAIREMENT aucun repli : inventer une
+// valeur reviendrait soit à ouvrir un bypass de paiement, soit à le fermer en
+// pleine review, sans que personne ne le sache. Clé absente = erreur explicite.
+function requireSetting(settings, key) {
+  if (!(key in settings)) {
+    throw new Error(`settings: réglage "${key}" absent de la base (migration 036 non appliquée ?)`);
+  }
+  return settings[key];
+}
 
 let cache = null;
 let cachedAt = 0;
@@ -52,7 +60,8 @@ function invalidate() {
 /**
  * Tous les réglages, complétés par les replis.
  * Ne lève jamais : un incident sur `settings` ne doit pas empêcher d'afficher
- * le home. On journalise et on sert les replis.
+ * le home. On journalise et on sert les replis. Les clés sans repli sont alors
+ * simplement absentes du résultat — c'est `requireSetting` qui tranche.
  */
 async function getSettings() {
   const ttl = Number.isFinite(CACHE_TTL_MS) ? CACHE_TTL_MS : 0;
@@ -80,20 +89,21 @@ async function getPricingSettings() {
   };
 }
 
-/** Mode Apple Review global, tel qu'exposé au frontend. */
+/** Mode Apple Review global, tel qu'exposé au frontend. Lève si la clé manque. */
 async function getAppleReviewMode() {
   const s = await getSettings();
-  return s[KEYS.APPLE_REVIEW_MODE] === true;
+  return requireSetting(s, KEYS.APPLE_REVIEW_MODE) === true;
 }
 
 /**
  * Vrai si la version d'app du client est EXACTEMENT celle en cours de review.
  * Égalité stricte, pas un seuil : seule la build soumise à Apple doit sauter le
  * paiement — toutes les autres versions paient normalement.
+ * Lève si le réglage est absent de la base.
  */
 async function isAppleReviewClient(req) {
   const s = await getSettings();
-  const reviewVersion = String(s[KEYS.APPLE_VERSION_REVIEW_MODE] || '').trim();
+  const reviewVersion = String(requireSetting(s, KEYS.APPLE_VERSION_REVIEW_MODE) || '').trim();
   if (!reviewVersion) return false;
   return resolveClientVersion(req) === reviewVersion;
 }
