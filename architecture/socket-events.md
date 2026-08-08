@@ -147,7 +147,7 @@ Détails feature : [ratings.md](./ratings.md).
 |---|---|---|---|
 | `payment.settled` | `userId` client | `mwVerdictService.js` | `{ status, transaction_id, amount, source }` |
 | `newTransaction` | `userId` (client ou marchand) | `postTransaction.service.js`, `mwVerdictService.js` | `{ message, data: transaction }` |
-| `wallet.credited` | `userId` marchand | `creditMerchant.service.js` | `{ transactionId, type:'merchant_credit', direction:'payin', amount, grossAmount, mwCommission, yaammooFee, name, fastFoodId, relatedOrderId, createdAt }` |
+| `wallet.credited` | `userId` marchand | `creditMerchant.service.js` | `{ transactionId, type:'merchant_credit', direction:'payin', amount, grossAmount, name, fastFoodId, relatedOrderId, createdAt }` — `mwCommission` / `yaammooFee` retirés (plus de retenue au crédit marchand, cf. [wallet.md](./wallet.md)) |
 | `wallet.withdrawal` | `userId` marchand | `withdraw.service.js`, `webhookPayout.service.js` | `{ withdrawalId, type:'withdrawal', direction:'payout', amount, status, network, newBalance?, reason? }` |
 
 ### Bonus (fidélité)

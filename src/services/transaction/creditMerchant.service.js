@@ -3,8 +3,13 @@
 // ============================================================================
 // Appelé pour CHAQUE item d'un paiement réussi (verdict MobileWallet successful).
 // Le portefeuille marchand est calculé depuis les transactions : on enregistre
-// donc une transaction `type='merchant_credit'` sur le userId du marchand, du
-// montant NET (total - commission MobileWallet - frais fixe yaammoo).
+// donc une transaction `type='merchant_credit'` sur le userId du marchand.
+//
+// AUCUNE retenue n'est appliquée ici. La commission MobileWallet est prélevée
+// UNE SEULE FOIS, en amont, sur le montant encaissé (`payment_fee_percent` des
+// settings, extrait du TTC par `feeIncludedIn`). Le bénéfice yaammoo, lui, est
+// déjà porté par la marge plateforme et l'écart de zone — pas par un frais
+// supplémentaire sur le marchand.
 //
 // Le verdict global est protégé par reserveSettlement (un seul canal traite) :
 // le crédit n'est créé qu'une seule fois. Échec partiel toléré (logué), comme
@@ -13,7 +18,6 @@
 
 const repos = require('../../repositories');
 const { getIO } = require('../../socket');
-const { computeNet } = require('../../utils/commission');
 const { reliableEmit } = require('../../utils/reliableEmit');
 
 /**
@@ -40,20 +44,17 @@ exports.creditMerchantForItem = async ({ item, clientUserId }) => {
     return null;
   }
 
-  const { net, mwCommission, yaammooFee } = computeNet(gross);
   const menuName = item?.menu?.name || item?.menu?.titre || 'Commande';
 
   const tx = await repos.transactions.create({
     type: 'merchant_credit',
     userId: merchantUserId,
-    amount: net,
+    amount: gross,
     name: `Gain ${menuName}`,
     payBy: 'order',
     fastFoodId,
     relatedOrderId: item?.id || null,
     grossAmount: gross,
-    mwCommission,
-    yaammooFee,
     clientUserId: clientUserId || null,
   });
 
@@ -63,10 +64,8 @@ exports.creditMerchantForItem = async ({ item, clientUserId }) => {
       transactionId: tx.id,
       type: 'merchant_credit',
       direction: 'payin',
-      amount: net,
+      amount: gross,
       grossAmount: gross,
-      mwCommission,
-      yaammooFee,
       name: tx.name,
       fastFoodId,
       relatedOrderId: item?.id || null,

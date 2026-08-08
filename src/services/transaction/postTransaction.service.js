@@ -7,7 +7,6 @@ const { validateTransactionCreation } = require('../../utils/validator/validateT
 const { validateExpressDelivery } = require('../../utils/validator/validateExpressDelivery');
 const { validatePaymentAmount } = require('../../utils/validator/validatePaymentAmount');
 const mobilewalletService = require('./mobilewalletService');
-const { computeNet } = require('../../utils/commission');
 const { generateId } = require('../../repositories/idGen');
 const { createOrderService } = require('../order/createOrder');
 const { updateOrders } = require('../order/updateOrders.service');
@@ -152,8 +151,6 @@ exports.postTransactionService = async (data, req) => {
       }
       log.info(`${logPrefix} ✓ Pré-check stock OK (${Object.keys(qtyByMenu).length} menu(s))`);
 
-      const { afterMw } = computeNet(amount);
-
       // ID UNIQUE de CE paiement (= end_user_ref MobileWallet). On l'utilise
       // pour retrouver le contexte au verdict de façon DÉTERMINISTE, quel que
       // soit le tx_id que MobileWallet attribue. Une transaction = un paymentRef.
@@ -176,13 +173,15 @@ exports.postTransactionService = async (data, req) => {
         throw e;
       }
 
-      log.info(`${logPrefix} → Appel MobileWallet /pay: ref=${paymentRef}, gross=${amount}, afterMw=${afterMw}, network=${networkName}, phone=${phone}`);
+      log.info(`${logPrefix} → Appel MobileWallet /pay: ref=${paymentRef}, amount=${amount}, network=${networkName}, phone=${phone}`);
 
       const startTime = Date.now();
       let mwResult;
       try {
         mwResult = await mobilewalletService.pay({
-          amount: afterMw,
+          // Montant TTC affiché au client. MobileWallet prélève sa commission
+          // DEDANS : lui envoyer un montant amputé sous-facturerait le client.
+          amount,
           phone,
           network: networkName,
           email,

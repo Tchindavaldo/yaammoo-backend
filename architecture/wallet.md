@@ -15,8 +15,9 @@ son portefeuille.
 
 Réutilise la table `transactions` (`extra_data` JSONB absorbe les champs hors colonnes) :
 
-- **Crédit** : `type='merchant_credit'`, `userId = userId du marchand`, `amount = net`.
-  Extra : `fastFoodId`, `relatedOrderId`, `grossAmount`, `mwCommission`, `yaammooFee`.
+- **Crédit** : `type='merchant_credit'`, `userId = userId du marchand`,
+  `amount = total de l'item` (aucune retenue — voir ci-dessous).
+  Extra : `fastFoodId`, `relatedOrderId`, `grossAmount`.
 - **Retrait** : `type='withdrawal'`, `userId = marchand`, `amount = montant retiré`
   (compté en négatif dans le solde). Extra : `withdrawalId`, `status`, `phone`, `network`.
 
@@ -29,16 +30,28 @@ mw_payout_id, failure_reason`.
 
 ---
 
-## Commissions (env)
+## Commissions — une seule ponction
 
-`net = gross − ceil(gross × DIGIKUNTZ_FEE) − YAAMMOO_FLAT_FEE` (clampé ≥ 0).
+**Le crédit marchand ne subit AUCUNE retenue.** La commission du prestataire de
+paiement est prélevée **une seule fois**, en amont, sur le montant encaissé :
+`feeIncludedIn(itemsCharged, payment_fee_percent)` dans
+[settleDelivery.service.js](../src/services/order/settleDelivery.service.js).
+Ce taux vit dans la table `settings` (clé `payment_fee_percent`, défaut 5),
+pilotable à chaud — c'est le **même** taux qui compose le prix affiché, donc une
+source de vérité unique.
 
-| Variable | Valeur | Rôle |
-|---|---|---|
-| `DIGIKUNTZ_FEE` | `0.05` | commission Digikuntz (5%) |
-| `YAAMMOO_FLAT_FEE` | `100` | frais fixe yaammoo (FCFA) par commande |
+Le bénéfice yaammoo est porté par la **marge plateforme** et l'**écart de zone**
+(cf. [pricing.md](./pricing.md)) — pas par un frais retenu au marchand.
 
-Helper : [src/utils/commission.js](../src/utils/commission.js) → `computeNet(gross)`.
+> ⚠️ Auparavant `utils/commission.js` (`computeNet`) reprélevait 5 %
+> (`DIGIKUNTZ_FEE`) **plus** un frais fixe (`YAAMMOO_FLAT_FEE`) sur le crédit
+> marchand : la commission était donc comptée **deux fois**. Ce helper et ces
+> variables d'env ont été supprimés.
+>
+> ⚠️ Le même helper servait aussi à calculer `afterMw`, le montant envoyé à
+> MobileWallet à l'appel `/pay`. MobileWallet prélevant sa commission **dans** le
+> montant, lui envoyer un montant déjà amputé de 5 % **sous-facturait le client**.
+> On lui transmet désormais le TTC affiché tel quel.
 
 ---
 
