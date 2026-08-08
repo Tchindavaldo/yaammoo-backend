@@ -25,6 +25,7 @@
 const repos = require('../../repositories');
 const { getIO } = require('../../socket');
 const { reliableEmit } = require('../../utils/reliableEmit');
+const { isPlatformDelivered } = require('../pricing/deliveryPricing');
 
 /**
  * Verse sa course au livreur d'une commande livrée par la plateforme.
@@ -43,7 +44,15 @@ exports.creditDriverForOrder = async ({ order }) => {
   const logPrefix = `[creditDriver] orderId=${order?.id}`;
 
   const driverId = order?.driverId;
-  if (!driverId) return null; // livré par le fastfood lui-même : rien à verser
+  if (!driverId) return null; // aucun livreur assigné : rien à verser
+
+  // ⚠️ SEULES les boutiques livrées par la plateforme paient leur livreur ici.
+  // En régime `fastfood`, la course est déjà comprise dans `items_real` versé au
+  // marchand : c'est LUI qui rémunère son livreur, comme il l'entend. Créditer
+  // en plus le livreur paierait la course DEUX fois — une fois au marchand, une
+  // fois au livreur — et la perte serait pour la plateforme.
+  const fastfood = await repos.fastfoods.getById(order?.fastFoodId).catch(() => null);
+  if (!isPlatformDelivered(fastfood)) return null;
 
   let settlement = null;
   try {

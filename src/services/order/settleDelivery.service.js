@@ -109,6 +109,39 @@ exports.settleDeliveryService = async ({ orders, bonusCode }) => {
     const groupIdByKey = {};
     const billedKeys = new Set();
 
+    // ── Frais de retrait : UNE ponction par BOUTIQUE, pas par commande ──────
+    // Le prix affiché porte le frais sur CHAQUE plat — au moment où il est
+    // composé, sur le home, le panier n'existe pas encore. Mais l'argent d'une
+    // même boutique sort en UNE fois : facturer N forfaits pour un seul retrait
+    // ferait payer au client des frais qui n'existeront jamais.
+    //
+    // On calcule donc le frais réel sur le total encaissé par boutique, et on
+    // le porte sur UNE commande — celle qui porte déjà la course quand il y en
+    // a une. Les autres valent 0. L'écart avec ce qui a été facturé revient à
+    // la plateforme, exactement comme l'écart de zone.
+    //
+    // ⚠️ Groupé par `fastFoodId` SEUL, pas par `deliveryGroupKey` : le retrait
+    // ne dépend ni de la zone, ni du créneau, ni du mode de livraison — c'est
+    // le portefeuille de la boutique qui se vide, tous départs confondus.
+    const chargedByFastFood = {};
+    for (const order of list) {
+      const ff = order.fastFoodId;
+      if (!ff) continue;
+      const charged = toNumber(order.total);
+      const fee = feeIncludedIn(charged, pricing.paymentFeePercent);
+      chargedByFastFood[ff] = (chargedByFastFood[ff] || 0) + (charged - fee);
+    }
+    const withdrawalByFastFood = {};
+    for (const [ff, netCharged] of Object.entries(chargedByFastFood)) {
+      withdrawalByFastFood[ff] = withdrawalFee_(netCharged, pricing, list.find(o => o.fastFoodId === ff));
+    }
+    // Qui porte le frais : la première commande rencontrée de la boutique.
+    const withdrawalHolder = {};
+    for (const order of list) {
+      const ff = order.fastFoodId;
+      if (ff && withdrawalHolder[ff] === undefined) withdrawalHolder[ff] = order.id;
+    }
+
     for (const order of list) {
       // ⚠️ Une commande à emporter est réglée AUSSI : le user a bien payé le
       // supplément livraison (fondu dans le prix du plat depuis le home). Sans
@@ -150,9 +183,9 @@ exports.settleDeliveryService = async ({ orders, bonusCode }) => {
       const itemsCharged = toNumber(order.total);
       const paymentFee = feeIncludedIn(itemsCharged, pricing.paymentFeePercent);
       const afterPaymentFee = itemsCharged - paymentFee;
-      // Le retrait porte sur ce qui reste APRÈS la commission : c'est ce montant
-      // là qui sortira réellement du portefeuille opérateur.
-      const withdrawalFee = withdrawalFee_(afterPaymentFee, pricing, order);
+      // Le retrait porte sur ce qui reste APRÈS la commission — et il est dû
+      // UNE fois pour toute la boutique, pas une fois par commande.
+      const withdrawalFee = withdrawalHolder[ffId] === order.id ? toNumber(withdrawalByFastFood[ffId]) : 0;
       const net = Math.max(0, afterPaymentFee - withdrawalFee);
       const qty = Math.max(1, toNumber(order.quantity) || 1);
       const marginDue = toNumber(pricing.platformMargin) * qty;

@@ -126,6 +126,20 @@ exports.toMerchantView = async orders => {
     if (key && billedOrderByKey[key] === undefined) billedOrderByKey[key] = order.id;
   }
 
+  // Frais de retrait : UNE ponction par BOUTIQUE, comme au règlement. L'argent
+  // d'une même boutique sort en une fois — l'afficher sur chaque commande
+  // ferait croire au marchand qu'il paiera N forfaits pour un seul retrait.
+  // Groupé sur `fastFoodId` SEUL : le retrait ne dépend ni de la zone, ni du
+  // créneau, ni du mode de livraison.
+  const withdrawalHolder = {};
+  const chargedByFastFood = {};
+  for (const order of list) {
+    const ff = order.fastFoodId;
+    if (!ff) continue;
+    if (withdrawalHolder[ff] === undefined) withdrawalHolder[ff] = order.id;
+    chargedByFastFood[ff] = (chargedByFastFood[ff] || 0) + toNumber(order.total);
+  }
+
   return list.map(order => {
     const settlement = settlements[order.id];
     const customerTotal = toNumber(order.total);
@@ -146,7 +160,8 @@ exports.toMerchantView = async orders => {
       total: items + course,
       customerTotal,
       // Ce que coûtera le retrait de ce montant chez l'opérateur.
-      withdrawalFee: pricing ? withdrawalFee(items + course, pricing.withdrawalFees, order?.network ?? order?.payBy) : 0,
+      withdrawalFee:
+        pricing && withdrawalHolder[order.fastFoodId] === order.id ? withdrawalFee(chargedByFastFood[order.fastFoodId], pricing.withdrawalFees, order?.network ?? order?.payBy) : 0,
     };
   });
 };

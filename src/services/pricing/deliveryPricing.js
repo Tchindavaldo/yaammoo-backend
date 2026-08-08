@@ -5,13 +5,22 @@
 // On ne gonfle JAMAIS un prix en base. Le catalogue garde les prix du fastfood ;
 // l'ajout (livraison + marge + frais) se fait à la lecture, comme `isMarchand`.
 //
-//   plat affiché    = ceil( (prix plat + livraison la plus chère + marge) × 1.05 )
-//   extra affiché   = ceil( prix extra   × 1.05 )
-//   boisson affiché = ceil( prix boisson × 1.05 )
+//   base            = prix plat + livraison la plus chère + marge
+//   plat affiché    = ceil( (base + frais de retrait) / (1 − commission) )
+//   extra affiché   = ceil( (prix extra   + frais de retrait) / (1 − commission) )
+//   boisson affiché = ceil( (prix boisson + frais de retrait) / (1 − commission) )
 //
 // Le total payé est la simple SOMME de ce que le user voit : **aucune ligne de
 // frais n'est jamais ajoutée à la fin**. Le user paie tout sans le savoir.
-// Les 5 % sont appliqués UNE fois par prix, jamais multipliés par la quantité.
+// Les frais sont appliqués UNE fois par prix, jamais multipliés par la quantité.
+//
+// ⚠️ On DIVISE par (1 − commission), on ne multiplie pas par (1 + commission) :
+// l'agrégateur prélève son pourcentage sur le montant qu'il ENCAISSE. Pour qu'il
+// reste 2404 après sa part, il faut lui envoyer 2404 / 0,95 = 2531 — et non
+// 2404 × 1,05 = 2524, qui ne laisserait que 2398.
+//
+// ⚠️ En livraison PLATEFORME, le prix est ensuite calé sur un multiple du pas
+// d'arrondi — TOUJOURS en dernier (cf. `roundToStep`).
 //
 // Pourquoi la livraison la plus chère : une boutique a plusieurs zones à des
 // prix différents, et le home ne sait pas encore où le user se fera livrer. En
@@ -34,27 +43,27 @@ function toNumber(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
-/** Arrondi à l'entier SUPÉRIEUR : on n'encaisse pas de centimes de FCFA, et
- *  arrondir à l'inférieur ferait payer la différence à la plateforme. */
-function withFee(amount, feePercent) {
-  const base = toNumber(amount);
-  const percent = toNumber(feePercent);
-  if (base <= 0 || percent <= 0) return Math.max(0, Math.ceil(base));
-  return Math.ceil(base * (1 + percent / 100));
-}
-
 /**
- * Frais CONTENUS dans un montant déjà affiché (donc TTC).
+ * Commission prélevée par l'agrégateur sur un montant encaissé.
  *
- * ⚠️ Ce n'est PAS `montant × 5%` : les 5 % ont été ajoutés en amont, ils sont
- * déjà dedans. On les extrait en divisant. Confondre les deux surévaluerait les
- * frais et fausserait tout le reste du partage (9765 → 488 au lieu de 465).
+ * ⚠️ Le pourcentage porte sur le montant PAYÉ, pas sur une base hors frais :
+ * MobileWallet reçoit 2531 et en prélève 5 %, soit 127 — il ne cherche pas
+ * quelle base aurait donné 2531 une fois majorée.
+ *
+ * C'est la même convention que `withAllFees`, qui compose le prix en divisant
+ * par `(1 − commission)`. Les deux doivent rester cohérentes : sinon on croit
+ * qu'il reste 2404 à répartir alors qu'on en compte 2410, et l'écart part en
+ * silence chez le marchand.
+ *
+ * > Auparavant cette fonction divisait par `(1 + commission)` — la commission
+ * > était alors calculée sur la base (121 au lieu de 127 sur 2531), ce qui
+ * > sous-évaluait ce que l'agrégateur prend réellement.
  */
 function feeIncludedIn(ttcAmount, feePercent) {
   const ttc = toNumber(ttcAmount);
   const percent = toNumber(feePercent);
   if (ttc <= 0 || percent <= 0) return 0;
-  return Math.max(0, ttc - Math.round(ttc / (1 + percent / 100)));
+  return Math.max(0, Math.ceil((ttc * percent) / 100));
 }
 
 // Type de livraison (orders.delivery.type) → liste de zones correspondante.
@@ -343,7 +352,6 @@ module.exports = {
   withAllFees,
   roundToStep,
   toNumber,
-  withFee,
   feeIncludedIn,
   collectZones,
   maxDeliveryPrice,

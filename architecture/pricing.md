@@ -24,12 +24,23 @@ tracer la vérité comptable de chaque livraison.
 ## Composition du prix affiché
 
 ```
-plat affiché    = ceil( (prix fastfood + livraison LA PLUS CHÈRE + marge) × 1.05 )
-extra affiché   = ceil( prix extra   × 1.05 )
-boisson affiché = ceil( prix boisson × 1.05 )
+base            = prix fastfood + livraison LA PLUS CHÈRE + marge
+plat affiché    = ceil( (base + frais de retrait) / (1 − commission) )
+extra affiché   = ceil( (prix extra   + frais de retrait) / (1 − commission) )
+boisson affiché = ceil( (prix boisson + frais de retrait) / (1 − commission) )
 
 montant payé    = SOMME de ce que le user voit
 ```
+
+> ⚠️ **On DIVISE par `(1 − commission)`, on ne multiplie pas par `(1 + commission)`.**
+> L'agrégateur prélève son pourcentage sur le montant qu'il **encaisse**. Pour
+> qu'il reste 2404 après sa part : `2404 / 0,95 = 2531`. En multipliant on
+> aurait `2404 × 1,05 = 2524`, dont 5 % font 126 — il ne resterait que 2398.
+>
+> `feeIncludedIn` suit la **même** convention (`montant × 5 %`). Les deux bouts
+> de la cascade doivent s'accorder : quand la composition divisait par 0,95 et la
+> répartition par 1,05, on croyait qu'il restait 2404 alors qu'on en comptait
+> 2410 — et les 6 F d'écart partaient en silence chez le marchand.
 
 > ⚠️ **Aucun frais n'est jamais ajouté à la fin.** Les 5 % sont déjà dans chaque
 > prix affiché : le user paie tout sans voir de ligne de frais ni de taxe. Ils
@@ -73,9 +84,11 @@ Plat 2000, zones 500 / 800 / 1000, marge 100, frais 5 %.
 | | Montant |
 |---|---|
 | Avant frais | 2000 + 1000 + 100 = 3100 |
-| **Prix affiché** | `ceil(3100 × 1.05)` = **3255** |
+| + frais de retrait | 3100 + 54 = 3154 |
+| **Prix affiché** | `ceil(3154 / 0,95)` = **3320** |
+| Commission (5 % du payé) | **166** |
+| Frais de retrait | **54** |
 | Le fastfood touche (zone 500) | 2000 + 500 = **2500** |
-| Frais prestataire | **155** |
 | Yaammoo garde | (1000 − 500) + 100 = **600** |
 
 Le user ne voit **jamais** la ligne livraison : elle est fondue dans le prix du
@@ -268,6 +281,41 @@ jamais par le marchand ni par la plateforme — c'est la règle qui décide de t
 le reste. En régime `fastfood`, le montant marchand est le résidu de la cascade ;
 en régime `platform`, il est calculé depuis les `rawPrice` figés à l'achat, et
 c'est la course qui devient le résidu.
+
+### Frais de retrait — UNE ponction par BOUTIQUE
+
+Le prix affiché porte le frais sur **chaque plat** : au moment où il est composé,
+sur le home, le panier n'existe pas encore. Mais l'argent d'une même boutique
+sort du portefeuille opérateur **en une fois**.
+
+Panier de 10 plats à 2000, même boutique :
+
+```
+facturé au client : 54 × 10           = 540
+frais réel        : 20 000 → 1,2 % + 4 = 244
+écart                                  = 296  → marge plateforme
+```
+
+Le règlement ne prélève donc **qu'une fois** par boutique, sur le total encaissé,
+et le porte sur UNE commande (celle qui porte déjà la course quand il y en a
+une) ; les autres ont `withdrawal_fee = 0`. L'écart avec ce qui a été facturé
+revient à la plateforme, exactement comme l'écart de zone.
+
+> ⚠️ Groupé sur **`fastFoodId` seul** — pas sur `deliveryGroupKey`. Le retrait ne
+> dépend ni de la zone, ni du créneau, ni du mode de livraison : c'est le
+> portefeuille de la boutique qui se vide, tous départs confondus. C'est la
+> différence avec la course, qui elle se groupe par DÉPART.
+
+Le barème étant à seuil, découper coûte toujours plus cher que regrouper :
+
+| Panier | Par commande | En une fois | Écart |
+|---|---|---|---|
+| 2 × 2000 | 54 + 54 = 108 | 4000 → 54 | 54 |
+| 2 × 3000 | 54 + 54 = 108 | 6000 → 76 | 32 |
+| 2 × 5000 | 64 + 64 = 128 | 10 000 → 124 | 4 |
+
+La vue marchand suit la même règle : `withdrawalFee` n'est renseigné que sur une
+commande par boutique.
 
 ### Ce que trace `order_settlements`
 
