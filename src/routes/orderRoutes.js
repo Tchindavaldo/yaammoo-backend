@@ -15,6 +15,10 @@ const router = express.Router();
  * /order/all/{fastFoodId}:
  *   get:
  *     summary: Get all orders for a fastfood
+ *     description: >
+ *       Ne renvoie que les statuts visibles par le marchand : pending, processing,
+ *       finished, delivering, delivered. Exclut pendingToBuy (panier client non
+ *       validé) et cancelByUser / cancelByFastFood.
  *     tags:
  *       - Orders
  *     parameters:
