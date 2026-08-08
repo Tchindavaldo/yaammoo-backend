@@ -45,16 +45,32 @@ const options = {
             updatedAt: { type: 'string', format: 'date-time' },
           },
         },
+        // Forme RÉELLE d'un menu (cf. interface/menuFields.js). Les prix vivent
+        // dans `prices[]` : les colonnes prix1/prix2/prix3 du mapper sont NULL
+        // sur toute la base. `rawPrice` accompagne chaque prix affiché.
         Menu: {
           type: 'object',
           properties: {
             id: { type: 'string' },
             fastFoodId: { type: 'string' },
             name: { type: 'string' },
-            description: { type: 'string' },
-            price: { type: 'number' },
-            image: { type: 'string' },
             coverImage: { type: 'string' },
+            coverImageHasBackground: { type: 'boolean' },
+            images: { type: 'array', items: { type: 'string' } },
+            prices: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  price: { type: 'number', description: 'Prix AFFICHÉ (livraison + marge + frais inclus).' },
+                  rawPrice: {
+                    type: 'number',
+                    description: 'Prix RÉEL du fastfood, servi à côté de l\'affiché. À renvoyer tel quel dans la commande : il fige le prix de l\'époque pour la vue marchand.',
+                  },
+                  description: { type: 'string' },
+                },
+              },
+            },
             extra: {
               type: 'array',
               items: {
@@ -62,6 +78,8 @@ const options = {
                 properties: {
                   name: { type: 'string' },
                   status: { type: 'boolean' },
+                  prix: { type: 'number' },
+                  rawPrice: { type: 'number' },
                 },
               },
             },
@@ -72,9 +90,14 @@ const options = {
                 properties: {
                   name: { type: 'string' },
                   status: { type: 'boolean' },
+                  prix: { type: 'number' },
+                  rawPrice: { type: 'number' },
+                  quantite: { type: 'number' },
                 },
               },
             },
+            status: { type: 'string', enum: ['available', 'unavailable'] },
+            stock: { type: 'number' },
             createdAt: { type: 'string', format: 'date-time' },
             updatedAt: { type: 'string', format: 'date-time' },
           },
@@ -97,7 +120,12 @@ const options = {
             selectedPriceIndex: {
               type: 'number',
               nullable: true,
-              description: 'Index du prix retenu parmi prix1/prix2/prix3 du menu.',
+              description: 'Index (base 1) du prix retenu dans `menu.prices[]`.',
+            },
+            customerTotal: {
+              type: 'number',
+              description:
+                'Vue MARCHAND uniquement (GET /order/all/:fastFoodId et events marchand) : ce que le CLIENT a payé. Sur ces réponses, `total` vaut ce que le marchand encaisse et les prix des lignes sont les prix réels. Client et livreur ne reçoivent pas ce champ.',
             },
             extra: {
               type: 'array',
@@ -124,7 +152,11 @@ const options = {
               },
             },
             delivery: { $ref: '#/components/schemas/OrderDelivery' },
-            total: { type: 'number', description: 'Montant total de la commande.' },
+            total: {
+              type: 'number',
+              description:
+                'Montant de la commande. Client et livreur : ce qui a été PAYÉ. Marchand (GET /order/all/:fastFoodId et events marchand) : ce qu\'il ENCAISSE — voir `customerTotal` pour le montant client.',
+            },
             status: {
               type: 'string',
               enum: ['pendingToBuy', 'pending', 'processing', 'finished', 'delivering', 'delivered', 'cancelByUser', 'cancelByFastFood'],

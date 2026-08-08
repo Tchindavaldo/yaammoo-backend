@@ -152,7 +152,9 @@ router.get('/driver/:driverId', getDriverOrders);
  *                 type: number
  *               selectedPriceIndex:
  *                 type: number
- *                 description: Index du prix retenu parmi prix1/prix2/prix3.
+ *                 description: >-
+ *                   Index (base 1) du prix retenu dans `menu.prices[]`. Les colonnes
+ *                   prix1/prix2/prix3 sont NULL sur toute la base : `prices[]` fait foi.
  *               bonusCode:
  *                 type: string
  *                 example: YAM-7K3F9QW2
@@ -169,6 +171,12 @@ router.get('/driver/:driverId', getDriverOrders);
  *                     name: { type: string }
  *                     status: { type: boolean }
  *                     prix: { type: number }
+ *                     rawPrice:
+ *                       type: number
+ *                       description: >-
+ *                         Prix RÉEL du fastfood, servi par GET /fastfood/all à côté du
+ *                         prix affiché. À renvoyer tel quel : il fige le prix de l'époque
+ *                         pour la vue marchand. N'entre dans aucun calcul d'argent.
  *               drink:
  *                 type: array
  *                 items:
@@ -177,6 +185,8 @@ router.get('/driver/:driverId', getDriverOrders);
  *                     name: { type: string }
  *                     status: { type: boolean }
  *                     prix: { type: number }
+ *                     rawPrice: { type: number, description: Prix RÉEL du fastfood (cf. extra.rawPrice). }
+ *                     quantite: { type: number }
  *               userData:
  *                 type: object
  *                 required: [firstName, lastName, email]
