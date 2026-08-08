@@ -44,12 +44,25 @@ exports.creditMerchantForItem = async ({ item, clientUserId }) => {
     return null;
   }
 
+  // Ce qui revient VRAIMENT au marchand : le règlement fait foi. `item.total`
+  // est le prix CLIENT — il porte la livraison, la marge et les frais, dont
+  // rien ne lui appartient. Le créditer entier gonflerait son portefeuille
+  // d'un argent qui doit partir ailleurs.
+  let credited = gross;
+  try {
+    const settlement = await repos.orderSettlements.getByOrder(item?.id);
+    if (settlement) credited = Math.max(0, Number(settlement.itemsReal) || 0);
+    else console.warn(`${logPrefix} ⚠️ règlement absent → crédit sur le total client (${gross})`);
+  } catch (e) {
+    console.warn(`${logPrefix} ⚠️ règlement non lu (${e.message}) → crédit sur le total client`);
+  }
+
   const menuName = item?.menu?.name || item?.menu?.titre || 'Commande';
 
   const tx = await repos.transactions.create({
     type: 'merchant_credit',
     userId: merchantUserId,
-    amount: gross,
+    amount: credited,
     name: `Gain ${menuName}`,
     payBy: 'order',
     fastFoodId,
@@ -64,7 +77,7 @@ exports.creditMerchantForItem = async ({ item, clientUserId }) => {
       transactionId: tx.id,
       type: 'merchant_credit',
       direction: 'payin',
-      amount: gross,
+      amount: credited,
       grossAmount: gross,
       name: tx.name,
       fastFoodId,

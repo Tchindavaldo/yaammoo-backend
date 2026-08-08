@@ -94,7 +94,7 @@ const userFromSupabase = (row, pushTokens = []) => {
 // ---------------------------------------------------------------------------
 const fastfoodToSupabase = data => {
   const { createdAt, updatedAt, ...rest } = data;
-  const known = ['id', 'userId', 'name', 'number', 'momoNumber', 'whatsappNumber', 'openTime', 'closeTime', 'image', 'orderLeadTime', 'advanceDays', 'pickupAllowed', 'cities', 'deliveryHours', 'driverRatingAvg', 'driverRatingCount'];
+  const known = ['id', 'userId', 'name', 'number', 'momoNumber', 'whatsappNumber', 'openTime', 'closeTime', 'image', 'orderLeadTime', 'advanceDays', 'pickupAllowed', 'cities', 'deliveryHours', 'platformDeliveryZones', 'deliveryBy', 'driverRatingAvg', 'driverRatingCount'];
   const extra = {};
   for (const k of Object.keys(rest)) {
     if (!known.includes(k)) extra[k] = rest[k];
@@ -114,6 +114,10 @@ const fastfoodToSupabase = data => {
     pickup_allowed: data.pickupAllowed ?? null,
     cities: data.cities ?? [],
     delivery_hours: data.deliveryHours ?? [],
+    // Qui livre (migration 037) : 'fastfood' (régime historique) ou 'platform'.
+    // Décidé par l'admin — jamais par la boutique elle-même.
+    delivery_by: data.deliveryBy ?? 'fastfood',
+    platform_delivery_zones: data.platformDeliveryZones ?? [],
     extra_data: extra,
     created_at: toIso(createdAt),
     updated_at: toIso(updatedAt) || toIso(createdAt),
@@ -137,6 +141,8 @@ const fastfoodFromSupabase = row => {
     pickupAllowed: row.pickup_allowed ?? false,
     cities: row.cities || [],
     deliveryHours: row.delivery_hours || [],
+    deliveryBy: row.delivery_by || 'fastfood',
+    platformDeliveryZones: row.platform_delivery_zones || [],
     driverRatingAvg: row.driver_rating_avg != null ? Number(row.driver_rating_avg) : 0,
     driverRatingCount: row.driver_rating_count ?? 0,
     createdAt: row.created_at,

@@ -17,6 +17,7 @@
 const repos = require('../../repositories');
 const { getIO } = require('../../socket');
 const { toMerchantView, toMerchantViewOne } = require('./toMerchantView');
+const { creditDriverForOrder } = require('../transaction/creditDriver.service');
 const { validateOrder } = require('../../utils/validator/validateOrder');
 const { getFastFoodService } = require('../fastfood/getFastFood');
 const { assignRank, reindexQueue } = require('./rankQueue.service');
@@ -189,6 +190,15 @@ exports.updateOrders = async (orders, userId) => {
 
       if (!groupedByFastFood[fastFoodId]) groupedByFastFood[fastFoodId] = [];
       groupedByFastFood[fastFoodId].push(updatedOrder);
+    }
+
+    // ── Course du livreur PLATEFORME : versée à la LIVRAISON ────────────────
+    // Pas au paiement : une course annulée en chemin ne se paie pas. Le montant
+    // dû est `order_settlements.driver_amount` — nul quand la boutique livre
+    // elle-même, ou quand la commande partage la course d'une autre du panier.
+    const becameDelivered = transitions.filter(t => t.newStatus === 'delivered').map(t => t.order);
+    for (const order of becameDelivered) {
+      await creditDriverForOrder({ order }).catch(e => console.error('[updateOrders] course livreur non versée —', e.message));
     }
 
     // ── Règlement livraison : le panier vient d'être payé ────────────────────

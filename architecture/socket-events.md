@@ -30,7 +30,7 @@ Socket.io est fire-and-forget : un event émis pendant que l'utilisateur est hor
 
 | Event | Source | Cible |
 |---|---|---|
-| `wallet.credited` | `services/transaction/creditMerchant.service.js` | marchand |
+| `wallet.credited` | `services/transaction/creditMerchant.service.js`, `creditDriver.service.js` | marchand **ou livreur** |
 | `wallet.withdrawal` | `services/wallet/withdraw.service.js` | marchand |
 | `payment.settled` | `services/transaction/mwVerdictService.js` | client |
 | `newFastFoodOrders` | `services/order/createOrder.js`, `services/order/updateOrders.service.js` | marchand |
@@ -147,7 +147,8 @@ Détails feature : [ratings.md](./ratings.md).
 |---|---|---|---|
 | `payment.settled` | `userId` client | `mwVerdictService.js` | `{ status, transaction_id, amount, source }` |
 | `newTransaction` | `userId` (client ou marchand) | `postTransaction.service.js`, `mwVerdictService.js` | `{ message, data: transaction }` |
-| `wallet.credited` | `userId` marchand | `creditMerchant.service.js` | `{ transactionId, type:'merchant_credit', direction:'payin', amount, grossAmount, name, fastFoodId, relatedOrderId, createdAt }` — `mwCommission` / `yaammooFee` retirés (plus de retenue au crédit marchand, cf. [wallet.md](./wallet.md)) |
+| `wallet.credited` | `userId` marchand | `creditMerchant.service.js` | `{ transactionId, type:'merchant_credit', direction:'payin', amount, grossAmount, name, fastFoodId, relatedOrderId, createdAt }` — `amount` = `order_settlements.items_real`, pas le prix client ; `mwCommission` / `yaammooFee` retirés (cf. [wallet.md](./wallet.md)) |
+| `wallet.credited` | `uid` **livreur** | `creditDriver.service.js` | même forme, `type:'driver_credit'` — `amount` = `order_settlements.driver_amount`. Émis **à la livraison**, uniquement pour les boutiques en `deliveryBy = 'platform'` (cf. [pricing.md](./pricing.md)) |
 | `wallet.withdrawal` | `userId` marchand | `withdraw.service.js`, `webhookPayout.service.js` | `{ withdrawalId, type:'withdrawal', direction:'payout', amount, status, network, newBalance?, reason? }` |
 
 ### Bonus (fidélité)

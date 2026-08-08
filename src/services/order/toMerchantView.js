@@ -27,6 +27,8 @@
 const repos = require('../../repositories');
 const { toNumber } = require('../pricing/deliveryPricing');
 const { deliveryGroupKey } = require('../pricing/deliveryGroupKey');
+const { getPricingSettings } = require('../settings/settings.service');
+const { withdrawalFee } = require('../pricing/withdrawalFees');
 
 /** Prix réel d'une ligne : `rawPrice` s'il a été figé, sinon le prix affiché. */
 const rawOf = item => (item?.rawPrice == null ? toNumber(item?.prix) : toNumber(item.rawPrice));
@@ -105,12 +107,43 @@ exports.toMerchantView = async orders => {
     console.error('toMerchantView: règlements non lus (montants recalculés) —', error.message);
   }
 
+  // Frais de RETRAIT estimés sur les prix bruts, pour que le marchand sache ce
+  // que coûtera la sortie de son argent. Estimation, pas prélèvement : le frais
+  // réellement dû porte sur le montant effectivement retiré, qui agrège
+  // plusieurs commandes. L'écart retombe dans la marge plateforme.
+  let pricing = null;
+  try {
+    pricing = await getPricingSettings();
+  } catch (error) {
+    console.error('toMerchantView: réglages non lus (frais de retrait omis) —', error.message);
+  }
+
   // Repli sans règlement : qui porte la course. Même clé que `settleDelivery`,
   // pour que le nombre de courses comptées ne diverge jamais.
   const billedOrderByKey = {};
   for (const order of list) {
     const key = deliveryGroupKey(order);
     if (key && billedOrderByKey[key] === undefined) billedOrderByKey[key] = order.id;
+  }
+
+  // Frais de retrait : UNE ponction par BOUTIQUE, comme au règlement. L'argent
+  // d'une même boutique sort en une fois — l'afficher sur chaque commande
+  // ferait croire au marchand qu'il paiera N forfaits pour un seul retrait.
+  // Groupé sur `fastFoodId` SEUL : le retrait ne dépend ni de la zone, ni du
+  // créneau, ni du mode de livraison.
+  //
+  // La clé est `groupId + fastFoodId` : un panier chez DEUX boutiques fait deux
+  // retraits, alors qu'il n'a qu'un seul `groupId`. Se contenter du panier
+  // ferait porter une seule ponction pour les deux portefeuilles.
+  const withdrawalKeyOf = order => `${order?.groupId ?? order?.id}|${order?.fastFoodId ?? ''}`;
+
+  const withdrawalHolder = {};
+  const chargedByKey = {};
+  for (const order of list) {
+    if (!order?.fastFoodId) continue;
+    const key = withdrawalKeyOf(order);
+    if (withdrawalHolder[key] === undefined) withdrawalHolder[key] = order.id;
+    chargedByKey[key] = (chargedByKey[key] || 0) + toNumber(order.total);
   }
 
   return list.map(order => {
@@ -124,6 +157,7 @@ exports.toMerchantView = async orders => {
     const course = holdsCourse ? toNumber(order.delivery?.prix) : 0;
 
     const items = settlement ? toNumber(settlement.itemsReal) : rawItemsTotal(order);
+    const holdsWithdrawal = !!order?.fastFoodId && withdrawalHolder[withdrawalKeyOf(order)] === order.id;
 
     return {
       ...order,
@@ -132,6 +166,17 @@ exports.toMerchantView = async orders => {
       drink: Array.isArray(order.drink) ? order.drink.map(d => (d?.rawPrice == null ? d : { ...d, prix: toNumber(d.rawPrice) })) : order.drink,
       total: items + course,
       customerTotal,
+      // Ce que coûtera le retrait de ce montant chez l'opérateur.
+      // Frais de retrait — même lecture que la course : `withdrawalFeeBilled`
+      // dit QUI le porte, `withdrawalGroupId` relie les commandes qui le
+      // partagent. Sans eux, un `withdrawalFee: 0` serait ambigu (groupé ?
+      // réglages illisibles ? réellement nul ?).
+      // Le règlement fait foi : il porte l'id généré et le verdict. Le repli ne
+      // sert que tant que la commande n'est pas réglée — la clé composée reste
+      // alors interne, jamais servie telle quelle.
+      withdrawalGroupId: settlement?.withdrawalGroupId ?? null,
+      withdrawalFeeBilled: settlement ? settlement.withdrawalBilled === true : holdsWithdrawal,
+      withdrawalFee: settlement ? toNumber(settlement.withdrawalFee) : holdsWithdrawal && pricing ? withdrawalFee(chargedByKey[withdrawalKeyOf(order)], pricing.withdrawalFees, order?.network ?? order?.payBy) : 0,
     };
   });
 };

@@ -30,12 +30,40 @@ const KEYS = {
   DELIVERY_FREE_MODE: 'delivery_free_mode',
   APPLE_REVIEW_MODE: 'apple_review_mode',
   APPLE_VERSION_REVIEW_MODE: 'apple_version_review_mode',
+  // Frais de RETRAIT (migration 037) — un jeu de clés par opérateur : les
+  // valeurs sont identiques aujourd'hui, mais un opérateur qui change son
+  // barème ne doit pas entraîner l'autre.
+  WITHDRAWAL_FEE_MTN_THRESHOLD: 'withdrawal_fee_mtn_threshold',
+  WITHDRAWAL_FEE_MTN_FLAT: 'withdrawal_fee_mtn_flat',
+  WITHDRAWAL_FEE_MTN_PERCENT: 'withdrawal_fee_mtn_percent',
+  WITHDRAWAL_FEE_MTN_ADDEND: 'withdrawal_fee_mtn_addend',
+  WITHDRAWAL_FEE_ORANGE_THRESHOLD: 'withdrawal_fee_orange_threshold',
+  WITHDRAWAL_FEE_ORANGE_FLAT: 'withdrawal_fee_orange_flat',
+  WITHDRAWAL_FEE_ORANGE_PERCENT: 'withdrawal_fee_orange_percent',
+  WITHDRAWAL_FEE_ORANGE_ADDEND: 'withdrawal_fee_orange_addend',
+  // Livraison PLATEFORME (migration 037)
+  PRICE_ROUNDING_STEP: 'price_rounding_step',
+  DRIVER_AMORTIZATION_MAX: 'driver_amortization_max',
 };
 
 const FALLBACKS = {
   [KEYS.PLATFORM_MARGIN]: 0,
   [KEYS.PAYMENT_FEE_PERCENT]: 0,
   [KEYS.DELIVERY_FREE_MODE]: false,
+  // Frais de retrait : repli à 0. Sous-facturer coûte à la plateforme, mais
+  // sur-facturer sans savoir pourquoi ferait payer le client pour rien.
+  [KEYS.WITHDRAWAL_FEE_MTN_THRESHOLD]: 0,
+  [KEYS.WITHDRAWAL_FEE_MTN_FLAT]: 0,
+  [KEYS.WITHDRAWAL_FEE_MTN_PERCENT]: 0,
+  [KEYS.WITHDRAWAL_FEE_MTN_ADDEND]: 0,
+  [KEYS.WITHDRAWAL_FEE_ORANGE_THRESHOLD]: 0,
+  [KEYS.WITHDRAWAL_FEE_ORANGE_FLAT]: 0,
+  [KEYS.WITHDRAWAL_FEE_ORANGE_PERCENT]: 0,
+  [KEYS.WITHDRAWAL_FEE_ORANGE_ADDEND]: 0,
+  // Pas d'arrondi à 0 = aucun arrondi (le prix juste est servi tel quel), et
+  // aucune course amortie : un incident de lecture ne doit pas rogner le livreur.
+  [KEYS.PRICE_ROUNDING_STEP]: 0,
+  [KEYS.DRIVER_AMORTIZATION_MAX]: 0,
 };
 
 // Les réglages Apple Review n'ont VOLONTAIREMENT aucun repli : inventer une
@@ -86,6 +114,22 @@ async function getPricingSettings() {
     platformMargin: Number(s[KEYS.PLATFORM_MARGIN]) || 0,
     paymentFeePercent: Number(s[KEYS.PAYMENT_FEE_PERCENT]) || 0,
     deliveryFreeMode: s[KEYS.DELIVERY_FREE_MODE] === true,
+    priceRoundingStep: Number(s[KEYS.PRICE_ROUNDING_STEP]) || 0,
+    driverAmortizationMax: Number(s[KEYS.DRIVER_AMORTIZATION_MAX]) || 0,
+    withdrawalFees: {
+      mtn: {
+        threshold: Number(s[KEYS.WITHDRAWAL_FEE_MTN_THRESHOLD]) || 0,
+        flat: Number(s[KEYS.WITHDRAWAL_FEE_MTN_FLAT]) || 0,
+        percent: Number(s[KEYS.WITHDRAWAL_FEE_MTN_PERCENT]) || 0,
+        addend: Number(s[KEYS.WITHDRAWAL_FEE_MTN_ADDEND]) || 0,
+      },
+      orange: {
+        threshold: Number(s[KEYS.WITHDRAWAL_FEE_ORANGE_THRESHOLD]) || 0,
+        flat: Number(s[KEYS.WITHDRAWAL_FEE_ORANGE_FLAT]) || 0,
+        percent: Number(s[KEYS.WITHDRAWAL_FEE_ORANGE_PERCENT]) || 0,
+        addend: Number(s[KEYS.WITHDRAWAL_FEE_ORANGE_ADDEND]) || 0,
+      },
+    },
   };
 }
 

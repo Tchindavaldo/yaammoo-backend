@@ -20,7 +20,7 @@ Documentation d'architecture du backend Node.js / Express / Supabase / Socket.io
 | [orders.md](./orders.md) | Commandes — routes `/order`, rank queue, stock, transitions statut, **délégation livreur** | ✅ |
 | [drivers.md](./drivers.md) | Livreurs — candidatures `/driver`, `user.driverId` vs `order.driverId`, listes | ✅ |
 | [deliveries.md](./deliveries.md) | Livraisons — tracking, livreur assignation, GPS, statuts | ✅ |
-| [pricing.md](./pricing.md) | **Tarification** — prix affiché calculé (livraison + marge + frais), `settings` modifiables à chaud, `order_settlements` (l'argent) + `order_deliveries` (la course) | ✅ |
+| [pricing.md](./pricing.md) | **Tarification** — prix affiché calculé (livraison + marge + commission + **frais de retrait**), **qui livre (`deliveryBy` : fastfood ou plateforme)**, **arrondi au pas + amorti livreur plafonné**, `settings` modifiables à chaud, `order_settlements` (l'argent) + `order_deliveries` (la course) | ✅ |
 | [ratings.md](./ratings.md) | Notes & Avis — table polymorphe `ratings`, note plat/livreur, moyennes pré-calculées | ✅ |
 | [payment.md](./payment.md) | Paiements — MobileWallet, `/transaction` → `/pay`, verdict double canal (webhook HTTP + socket), idempotence | ✅ |
 | [payment-amount-check.md](./payment-amount-check.md) | **Contrôle du montant** — recalcul serveur du `total`, livraison offerte (bonus) vs déduction panier groupé | ✅ |

@@ -47,6 +47,11 @@ FastFood {
                                // ne livre pas ne déclare aucune zone.
   cities: string[]             // Villes où la boutique opère (ex: ["Douala", "Yaoundé"])
   deliveryHours: DeliveryHour[] // Créneaux avec zones de livraison et prix
+  // Qui livre — décidé par l'ADMIN, jamais par la boutique (migration 037).
+  deliveryBy: 'fastfood' | 'platform'
+  // Zones de la PLATEFORME, même forme que deliveryHours (periodicZones ET
+  // expressZones). Utilisées seulement quand deliveryBy = 'platform'.
+  platformDeliveryZones: DeliveryHour[]
   
   // Métadonnées
   createdAt: ISO8601
@@ -162,6 +167,9 @@ MenuItem {
 
 2. Backend : `updateFastfoodService()` :
    - Whitelist champs autorisés (nom, openTime, closeTime, image, deliveryHours, orderLeadTime…)
+   - `deliveryBy` / `platformDeliveryZones` : réservés à l'ADMIN — une boutique
+     ne décide pas qui la livre ni à quel tarif. Voir
+     [pricing.md](./pricing.md#qui-livre--fastfood-ou-plateforme-migration-037)
    - Nettoie `deliveryHours` via `utils/deliveryHoursSanitize.js` (voir ci-dessous)
    - Met à jour doc fastfoods
    - Émet socket `fastfoodUpdated` (broadcast global)

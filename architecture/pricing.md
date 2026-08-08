@@ -24,12 +24,23 @@ tracer la vérité comptable de chaque livraison.
 ## Composition du prix affiché
 
 ```
-plat affiché    = ceil( (prix fastfood + livraison LA PLUS CHÈRE + marge) × 1.05 )
-extra affiché   = ceil( prix extra   × 1.05 )
-boisson affiché = ceil( prix boisson × 1.05 )
+base            = prix fastfood + livraison LA PLUS CHÈRE + marge
+plat affiché    = ceil( (base + frais de retrait) / (1 − commission) )
+extra affiché   = ceil( (prix extra   + frais de retrait) / (1 − commission) )
+boisson affiché = ceil( (prix boisson + frais de retrait) / (1 − commission) )
 
 montant payé    = SOMME de ce que le user voit
 ```
+
+> ⚠️ **On DIVISE par `(1 − commission)`, on ne multiplie pas par `(1 + commission)`.**
+> L'agrégateur prélève son pourcentage sur le montant qu'il **encaisse**. Pour
+> qu'il reste 2404 après sa part : `2404 / 0,95 = 2531`. En multipliant on
+> aurait `2404 × 1,05 = 2524`, dont 5 % font 126 — il ne resterait que 2398.
+>
+> `feeIncludedIn` suit la **même** convention (`montant × 5 %`). Les deux bouts
+> de la cascade doivent s'accorder : quand la composition divisait par 0,95 et la
+> répartition par 1,05, on croyait qu'il restait 2404 alors qu'on en comptait
+> 2410 — et les 6 F d'écart partaient en silence chez le marchand.
 
 > ⚠️ **Aucun frais n'est jamais ajouté à la fin.** Les 5 % sont déjà dans chaque
 > prix affiché : le user paie tout sans voir de ligne de frais ni de taxe. Ils
@@ -73,9 +84,11 @@ Plat 2000, zones 500 / 800 / 1000, marge 100, frais 5 %.
 | | Montant |
 |---|---|
 | Avant frais | 2000 + 1000 + 100 = 3100 |
-| **Prix affiché** | `ceil(3100 × 1.05)` = **3255** |
+| + frais de retrait | 3100 + 54 = 3154 |
+| **Prix affiché** | `ceil(3154 / 0,95)` = **3320** |
+| Commission (5 % du payé) | **166** |
+| Frais de retrait | **54** |
 | Le fastfood touche (zone 500) | 2000 + 500 = **2500** |
-| Frais prestataire | **155** |
 | Yaammoo garde | (1000 − 500) + 100 = **600** |
 
 Le user ne voit **jamais** la ligne livraison : elle est fondue dans le prix du
@@ -201,6 +214,196 @@ Plat 2000, zone 500, marge 100, **quantité 2** :
 
 ---
 
+## Qui livre : fastfood ou plateforme (migration 037)
+
+`fastfoods.deliveryBy` — **décidé par l'admin**, jamais par la boutique.
+
+| Valeur | Zones utilisées | Base du prix affiché | Prix affiché | Course |
+|---|---|---|---|---|
+| `fastfood` (défaut) | `deliveryHours` de la boutique | max des DEUX listes | exact, aucun arrondi | versée au fastfood |
+| `platform` | `platformDeliveryZones` | **périodique seul** | calé sur `price_rounding_step` | versée au LIVREUR |
+
+`platformDeliveryZones` a **exactement** la même forme que `deliveryHours` —
+`periodicZones` ET `expressZones` par créneau. Le front n'a qu'une structure à
+connaître, et `collectZones` / `maxDeliveryPrice` / `zoneDeliveryPrice`
+fonctionnent dessus sans rien savoir du régime.
+
+> ⚠️ En régime plateforme, l'affichage se base sur le **périodique**. Un client
+> qui choisit l'express paie son supplément en connaissance de cause ; caler le
+> catalogue entier sur l'express gonflerait tous les prix pour un mode que la
+> plupart ne prendront pas. En régime fastfood, on garde le max des deux listes.
+
+> ⚠️ **La course du livreur est PLAFONNÉE au tarif de la zone.** Il absorbe la
+> baisse quand on arrondit vers le bas (dans la limite de
+> `driver_amortization_max`), mais n'encaisse jamais la hausse : un arrondi vers
+> le haut est un surplus payé par le client, il revient à la plateforme.
+> Sans ce plafond, un plat à 3500 arrondi de 4110 à 4500 versait 619 F au livreur
+> pour une course qui en vaut 250.
+
+### Grille en régime plateforme
+
+Marge 100, périodique 250, commission 5 %, retrait MTN :
+
+| Plat | Prix juste | Client paie | Livreur | Marge |
+|---|---|---|---|---|
+| 1000 | 1478 | 1500 | 250 | **121** |
+| 1500 | 2005 | 2000 | 246 | 100 |
+| 2000 | 2531 | 2500 | 221 | 100 |
+| 2500 | 3057 | 3000 | 196 | 100 |
+| 3000 | 3584 | 3500 | 171 | 100 |
+| 3500 | 4110 | 4500 | 250 | **469** |
+| 4000 | 4639 | 5000 | 250 | **439** |
+| 5000 | 5705 | 6000 | 250 | **377** |
+
+Le fastfood touche son prix exact sur toute la grille, la marge n'est jamais
+entamée. Quand on descend, le livreur absorbe ; quand on monte, la plateforme
+encaisse.
+
+### Les frais de retrait entrent dans le prix
+
+Encaisser ne suffit pas : l'argent doit **sortir** du portefeuille MTN ou Orange,
+et ce retrait coûte. Ce coût était supporté en silence ; il est désormais fondu
+dans le prix affiché, comme la commission de l'agrégateur.
+
+Barème à **seuil**, par opérateur (`services/pricing/withdrawalFees.js`) :
+
+```
+montant <  seuil  →  frais FIXE           (54 F)
+montant >= seuil  →  pourcentage + fixe   (1,2 % + 4 F)
+```
+
+> ⚠️ Un jeu de clés PAR opérateur (`withdrawal_fee_mtn_*`, `withdrawal_fee_orange_*`).
+> Mêmes valeurs aujourd'hui, mais un opérateur qui change son barème ne doit pas
+> entraîner l'autre.
+
+Les deux frais ne s'additionnent pas naïvement : la commission est un pourcentage
+du prix **payé**, alors que le retrait porte sur ce qui reste **après** elle.
+
+```
+payé = (base + frais de retrait) / (1 − commission)
+```
+
+Extras et boissons portent eux aussi le retrait, en plus de la commission.
+
+### L'arrondi au pas — et pourquoi il vient EN DERNIER
+
+En régime plateforme, le prix affiché est toujours un multiple de
+`price_rounding_step` (500). On **descend** tant que le manque reste absorbable
+par la course (`driver_amortization_max`, 100 F) ; au-delà on **monte**, et le
+surplus revient à la plateforme.
+
+> ⚠️ **L'ordre est le tout.** Arrondir le prix BRUT en amont ferait franchir un
+> palier entier une fois les frais ajoutés (2500 → 3500 au lieu de 3000). On
+> compose donc le prix juste d'abord, on cale sur le pas ensuite.
+
+### La cascade, dans les deux sens
+
+Composition (à l'affichage) puis répartition (au règlement) sont exactement
+inverses. Plat brut 2000, marge 100, zone 250, commission 5 %, retrait MTN :
+
+| | `fastfood` | `platform` |
+|---|---|---|
+| Prix juste | 2531 | 2531 |
+| **Le client paie** | **2531** | **2500** (arrondi bas) |
+| − commission 5 % | 121 | 119 |
+| − frais de retrait | 54 | 54 |
+| = net | 2356 | 2327 |
+| → fastfood | 2006 | **2000** (son prix, entier) |
+| → livreur | 250 | **227** (absorbe l'arrondi) |
+| → plateforme | **100** | **100** |
+
+**La marge n'est jamais entamée.** L'arrondi vers le bas est porté par la course,
+jamais par le marchand ni par la plateforme — c'est la règle qui décide de tout
+le reste. En régime `fastfood`, le montant marchand est le résidu de la cascade ;
+en régime `platform`, il est calculé depuis les `rawPrice` figés à l'achat, et
+c'est la course qui devient le résidu.
+
+### Frais de retrait — UNE ponction par BOUTIQUE
+
+Le prix affiché porte le frais sur **chaque plat** : au moment où il est composé,
+sur le home, le panier n'existe pas encore. Mais l'argent d'une même boutique
+sort du portefeuille opérateur **en une fois**.
+
+Panier de 10 plats à 2000, même boutique :
+
+```
+facturé au client : 54 × 10           = 540
+frais réel        : 20 000 → 1,2 % + 4 = 244
+écart                                  = 296  → marge plateforme
+```
+
+Le règlement ne prélève donc **qu'une fois** par boutique, sur le total encaissé,
+et le porte sur UNE commande (celle qui porte déjà la course quand il y en a
+une) ; les autres ont `withdrawal_fee = 0`. L'écart avec ce qui a été facturé
+revient à la plateforme, exactement comme l'écart de zone.
+
+> ⚠️ Groupé sur **`fastFoodId` seul** — pas sur `deliveryGroupKey`. Le retrait ne
+> dépend ni de la zone, ni du créneau, ni du mode de livraison : c'est le
+> portefeuille de la boutique qui se vide, tous départs confondus. C'est la
+> différence avec la course, qui elle se groupe par DÉPART.
+
+Le barème étant à seuil, découper coûte toujours plus cher que regrouper :
+
+| Panier | Par commande | En une fois | Écart |
+|---|---|---|---|
+| 2 × 2000 | 54 + 54 = 108 | 4000 → 54 | 54 |
+| 2 × 3000 | 54 + 54 = 108 | 6000 → 76 | 32 |
+| 2 × 5000 | 64 + 64 = 128 | 10 000 → 124 | 4 |
+
+### Comment le front sait qui porte le frais
+
+Trois champs, à la racine de la commande — même lecture que la course :
+
+| Champ | Sens |
+|---|---|
+| `withdrawalGroupId` | commandes partageant la même ponction |
+| `withdrawalFeeBilled` | `true` sur celle qui la porte |
+| `withdrawalFee` | le montant, `0` sur les autres |
+
+Sans eux, un `withdrawalFee: 0` serait ambigu : groupé ? réglages illisibles ?
+réellement nul ? C'est exactement le rôle de `courseBilled` pour la livraison.
+
+`withdrawalGroupId` est un **id généré et stocké** (`order_settlements.withdrawal_group_id`),
+comme `deliveryGroupId` — jamais une clé composée exposée au front.
+
+Le groupe réunit les commandes d'un même **panier** ET d'une même **boutique** :
+un panier chez deux boutiques vide DEUX portefeuilles, donc porte deux groupes ;
+et deux paniers passés des jours différents chez la même boutique sont deux
+paiements distincts, donc deux ponctions aussi.
+
+Panier chez deux boutiques :
+
+```
+wg_abc (ff1)  →  A  withdrawalFee 65, billed true
+                 B  withdrawalFee  0, billed false
+wg_def (ff2)  →  C  withdrawalFee 54, billed true
+```
+
+> Le regroupement s'arrête au panier. Si le marchand attend et retire plusieurs
+> paniers d'un coup, il ne paiera qu'un forfait au lieu de N — l'écart reste à la
+> plateforme. Aller plus loin est impossible au moment de la commande : on ne
+> sait ni quand il retirera, ni ce qu'il aura accumulé d'ici là.
+
+### Ce que trace `order_settlements`
+
+| Colonne | Sens |
+|---|---|
+| `items_charged` | ce que le client a payé |
+| `payment_fee` | commission agrégateur, extraite du payé |
+| `withdrawal_fee` | coût de sortie chez l'opérateur |
+| `items_real` | ce qui revient au fastfood |
+| `driver_amount` | ce qui reste au livreur, arrondi absorbé |
+| `platform_margin` | le reste |
+
+`driver_amount` est **distinct** de `order_deliveries.real_price` : ce dernier est
+le tarif de la zone AVANT amortissement.
+
+Le livreur plateforme est payé **à la livraison**, pas au paiement — une course
+annulée en chemin ne se paie pas (`services/transaction/creditDriver.service.js`,
+transaction `driver_credit`, idempotente).
+
+---
+
 ## Réglages (`settings`)
 
 Table clé/valeur (migration 019), lue via `services/settings/settings.service`.
@@ -212,6 +415,9 @@ Table clé/valeur (migration 019), lue via `services/settings/settings.service`.
 | `delivery_free_mode` | false | Campagne « livraison offerte » globale |
 | `apple_review_mode` | false | Mode Apple Review exposé au frontend (migration 036) — voir [payment.md](./payment.md) |
 | `apple_version_review_mode` | `""` | Version d'app exacte en review ; déclenche le bypass paiement (migration 036) — voir [payment.md](./payment.md) |
+| `withdrawal_fee_mtn_*` / `withdrawal_fee_orange_*` | 4200 / 54 / 1.2 / 4 | Barème de retrait par opérateur : `threshold`, `flat`, `percent`, `addend` (migration 037) |
+| `price_rounding_step` | 500 | Pas d'arrondi du prix affiché, en livraison PLATEFORME (migration 037) |
+| `driver_amortization_max` | 100 | Ce que la course peut absorber pour arrondir vers le bas (migration 037) |
 
 **Pourquoi en base et pas dans `.env`** : ce sont des décisions **commerciales**,
 prises et annulées en cours de journée. `flyctl secrets set` ne rebuild pas le
