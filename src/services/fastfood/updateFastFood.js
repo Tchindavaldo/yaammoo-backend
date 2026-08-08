@@ -3,6 +3,7 @@
 // ============================================================================
 const repos = require('../../repositories');
 const { getIO } = require('../../socket');
+const { sanitizeDeliveryHours } = require('../../utils/deliveryHoursSanitize');
 
 exports.updateFastFoodService = async (fastFoodId, data) => {
   const existing = await repos.fastfoods.getById(fastFoodId);
@@ -25,7 +26,11 @@ exports.updateFastFoodService = async (fastFoodId, data) => {
   if (data.advanceDays !== undefined) updateData.advanceDays = data.advanceDays;
   if (data.pickupAllowed !== undefined) updateData.pickupAllowed = data.pickupAllowed;
   if (data.cities !== undefined) updateData.cities = data.cities;
-  if (data.deliveryHours !== undefined) updateData.deliveryHours = data.deliveryHours;
+  // Le front renvoie ses lignes d'heures vidées (mode actif, zéro zone) : on ne
+  // garde que les créneaux réellement exploitables. Voir utils/deliveryHoursSanitize.
+  if (data.deliveryHours !== undefined) {
+    updateData.deliveryHours = sanitizeDeliveryHours(data.deliveryHours);
+  }
 
   const updated = await repos.fastfoods.update(fastFoodId, updateData);
 
