@@ -223,6 +223,32 @@ Plat 2000, zone 500, marge 100, **quantité 2** :
 | `fastfood` (défaut) | `deliveryHours` de la boutique | max des DEUX listes | exact, aucun arrondi | versée au fastfood |
 | `platform` | `platformDeliveryZones` | **périodique seul** | calé sur `price_rounding_step` | versée au LIVREUR |
 
+### Configurer qui livre (routes ADMIN)
+
+| Méthode | Endpoint | Rôle |
+|---|---|---|
+| PATCH | `/fastFood/:fastFoodId/delivery` | une boutique |
+| PATCH | `/fastFood/delivery` | **toutes** les boutiques |
+
+Corps : `{ deliveryBy?, platformDeliveryZones? }` — les deux facultatifs, au
+moins un requis. Protégées par `firebaseAuth` + `adminGuard`
+(`middlewares/adminMiddleware.js`) : une boutique ne décide pas qui la livre ni à
+quel tarif.
+
+> ⚠️ **Passer en `platform` sans zones est REFUSÉ (400).** Le supplément
+> livraison tomberait à 0 : le prix affiché ne couvrirait plus la course et le
+> livreur ne toucherait rien. Les zones peuvent être déjà en base ou fournies
+> dans la même requête.
+
+Sur la route de masse, chaque boutique est validée séparément — celles qui ne
+peuvent pas basculer sont listées dans `skipped` plutôt que de faire échouer tout
+le lot :
+
+```json
+{ "data": { "updated": ["ff1", "ff2"],
+            "skipped": [{ "id": "ff3", "reason": "…sans zones…" }] } }
+```
+
 `platformDeliveryZones` a **exactement** la même forme que `deliveryHours` —
 `periodicZones` ET `expressZones` par créneau. Le front n'a qu'une structure à
 connaître, et `collectZones` / `maxDeliveryPrice` / `zoneDeliveryPrice`

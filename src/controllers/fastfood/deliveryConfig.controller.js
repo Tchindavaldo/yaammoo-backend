@@ -60,7 +60,7 @@ function buildPatch(body, current) {
 /** PATCH /fastfood/:id/delivery — une boutique. */
 exports.patchFastFoodDeliveryController = async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = req.params.fastFoodId;
     const fastfood = await repos.fastfoods.getById(id);
     if (!fastfood) return res.status(404).json({ success: false, message: "Cette boutique n'existe pas." });
 

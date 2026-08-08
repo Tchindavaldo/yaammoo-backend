@@ -167,9 +167,10 @@ MenuItem {
 
 2. Backend : `updateFastfoodService()` :
    - Whitelist champs autorisés (nom, openTime, closeTime, image, deliveryHours, orderLeadTime…)
-   - `deliveryBy` / `platformDeliveryZones` : réservés à l'ADMIN — une boutique
-     ne décide pas qui la livre ni à quel tarif. Voir
-     [pricing.md](./pricing.md#qui-livre--fastfood-ou-plateforme-migration-037)
+   - `deliveryBy` / `platformDeliveryZones` : **hors de cette route**. Réservés à
+     l'ADMIN via `PATCH /fastFood/:fastFoodId/delivery` (ou `/fastFood/delivery`
+     pour tout le parc) — une boutique ne décide pas qui la livre ni à quel
+     tarif. Voir [pricing.md](./pricing.md#configurer-qui-livre-routes-admin)
    - Nettoie `deliveryHours` via `utils/deliveryHoursSanitize.js` (voir ci-dessous)
    - Met à jour doc fastfoods
    - Émet socket `fastfoodUpdated` (broadcast global)

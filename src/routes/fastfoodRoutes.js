@@ -6,7 +6,9 @@ const { getfastfood } = require('../controllers/fastfood/getFastFood');
 const { updateFastfoodController } = require('../controllers/fastfood/updateFastfood');
 const { searchFastfoodController } = require('../controllers/fastfood/searchFastfood');
 const { getFastFoodDeliveryStatsController } = require('../controllers/fastfood/getFastFoodDeliveryStats');
+const { patchFastFoodDeliveryController, patchAllFastFoodsDeliveryController } = require('../controllers/fastfood/deliveryConfig.controller');
 const firebaseAuth = require('../middlewares/authMiddleware');
+const adminGuard = require('../middlewares/adminMiddleware');
 const optionalFirebaseAuth = require('../middlewares/optionalAuthMiddleware');
 
 const route = express.Router();
@@ -299,6 +301,73 @@ route.get('/search', searchFastfoodController);
  *       403: { description: Ni propriétaire ni client de la boutique }
  *       404: { description: FastFood non trouvé }
  */
+/**
+ * @swagger
+ * /fastFood/delivery:
+ *   patch:
+ *     tags: [FastFood]
+ *     summary: Configure la livraison de TOUTES les boutiques (admin)
+ *     description: >-
+ *       Amorce un parc entier sans toucher les boutiques une par une. Chaque
+ *       boutique est validee separement : celles qui ne peuvent pas basculer
+ *       sont listees dans `skipped` plutot que de faire echouer tout le lot.
+ *     security: [{ bearerAuth: [] }]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               deliveryBy: { type: string, enum: [fastfood, platform] }
+ *               platformDeliveryZones:
+ *                 type: array
+ *                 description: Meme forme que `deliveryHours` (periodicZones / expressZones par creneau).
+ *                 items: { type: object }
+ *     responses:
+ *       200: { description: Bilan des mises a jour (updated / skipped) }
+ *       403: { description: Reserve aux administrateurs }
+ */
+route.patch('/delivery', firebaseAuth, adminGuard, patchAllFastFoodsDeliveryController);
+
+/**
+ * @swagger
+ * /fastFood/{fastFoodId}/delivery:
+ *   patch:
+ *     tags: [FastFood]
+ *     summary: Configure la livraison d'une boutique (admin)
+ *     description: >-
+ *       `deliveryBy` decide de la repartition de l'argent : en regime `platform`
+ *       la course quitte le fastfood pour aller au livreur, et le prix affiche
+ *       est cale sur un multiple du pas d'arrondi. Decision commerciale, jamais
+ *       celle du marchand. La bascule est REFUSEE si la boutique n'a aucune zone
+ *       plateforme — le supplement livraison tomberait a 0 et le livreur ne
+ *       serait pas paye.
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: fastFoodId
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               deliveryBy: { type: string, enum: [fastfood, platform] }
+ *               platformDeliveryZones:
+ *                 type: array
+ *                 items: { type: object }
+ *     responses:
+ *       200: { description: Boutique mise a jour }
+ *       400: { description: Regime platform sans zones, ou payload invalide }
+ *       403: { description: Reserve aux administrateurs }
+ *       404: { description: Boutique introuvable }
+ */
+route.patch('/:fastFoodId/delivery', firebaseAuth, adminGuard, patchFastFoodDeliveryController);
+
 route.get('/:fastFoodId/delivery-stats', firebaseAuth, getFastFoodDeliveryStatsController);
 
 route.get('/:fastFoodId', getfastfood);
