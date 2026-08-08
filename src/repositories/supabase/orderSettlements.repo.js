@@ -50,6 +50,22 @@ exports.getByOrder = async orderId => {
   return fromSupabase(data);
 };
 
+/**
+ * Règlements de N commandes, indexés par `orderId`. UN seul appel : la vue
+ * marchand lit les montants de toute une liste de commandes.
+ */
+exports.getByOrders = async orderIds => {
+  const ids = (orderIds || []).filter(Boolean);
+  if (ids.length === 0) return {};
+
+  const { data, error } = await supabase.from(TABLE).select('*').in('order_id', ids);
+  if (error) throw error;
+
+  const byOrder = {};
+  for (const row of data || []) byOrder[row.order_id] = fromSupabase(row);
+  return byOrder;
+};
+
 /** Tout le règlement d'un panier, sans jointure sur `orders`. */
 exports.getByGroup = async groupId => {
   const { data, error } = await supabase.from(TABLE).select('*').eq('group_id', groupId);

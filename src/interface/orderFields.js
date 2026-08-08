@@ -46,6 +46,7 @@ exports.OrderFields = {
         name: { type: 'string', required: true },
         status: { type: 'boolean', required: true },
         prix: { type: 'number', required: false },
+        prixBrut: { type: 'number', required: false },
       },
     },
   },
@@ -58,6 +59,7 @@ exports.OrderFields = {
         name: { type: 'string', required: true },
         status: { type: 'boolean', required: true },
         prix: { type: 'number', required: false },
+        prixBrut: { type: 'number', required: false },
         // Quantité PROPRE au drink (indépendante de `quantity` du plat). Entre
         // dans le total : un drink coché compte `prix × quantite`.
         quantite: { type: 'number', required: false },

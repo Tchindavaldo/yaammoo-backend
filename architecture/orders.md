@@ -91,6 +91,17 @@ où `delivery.prix` n'est ajouté **que si la livraison est livrée ET non offer
 Détail complet (recalcul item, offert vs non offert, déduction panier groupé, tous
 les cas) : **[payment-amount-check.md](./payment-amount-check.md)**.
 
+### `total` selon le lecteur — marchand vs client
+
+`GET /order/all/:fastFoodId` ne sert **pas** les mêmes montants que les deux
+autres routes de lecture : le marchand y voit ses **prix réels** et
+`total` = ce qu'il encaisse, avec `customerTotal` = ce que le client a payé.
+Client et livreur gardent les prix affichés.
+
+Bascule : `services/order/toMerchantView.js`. Détail des champs, rôle par rôle et
+règle « une seule course par départ » :
+**[pricing.md](./pricing.md#ce-que-chaque-rôle-voit)**.
+
 ### Panier libre — aucune contrainte d'uniformité
 
 Le panier est **libre** : un user peut mélanger modes, dates et créneaux, y

@@ -8,6 +8,7 @@
 
 const repos = require('../../repositories');
 const { getIO } = require('../../socket');
+const { toMerchantView } = require('./toMerchantView');
 const { notifyOrderEvent } = require('../notification/helpers/notifyOrderEvent');
 
 const FCM_NOTIFY_MAX_QUEUE_SIZE = 20;
@@ -56,12 +57,14 @@ exports.reindexQueue = async ({ fastFoodId, deliveryDate, status, removedRank, f
       if (order.userId) io.to(order.userId).emit('userOrderUpdated', { data: order });
     });
     if (fastFoodUserId) {
+      // Vue MARCHAND : prix réels et montant encaissé, jamais le prix client.
+      const merchantOrders = await toMerchantView(updatedOrders);
       io.to(fastFoodUserId).emit('ordersRankUpdated', {
         message: `${updatedOrders.length} commandes mises à jour`,
         file: status,
-        orders: updatedOrders,
+        orders: merchantOrders,
       });
-      io.to(fastFoodUserId).emit('fastFoodOrderUpdated', { data: updatedOrders });
+      io.to(fastFoodUserId).emit('fastFoodOrderUpdated', { data: merchantOrders });
     }
   } catch (e) {
     console.error('reindexQueue: socket emit failed', e.message);

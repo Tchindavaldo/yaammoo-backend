@@ -86,9 +86,9 @@ Le même pattern (`ack?.()` + dédoublonnage `__eventId`) s'applique à tous les
 |---|---|---|---|
 | `newFastFoodOrder` | `userId` marchand | `controllers/order/createOrder.js` | `{ message, data: order }` |
 | `newFastFoodOrders` | `userId` marchand | `updateOrders.service.js` | `{ message, data: order[] }` |
-| `fastFoodOrderUpdated` | `userId` marchand | `updateOrders.service.js` | `{ data: order }` |
+| `fastFoodOrderUpdated` | `userId` marchand | `updateOrders.service.js` | `{ data: order }` — **vue marchand** (prix réels + `customerTotal`, cf. [pricing.md](./pricing.md#ce-que-chaque-rôle-voit)) |
 | `fastFoodOrdersUpdated` | `userId` marchand | `updateOrdersField.service.js` | `{ message, field, orders: order[] }` |
-| `ordersRankUpdated` | `userId`/`fastFoodId` marchand | `updateOrdersRankByDate.service.js`, `rankQueue.service.js` | `{ message, orders: order[] }` |
+| `ordersRankUpdated` | `userId`/`fastFoodId` marchand | `updateOrdersRankByDate.service.js`, `rankQueue.service.js` | `{ message, orders: order[] }` — **vue marchand** |
 
 ### Délégation livreur (driver)
 

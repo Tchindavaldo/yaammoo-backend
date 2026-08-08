@@ -27,6 +27,7 @@ const { getFastFoodService } = require('../fastfood/getFastFood');
 const { reliableEmit } = require('../../utils/reliableEmit');
 const { updateOrders } = require('./updateOrders.service');
 const { enrichOrdersWithCourse } = require('./enrichOrdersWithCourse');
+const { toMerchantViewOne } = require('./toMerchantView');
 
 // Étapes depuis lesquelles le livreur peut faire avancer la commande.
 // (finished = prête → delivering ; delivering → delivered)
@@ -37,7 +38,7 @@ const notifyClientAndMerchant = async order => {
   await reliableEmit(io, order.userId, 'userOrderUpdated', { data: order });
   const fastFood = await getFastFoodService(order.fastFoodId);
   if (fastFood?.userId) {
-    await reliableEmit(io, fastFood.userId, 'fastFoodOrderUpdated', { data: order });
+    await reliableEmit(io, fastFood.userId, 'fastFoodOrderUpdated', { data: await toMerchantViewOne(order) });
   }
 };
 
@@ -120,5 +121,8 @@ exports.driverAdvanceStatus = async (orderId, driverId, prevData = null) => {
 
 exports.getDriverOrders = async driverId => {
   if (!driverId) throw new Error('driverId requis');
+  // Vue CLIENT : le livreur est l'interface avec le client, il doit voir les
+  // mêmes prix que lui — sinon le montant annoncé à la livraison ne correspond
+  // pas à ce qui a été payé. Il ne voit RIEN des montants marchands.
   return enrichOrdersWithCourse(await repos.orders.getByDriver(driverId));
 };
