@@ -171,9 +171,12 @@ exports.toMerchantView = async orders => {
       // dit QUI le porte, `withdrawalGroupId` relie les commandes qui le
       // partagent. Sans eux, un `withdrawalFee: 0` serait ambigu (groupé ?
       // réglages illisibles ? réellement nul ?).
-      withdrawalGroupId: order?.fastFoodId ? withdrawalKeyOf(order) : null,
-      withdrawalFeeBilled: holdsWithdrawal,
-      withdrawalFee: holdsWithdrawal && pricing ? withdrawalFee(chargedByKey[withdrawalKeyOf(order)], pricing.withdrawalFees, order?.network ?? order?.payBy) : 0,
+      // Le règlement fait foi : il porte l'id généré et le verdict. Le repli ne
+      // sert que tant que la commande n'est pas réglée — la clé composée reste
+      // alors interne, jamais servie telle quelle.
+      withdrawalGroupId: settlement?.withdrawalGroupId ?? null,
+      withdrawalFeeBilled: settlement ? settlement.withdrawalBilled === true : holdsWithdrawal,
+      withdrawalFee: settlement ? toNumber(settlement.withdrawalFee) : holdsWithdrawal && pricing ? withdrawalFee(chargedByKey[withdrawalKeyOf(order)], pricing.withdrawalFees, order?.network ?? order?.payBy) : 0,
     };
   });
 };

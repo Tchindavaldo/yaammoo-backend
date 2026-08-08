@@ -139,9 +139,12 @@ exports.settleDeliveryService = async ({ orders, bonusCode }) => {
     const withdrawalByKey = {};
     // Qui porte le frais : la première commande rencontrée du groupe.
     const withdrawalHolder = {};
+    // Id STOCKÉ, comme `deliveryGroupId` — la clé composée ne sort jamais.
+    const withdrawalGroupIdByKey = {};
     for (const [key, net] of Object.entries(netByKey)) {
       withdrawalByKey[key] = withdrawalFee_(net, pricing, orderByKey[key]);
       withdrawalHolder[key] = orderByKey[key].id;
+      withdrawalGroupIdByKey[key] = generateId();
     }
 
     for (const order of list) {
@@ -225,6 +228,8 @@ exports.settleDeliveryService = async ({ orders, bonusCode }) => {
           itemsCharged,
           paymentFee,
           withdrawalFee,
+          withdrawalGroupId: withdrawalGroupIdByKey[withdrawalKey] ?? null,
+          withdrawalBilled: holdsWithdrawal,
           driverAmount,
           // Régime PLATEFORME : tout ce qui n'est ni le fastfood, ni le livreur,
           // ni les frais revient à la plateforme — l'arrondi vers le haut inclus.

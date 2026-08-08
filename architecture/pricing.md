@@ -327,17 +327,20 @@ Trois champs, à la racine de la commande — même lecture que la course :
 Sans eux, un `withdrawalFee: 0` serait ambigu : groupé ? réglages illisibles ?
 réellement nul ? C'est exactement le rôle de `courseBilled` pour la livraison.
 
-> ⚠️ La clé est **`groupId + fastFoodId`**, pas `fastFoodId` seul. Un panier chez
-> deux boutiques vide DEUX portefeuilles, donc deux ponctions ; et deux paniers
-> passés des jours différents chez la même boutique sont deux paiements
-> distincts, donc deux ponctions aussi.
+`withdrawalGroupId` est un **id généré et stocké** (`order_settlements.withdrawal_group_id`),
+comme `deliveryGroupId` — jamais une clé composée exposée au front.
+
+Le groupe réunit les commandes d'un même **panier** ET d'une même **boutique** :
+un panier chez deux boutiques vide DEUX portefeuilles, donc porte deux groupes ;
+et deux paniers passés des jours différents chez la même boutique sont deux
+paiements distincts, donc deux ponctions aussi.
 
 Panier chez deux boutiques :
 
 ```
-panier_1|ff1  →  A  withdrawalFee 65, billed true
+wg_abc (ff1)  →  A  withdrawalFee 65, billed true
                  B  withdrawalFee  0, billed false
-panier_1|ff2  →  C  withdrawalFee 54, billed true
+wg_def (ff2)  →  C  withdrawalFee 54, billed true
 ```
 
 > Le regroupement s'arrête au panier. Si le marchand attend et retire plusieurs

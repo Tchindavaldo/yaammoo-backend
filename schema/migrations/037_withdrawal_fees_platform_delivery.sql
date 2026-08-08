@@ -96,6 +96,16 @@ CREATE INDEX IF NOT EXISTS idx_fastfoods_delivery_by_platform
 -- `driver_amount` : ce qui reste réellement au livreur en régime PLATEFORME,
 -- après que la course a absorbé l'arrondi vers le bas. Distinct de
 -- `order_deliveries.real_price`, qui est le tarif de la zone AVANT amortissement.
+-- `withdrawal_group_id` : relie les commandes qui partagent UNE ponction de
+-- retrait — celles d'un même panier ET d'une même boutique. Un panier chez deux
+-- boutiques vide deux portefeuilles, donc porte deux groupes.
+-- Pendant du `delivery_group_id` de `order_deliveries`, avec la même mécanique :
+-- un id généré, stocké, et un booléen disant qui porte la ponction.
 ALTER TABLE order_settlements
-  ADD COLUMN IF NOT EXISTS withdrawal_fee NUMERIC(12,2) NOT NULL DEFAULT 0,
-  ADD COLUMN IF NOT EXISTS driver_amount  NUMERIC(12,2) NOT NULL DEFAULT 0;
+  ADD COLUMN IF NOT EXISTS withdrawal_fee      NUMERIC(12,2) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS driver_amount       NUMERIC(12,2) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS withdrawal_group_id TEXT,
+  ADD COLUMN IF NOT EXISTS withdrawal_billed   BOOLEAN NOT NULL DEFAULT FALSE;
+
+CREATE INDEX IF NOT EXISTS idx_order_settlements_withdrawal_group
+  ON order_settlements(withdrawal_group_id) WHERE withdrawal_group_id IS NOT NULL;

@@ -21,6 +21,8 @@ const toSupabase = s => ({
   payment_fee: s.paymentFee ?? 0,
   withdrawal_fee: s.withdrawalFee ?? 0,
   driver_amount: s.driverAmount ?? 0,
+  withdrawal_group_id: s.withdrawalGroupId ?? null,
+  withdrawal_billed: s.withdrawalBilled === true,
   platform_margin: s.platformMargin ?? 0,
   delivered: s.delivered !== false,
 });
@@ -36,6 +38,8 @@ const fromSupabase = row =>
     paymentFee: Number(row.payment_fee),
     withdrawalFee: Number(row.withdrawal_fee ?? 0),
     driverAmount: Number(row.driver_amount ?? 0),
+    withdrawalGroupId: row.withdrawal_group_id ?? null,
+    withdrawalBilled: row.withdrawal_billed === true,
     platformMargin: Number(row.platform_margin),
     delivered: row.delivered !== false,
     createdAt: row.created_at,
