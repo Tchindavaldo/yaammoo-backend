@@ -35,10 +35,31 @@ const { generateId } = require('../../repositories/idGen');
 const { getPricingSettings } = require('../settings/settings.service');
 const { resolveOffer } = require('../pricing/deliveryOfferResolver');
 const { resolveDeliveryBonus, consumeDeliveryBonus } = require('../bonus/applyDeliveryBonus.service');
-const { splitDeliveryAmounts, toNumber, feeIncludedIn } = require('../pricing/deliveryPricing');
+const { splitDeliveryAmounts, toNumber, feeIncludedIn, isPlatformDelivered } = require('../pricing/deliveryPricing');
+const { withdrawalFee } = require('../pricing/withdrawalFees');
 // Clé PARTAGÉE avec `validatePaymentAmount` : on verse exactement le nombre de
 // courses qu'on a facturé au user.
 const { deliveryGroupKey } = require('../pricing/deliveryGroupKey');
+
+/** Frais de retrait dus sur un montant, pour l'opérateur de la commande. */
+const withdrawalFee_ = (amount, pricing, order) => withdrawalFee(amount, pricing?.withdrawalFees, order?.network ?? order?.payBy);
+
+/**
+ * Montant RÉEL des articles d'une commande, depuis les prix bruts figés à
+ * l'achat (`rawPrice`). Sert en régime PLATEFORME, où le prix payé a été calé
+ * sur un multiple du pas : le fastfood doit toucher son prix, pas un résidu.
+ */
+function rawItemsOf(order) {
+  const prices = order?.menu?.prices;
+  const idx = Math.max(0, toNumber(order?.selectedPriceIndex) - 1);
+  const unit = Array.isArray(prices) ? toNumber(prices[idx]?.rawPrice ?? prices[idx]?.price) : 0;
+  const qty = Math.max(1, toNumber(order?.quantity) || 1);
+
+  const sum = (list, factorOf) =>
+    (Array.isArray(list) ? list : []).reduce((acc, it) => (it?.status === true ? acc + toNumber(it?.rawPrice ?? it?.prix) * factorOf(it) : acc), 0);
+
+  return unit * qty + sum(order?.extra, () => 1) + sum(order?.drink, d => Math.max(1, toNumber(d?.quantite) || 1));
+}
 
 /**
  * @param {Array}  orders     commandes venant de passer en `pending`
@@ -124,13 +145,37 @@ exports.settleDeliveryService = async ({ orders, bonusCode }) => {
       });
 
       // `order.total` est déjà TTC : les frais y sont inclus, on les EXTRAIT.
+      // On redescend la cascade dans l'ordre inverse de sa composition —
+      // commission de l'agrégateur d'abord, frais de retrait ensuite.
       const itemsCharged = toNumber(order.total);
       const paymentFee = feeIncludedIn(itemsCharged, pricing.paymentFeePercent);
+      const afterPaymentFee = itemsCharged - paymentFee;
+      // Le retrait porte sur ce qui reste APRÈS la commission : c'est ce montant
+      // là qui sortira réellement du portefeuille opérateur.
+      const withdrawalFee = withdrawalFee_(afterPaymentFee, pricing, order);
+      const net = Math.max(0, afterPaymentFee - withdrawalFee);
       const qty = Math.max(1, toNumber(order.quantity) || 1);
+      const marginDue = toNumber(pricing.platformMargin) * qty;
 
-      // Ce qui revient au fastfood pour les articles : on retire des montants
-      // encaissés tout ce qui ne lui appartient pas — frais, livraison, marge.
-      const itemsReal = Math.max(0, itemsCharged - paymentFee - amounts.chargedPrice - toNumber(pricing.platformMargin) * qty);
+      // ── Ce qui revient au fastfood ────────────────────────────────────────
+      // Régime FASTFOOD : le reste après retrait de tout ce qui ne lui
+      // appartient pas — comme avant, frais de retrait en plus.
+      //
+      // Régime PLATEFORME : le prix affiché a été calé sur un multiple du pas,
+      // donc le net encaissé ne retombe pas sur le compte juste. Le fastfood
+      // doit toucher son prix RÉEL quoi qu'il arrive : on part donc des prix
+      // bruts figés dans la commande (`rawPrice`) et c'est la COURSE qui
+      // absorbe l'écart. Sans cela, l'arrondi vers le bas serait payé par le
+      // marchand, qui n'a rien à voir avec la décision d'arrondir.
+      const platformDelivered = isPlatformDelivered(fastfood);
+      const itemsReal = platformDelivered ? rawItemsOf(order) : Math.max(0, net - amounts.chargedPrice - marginDue);
+
+      // Ce qui reste au livreur : le résidu de la cascade. Il porte l'arrondi
+      // (à la baisse comme à la hausse) dans la limite fixée par
+      // `driver_amortization_max`, appliquée au moment de composer le prix.
+      // En régime fastfood, la course est due au tarif de la zone, sans
+      // amortissement — le champ trace alors ce qui est versé.
+      const driverAmount = platformDelivered ? Math.max(0, net - itemsReal - marginDue) : amounts.courseBilled ? amounts.realPrice : 0;
 
       // ── 1. Le règlement : une ligne par commande, TOUJOURS ────────────────
       try {
@@ -142,7 +187,11 @@ exports.settleDeliveryService = async ({ orders, bonusCode }) => {
           itemsReal,
           itemsCharged,
           paymentFee,
-          platformMargin: amounts.platformMargin,
+          withdrawalFee,
+          driverAmount,
+          // Régime PLATEFORME : tout ce qui n'est ni le fastfood, ni le livreur,
+          // ni les frais revient à la plateforme — l'arrondi vers le haut inclus.
+          platformMargin: platformDelivered ? Math.max(0, net - itemsReal - driverAmount) : amounts.platformMargin,
           delivered,
         });
         settled.settlements.push(settlement);

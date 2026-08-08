@@ -27,6 +27,8 @@
 const repos = require('../../repositories');
 const { toNumber } = require('../pricing/deliveryPricing');
 const { deliveryGroupKey } = require('../pricing/deliveryGroupKey');
+const { getPricingSettings } = require('../settings/settings.service');
+const { withdrawalFee } = require('../pricing/withdrawalFees');
 
 /** Prix réel d'une ligne : `rawPrice` s'il a été figé, sinon le prix affiché. */
 const rawOf = item => (item?.rawPrice == null ? toNumber(item?.prix) : toNumber(item.rawPrice));
@@ -105,6 +107,17 @@ exports.toMerchantView = async orders => {
     console.error('toMerchantView: règlements non lus (montants recalculés) —', error.message);
   }
 
+  // Frais de RETRAIT estimés sur les prix bruts, pour que le marchand sache ce
+  // que coûtera la sortie de son argent. Estimation, pas prélèvement : le frais
+  // réellement dû porte sur le montant effectivement retiré, qui agrège
+  // plusieurs commandes. L'écart retombe dans la marge plateforme.
+  let pricing = null;
+  try {
+    pricing = await getPricingSettings();
+  } catch (error) {
+    console.error('toMerchantView: réglages non lus (frais de retrait omis) —', error.message);
+  }
+
   // Repli sans règlement : qui porte la course. Même clé que `settleDelivery`,
   // pour que le nombre de courses comptées ne diverge jamais.
   const billedOrderByKey = {};
@@ -132,6 +145,8 @@ exports.toMerchantView = async orders => {
       drink: Array.isArray(order.drink) ? order.drink.map(d => (d?.rawPrice == null ? d : { ...d, prix: toNumber(d.rawPrice) })) : order.drink,
       total: items + course,
       customerTotal,
+      // Ce que coûtera le retrait de ce montant chez l'opérateur.
+      withdrawalFee: pricing ? withdrawalFee(items + course, pricing.withdrawalFees, order?.network ?? order?.payBy) : 0,
     };
   });
 };

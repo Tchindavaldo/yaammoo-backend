@@ -21,7 +21,15 @@ Réutilise la table `transactions` (`extra_data` JSONB absorbe les champs hors c
 - **Retrait** : `type='withdrawal'`, `userId = marchand`, `amount = montant retiré`
   (compté en négatif dans le solde). Extra : `withdrawalId`, `status`, `phone`, `network`.
 
-**Solde dérivé** : `balance = Σ(merchant_credit.amount) − Σ(withdrawal.amount)`
+- **Course livreur** : `type='driver_credit'`, `userId = uid du livreur`,
+  `amount = order_settlements.driver_amount`. Versée depuis le portefeuille
+  PLATEFORME, uniquement pour les boutiques en `deliveryBy = 'platform'`, et
+  **à la livraison** — une course annulée en chemin ne se paie pas.
+  Idempotente (`repos.transactions.findDriverCredit`) : une transition
+  `delivered` rejouée ne verse pas deux fois. Voir
+  [creditDriver.service.js](../src/services/transaction/creditDriver.service.js).
+
+**Solde dérivé** : `balance = Σ(merchant_credit.amount) + Σ(driver_credit.amount) − Σ(withdrawal.amount)`
 (`repos.transactions.getMerchantBalance(userId)`).
 
 Table `withdrawals` (migration `004_withdrawals.sql`) — trace les demandes de retrait :
@@ -42,6 +50,17 @@ source de vérité unique.
 
 Le bénéfice yaammoo est porté par la **marge plateforme** et l'**écart de zone**
 (cf. [pricing.md](./pricing.md)) — pas par un frais retenu au marchand.
+
+> ⚠️ Le crédit marchand vaut `order_settlements.items_real`, **pas** `order.total`.
+> Ce dernier est le prix CLIENT : il porte la livraison, la marge et les frais,
+> dont rien n'appartient au marchand. Le créditer entier gonflait son
+> portefeuille d'un argent destiné à partir ailleurs.
+
+Les **frais de retrait** (MTN / Orange) sont, eux, fondus dans le prix affiché
+en amont : voir [pricing.md](./pricing.md#les-frais-de-retrait-entrent-dans-le-prix).
+La vue marchand renvoie `withdrawalFee` par commande — une **estimation** de ce
+que coûtera la sortie de cet argent, le frais réel portant sur le montant
+effectivement retiré (qui agrège plusieurs commandes).
 
 > ⚠️ Auparavant `utils/commission.js` (`computeNet`) reprélevait 5 %
 > (`DIGIKUNTZ_FEE`) **plus** un frais fixe (`YAAMMOO_FLAT_FEE`) sur le crédit

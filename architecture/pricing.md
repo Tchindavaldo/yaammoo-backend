@@ -201,6 +201,94 @@ Plat 2000, zone 500, marge 100, **quantité 2** :
 
 ---
 
+## Qui livre : fastfood ou plateforme (migration 037)
+
+`fastfoods.deliveryBy` — **décidé par l'admin**, jamais par la boutique.
+
+| Valeur | Zones utilisées | Prix affiché | Course |
+|---|---|---|---|
+| `fastfood` (défaut) | `deliveryHours` de la boutique | exact, aucun arrondi | versée au fastfood |
+| `platform` | `platformDeliveryHours` | calé sur un multiple de `price_rounding_step` | versée au LIVREUR |
+
+### Les frais de retrait entrent dans le prix
+
+Encaisser ne suffit pas : l'argent doit **sortir** du portefeuille MTN ou Orange,
+et ce retrait coûte. Ce coût était supporté en silence ; il est désormais fondu
+dans le prix affiché, comme la commission de l'agrégateur.
+
+Barème à **seuil**, par opérateur (`services/pricing/withdrawalFees.js`) :
+
+```
+montant <  seuil  →  frais FIXE           (54 F)
+montant >= seuil  →  pourcentage + fixe   (1,2 % + 4 F)
+```
+
+> ⚠️ Un jeu de clés PAR opérateur (`withdrawal_fee_mtn_*`, `withdrawal_fee_orange_*`).
+> Mêmes valeurs aujourd'hui, mais un opérateur qui change son barème ne doit pas
+> entraîner l'autre.
+
+Les deux frais ne s'additionnent pas naïvement : la commission est un pourcentage
+du prix **payé**, alors que le retrait porte sur ce qui reste **après** elle.
+
+```
+payé = (base + frais de retrait) / (1 − commission)
+```
+
+Extras et boissons portent eux aussi le retrait, en plus de la commission.
+
+### L'arrondi au pas — et pourquoi il vient EN DERNIER
+
+En régime plateforme, le prix affiché est toujours un multiple de
+`price_rounding_step` (500). On **descend** tant que le manque reste absorbable
+par la course (`driver_amortization_max`, 100 F) ; au-delà on **monte**, et le
+surplus revient à la plateforme.
+
+> ⚠️ **L'ordre est le tout.** Arrondir le prix BRUT en amont ferait franchir un
+> palier entier une fois les frais ajoutés (2500 → 3500 au lieu de 3000). On
+> compose donc le prix juste d'abord, on cale sur le pas ensuite.
+
+### La cascade, dans les deux sens
+
+Composition (à l'affichage) puis répartition (au règlement) sont exactement
+inverses. Plat brut 2000, marge 100, zone 250, commission 5 %, retrait MTN :
+
+| | `fastfood` | `platform` |
+|---|---|---|
+| Prix juste | 2531 | 2531 |
+| **Le client paie** | **2531** | **2500** (arrondi bas) |
+| − commission 5 % | 121 | 119 |
+| − frais de retrait | 54 | 54 |
+| = net | 2356 | 2327 |
+| → fastfood | 2006 | **2000** (son prix, entier) |
+| → livreur | 250 | **227** (absorbe l'arrondi) |
+| → plateforme | **100** | **100** |
+
+**La marge n'est jamais entamée.** L'arrondi vers le bas est porté par la course,
+jamais par le marchand ni par la plateforme — c'est la règle qui décide de tout
+le reste. En régime `fastfood`, le montant marchand est le résidu de la cascade ;
+en régime `platform`, il est calculé depuis les `rawPrice` figés à l'achat, et
+c'est la course qui devient le résidu.
+
+### Ce que trace `order_settlements`
+
+| Colonne | Sens |
+|---|---|
+| `items_charged` | ce que le client a payé |
+| `payment_fee` | commission agrégateur, extraite du payé |
+| `withdrawal_fee` | coût de sortie chez l'opérateur |
+| `items_real` | ce qui revient au fastfood |
+| `driver_amount` | ce qui reste au livreur, arrondi absorbé |
+| `platform_margin` | le reste |
+
+`driver_amount` est **distinct** de `order_deliveries.real_price` : ce dernier est
+le tarif de la zone AVANT amortissement.
+
+Le livreur plateforme est payé **à la livraison**, pas au paiement — une course
+annulée en chemin ne se paie pas (`services/transaction/creditDriver.service.js`,
+transaction `driver_credit`, idempotente).
+
+---
+
 ## Réglages (`settings`)
 
 Table clé/valeur (migration 019), lue via `services/settings/settings.service`.
@@ -212,6 +300,9 @@ Table clé/valeur (migration 019), lue via `services/settings/settings.service`.
 | `delivery_free_mode` | false | Campagne « livraison offerte » globale |
 | `apple_review_mode` | false | Mode Apple Review exposé au frontend (migration 036) — voir [payment.md](./payment.md) |
 | `apple_version_review_mode` | `""` | Version d'app exacte en review ; déclenche le bypass paiement (migration 036) — voir [payment.md](./payment.md) |
+| `withdrawal_fee_mtn_*` / `withdrawal_fee_orange_*` | 4200 / 54 / 1.2 / 4 | Barème de retrait par opérateur : `threshold`, `flat`, `percent`, `addend` (migration 037) |
+| `price_rounding_step` | 500 | Pas d'arrondi du prix affiché, en livraison PLATEFORME (migration 037) |
+| `driver_amortization_max` | 100 | Ce que la course peut absorber pour arrondir vers le bas (migration 037) |
 
 **Pourquoi en base et pas dans `.env`** : ce sont des décisions **commerciales**,
 prises et annulées en cours de journée. `flyctl secrets set` ne rebuild pas le

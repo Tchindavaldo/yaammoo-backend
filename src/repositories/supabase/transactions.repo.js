@@ -20,6 +20,17 @@ exports.create = async data => {
   return m.transaction.fromSupabase(row);
 };
 
+/**
+ * Course déjà versée pour cette commande, ou null. Garde-fou d'idempotence :
+ * une transition `delivered` rejouée ne doit pas payer le livreur deux fois.
+ */
+exports.findDriverCredit = async orderId => {
+  if (!orderId) return null;
+  const { data, error } = await supabase.from(TABLE).select('*').eq('type', 'driver_credit').contains('extra_data', { relatedOrderId: orderId }).maybeSingle();
+  if (error) throw error;
+  return m.transaction.fromSupabase(data);
+};
+
 exports.getById = async id => {
   const { data, error } = await supabase.from(TABLE).select('*').eq('id', id).maybeSingle();
   if (error) throw error;
@@ -27,7 +38,7 @@ exports.getById = async id => {
 };
 
 exports.getByUser = async userId => {
-  const { data, error } = await supabase.from(TABLE).select('*').eq('user_id', userId).not('type', 'in', '("merchant_credit","withdrawal")').order('created_at', { ascending: false });
+  const { data, error } = await supabase.from(TABLE).select('*').eq('user_id', userId).not('type', 'in', '("merchant_credit","driver_credit","withdrawal")').order('created_at', { ascending: false });
   if (error) throw error;
   return (data || []).map(m.transaction.fromSupabase);
 };
@@ -40,14 +51,16 @@ exports.getByUser = async userId => {
  * @returns {{ balance:number, totalEarned:number, totalWithdrawn:number }}
  */
 exports.getMerchantBalance = async userId => {
-  const { data, error } = await supabase.from(TABLE).select('type, amount').eq('user_id', userId).in('type', ['merchant_credit', 'withdrawal']);
+  // `driver_credit` compte comme un gain : le portefeuille d'un livreur suit la
+  // même mécanique que celui d'un marchand (crédits − retraits).
+  const { data, error } = await supabase.from(TABLE).select('type, amount').eq('user_id', userId).in('type', ['merchant_credit', 'driver_credit', 'withdrawal']);
   if (error) throw error;
 
   let totalEarned = 0;
   let totalWithdrawn = 0;
   for (const row of data || []) {
     const amt = Number(row.amount) || 0;
-    if (row.type === 'merchant_credit') totalEarned += amt;
+    if (row.type === 'merchant_credit' || row.type === 'driver_credit') totalEarned += amt;
     else if (row.type === 'withdrawal') totalWithdrawn += amt;
   }
   return { balance: totalEarned - totalWithdrawn, totalEarned, totalWithdrawn };

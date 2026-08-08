@@ -19,6 +19,8 @@ const toSupabase = s => ({
   items_real: s.itemsReal ?? 0,
   items_charged: s.itemsCharged ?? 0,
   payment_fee: s.paymentFee ?? 0,
+  withdrawal_fee: s.withdrawalFee ?? 0,
+  driver_amount: s.driverAmount ?? 0,
   platform_margin: s.platformMargin ?? 0,
   delivered: s.delivered !== false,
 });
@@ -32,6 +34,8 @@ const fromSupabase = row =>
     itemsReal: Number(row.items_real),
     itemsCharged: Number(row.items_charged),
     paymentFee: Number(row.payment_fee),
+    withdrawalFee: Number(row.withdrawal_fee ?? 0),
+    driverAmount: Number(row.driver_amount ?? 0),
     platformMargin: Number(row.platform_margin),
     delivered: row.delivered !== false,
     createdAt: row.created_at,
