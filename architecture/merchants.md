@@ -162,8 +162,29 @@ MenuItem {
 
 2. Backend : `updateFastfoodService()` :
    - Whitelist champs autorisés (nom, openTime, closeTime, image, deliveryHours, orderLeadTime…)
+   - Nettoie `deliveryHours` via `utils/deliveryHoursSanitize.js` (voir ci-dessous)
    - Met à jour doc fastfoods
    - Émet socket `fastfoodUpdated` (broadcast global)
+
+   **Nettoyage des créneaux à l'écriture (OBLIGATOIRE)**
+
+   Le front renvoie à chaque enregistrement toutes ses lignes d'heures locales,
+   y compris celles créées puis vidées. Constaté en prod sur `8KqUta86xe9fvihWnkzd` :
+   8 créneaux stockés dont 5 sans aucune zone (`express: true`, `expressZones: []`),
+   donc sans prix — invisibles pour `services/pricing/deliveryPricing.js` qui ne
+   compte que les zones.
+
+   `sanitizeDeliveryHours()` ne conserve donc un créneau que s'il a **au moins un
+   mode actif pourvu de zones valides** :
+
+   - `express: true` **et** `expressZones` contient au moins une zone valide, **ou**
+   - `periodic: true` **et** `periodicZones` contient au moins une zone valide.
+
+   Un mode désactivé est légitime : une boutique peut ne faire que de l'express.
+   Une zone est valide si `lieu` est une string non vide **et** `Number(prix) > 0`
+   (le front envoie `prix` en string, ex. `"500"`). Les zones invalides sont aussi
+   purgées des créneaux conservés. Le format legacy (strings `"HH:mm"`) traverse
+   intact : il ne porte aucune zone.
 
 3. Frontend :
    - Affiche confirmation "Boutique mise à jour"
