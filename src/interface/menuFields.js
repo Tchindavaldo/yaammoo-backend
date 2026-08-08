@@ -25,7 +25,7 @@ exports.menuFields = {
         // `applyDisplayPricing`. Le front le renvoie dans la commande pour
         // figer le prix de l'époque (vue marchand). Jamais utilisé dans un
         // calcul d'argent : le montant payé reste contrôlé sur `price`.
-        prixBrut: { type: 'number', required: false },
+        rawPrice: { type: 'number', required: false },
       },
     },
   },
@@ -38,7 +38,7 @@ exports.menuFields = {
         name: { type: 'string', required: true },
         status: { type: 'boolean', required: true },
         prix: { type: 'number', required: false },
-        prixBrut: { type: 'number', required: false },
+        rawPrice: { type: 'number', required: false },
       },
     },
   },
@@ -51,7 +51,7 @@ exports.menuFields = {
         name: { type: 'string', required: true },
         status: { type: 'boolean', required: true },
         prix: { type: 'number', required: false },
-        prixBrut: { type: 'number', required: false },
+        rawPrice: { type: 'number', required: false },
         quantite: { type: 'number', required: false },
       },
     },

@@ -6,7 +6,7 @@
 // ligne. Servir ce même montant au marchand lui montre un argent qu'il n'a pas
 // touché — d'où cette vue, qui restitue :
 //
-//   • les prix RÉELS du fastfood (`prixBrut`, figé dans la commande à l'achat)
+//   • les prix RÉELS du fastfood (`rawPrice`, figé dans la commande à l'achat)
 //   • `total`         = ce que le marchand encaisse pour CETTE commande
 //   • `customerTotal` = ce que le client a payé (l'ancien `total`)
 //
@@ -28,8 +28,8 @@ const repos = require('../../repositories');
 const { toNumber } = require('../pricing/deliveryPricing');
 const { deliveryGroupKey } = require('../pricing/deliveryGroupKey');
 
-/** Prix réel d'une ligne : `prixBrut` s'il a été figé, sinon le prix affiché. */
-const rawOf = item => (item?.prixBrut == null ? toNumber(item?.prix) : toNumber(item.prixBrut));
+/** Prix réel d'une ligne : `rawPrice` s'il a été figé, sinon le prix affiché. */
+const rawOf = item => (item?.rawPrice == null ? toNumber(item?.prix) : toNumber(item.rawPrice));
 
 /** Somme des lignes cochées, chacune multipliée par son facteur. */
 function sumChecked(list, factorOf) {
@@ -43,11 +43,11 @@ function menuToRaw(menu) {
   const out = { ...menu };
 
   if (Array.isArray(menu.prices)) {
-    out.prices = menu.prices.map(p => (p?.prixBrut == null ? p : { ...p, price: toNumber(p.prixBrut) }));
+    out.prices = menu.prices.map(p => (p?.rawPrice == null ? p : { ...p, price: toNumber(p.rawPrice) }));
   }
   for (const field of ['extra', 'drink']) {
     if (!Array.isArray(menu[field])) continue;
-    out[field] = menu[field].map(i => (i?.prixBrut == null ? i : { ...i, prix: toNumber(i.prixBrut) }));
+    out[field] = menu[field].map(i => (i?.rawPrice == null ? i : { ...i, prix: toNumber(i.rawPrice) }));
   }
 
   return out;
@@ -61,7 +61,7 @@ function menuToRaw(menu) {
 function rawItemsTotal(order) {
   const prices = order?.menu?.prices;
   const idx = Math.max(0, toNumber(order?.selectedPriceIndex) - 1);
-  const unit = Array.isArray(prices) ? rawOf({ prixBrut: prices[idx]?.prixBrut, prix: prices[idx]?.price }) : 0;
+  const unit = Array.isArray(prices) ? rawOf({ rawPrice: prices[idx]?.rawPrice, prix: prices[idx]?.price }) : 0;
   const qty = Math.max(1, toNumber(order?.quantity) || 1);
 
   const extras = sumChecked(order?.extra, () => 1);
@@ -128,8 +128,8 @@ exports.toMerchantView = async orders => {
     return {
       ...order,
       menu: menuToRaw(order.menu),
-      extra: Array.isArray(order.extra) ? order.extra.map(e => (e?.prixBrut == null ? e : { ...e, prix: toNumber(e.prixBrut) })) : order.extra,
-      drink: Array.isArray(order.drink) ? order.drink.map(d => (d?.prixBrut == null ? d : { ...d, prix: toNumber(d.prixBrut) })) : order.drink,
+      extra: Array.isArray(order.extra) ? order.extra.map(e => (e?.rawPrice == null ? e : { ...e, prix: toNumber(e.rawPrice) })) : order.extra,
+      drink: Array.isArray(order.drink) ? order.drink.map(d => (d?.rawPrice == null ? d : { ...d, prix: toNumber(d.rawPrice) })) : order.drink,
       total: items + course,
       customerTotal,
     };

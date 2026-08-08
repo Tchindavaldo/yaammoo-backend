@@ -133,9 +133,9 @@ l'**endpoint** (acheter vs gérer), plus par le rôle de l'appelant.
 > propriétaire voyait ses prix bruts sur le home, donc un prix inférieur à celui
 > qu'il aurait payé en commandant.
 
-### `prixBrut` — le prix réel transporté à côté de l'affiché
+### `rawPrice` — le prix réel transporté à côté de l'affiché
 
-`applyDisplayPricing` ajoute **`prixBrut`** sur chaque `prices[]`, `extra[]` et
+`applyDisplayPricing` ajoute **`rawPrice`** sur chaque `prices[]`, `extra[]` et
 `drink[]` : le prix réel du fastfood, servi en même temps que le prix affiché.
 
 Le front le **renvoie tel quel** dans `order.menu` à la commande, ce qui fige le
@@ -145,7 +145,7 @@ prix de l'époque. C'est la seule façon de le connaître plus tard :
 - relire le menu après coup donnerait le prix **courant**, pas celui payé — un
   marchand qui change ses tarifs réécrirait tout son historique.
 
-`prixBrut` n'entre dans **aucun** calcul d'argent : le montant payé reste contrôlé
+`rawPrice` n'entre dans **aucun** calcul d'argent : le montant payé reste contrôlé
 par `validatePaymentAmount` sur `price`, et ce qui est versé vient de
 `order_settlements`. Un client qui le falsifierait ne fausserait que son propre
 affichage — d'où l'absence de revalidation (qui rejetterait à tort les commandes
@@ -168,14 +168,14 @@ La bascule marchand est portée par `services/order/toMerchantView.js` :
 
 | Champ | Marchand |
 |---|---|
-| `menu.prices[].price` | `prixBrut` (2000) |
-| `extra[].prix` / `drink[].prix` | `prixBrut` |
+| `menu.prices[].price` | `rawPrice` (2000) |
+| `extra[].prix` / `drink[].prix` | `rawPrice` |
 | `delivery.prix` | course réelle (500) |
 | `total` | **ce qu'il encaisse** (2500) |
 | `customerTotal` | ce que le client a payé (3255) |
 
 `total` vient de `order_settlements.itemsReal` + la course. Tant que la commande
-n'est pas réglée, il est recalculé depuis les `prixBrut` figés.
+n'est pas réglée, il est recalculé depuis les `rawPrice` figés.
 
 > ⚠️ **Une seule course par départ.** Un panier de 3 plats chez la même boutique
 > fait 3 commandes mais UN déplacement : la livraison n'est ajoutée qu'à la

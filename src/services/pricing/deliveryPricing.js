@@ -124,7 +124,7 @@ function applyDisplayPricingToMenu(menu, { surcharge, feePercent }) {
   if (!menu) return menu;
   const out = { ...menu };
 
-  // `prixBrut` = le prix RÉEL du fastfood, transporté à côté du prix affiché.
+  // `rawPrice` = le prix RÉEL du fastfood, transporté à côté du prix affiché.
   // Le front le renvoie tel quel dans la commande, ce qui fige le prix de
   // l'époque : le prix affiché n'est PAS inversible (l'arrondi `ceil` détruit
   // l'information) et relire le menu plus tard donnerait le prix courant, pas
@@ -133,7 +133,7 @@ function applyDisplayPricingToMenu(menu, { surcharge, feePercent }) {
     out[MENU_PRICES_FIELD] = menu[MENU_PRICES_FIELD].map(p => ({
       ...p,
       price: withFee(toNumber(p?.price) + surcharge, feePercent),
-      prixBrut: toNumber(p?.price),
+      rawPrice: toNumber(p?.price),
     }));
   }
 
@@ -141,7 +141,7 @@ function applyDisplayPricingToMenu(menu, { surcharge, feePercent }) {
   // ajouté qu'une fois, par le plat — mais bien leurs propres frais.
   for (const field of ['extra', 'drink']) {
     if (!Array.isArray(menu[field])) continue;
-    out[field] = menu[field].map(i => (i?.prix == null ? i : { ...i, prix: withFee(i.prix, feePercent), prixBrut: toNumber(i.prix) }));
+    out[field] = menu[field].map(i => (i?.prix == null ? i : { ...i, prix: withFee(i.prix, feePercent), rawPrice: toNumber(i.prix) }));
   }
 
   return out;
