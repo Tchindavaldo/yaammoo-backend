@@ -86,9 +86,9 @@ Le même pattern (`ack?.()` + dédoublonnage `__eventId`) s'applique à tous les
 |---|---|---|---|
 | `newFastFoodOrder` | `userId` marchand | `controllers/order/createOrder.js` | `{ message, data: order }` |
 | `newFastFoodOrders` | `userId` marchand | `updateOrders.service.js` | `{ message, data: order[] }` |
-| `fastFoodOrderUpdated` | `userId` marchand | `updateOrders.service.js` | `{ data: order }` |
+| `fastFoodOrderUpdated` | `userId` marchand | `updateOrders.service.js` | `{ data: order }` — **vue marchand** (prix réels + `customerTotal`, cf. [pricing.md](./pricing.md#ce-que-chaque-rôle-voit)) |
 | `fastFoodOrdersUpdated` | `userId` marchand | `updateOrdersField.service.js` | `{ message, field, orders: order[] }` |
-| `ordersRankUpdated` | `userId`/`fastFoodId` marchand | `updateOrdersRankByDate.service.js`, `rankQueue.service.js` | `{ message, orders: order[] }` |
+| `ordersRankUpdated` | `userId`/`fastFoodId` marchand | `updateOrdersRankByDate.service.js`, `rankQueue.service.js` | `{ message, orders: order[] }` — **vue marchand** |
 
 ### Délégation livreur (driver)
 
@@ -147,7 +147,7 @@ Détails feature : [ratings.md](./ratings.md).
 |---|---|---|---|
 | `payment.settled` | `userId` client | `mwVerdictService.js` | `{ status, transaction_id, amount, source }` |
 | `newTransaction` | `userId` (client ou marchand) | `postTransaction.service.js`, `mwVerdictService.js` | `{ message, data: transaction }` |
-| `wallet.credited` | `userId` marchand | `creditMerchant.service.js` | `{ transactionId, type:'merchant_credit', direction:'payin', amount, grossAmount, mwCommission, yaammooFee, name, fastFoodId, relatedOrderId, createdAt }` |
+| `wallet.credited` | `userId` marchand | `creditMerchant.service.js` | `{ transactionId, type:'merchant_credit', direction:'payin', amount, grossAmount, name, fastFoodId, relatedOrderId, createdAt }` — `mwCommission` / `yaammooFee` retirés (plus de retenue au crédit marchand, cf. [wallet.md](./wallet.md)) |
 | `wallet.withdrawal` | `userId` marchand | `withdraw.service.js`, `webhookPayout.service.js` | `{ withdrawalId, type:'withdrawal', direction:'payout', amount, status, network, newBalance?, reason? }` |
 
 ### Bonus (fidélité)

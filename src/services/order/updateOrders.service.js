@@ -16,6 +16,7 @@
 
 const repos = require('../../repositories');
 const { getIO } = require('../../socket');
+const { toMerchantView, toMerchantViewOne } = require('./toMerchantView');
 const { validateOrder } = require('../../utils/validator/validateOrder');
 const { getFastFoodService } = require('../fastfood/getFastFood');
 const { assignRank, reindexQueue } = require('./rankQueue.service');
@@ -240,10 +241,14 @@ exports.updateOrders = async (orders, userId) => {
         });
 
         if (pendingOrders.length > 0) {
-          reliableEmit(io, fastfood.userId, 'newFastFoodOrders', {
-            message: pendingOrders.length > 1 ? 'Nouvelles commandes' : 'Nouvelle commande',
-            data: pendingOrders,
-          }).catch(e => console.warn('[updateOrders] reliableEmit newFastFoodOrders:', e.message));
+          toMerchantView(pendingOrders)
+            .then(merchantOrders =>
+              reliableEmit(io, fastfood.userId, 'newFastFoodOrders', {
+                message: pendingOrders.length > 1 ? 'Nouvelles commandes' : 'Nouvelle commande',
+                data: merchantOrders,
+              }),
+            )
+            .catch(e => console.warn('[updateOrders] reliableEmit newFastFoodOrders:', e.message));
           pendingOrders.forEach(order => {
             reliableEmit(io, order.userId, 'userOrderUpdated', { data: order }).catch(e => console.warn('[updateOrders] reliableEmit userOrderUpdated:', e.message));
           });
@@ -278,7 +283,7 @@ exports.updateOrders = async (orders, userId) => {
           }
           if (order.status !== 'pending') {
             reliableEmit(io, order.userId, 'userOrderUpdated', { data: order }).catch(e => console.warn('[updateOrders] reliableEmit userOrderUpdated:', e.message));
-            reliableEmit(io, fastfood.userId, 'fastFoodOrderUpdated', { data: order }).catch(e => console.warn('[updateOrders] reliableEmit fastFoodOrderUpdated:', e.message));
+            toMerchantViewOne(order).then(view => reliableEmit(io, fastfood.userId, 'fastFoodOrderUpdated', { data: view })).catch(e => console.warn('[updateOrders] reliableEmit fastFoodOrderUpdated:', e.message));
           }
         });
 

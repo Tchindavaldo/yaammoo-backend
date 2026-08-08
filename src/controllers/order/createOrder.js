@@ -1,4 +1,5 @@
 const { getIO } = require('../../socket');
+const { toMerchantViewOne } = require('../../services/order/toMerchantView');
 const { createOrderService } = require('../../services/order/createOrder');
 const { getFastFoodService } = require('../../services/fastfood/getFastFood');
 const { validateOrder } = require('../../utils/validator/validateOrder');
@@ -27,7 +28,8 @@ exports.createOrder = async (req, res) => {
     }
 
     // Socket client `newUserOrder` émis dans createOrderService (reliableEmit, rejeu hors-ligne)
-    if (orderData.status !== 'pendingToBuy') io.to(fastfood.userId).emit('newFastFoodOrder', { message: 'Nouvelle commande fastfood ajoutée', data: orderData });
+    // Vue MARCHAND : prix réels et montant encaissé, jamais le prix client.
+    if (orderData.status !== 'pendingToBuy') io.to(fastfood.userId).emit('newFastFoodOrder', { message: 'Nouvelle commande fastfood ajoutée', data: await toMerchantViewOne(orderData) });
     res.status(201).json({ message: 'Commande ajoutée avec succès.', data: orderData });
   } catch (error) {
     // console.error('Erreur ajout commande :', error);

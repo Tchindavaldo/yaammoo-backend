@@ -18,6 +18,7 @@ const { reliableEmit } = require('../../utils/reliableEmit');
 const { validateOrder } = require('../../utils/validator/validateOrder');
 const { settleDeliveryService } = require('./settleDelivery.service');
 const { enrichMenuForClient } = require('../menu/enrichMenuForClient');
+const { toMerchantView } = require('./toMerchantView');
 
 exports.createOrderService = async order => {
   // Validation au niveau service : garantit qu'aucun chemin d'appel
@@ -90,10 +91,14 @@ exports.createOrderService = async order => {
       if (merchantUserId) {
         // Socket temps réel fiable : boutique du marchand se met à jour en live
         // (rejoué au reconnect si le marchand est hors ligne)
-        reliableEmit(getIO(), merchantUserId, 'newFastFoodOrders', {
-          message: 'Nouvelle commande',
-          data: [createdOrder],
-        }).catch(e => console.warn('[createOrder] reliableEmit newFastFoodOrders:', e.message));
+        toMerchantView([createdOrder])
+          .then(merchantOrders =>
+            reliableEmit(getIO(), merchantUserId, 'newFastFoodOrders', {
+              message: 'Nouvelle commande',
+              data: merchantOrders,
+            }),
+          )
+          .catch(e => console.warn('[createOrder] reliableEmit newFastFoodOrders:', e.message));
 
         await notifyOrderEvent({
           targetUserId: merchantUserId,

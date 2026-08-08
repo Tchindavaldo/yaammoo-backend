@@ -21,30 +21,40 @@ exports.menuFields = {
       properties: {
         price: { type: 'number', required: true },
         description: { type: 'string', required: false },
+        // Prix RÉEL du fastfood, servi à côté du prix affiché par
+        // `applyDisplayPricing`. Le front le renvoie dans la commande pour
+        // figer le prix de l'époque (vue marchand). Jamais utilisé dans un
+        // calcul d'argent : le montant payé reste contrôlé sur `price`.
+        rawPrice: { type: 'number', required: false },
       },
     },
   },
+  // Optionnels : une commande transporte le menu, mais pas son catalogue
+  // d'options — la sélection du client vit dans `order.extra` / `order.drink`.
+  // Les renvoyer ici serait un doublon inutile.
   extra: {
     type: 'array',
-    required: true,
+    required: false,
     items: {
       type: 'object',
       properties: {
         name: { type: 'string', required: true },
         status: { type: 'boolean', required: true },
         prix: { type: 'number', required: false },
+        rawPrice: { type: 'number', required: false },
       },
     },
   },
   drink: {
     type: 'array',
-    required: true,
+    required: false,
     items: {
       type: 'object',
       properties: {
         name: { type: 'string', required: true },
         status: { type: 'boolean', required: true },
         prix: { type: 'number', required: false },
+        rawPrice: { type: 'number', required: false },
         quantite: { type: 'number', required: false },
       },
     },

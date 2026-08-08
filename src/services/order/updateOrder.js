@@ -2,6 +2,7 @@
 // updateOrderService — Façade vers l'orchestrateur
 // ============================================================================
 const repos = require('../../repositories');
+const { toMerchantViewOne } = require('./toMerchantView');
 const { getIO } = require('../../socket');
 const { validateOrder } = require('../../utils/validator/validateOrder');
 const { getFastFoodService } = require('../fastfood/getFastFood');
@@ -62,7 +63,7 @@ exports.updateOrderService = async (orderId, updateData) => {
     const io = getIO();
     await reliableEmit(io, updatedOrder.userId, 'userOrderUpdated', { data: updatedOrder });
     if (fastFood?.userId) {
-      await reliableEmit(io, fastFood.userId, 'fastFoodOrderUpdated', { data: updatedOrder });
+      await reliableEmit(io, fastFood.userId, 'fastFoodOrderUpdated', { data: await toMerchantViewOne(updatedOrder) });
     }
 
     // Une annulation sort la commande du solde bonus (statuts exclus du brut) :
