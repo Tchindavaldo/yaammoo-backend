@@ -314,8 +314,36 @@ Le barème étant à seuil, découper coûte toujours plus cher que regrouper :
 | 2 × 3000 | 54 + 54 = 108 | 6000 → 76 | 32 |
 | 2 × 5000 | 64 + 64 = 128 | 10 000 → 124 | 4 |
 
-La vue marchand suit la même règle : `withdrawalFee` n'est renseigné que sur une
-commande par boutique.
+### Comment le front sait qui porte le frais
+
+Trois champs, à la racine de la commande — même lecture que la course :
+
+| Champ | Sens |
+|---|---|
+| `withdrawalGroupId` | commandes partageant la même ponction |
+| `withdrawalFeeBilled` | `true` sur celle qui la porte |
+| `withdrawalFee` | le montant, `0` sur les autres |
+
+Sans eux, un `withdrawalFee: 0` serait ambigu : groupé ? réglages illisibles ?
+réellement nul ? C'est exactement le rôle de `courseBilled` pour la livraison.
+
+> ⚠️ La clé est **`groupId + fastFoodId`**, pas `fastFoodId` seul. Un panier chez
+> deux boutiques vide DEUX portefeuilles, donc deux ponctions ; et deux paniers
+> passés des jours différents chez la même boutique sont deux paiements
+> distincts, donc deux ponctions aussi.
+
+Panier chez deux boutiques :
+
+```
+panier_1|ff1  →  A  withdrawalFee 65, billed true
+                 B  withdrawalFee  0, billed false
+panier_1|ff2  →  C  withdrawalFee 54, billed true
+```
+
+> Le regroupement s'arrête au panier. Si le marchand attend et retire plusieurs
+> paniers d'un coup, il ne paiera qu'un forfait au lieu de N — l'écart reste à la
+> plateforme. Aller plus loin est impossible au moment de la commande : on ne
+> sait ni quand il retirera, ni ce qu'il aura accumulé d'ici là.
 
 ### Ce que trace `order_settlements`
 

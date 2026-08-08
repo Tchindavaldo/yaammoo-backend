@@ -131,13 +131,19 @@ exports.toMerchantView = async orders => {
   // ferait croire au marchand qu'il paiera N forfaits pour un seul retrait.
   // Groupé sur `fastFoodId` SEUL : le retrait ne dépend ni de la zone, ni du
   // créneau, ni du mode de livraison.
+  //
+  // La clé est `groupId + fastFoodId` : un panier chez DEUX boutiques fait deux
+  // retraits, alors qu'il n'a qu'un seul `groupId`. Se contenter du panier
+  // ferait porter une seule ponction pour les deux portefeuilles.
+  const withdrawalKeyOf = order => `${order?.groupId ?? order?.id}|${order?.fastFoodId ?? ''}`;
+
   const withdrawalHolder = {};
-  const chargedByFastFood = {};
+  const chargedByKey = {};
   for (const order of list) {
-    const ff = order.fastFoodId;
-    if (!ff) continue;
-    if (withdrawalHolder[ff] === undefined) withdrawalHolder[ff] = order.id;
-    chargedByFastFood[ff] = (chargedByFastFood[ff] || 0) + toNumber(order.total);
+    if (!order?.fastFoodId) continue;
+    const key = withdrawalKeyOf(order);
+    if (withdrawalHolder[key] === undefined) withdrawalHolder[key] = order.id;
+    chargedByKey[key] = (chargedByKey[key] || 0) + toNumber(order.total);
   }
 
   return list.map(order => {
@@ -151,6 +157,7 @@ exports.toMerchantView = async orders => {
     const course = holdsCourse ? toNumber(order.delivery?.prix) : 0;
 
     const items = settlement ? toNumber(settlement.itemsReal) : rawItemsTotal(order);
+    const holdsWithdrawal = !!order?.fastFoodId && withdrawalHolder[withdrawalKeyOf(order)] === order.id;
 
     return {
       ...order,
@@ -160,8 +167,13 @@ exports.toMerchantView = async orders => {
       total: items + course,
       customerTotal,
       // Ce que coûtera le retrait de ce montant chez l'opérateur.
-      withdrawalFee:
-        pricing && withdrawalHolder[order.fastFoodId] === order.id ? withdrawalFee(chargedByFastFood[order.fastFoodId], pricing.withdrawalFees, order?.network ?? order?.payBy) : 0,
+      // Frais de retrait — même lecture que la course : `withdrawalFeeBilled`
+      // dit QUI le porte, `withdrawalGroupId` relie les commandes qui le
+      // partagent. Sans eux, un `withdrawalFee: 0` serait ambigu (groupé ?
+      // réglages illisibles ? réellement nul ?).
+      withdrawalGroupId: order?.fastFoodId ? withdrawalKeyOf(order) : null,
+      withdrawalFeeBilled: holdsWithdrawal,
+      withdrawalFee: holdsWithdrawal && pricing ? withdrawalFee(chargedByKey[withdrawalKeyOf(order)], pricing.withdrawalFees, order?.network ?? order?.payBy) : 0,
     };
   });
 };

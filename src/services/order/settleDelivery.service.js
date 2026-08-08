@@ -123,23 +123,25 @@ exports.settleDeliveryService = async ({ orders, bonusCode }) => {
     // ⚠️ Groupé par `fastFoodId` SEUL, pas par `deliveryGroupKey` : le retrait
     // ne dépend ni de la zone, ni du créneau, ni du mode de livraison — c'est
     // le portefeuille de la boutique qui se vide, tous départs confondus.
-    const chargedByFastFood = {};
+    // Clé : `groupId + fastFoodId`. Un panier chez DEUX boutiques n'a qu'un
+    // `groupId` mais vide DEUX portefeuilles — donc deux ponctions.
+    const withdrawalKeyOf = order => `${order?.groupId ?? order?.id}|${order?.fastFoodId ?? ''}`;
+
+    const netByKey = {};
+    const orderByKey = {};
     for (const order of list) {
-      const ff = order.fastFoodId;
-      if (!ff) continue;
+      if (!order?.fastFoodId) continue;
+      const key = withdrawalKeyOf(order);
       const charged = toNumber(order.total);
-      const fee = feeIncludedIn(charged, pricing.paymentFeePercent);
-      chargedByFastFood[ff] = (chargedByFastFood[ff] || 0) + (charged - fee);
+      netByKey[key] = (netByKey[key] || 0) + (charged - feeIncludedIn(charged, pricing.paymentFeePercent));
+      if (orderByKey[key] === undefined) orderByKey[key] = order;
     }
-    const withdrawalByFastFood = {};
-    for (const [ff, netCharged] of Object.entries(chargedByFastFood)) {
-      withdrawalByFastFood[ff] = withdrawalFee_(netCharged, pricing, list.find(o => o.fastFoodId === ff));
-    }
-    // Qui porte le frais : la première commande rencontrée de la boutique.
+    const withdrawalByKey = {};
+    // Qui porte le frais : la première commande rencontrée du groupe.
     const withdrawalHolder = {};
-    for (const order of list) {
-      const ff = order.fastFoodId;
-      if (ff && withdrawalHolder[ff] === undefined) withdrawalHolder[ff] = order.id;
+    for (const [key, net] of Object.entries(netByKey)) {
+      withdrawalByKey[key] = withdrawalFee_(net, pricing, orderByKey[key]);
+      withdrawalHolder[key] = orderByKey[key].id;
     }
 
     for (const order of list) {
@@ -185,7 +187,9 @@ exports.settleDeliveryService = async ({ orders, bonusCode }) => {
       const afterPaymentFee = itemsCharged - paymentFee;
       // Le retrait porte sur ce qui reste APRÈS la commission — et il est dû
       // UNE fois pour toute la boutique, pas une fois par commande.
-      const withdrawalFee = withdrawalHolder[ffId] === order.id ? toNumber(withdrawalByFastFood[ffId]) : 0;
+      const withdrawalKey = withdrawalKeyOf(order);
+      const holdsWithdrawal = withdrawalHolder[withdrawalKey] === order.id;
+      const withdrawalFee = holdsWithdrawal ? toNumber(withdrawalByKey[withdrawalKey]) : 0;
       const net = Math.max(0, afterPaymentFee - withdrawalFee);
       const qty = Math.max(1, toNumber(order.quantity) || 1);
       const marginDue = toNumber(pricing.platformMargin) * qty;
