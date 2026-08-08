@@ -33,7 +33,7 @@ BACKEND/src/
 
 | Méthode | Path | Controller | Description |
 |---|---|---|---|
-| GET | `/order/all/:fastFoodId` | `getOrders` | Commandes d'une boutique |
+| GET | `/order/all/:fastFoodId` | `getOrders` | Commandes d'une boutique (statuts marchand only, voir ci-dessous) |
 | GET | `/order/user/all/:userId` | `getUsersOrders` | Commandes d'un client |
 | GET | `/order/driver/:driverId` | `getDriverOrders` | Commandes assignées à un livreur |
 | POST | `/order` | `createOrder` | Créer une commande |
@@ -101,6 +101,20 @@ Client et livreur gardent les prix affichés.
 Bascule : `services/order/toMerchantView.js`. Détail des champs, rôle par rôle et
 règle « une seule course par départ » :
 **[pricing.md](./pricing.md#ce-que-chaque-rôle-voit)**.
+
+### Statuts servis au marchand (filtre)
+
+`GET /order/all/:fastFoodId` ne renvoie que les statuts :
+`pending`, `processing`, `finished`, `delivering`, `delivered`.
+
+Sont **exclus** :
+- `pendingToBuy` — panier client non validé, la boutique n'a pas à le voir ;
+- `cancelByUser` / `cancelByFastFood` — commandes annulées.
+
+Le filtre est appliqué **côté DB** dans `services/order/getOrders.js`
+(constante `MERCHANT_VISIBLE_STATUS`, via `repos.orders.query({ fastFoodId, status })`).
+`repos.orders.getByFastFood` reste sans filtre : les stats
+(`getFastFoodDeliveryStats.service.js`) et les notes menu en ont besoin.
 
 ### Panier libre — aucune contrainte d'uniformité
 

@@ -136,7 +136,10 @@ function displaySurcharge(fastfood, platformMargin, deliveryType) {
 // 'fastfood' : régime historique — zone la plus chère, aucun arrondi.
 // 'platform' : zones PLATEFORME, prix calé sur un multiple du pas d'arrondi,
 //              la course du livreur absorbe la baisse (dans la limite fixée).
+const DELIVERY_BY_FASTFOOD = 'fastfood';
 const DELIVERY_BY_PLATFORM = 'platform';
+/** Valeurs acceptées par `fastfoods.delivery_by` (contrainte SQL, migration 037). */
+const DELIVERY_BY_VALUES = [DELIVERY_BY_FASTFOOD, DELIVERY_BY_PLATFORM];
 
 /** Vrai si la plateforme assure elle-même la livraison de cette boutique. */
 function isPlatformDelivered(fastfood) {
@@ -358,6 +361,7 @@ function splitDeliveryAmounts({ fastfood, zone, deliveryType, platformMargin, qu
 module.exports = {
   MENU_PRICES_FIELD,
   DELIVERY_BY_PLATFORM,
+  DELIVERY_BY_VALUES,
   isPlatformDelivered,
   deliverySource,
   withAllFees,
