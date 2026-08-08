@@ -29,9 +29,12 @@ exports.menuFields = {
       },
     },
   },
+  // Optionnels : une commande transporte le menu, mais pas son catalogue
+  // d'options — la sélection du client vit dans `order.extra` / `order.drink`.
+  // Les renvoyer ici serait un doublon inutile.
   extra: {
     type: 'array',
-    required: true,
+    required: false,
     items: {
       type: 'object',
       properties: {
@@ -44,7 +47,7 @@ exports.menuFields = {
   },
   drink: {
     type: 'array',
-    required: true,
+    required: false,
     items: {
       type: 'object',
       properties: {
