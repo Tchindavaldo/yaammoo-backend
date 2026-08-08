@@ -218,10 +218,46 @@ Plat 2000, zone 500, marge 100, **quantité 2** :
 
 `fastfoods.deliveryBy` — **décidé par l'admin**, jamais par la boutique.
 
-| Valeur | Zones utilisées | Prix affiché | Course |
-|---|---|---|---|
-| `fastfood` (défaut) | `deliveryHours` de la boutique | exact, aucun arrondi | versée au fastfood |
-| `platform` | `platformDeliveryHours` | calé sur un multiple de `price_rounding_step` | versée au LIVREUR |
+| Valeur | Zones utilisées | Base du prix affiché | Prix affiché | Course |
+|---|---|---|---|---|
+| `fastfood` (défaut) | `deliveryHours` de la boutique | max des DEUX listes | exact, aucun arrondi | versée au fastfood |
+| `platform` | `platformDeliveryZones` | **périodique seul** | calé sur `price_rounding_step` | versée au LIVREUR |
+
+`platformDeliveryZones` a **exactement** la même forme que `deliveryHours` —
+`periodicZones` ET `expressZones` par créneau. Le front n'a qu'une structure à
+connaître, et `collectZones` / `maxDeliveryPrice` / `zoneDeliveryPrice`
+fonctionnent dessus sans rien savoir du régime.
+
+> ⚠️ En régime plateforme, l'affichage se base sur le **périodique**. Un client
+> qui choisit l'express paie son supplément en connaissance de cause ; caler le
+> catalogue entier sur l'express gonflerait tous les prix pour un mode que la
+> plupart ne prendront pas. En régime fastfood, on garde le max des deux listes.
+
+> ⚠️ **La course du livreur est PLAFONNÉE au tarif de la zone.** Il absorbe la
+> baisse quand on arrondit vers le bas (dans la limite de
+> `driver_amortization_max`), mais n'encaisse jamais la hausse : un arrondi vers
+> le haut est un surplus payé par le client, il revient à la plateforme.
+> Sans ce plafond, un plat à 3500 arrondi de 4110 à 4500 versait 619 F au livreur
+> pour une course qui en vaut 250.
+
+### Grille en régime plateforme
+
+Marge 100, périodique 250, commission 5 %, retrait MTN :
+
+| Plat | Prix juste | Client paie | Livreur | Marge |
+|---|---|---|---|---|
+| 1000 | 1478 | 1500 | 250 | **121** |
+| 1500 | 2005 | 2000 | 246 | 100 |
+| 2000 | 2531 | 2500 | 221 | 100 |
+| 2500 | 3057 | 3000 | 196 | 100 |
+| 3000 | 3584 | 3500 | 171 | 100 |
+| 3500 | 4110 | 4500 | 250 | **469** |
+| 4000 | 4639 | 5000 | 250 | **439** |
+| 5000 | 5705 | 6000 | 250 | **377** |
+
+Le fastfood touche son prix exact sur toute la grille, la marge n'est jamais
+entamée. Quand on descend, le livreur absorbe ; quand on monte, la plateforme
+encaisse.
 
 ### Les frais de retrait entrent dans le prix
 

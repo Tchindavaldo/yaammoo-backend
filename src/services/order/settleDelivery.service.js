@@ -215,7 +215,14 @@ exports.settleDeliveryService = async ({ orders, bonusCode }) => {
       // `driver_amortization_max`, appliquée au moment de composer le prix.
       // En régime fastfood, la course est due au tarif de la zone, sans
       // amortissement — le champ trace alors ce qui est versé.
-      const driverAmount = platformDelivered ? Math.max(0, net - itemsReal - marginDue) : amounts.courseBilled ? amounts.realPrice : 0;
+      // ⚠️ PLAFONNÉ au tarif de la zone. Le livreur ABSORBE la baisse quand on
+      // arrondit vers le bas (dans la limite de `driver_amortization_max`),
+      // mais il n'ENCAISSE jamais la hausse : un arrondi vers le haut est un
+      // surplus payé par le client, il revient à la plateforme.
+      //
+      // Sans ce plafond, un plat à 3500 arrondi de 4110 à 4500 versait 619 F au
+      // livreur pour une course qui en vaut 250 — la plateforme payait l'écart.
+      const driverAmount = platformDelivered ? Math.min(amounts.realPrice, Math.max(0, net - itemsReal - marginDue)) : amounts.courseBilled ? amounts.realPrice : 0;
 
       // ── 1. Le règlement : une ligne par commande, TOUJOURS ────────────────
       try {

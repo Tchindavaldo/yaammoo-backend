@@ -18,7 +18,7 @@
 --
 --      'fastfood'  → régime actuel : zone la plus chère, aucun arrondi, la
 --                    course n'est pas amortie.
---      'platform'  → zones PLATEFORME (`fastfoods.platform_delivery_hours`),
+--      'platform'  → zones PLATEFORME (`fastfoods.platform_delivery_zones`),
 --                    prix affiché calé sur un multiple de `price_rounding_step`.
 --                    Descendre plutôt que monter tant que le manque reste sous
 --                    `driver_amortization_max` : c'est la course du livreur qui
@@ -70,7 +70,7 @@ ALTER TABLE fastfoods
 -- Zones de livraison PLATEFORME. Même forme que `delivery_hours` (periodicZones
 -- / expressZones par créneau) : le front n'a qu'une structure à connaître.
 ALTER TABLE fastfoods
-  ADD COLUMN IF NOT EXISTS platform_delivery_hours JSONB DEFAULT '[]'::jsonb;
+  ADD COLUMN IF NOT EXISTS platform_delivery_zones JSONB DEFAULT '[]'::jsonb;
 
 DO $$
 BEGIN

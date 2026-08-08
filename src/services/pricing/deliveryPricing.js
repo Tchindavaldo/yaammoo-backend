@@ -120,9 +120,16 @@ function zoneDeliveryPrice(fastfood, zoneName, deliveryType) {
   return zone ? toNumber(zone.prix) : maxDeliveryPrice(fastfood, deliveryType);
 }
 
-/** Supplément intégré au prix d'un plat, avant frais : livraison + marge. */
-function displaySurcharge(fastfood, platformMargin) {
-  return maxDeliveryPrice(fastfood) + toNumber(platformMargin);
+/**
+ * Supplément intégré au prix d'un plat, avant frais : livraison + marge.
+ *
+ * @param {string} [deliveryType] restreint la recherche à une liste de zones.
+ *   Omis (régime fastfood) : le maximum des DEUX listes, le user n'ayant pas
+ *   encore choisi son mode. `'time'` (régime plateforme) : le PÉRIODIQUE seul —
+ *   l'express y est un supplément assumé, pas la base du prix affiché.
+ */
+function displaySurcharge(fastfood, platformMargin, deliveryType) {
+  return maxDeliveryPrice(fastfood, deliveryType) + toNumber(platformMargin);
 }
 
 // ── Qui livre la boutique (migration 037) ──────────────────────────────────
@@ -146,7 +153,7 @@ function isPlatformDelivered(fastfood) {
  */
 function deliverySource(fastfood) {
   if (!isPlatformDelivered(fastfood)) return fastfood;
-  return { ...fastfood, deliveryHours: fastfood?.platformDeliveryHours || [] };
+  return { ...fastfood, deliveryHours: fastfood?.platformDeliveryZones || [] };
 }
 
 /**
@@ -268,7 +275,11 @@ function applyDisplayPricing(fastfood, pricing, raw = false) {
   // Livraison PLATEFORME : les zones facturées sont celles de la plateforme.
   const platformDelivered = isPlatformDelivered(fastfood);
   const source = deliverySource(fastfood);
-  const surcharge = displaySurcharge(source, platformMargin);
+  // Régime PLATEFORME : le prix affiché se base sur le tarif PÉRIODIQUE. Un
+  // client qui choisit l'express paie le supplément en connaissance de cause —
+  // caler l'affichage sur l'express gonflerait le prix de tout le catalogue
+  // pour un mode que la plupart ne prendront pas.
+  const surcharge = displaySurcharge(source, platformMargin, platformDelivered ? 'time' : undefined);
 
   // Le pas d'arrondi ne vaut QUE pour la livraison plateforme : c'est là que la
   // course du livreur peut absorber la baisse. En régime fastfood, le prix
@@ -284,7 +295,7 @@ function applyDisplayPricing(fastfood, pricing, raw = false) {
   // et le front n'a rien à recalculer.
   const meta = {
     surcharge,
-    maxDeliveryPrice: maxDeliveryPrice(source),
+    maxDeliveryPrice: maxDeliveryPrice(source, platformDelivered ? 'time' : undefined),
     platformMargin,
     paymentFeePercent: feePercent,
     deliveryBy: platformDelivered ? DELIVERY_BY_PLATFORM : 'fastfood',

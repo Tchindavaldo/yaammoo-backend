@@ -122,6 +122,20 @@ const options = {
               nullable: true,
               description: 'Index (base 1) du prix retenu dans `menu.prices[]`.',
             },
+            withdrawalFee: {
+              type: 'number',
+              description:
+                "Vue MARCHAND : cout du retrait de cet argent chez l'operateur. UNE ponction par panier ET par boutique — renseigne sur une seule commande du groupe (`withdrawalFeeBilled: true`), 0 sur les autres.",
+            },
+            withdrawalGroupId: {
+              type: 'string',
+              nullable: true,
+              description: 'Vue MARCHAND : relie les commandes partageant une meme ponction de retrait. Pendant de `deliveryGroupId` pour la course.',
+            },
+            withdrawalFeeBilled: {
+              type: 'boolean',
+              description: 'Vue MARCHAND : true sur la commande qui porte la ponction de retrait du groupe. Leve toute ambiguite sur un `withdrawalFee` a 0.',
+            },
             customerTotal: {
               type: 'number',
               description:
@@ -259,6 +273,17 @@ const options = {
             orderLeadTime: { type: 'number', description: 'Délai avant livraison (minutes).' },
             advanceDays: { type: 'number' },
             pickupAllowed: { type: 'boolean', description: "true = le user peut venir récupérer sur place. N'exclut PAS la livraison." },
+            deliveryBy: {
+              type: 'string',
+              enum: ['fastfood', 'platform'],
+              description:
+                "Qui livre cette boutique — decide par l'ADMIN, jamais par le marchand. 'fastfood' : zones de la boutique, prix exact, course versee au marchand. 'platform' : zones de `platformDeliveryZones`, prix cale sur un multiple de `price_rounding_step`, course versee au livreur.",
+            },
+            platformDeliveryZones: {
+              type: 'array',
+              description: "Zones de livraison de la PLATEFORME. Meme forme que `deliveryHours` (periodicZones ET expressZones par creneau). Utilisees seulement quand deliveryBy = 'platform'.",
+              items: { type: 'object' },
+            },
             cities: { type: 'array', items: { type: 'string' } },
             deliveryHours: {
               type: 'array',
