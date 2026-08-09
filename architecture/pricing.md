@@ -39,32 +39,96 @@ reste, aller directement dans le module concerné — ne pas chercher ici :
 
 ## Composition du prix affiché
 
+Le supplément fondu dans le plat **dépend du régime de livraison** :
+
 ```
-base            = prix fastfood + livraison LA PLUS CHÈRE + marge
-plat affiché    = ceil( (base + frais de retrait) / (1 − commission) )
+régime FASTFOOD   base = prix fastfood + marge (par palier)
+régime PLATEFORME base = prix fastfood + zone PÉRIODIQUE + marge de base
+
+plat affiché    = ceil( (base + frais de retrait) / (1 − commission) ) ↑ pas de 500
 extra affiché   = ceil( (prix extra   + frais de retrait) / (1 − commission) )
 boisson affiché = ceil( (prix boisson + frais de retrait) / (1 − commission) )
 ```
 
-### ⚠️ Deux livraisons différentes — ne jamais les confondre
+Extras et boissons ne portent **ni marge, ni livraison, ni arrondi** : le plat les
+porte une fois, sinon chaque supplément ajouterait une marge de plus.
 
-C'est le piège n°1 de cette feature. Il y a **deux** montants de livraison, qui
-ne jouent pas le même rôle :
+### ⚠️ La course n'est PAS dans le prix du plat
 
-|                                     | Montant                                   | Où il vit                                          | À qui il sert                                                                                |
-| ----------------------------------- | ----------------------------------------- | -------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| **Zone MAX**                        | la plus chère des zones de la boutique    | **fondue dans le prix du plat**, avant la division | matelas : elle couvre n'importe quelle zone, et ce qui n'est pas consommé reste en **marge** |
-| **Course réelle** (`delivery.prix`) | le tarif de la zone effectivement choisie | **ajoutée au total**, en clair, après coup         | c'est elle qui est **versée** (au fastfood ou au livreur)                                    |
+C'est le piège n°1 de cette feature. Le prix du plat ne contient **jamais** la
+course réellement due :
 
 ```
 total payé = plat affiché + delivery.prix        (livraison due et NON offerte)
 total payé = plat affiché                        (livraison offerte, ou retrait)
 ```
 
-La zone max est fondue dans le plat parce que, sur le home, le user n'a pas
-encore choisi où il se fait livrer — le prix annoncé doit couvrir la zone la plus
-chère pour ne jamais manquer. La course réelle, elle, n'est connue qu'à la
-commande : elle s'ajoute donc à la fin, sans repasser par `/(1 − commission)`.
+Ce que le plat porte, selon le régime :
+
+| Régime     | Fondu dans le plat                        | Ce qui couvre la course                |
+| ---------- | ----------------------------------------- | -------------------------------------- |
+| `fastfood` | la **marge** seule                        | le **surplus d'arrondi** au pas de 500 |
+| `platform` | la zone **périodique** + la marge de base | la zone fondue                         |
+
+En régime `fastfood`, la zone n'entre plus dans le prix : fondre la zone la plus
+chère gonflait tout le catalogue pour couvrir un cas rare. C'est l'arrondi au pas
+qui prend le relais — le surplus absorbe la commission prélevée sur la course
+facturée à part. Voir [pricing-delivery-modes.md](./pricing-delivery-modes.md).
+
+### Marge par palier (migration 038)
+
+La marge n'est plus une constante : un plat cher la supporte plus élevée sans que
+le client la ressente en proportion. Le palier 2 **remplace** la marge de base
+(il ne s'y ajoute pas) dès que le prix **brut** l'atteint.
+
+```
+brut <  fastfood_margin_tier_2_min_brut (3500)  →  fastfood_margin              (200)
+brut >= fastfood_margin_tier_2_min_brut         →  fastfood_margin_tier_2_margin (300)
+```
+
+Seuil ou marge du palier à `0` = aucun palier, `fastfood_margin` partout.
+
+> ⚠️ `fastfood_margin` est **distincte** de `platform_margin` (qui reste à 100) :
+> le régime `fastfood` ne fond plus aucune zone dans le prix, sa marge doit donc
+> se suffire. Une clé unique aurait fait bouger les deux régimes ensemble.
+> `fastfood_margin` absent ou à `0` → repli sur `platform_margin`.
+
+> ⚠️ Le palier se décide sur le prix **brut** (`rawPrice`), jamais sur le prix
+> payé — celui-ci porte déjà la marge qu'on cherche à retrouver.
+
+### Un prix de menu doit financer sa livraison (migration 039)
+
+`services/pricing/menuPriceGuard.js` — appliqué à `POST /menu` et `PUT /menu`.
+
+Le surplus d'arrondi ne dépend **pas de la hauteur** du prix, mais de la position
+du prix juste dans le pas de 500 :
+
+```
+brut 640 → juste  942 → affiché 1000 → surplus  58 → couvre 1160  ✅
+brut 660 → juste  963 → affiché 1000 → surplus  37 → couvre  740  ❌
+brut 700 → juste 1005 → affiché 1500 → surplus 495 → couvre 9900  ✅
+```
+
+`fastfood_min_covered_course` (1400) fixe ce qu'un plat doit couvrir **seul**.
+Environ **14 %** des prix bruts sont refusés — des bandes de ~70 F juste sous
+chaque palier, **pas un plafond**. Le message suggère les deux prix voisins
+valides :
+
+> Le prix 660 ne permet pas de couvrir les frais de livraison (740 F couverts au
+> lieu de 1400). Prix proches valides : 620 ou 700.
+
+> ⚠️ Un plafond fixe ne protégerait de rien : il laisserait passer 8990
+> (surplus 98) et bloquerait 9100 (surplus 482).
+
+**Aucun plafond sur les ZONES** : sur une commande normale la course est payée
+par le client ; sur une gratuité, c'est le minimum de plats qui protège
+(cf. [bonus-delivery-offer.md](./bonus-delivery-offer.md)). 1400 est donc le prix
+de livraison qu'un **seul** plat couvre toujours — au-delà, la couverture dépend
+du plat (1 480 à 7 640 selon le brut).
+
+Contrôle **sauté** en régime `platform`, si le réglage vaut `0`, et sur une
+édition qui ne touche pas aux prix. Les menus **déjà en base** ne sont pas
+touchés : ils ne sont corrigés qu'à leur prochaine modification.
 
 Détail du recalcul serveur (offert vs non offert, panier groupé, tous les cas
 vérifiés) : **[payment-amount-check.md](./payment-amount-check.md)**.
@@ -91,10 +155,6 @@ Les prix RÉELS des menus sont dans **`prices[]`** (`{price, description}`), pas
 dans `prix1/prix2/prix3` — ces colonnes existent dans le mapper mais sont NULL
 sur toute la base.
 
-**Le supplément livraison + marge n'est porté que par le plat.** Extras et
-boissons ne portent que leurs propres frais — sinon chaque supplément ajouterait
-une livraison de plus.
-
 > ⚠️ **`pickupAllowed` n'entre pas dans le calcul.** Ce champ dit que le client
 > _peut venir récupérer sur place_, pas que la boutique refuse de livrer. Une
 > boutique qui ne livre pas ne déclare simplement aucune zone → supplément à 0.
@@ -103,29 +163,34 @@ une livraison de plus.
 
 ### Exemple de référence — régime `fastfood`
 
-Plat brut 2000, zones 500 / 800 / 1000, marge 100, commission 5 %, retrait MTN 54.
-Le user choisit la zone à **500**.
+Plat brut 2000, marge 200 (palier 1), commission 5 %, retrait MTN 54, pas 500.
+Le user choisit une zone à **250**.
 
-| Étape                             | Montant                                 |
-| --------------------------------- | --------------------------------------- |
-| base                              | 2000 + **1000** (zone max) + 100 = 3100 |
-| + frais de retrait                | 3154                                    |
-| **Plat affiché**                  | `ceil(3154 / 0,95)` = **3320**          |
-| + course réelle (`delivery.prix`) | **500**                                 |
-| **Le client paie**                | **3820**                                |
+| Étape                             | Montant                       |
+| --------------------------------- | ----------------------------- |
+| base                              | 2000 + **200** (marge) = 2200 |
+| + frais de retrait                | 2254                          |
+| prix juste                        | `ceil(2254 / 0,95)` = 2373    |
+| **Plat affiché**                  | `2373 ↑ 500` = **2500**       |
+| + course réelle (`delivery.prix`) | **250**                       |
+| **Le client paie**                | **2750**                      |
 
 Répartition de ce qui est encaissé :
 
 |                                            | Montant  |
 | ------------------------------------------ | -------- |
-| Commission agrégateur (5 % de 3820)        | 191      |
+| Commission agrégateur (5 % de 2750)        | 138      |
 | Frais de retrait                           | 54       |
-| **Le fastfood touche** (2000 + course 500) | **2500** |
-| **Yaammoo garde**                          | **1075** |
+| **Le fastfood touche** (2000 + course 250) | **2250** |
+| **Yaammoo garde**                          | **308**  |
 
-Les 1075 : zone max 1000 + marge 100 − 25 (commission prise sur la course).
-La course encaissée finance exactement la course versée ; l'écart de zone
-(1000 − 500) et la marge restent entiers.
+Les 308 = marge 200 + surplus d'arrondi 127 − commission prise sur la course.
+Le surplus est ce qui rend la course « gratuite » pour la marge : tant qu'il
+dépasse `5 % × course`, la marge de base est intacte.
+
+> Ancien calcul (avant migration 038) : la zone max était fondue dans le plat.
+> Zones 500/800/1000 → base `2000 + 1000 + 100`, plat affiché **3320**, et le
+> client payait 3570 pour la même commande.
 
 ### Express ou périodique — deux tarifs par lieu
 
@@ -156,16 +221,20 @@ base, et le réel comme le facturé sont stockés côte à côte
 
 Table clé/valeur (migration 019), lue via `services/settings/settings.service`.
 
-| Clé                                                | Défaut              | Rôle                                                                                                                                              |
-| -------------------------------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `platform_margin`                                  | 100                 | Marge Yaammoo ajoutée au prix affiché de chaque plat (FCFA)                                                                                       |
-| `payment_fee_percent`                              | 5                   | Commission de l'**agrégateur de paiement** (MobileWallet), en % du montant payé, **arrondi à l'entier supérieur**                                 |
-| `delivery_free_mode`                               | false               | Campagne « livraison offerte » globale                                                                                                            |
-| `apple_review_mode`                                | false               | Mode Apple Review exposé au frontend (migration 036) — voir [payment.md](./payment.md)                                                            |
-| `apple_version_review_mode`                        | `""`                | Version d'app exacte en review ; déclenche le bypass paiement (migration 036) — voir [payment.md](./payment.md)                                   |
-| `withdrawal_fee_mtn_*` / `withdrawal_fee_orange_*` | 4200 / 54 / 1.2 / 4 | Barème de retrait par **opérateur mobile** : `threshold`, `flat`, `percent`, `addend` (migration 037) — voir [pricing-fees.md](./pricing-fees.md) |
-| `price_rounding_step`                              | 500                 | Pas d'arrondi du prix affiché, en livraison PLATEFORME (migration 037)                                                                            |
-| `driver_amortization_max`                          | 100                 | Ce que la course peut absorber pour arrondir vers le bas (migration 037)                                                                          |
+| Clé                                                | Défaut              | Rôle                                                                                                                                                                   |
+| -------------------------------------------------- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `platform_margin`                                  | 100                 | Marge du régime **`platform`** uniquement (FCFA)                                                                                                                       |
+| `fastfood_margin`                                  | **200**             | Marge de base (palier 1) du régime **`fastfood`**. Clé distincte : les deux régimes ne composent pas le prix pareil. `0` = repli sur `platform_margin` (migration 038) |
+| `fastfood_margin_tier_2_min_brut`                  | 3500                | Prix **brut** à partir duquel la marge du palier 2 remplace `platform_margin`. `0` = aucun palier (migration 038)                                                      |
+| `fastfood_margin_tier_2_margin`                    | 300                 | Marge appliquée au palier 2. `0` = aucun palier (migration 038)                                                                                                        |
+| `fastfood_min_covered_course`                    | **1400**            | Course qu'un plat doit couvrir **seul** via son surplus d'arrondi. Refuse les prix de menu trop justes. `0` = aucune exigence (migration 039)                          |
+| `payment_fee_percent`                              | 5                   | Commission de l'**agrégateur de paiement** (MobileWallet), en % du montant payé, **arrondi à l'entier supérieur**                                                      |
+| `delivery_free_mode`                               | false               | Campagne « livraison offerte » globale                                                                                                                                 |
+| `apple_review_mode`                                | false               | Mode Apple Review exposé au frontend (migration 036) — voir [payment.md](./payment.md)                                                                                 |
+| `apple_version_review_mode`                        | `""`                | Version d'app exacte en review ; déclenche le bypass paiement (migration 036) — voir [payment.md](./payment.md)                                                        |
+| `withdrawal_fee_mtn_*` / `withdrawal_fee_orange_*` | 4200 / 54 / 1.2 / 4 | Barème de retrait par **opérateur mobile** : `threshold`, `flat`, `percent`, `addend` (migration 037) — voir [pricing-fees.md](./pricing-fees.md)                      |
+| `price_rounding_step`                              | 500                 | Pas d'arrondi du prix affiché, dans les **deux** régimes (migration 037, étendu en 038)                                                                                |
+| `driver_amortization_max`                          | 100                 | Ce que la course peut absorber pour arrondir vers le bas. **Régime `platform` seul** — en `fastfood` on ne descend jamais (migration 037)                              |
 
 > ⚠️ `payment_fee_percent` et `withdrawal_fee_*` sont **deux frais distincts** :
 > le premier est prélevé par l'agrégateur sur ce qu'il encaisse, le second par
@@ -244,3 +313,5 @@ src/
 | `026_order_deliveries_platform_margin.sql` | ajoute `platform_margin` à `order_deliveries` (manquait en prod : `CREATE TABLE IF NOT EXISTS` de la 020 n'altère pas une table existante) |
 | `036_settings_apple_review.sql`            | `apple_review_mode` + `apple_version_review_mode` — sort le mode Apple Review de `.env`                                                    |
 | `037_delivery_by_platform.sql`             | `fastfoods.delivery_by`, `platform_delivery_zones`, barèmes de retrait, pas d'arrondi                                                      |
+| `038_margin_tiers_fastfood_pricing.sql`    | marge par palier + régime `fastfood` sans zone max, calé sur le pas                                                                        |
+| `039_fastfood_min_covered_course.sql`    | garde-fou sur les prix de menu (surplus suffisant)                                                                                         |

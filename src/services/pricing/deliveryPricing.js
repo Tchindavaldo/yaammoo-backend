@@ -132,6 +132,30 @@ function displaySurcharge(fastfood, platformMargin, deliveryType) {
   return maxDeliveryPrice(fastfood, deliveryType) + toNumber(platformMargin);
 }
 
+/**
+ * Marge due pour un prix BRUT donné, en régime FASTFOOD.
+ *
+ * Marge propre au régime (`fastfoodMargin`), DISTINCTE de `platformMargin` : les
+ * deux régimes ne composent pas le prix de la même façon, leur marge n'a donc
+ * aucune raison de bouger ensemble.
+ *
+ * Un plat cher supporte une marge plus élevée sans que le client la ressente en
+ * proportion : le palier 2 REMPLACE la marge de base (il ne s'y ajoute pas) dès
+ * que le brut atteint `fastfoodMarginTier2MinBrut`.
+ *
+ * Seuil ou marge du palier à 0 = aucun palier. `fastfoodMargin` à 0 (clé absente)
+ * retombe sur `platformMargin`, pour qu'une migration non appliquée n'annule pas
+ * toute marge.
+ */
+function marginForBrut(brut, pricing) {
+  const base = toNumber(pricing?.fastfoodMargin) || toNumber(pricing?.platformMargin);
+  const minBrut = toNumber(pricing?.fastfoodMarginTier2MinBrut);
+  const tierMargin = toNumber(pricing?.fastfoodMarginTier2Margin);
+
+  if (minBrut <= 0 || tierMargin <= 0) return base;
+  return toNumber(brut) >= minBrut ? tierMargin : base;
+}
+
 // ── Qui livre la boutique (migration 037) ──────────────────────────────────
 // 'fastfood' : régime historique — zone la plus chère, aucun arrondi.
 // 'platform' : zones PLATEFORME, prix calé sur un multiple du pas d'arrondi,
@@ -226,28 +250,33 @@ function roundToStep(amount, { step, amortizationMax }) {
  * Applique les prix affichés à un menu (copie, jamais en place).
  * Chaque prix porte ses frais, calculés une seule fois.
  */
-function applyDisplayPricingToMenu(menu, { surcharge, pricing, rounding }) {
+function applyDisplayPricingToMenu(menu, { surcharge, pricing, rounding, marginByBrut = false }) {
   if (!menu) return menu;
   const out = { ...menu };
 
   // Prix TOUS frais inclus : commission agrégateur ET frais de retrait. Le pas
-  // d'arrondi n'est appliqué qu'en livraison PLATEFORME (`rounding` absent
-  // sinon), et TOUJOURS en dernier — voir `roundToStep`.
+  // d'arrondi est appliqué en dernier quand `rounding` est fourni — voir
+  // `roundToStep`.
   const display = amount => {
     const priced = withAllFees(amount, pricing);
     return rounding ? roundToStep(priced, rounding) : priced;
   };
+
+  // Régime FASTFOOD : le supplément ne porte QUE la marge, calculée d'après le
+  // prix brut du plat (palier). La zone n'y entre pas — la course est facturée
+  // à part, au tarif réel, et l'arrondi au pas la couvre.
+  // Régime PLATEFORME : `surcharge` est figé (zone périodique + marge de base).
+  const surchargeFor = brut => (marginByBrut ? marginForBrut(brut, pricing) : surcharge);
 
   // `rawPrice` = le prix RÉEL du fastfood, transporté à côté du prix affiché.
   // Le front le renvoie tel quel dans la commande, ce qui fige le prix de
   // l'époque : le prix affiché n'est PAS inversible (arrondis successifs) et
   // relire le menu plus tard donnerait le prix courant, pas celui payé.
   if (Array.isArray(menu[MENU_PRICES_FIELD])) {
-    out[MENU_PRICES_FIELD] = menu[MENU_PRICES_FIELD].map(p => ({
-      ...p,
-      price: display(toNumber(p?.price) + surcharge),
-      rawPrice: toNumber(p?.price),
-    }));
+    out[MENU_PRICES_FIELD] = menu[MENU_PRICES_FIELD].map(p => {
+      const brut = toNumber(p?.price);
+      return { ...p, price: display(brut + surchargeFor(brut)), rawPrice: brut };
+    });
   }
 
   // Extras et boissons ne portent PAS le supplément livraison/marge — il n'est
@@ -282,17 +311,25 @@ function applyDisplayPricing(fastfood, pricing, raw = false) {
   // client qui choisit l'express paie le supplément en connaissance de cause —
   // caler l'affichage sur l'express gonflerait le prix de tout le catalogue
   // pour un mode que la plupart ne prendront pas.
-  const surcharge = displaySurcharge(source, platformMargin, platformDelivered ? 'time' : undefined);
+  // Régime PLATEFORME : la zone périodique est fondue dans le prix, marge de
+  // base incluse — supplément unique pour tout le catalogue.
+  //
+  // Régime FASTFOOD : la zone n'entre PLUS dans le prix du plat. Y fondre la
+  // zone la plus chère gonflait tous les prix pour couvrir un cas rare ; la
+  // course est désormais facturée à part, au tarif réel, et c'est l'arrondi au
+  // pas qui la couvre (le surplus absorbe sa commission). Le supplément se
+  // réduit donc à la MARGE, calculée par palier sur le prix brut de chaque plat
+  // — d'où `marginByBrut`, qui la fait varier d'une ligne à l'autre.
+  const surcharge = platformDelivered ? displaySurcharge(source, platformMargin, 'time') : 0;
 
-  // Le pas d'arrondi ne vaut QUE pour la livraison plateforme : c'est là que la
-  // course du livreur peut absorber la baisse. En régime fastfood, le prix
-  // reste au centime près.
-  const rounding = platformDelivered
-    ? {
-        step: toNumber(pricing?.priceRoundingStep),
-        amortizationMax: toNumber(pricing?.driverAmortizationMax),
-      }
-    : null;
+  // Le pas d'arrondi vaut désormais dans les DEUX régimes. En plateforme, la
+  // course du livreur absorbe la baisse ; en fastfood, on ne descend jamais
+  // (aucune course plateforme à amortir) et le surplus couvre la commission
+  // prise sur la course facturée à part.
+  const rounding = {
+    step: toNumber(pricing?.priceRoundingStep),
+    amortizationMax: platformDelivered ? toNumber(pricing?.driverAmortizationMax) : 0,
+  };
 
   // Renvoyé dans les deux cas : le marchand voit ainsi ce que voit le client,
   // et le front n'a rien à recalculer.
@@ -302,13 +339,18 @@ function applyDisplayPricing(fastfood, pricing, raw = false) {
     platformMargin,
     paymentFeePercent: feePercent,
     deliveryBy: platformDelivered ? DELIVERY_BY_PLATFORM : 'fastfood',
-    ...(rounding ? { priceRoundingStep: rounding.step, driverAmortizationMax: rounding.amortizationMax } : {}),
+    priceRoundingStep: rounding.step,
+    driverAmortizationMax: rounding.amortizationMax,
+    // Régime fastfood : la marge n'est plus une constante, le front ne peut pas
+    // la déduire du seul `platformMargin`. On expose donc le palier.
+    ...(platformDelivered ? {} : { fastfoodMarginTier2MinBrut: toNumber(pricing?.fastfoodMarginTier2MinBrut), fastfoodMarginTier2Margin: toNumber(pricing?.fastfoodMarginTier2Margin) }),
     applied: !raw,
   };
 
   if (raw) return { ...fastfood, pricing: meta };
 
-  const menus = Array.isArray(fastfood.menus) ? fastfood.menus.map(m => applyDisplayPricingToMenu(m, { surcharge, pricing, rounding })) : fastfood.menus;
+  const opts = { surcharge, pricing, rounding, marginByBrut: !platformDelivered };
+  const menus = Array.isArray(fastfood.menus) ? fastfood.menus.map(m => applyDisplayPricingToMenu(m, opts)) : fastfood.menus;
   return { ...fastfood, menus, pricing: meta };
 }
 
@@ -323,24 +365,27 @@ function applyDisplayPricing(fastfood, pricing, raw = false) {
  * `courseBilled: false` → cette commande partage la course d'une autre du même
  * panier. `realPrice` reste renseigné (traçabilité), mais n'est pas dû.
  *
- * `platformMargin` est plafonné à 0 par le bas : une gratuité fait renoncer à un
- * gain, elle ne crée jamais une dépense (contrainte SQL identique côté base).
+ * ⚠️ `platformMargin` PEUT être négatif (migration 038). Tant que la zone max
+ * était fondue dans le prix, une gratuité ne faisait que renoncer à un gain. La
+ * marge fastfood ne portant plus de zone, offrir une course chère coûte
+ * réellement de l'argent — et ce coût doit être tracé, pas borné à 0.
  */
 function splitDeliveryAmounts({ fastfood, zone, deliveryType, platformMargin, quantity = 1, courseBilled = true, delivered = true, freeReason = null }) {
   const qty = Math.max(1, toNumber(quantity) || 1);
 
-  // Facturé au user : le supplément unitaire, autant de fois qu'il y a de plats.
-  // Sans filtre de type — c'est bien le maximum tous types confondus qui a été
-  // intégré au prix affiché, avant que le user ne choisisse son mode.
+  // Facturé au user au titre de la LIVRAISON, dans le prix du plat.
   //
-  // ⚠️ Facturé MÊME EN RETRAIT : le supplément est fondu dans le prix du plat
-  // depuis le home, avant que le user ait choisi. S'il vient chercher lui-même,
-  // il n'y a aucune course à payer — le montant part donc intégralement en
-  // marge plateforme. C'est le modèle économique retenu, pas un oubli.
-  // Livraison PLATEFORME : les zones facturées et versées sont celles de la
-  // plateforme, pas celles de la boutique.
+  // Régime PLATEFORME : la zone périodique est fondue dans le prix affiché,
+  // autant de fois qu'il y a de plats. Facturée MÊME EN RETRAIT — le supplément
+  // est intégré depuis le home, avant que le user ait choisi ; s'il vient
+  // chercher lui-même, il n'y a aucune course à verser et le montant part
+  // intégralement en marge. C'est le modèle économique retenu, pas un oubli.
+  //
+  // Régime FASTFOOD : plus aucune zone n'est fondue dans le prix du plat — la
+  // course est facturée à part, au tarif réel. Rien n'est donc « chargé » ici,
+  // et une commande en retrait ne porte plus de livraison fantôme.
   const source = deliverySource(fastfood);
-  const chargedPrice = maxDeliveryPrice(source) * qty;
+  const chargedPrice = isPlatformDelivered(fastfood) ? maxDeliveryPrice(source) * qty : 0;
 
   // Pas de livraison = pas de course : rien n'est dû au fastfood.
   const realPrice = delivered ? zoneDeliveryPrice(source, zone, deliveryType) : 0;
@@ -353,7 +398,9 @@ function splitDeliveryAmounts({ fastfood, zone, deliveryType, platformMargin, qu
     // Sans livraison, aucune course n'est portée par cette commande.
     courseBilled: delivered && courseBilled,
     delivered,
-    platformMargin: Math.max(0, chargedPrice - due + toNumber(platformMargin) * qty),
+    // PEUT être négatif : une course offerte est versée au fastfood sans avoir
+    // été encaissée. Borner à 0 masquerait le coût réel du bonus.
+    platformMargin: chargedPrice - due + toNumber(platformMargin) * qty,
     freeReason,
   };
 }
@@ -372,6 +419,7 @@ module.exports = {
   maxDeliveryPrice,
   zoneDeliveryPrice,
   displaySurcharge,
+  marginForBrut,
   applyDisplayPricingToMenu,
   applyDisplayPricing,
   splitDeliveryAmounts,

@@ -34,6 +34,15 @@ const { resolveOffer } = require('../../services/pricing/deliveryOfferResolver')
 // Clé PARTAGÉE avec `settleDelivery` : ce qui est facturé et ce qui est versé
 // doivent compter exactement le même nombre de courses.
 const { deliveryGroupKey } = require('../../services/pricing/deliveryGroupKey');
+const { checkFreeDeliveryAffordable, affordabilityMessage } = require('../../services/bonus/deliveryOfferAffordability');
+const repos = require('../../repositories');
+
+/** Prix BRUT unitaire du plat choisi — la base du palier de marge. */
+function rawUnitPriceOf(item) {
+  const prices = item?.menu?.prices;
+  const idx = Math.max(0, toNumber(item?.selectedPriceIndex) - 1);
+  return Array.isArray(prices) ? toNumber(prices[idx]?.rawPrice ?? prices[idx]?.price) : 0;
+}
 
 // Tolérance d'arrondi (FCFA).
 const AMOUNT_TOLERANCE = 1;
@@ -63,7 +72,11 @@ function recomputeItemBase(item) {
 
 /**
  * Détermine, commande par commande, si la livraison est offerte côté SERVEUR.
- * Renvoie un Set des index d'items dont la livraison est offerte.
+ *
+ * @returns {Promise<{offered:Set<number>, refusal:string|null}>}
+ *   `refusal` : message d'erreur quand un bonus PLATEFORME n'est pas finançable
+ *   par la commande (cf. `deliveryOfferAffordability`). Refus DUR : mieux vaut
+ *   une commande sans gratuité qu'une commande à perte.
  */
 async function resolveOfferedDeliveries(orders, { userId, bonusCode }) {
   const pricing = await getPricingSettings();
@@ -86,12 +99,30 @@ async function resolveOfferedDeliveries(orders, { userId, bonusCode }) {
     if (!bonusSpent && (bonusCode || userId)) {
       const attempt = await resolveDeliveryBonus({ userId, fastFoodId: order.fastFoodId, bonusCode }).catch(() => null);
       if (attempt?.offer) {
+        // ── La gratuité doit rester FINANÇABLE ────────────────────────────
+        // Un bonus plateforme fait verser la course au fastfood sans qu'elle
+        // ait été encaissée. Marge + surplus d'arrondi sont facturés par
+        // exemplaire, la course non : sous un certain nombre de plats, la
+        // commande part à perte. On refuse plutôt que d'absorber.
+        const fastfood = await repos.fastfoods.getById(order.fastFoodId).catch(() => null);
+        const check = checkFreeDeliveryAffordable({
+          fastfood,
+          brutUnit: rawUnitPriceOf(order),
+          quantity: order.quantity,
+          coursePrice: toNumber(order.delivery?.prix),
+          coveredBy: attempt.offer.coveredBy,
+          pricing,
+        });
+        if (!check.affordable) {
+          return { offered, refusal: affordabilityMessage(check) };
+        }
+
         offered.add(i);
         bonusSpent = true; // un bonus vaut une fois pour le lot
       }
     }
   }
-  return offered;
+  return { offered, refusal: null };
 }
 
 /**
@@ -110,8 +141,13 @@ async function validatePaymentAmount(amount, items, ctx = {}) {
   // logs applicatifs (keep-alive, wallet, fastfood…) qui défilent en continu.
   console.log(`\n[payAmount] ═══ ${orders.length} commande(s) · amount reçu=${paid} · bonusCode=${bonusCode || '∅'} ═══`);
 
-  // Verdict SERVEUR : quelles livraisons sont offertes.
-  const offered = await resolveOfferedDeliveries(orders, { userId: ctx.userId, bonusCode });
+  // Verdict SERVEUR : quelles livraisons sont offertes. Un bonus plateforme non
+  // finançable par la commande est REFUSÉ ici, avant tout encaissement.
+  const { offered, refusal } = await resolveOfferedDeliveries(orders, { userId: ctx.userId, bonusCode });
+  if (refusal) {
+    console.log(`[payAmount] ✗ bonus livraison non finançable → REFUS\n`);
+    return refusal;
+  }
 
   let sumTotal = 0;
 
