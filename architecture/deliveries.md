@@ -8,13 +8,13 @@ Suivi des livraisons : assignation livreur, tracking progression, notifications 
 
 ## Routes
 
-| Méthode | Endpoint | Contrôleur | Rôle |
-|---------|----------|-----------|------|
-| POST | `/delivery` | `createDelivery` | Crée livraison (commande → livreur) |
-| GET | `/delivery/:orderId` | `getDeliveryByOrder` | Récupère statut livraison |
-| PUT | `/delivery/:id/status` | `updateDeliveryStatus` | Livreur met à jour progression |
-| PUT | `/delivery/:id/location` | `updateDeliveryLocation` | Livreur envoie localisation GPS |
-| GET | `/delivery/livreur/:livreurId` | `getLivreurDeliveries` | Livraisons assignées à livreur |
+| Méthode | Endpoint                       | Contrôleur               | Rôle                                |
+| ------- | ------------------------------ | ------------------------ | ----------------------------------- |
+| POST    | `/delivery`                    | `createDelivery`         | Crée livraison (commande → livreur) |
+| GET     | `/delivery/:orderId`           | `getDeliveryByOrder`     | Récupère statut livraison           |
+| PUT     | `/delivery/:id/status`         | `updateDeliveryStatus`   | Livreur met à jour progression      |
+| PUT     | `/delivery/:id/location`       | `updateDeliveryLocation` | Livreur envoie localisation GPS     |
+| GET     | `/delivery/livreur/:livreurId` | `getLivreurDeliveries`   | Livraisons assignées à livreur      |
 
 ---
 
@@ -26,22 +26,22 @@ Delivery {
   orderId: string                // Référence commande
   fastFoodId: string             // Boutique qui livre
   userId: string                 // Client qui reçoit
-  
+
   // Livreur
   livreurId: string              // UID du livreur assigné
   livreurPhone: string           // Contact livreur
   livreurName: string            // Nom livreur
-  
+
   // Adresse livraison
   deliveryAddress: string        // Adresse complète client
   deliveryLat: number            // Latitude
   deliveryLng: number            // Longitude
-  
+
   // Localisation en temps réel
   currentLat: number             // Position actuelle livreur
   currentLng: number             // Position actuelle livreur
   lastLocationUpdate: ISO8601
-  
+
   // Progression
   status: 'pending' | 'assigned' | 'picked_up' | 'on_the_way' | 'arrived' | 'delivered' | 'failed'
   statusHistory: {
@@ -49,14 +49,14 @@ Delivery {
     timestamp: ISO8601
     notes: string
   }[]
-  
+
   // Timing
   estimatedDeliveryTime: number  // Minutes avant arrivée
   actualDeliveryTime?: ISO8601
-  
+
   // Métadonnées
   notes: string                  // Notes spéciales (ex: "Interphone cassé")
-  
+
   createdAt: ISO8601
   updatedAt: ISO8601
 }
@@ -108,10 +108,12 @@ Delivery {
    { "status": "picked_up" }
    ```
 3. Livreur met à jour location en route
+
    ```
    PUT /delivery/:id/location
    { "currentLat": 14.68, "currentLng": -17.12 }
    ```
+
    (envoyé régulièrement via GPS polling)
 
 4. Client reçoit notifications :
@@ -136,6 +138,7 @@ Delivery {
 ### Historique progression
 
 À chaque changement statut, ajouter à `statusHistory` :
+
 ```json
 {
   "status": "on_the_way",
@@ -149,6 +152,7 @@ Delivery {
 ## Services & Repositories
 
 **deliveryService.js**
+
 - `createDelivery(data)` — crée livraison
 - `getDeliveryByOrder(orderId)` — récupère livraison d'une commande
 - `assignLivreur(deliveryId, livreurData)` — assigne livreur
@@ -164,11 +168,13 @@ Delivery {
 ## Real-time tracking
 
 **Frontend (Client app)** :
+
 - Souscrit à `delivery:${deliveryId}` updates
 - Reçoit location updates du livreur via socket
 - Affiche map avec marker livreur + route
 
 **Livreur app** :
+
 - Émet location toutes les 30s (ou moins)
 - Écoute socket pour nouvelles assignations
 

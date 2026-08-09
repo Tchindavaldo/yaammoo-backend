@@ -7,18 +7,19 @@ Auth basée sur Firebase Auth : le client s'authentifie côté Firebase SDK (ema
 ## Middleware
 
 **`BACKEND/src/middlewares/authMiddleware.js`** :
+
 - Extrait le Bearer token de `req.headers.authorization`.
 - `admin.auth().verifyIdToken(token)` → attache `req.user = decodedToken`.
 - 401 si absent/invalide.
 
 ## Routes principales liées à l'utilisateur
 
-| Méthode | Path | Controller | Description |
-|---|---|---|---|
-| GET | `/user/:uid` | `userController.getUser` | Profil user + `fcmTokens[]` |
-| POST | `/user` | `userController.createUser` | Crée user Firestore après inscription |
-| PUT | `/user/:uid` | `userController.updateUser` | MAJ profil (dont `fcmToken` → arrayUnion) |
-| DELETE | `/user/fcmToken` | `userController.removeFcmToken` | Retire un token (logout device) |
+| Méthode | Path             | Controller                      | Description                               |
+| ------- | ---------------- | ------------------------------- | ----------------------------------------- |
+| GET     | `/user/:uid`     | `userController.getUser`        | Profil user + `fcmTokens[]`               |
+| POST    | `/user`          | `userController.createUser`     | Crée user Firestore après inscription     |
+| PUT     | `/user/:uid`     | `userController.updateUser`     | MAJ profil (dont `fcmToken` → arrayUnion) |
+| DELETE  | `/user/fcmToken` | `userController.removeFcmToken` | Retire un token (logout device)           |
 
 ## fcmTokens — multi-device
 

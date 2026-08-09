@@ -18,10 +18,10 @@ boutique. Les deux viennent de jointures dans `THREAD_SELECT`.
 > etrangeres** : sans elles PostgREST renvoie `PGRST200`. C'est l'objet de la
 > migration 035, qui termine par `NOTIFY pgrst, 'reload schema'`.
 
-| Table | Colonnes |
-|---|---|
-| `support_threads` | `id`, `user_id`, `fastfood_id` (nullable), `topic`, `title`, `status`, `unread_count`, `support_unread_count`, `last_message`, `created_at`, `updated_at` |
-| `support_messages` | `id`, `thread_id` (FK cascade), `author`, `text`, `created_at` |
+| Table              | Colonnes                                                                                                                                                  |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `support_threads`  | `id`, `user_id`, `fastfood_id` (nullable), `topic`, `title`, `status`, `unread_count`, `support_unread_count`, `last_message`, `created_at`, `updated_at` |
+| `support_messages` | `id`, `thread_id` (FK cascade), `author`, `text`, `created_at`                                                                                            |
 
 - `topic` : `question` \| `probleme` \| `assistance` \| `suggestion` \| `discussion`
 - `status` : `open` \| `pending` \| `closed`
@@ -29,15 +29,15 @@ boutique. Les deux viennent de jointures dans `THREAD_SELECT`.
 
 ## Routes (`/support`)
 
-| Verbe | Path | Role |
-|---|---|---|
-| GET | `/support/threads?userId=` | Fils d'un client (sans messages), plus recent d'abord |
-| GET | `/support/threads?fastFoodId=` | Fils recus par une boutique |
-| GET | `/support/threads?scope=platform` | Fils adresses a la plateforme yaammoo (back-office) |
-| POST | `/support/threads` | Cree un fil **et son premier message** (`userId`, `topic`, `text`, `fastFoodId?`, `title?`) |
-| GET | `/support/threads/:id/messages` | Messages du fil, ordre chronologique |
-| POST | `/support/threads/:id/messages` | Message dans un fil existant (`userId`, `text`, `author?`) |
-| PATCH | `/support/threads/:id/read?side=user\|support` | Remet a 0 le compteur du cote indique (`user` par defaut) |
+| Verbe | Path                                           | Role                                                                                        |
+| ----- | ---------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| GET   | `/support/threads?userId=`                     | Fils d'un client (sans messages), plus recent d'abord                                       |
+| GET   | `/support/threads?fastFoodId=`                 | Fils recus par une boutique                                                                 |
+| GET   | `/support/threads?scope=platform`              | Fils adresses a la plateforme yaammoo (back-office)                                         |
+| POST  | `/support/threads`                             | Cree un fil **et son premier message** (`userId`, `topic`, `text`, `fastFoodId?`, `title?`) |
+| GET   | `/support/threads/:id/messages`                | Messages du fil, ordre chronologique                                                        |
+| POST  | `/support/threads/:id/messages`                | Message dans un fil existant (`userId`, `text`, `author?`)                                  |
+| PATCH | `/support/threads/:id/read?side=user\|support` | Remet a 0 le compteur du cote indique (`user` par defaut)                                   |
 
 `title` est le resume du fil : deduit de la premiere ligne du premier message
 (tronquee a 60 caracteres) quand il n'est pas fourni.
@@ -49,15 +49,15 @@ Deux compteurs symetriques : `unread_count` (client) et `support_unread_count`
 zero celui de son auteur, qui vient forcement de lire le fil.
 
 | Message de | `unread_count` | `support_unread_count` |
-|---|---|---|
-| `user` | remis a 0 | +1 |
-| `support` | +1 | remis a 0 |
+| ---------- | -------------- | ---------------------- |
+| `user`     | remis a 0      | +1                     |
+| `support`  | +1             | remis a 0              |
 
 ## Socket
 
-| Evenement | Room | Payload |
-|---|---|---|
-| `support.message` | `<userId>` | `{ threadId, thread, message }` |
+| Evenement         | Room           | Payload                                     |
+| ----------------- | -------------- | ------------------------------------------- |
+| `support.message` | `<userId>`     | `{ threadId, thread, message }`             |
 | `support.message` | `<fastFoodId>` | idem, seulement si le fil vise une boutique |
 
 Emis a chaque creation de fil et a chaque message (voir
@@ -69,11 +69,11 @@ mais ne fait jamais echouer l'ecriture en base. Les fils sans boutique
 
 `services/support/notifySupportMessage.js`, appele apres chaque message :
 
-| Message de | Destinataire |
-|---|---|
-| `user` | proprietaire de la boutique concernee (`fastfoods.user_id`) |
-| `user`, fil sans boutique | personne cote app — le back-office traite ces fils |
-| `support` | le client proprietaire du fil |
+| Message de                | Destinataire                                                |
+| ------------------------- | ----------------------------------------------------------- |
+| `user`                    | proprietaire de la boutique concernee (`fastfoods.user_id`) |
+| `user`, fil sans boutique | personne cote app — le back-office traite ces fils          |
+| `support`                 | le client proprietaire du fil                               |
 
 Type `Support`, route `support/<threadId>` pour le deep-linking. Une erreur
 d'envoi est logguee sans faire echouer l'ecriture.

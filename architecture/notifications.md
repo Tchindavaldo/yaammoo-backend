@@ -4,13 +4,13 @@ Module gérant l'envoi de push notifications (FCM natif + Expo Push) et la persi
 
 ## Routes (`/notification`)
 
-| Méthode | Path | Controller | Description |
-|---|---|---|---|
-| POST | `/notification` | `sendPushNotificationController` | Envoi push direct (sans persistance) |
-| POST | `/notification/add` | `postNotificationController` | **Crée** notif Firestore + envoie push + émet socket |
-| GET | `/notification/get?id=` | `getNotificationController` | Récupère une notif par id |
-| GET | `/notification/user?userId=` | `getNotificationsController` | Liste notifs d'un user (flatten) |
-| PUT | `/notification/markAsRead` | `markNotificationAsReadController` | Marque une notif comme lue |
+| Méthode | Path                         | Controller                         | Description                                          |
+| ------- | ---------------------------- | ---------------------------------- | ---------------------------------------------------- |
+| POST    | `/notification`              | `sendPushNotificationController`   | Envoi push direct (sans persistance)                 |
+| POST    | `/notification/add`          | `postNotificationController`       | **Crée** notif Firestore + envoie push + émet socket |
+| GET     | `/notification/get?id=`      | `getNotificationController`        | Récupère une notif par id                            |
+| GET     | `/notification/user?userId=` | `getNotificationsController`       | Liste notifs d'un user (flatten)                     |
+| PUT     | `/notification/markAsRead`   | `markNotificationAsReadController` | Marque une notif comme lue                           |
 
 ---
 
@@ -48,6 +48,7 @@ services/notification/
 ## Dispatcher hybride Expo ↔ FCM
 
 **`sendPushNotification.service.js`** — inspecte le token :
+
 - Commence par `ExponentPushToken[` → délégué à `sendExpoPushNotification` (POST `https://exp.host/--/api/v2/push/send`).
 - Sinon → `admin.messaging().send(message)` (firebase-admin).
 
@@ -80,25 +81,25 @@ Retour unifié : `{ success: boolean, response?, error? }`.
 
 ## helpers/notifyOrderEvent.js
 
-| Export | Rôle |
-|---|---|
-| `getUserTokens(userId)` | Lit `users/{uid}.fcmTokens[]` dans Firestore |
-| `cleanStaleTokens(userId, tokens[])` | `arrayRemove` sur `users/{uid}.fcmTokens` |
+| Export                                                              | Rôle                                                                                                |
+| ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `getUserTokens(userId)`                                             | Lit `users/{uid}.fcmTokens[]` dans Firestore                                                        |
+| `cleanStaleTokens(userId, tokens[])`                                | `arrayRemove` sur `users/{uid}.fcmTokens`                                                           |
 | `notifyOrderEvent({targetUserId, type, title, body, orderId, ...})` | Central helper : fetch tokens + postNotificationService avec `extraFcmData: {type, route, orderId}` |
 
 ## Types de notifications
 
-| Type | Source (service) | Destination | Route deep-link (section-aware) |
-|---|---|---|---|
-| `order_new` | `createOrder.js` | marchand | `/(tabs)/boutique` |
-| `order_status` (→ processing) | `updateOrders.service.js` | user | `/(tabs)/cart?section=active` |
-| `order_status` (→ finished / delivered) | `updateOrders.service.js` | user | `/(tabs)/cart?section=finished` |
-| `order_delivering` | `updateOrders.service.js` | user | `/(tabs)/cart?section=finished` |
-| `order_cancel_by_user` | `updateOrders.service.js` | marchand | `/(tabs)/notifications` |
-| `order_cancel_by_merchant` | `updateOrders.service.js` | user | `/(tabs)/notifications` |
-| `order_rank_top` (file pending) | `rankQueue.service.js` (top 5) | user | `/(tabs)/cart?section=pending` |
-| `order_rank_top` (file processing) | `rankQueue.service.js` (top 5) | user | `/(tabs)/cart?section=active` |
-| `bonus` | *(à émettre par le service bonus)* | user | `/(tabs)/cart?section=bonus` |
+| Type                                    | Source (service)                   | Destination | Route deep-link (section-aware) |
+| --------------------------------------- | ---------------------------------- | ----------- | ------------------------------- |
+| `order_new`                             | `createOrder.js`                   | marchand    | `/(tabs)/boutique`              |
+| `order_status` (→ processing)           | `updateOrders.service.js`          | user        | `/(tabs)/cart?section=active`   |
+| `order_status` (→ finished / delivered) | `updateOrders.service.js`          | user        | `/(tabs)/cart?section=finished` |
+| `order_delivering`                      | `updateOrders.service.js`          | user        | `/(tabs)/cart?section=finished` |
+| `order_cancel_by_user`                  | `updateOrders.service.js`          | marchand    | `/(tabs)/notifications`         |
+| `order_cancel_by_merchant`              | `updateOrders.service.js`          | user        | `/(tabs)/notifications`         |
+| `order_rank_top` (file pending)         | `rankQueue.service.js` (top 5)     | user        | `/(tabs)/cart?section=pending`  |
+| `order_rank_top` (file processing)      | `rankQueue.service.js` (top 5)     | user        | `/(tabs)/cart?section=active`   |
+| `bonus`                                 | _(à émettre par le service bonus)_ | user        | `/(tabs)/cart?section=bonus`    |
 
 **Convention query param** : `route` précis calculé côté backend dans `buildTransitionNotif()` / `rankQueue`. Le frontend consomme via `useLocalSearchParams()` dans `app/(tabs)/cart.tsx` pour basculer sur la bonne section.
 
@@ -115,6 +116,7 @@ Retour unifié : `{ success: boolean, response?, error? }`.
 ## Rank Queue Notifications (rankQueue.service.js)
 
 Filtre sur `rank <= 5` uniquement (anti-spam) :
+
 - Rank 1 : `"Vous êtes le prochain !"` / `"Votre commande va être traitée."`
 - Rank 2-5 : `"Votre commande avance"` / `"Position {rank} dans la file..."`
 
@@ -135,6 +137,7 @@ curl -X POST http://localhost:5000/notification/add \
 ## Format `isRead` en Firestore
 
 Le champ `isRead` d'une notif est stocké comme **array de `userId`** (`string[]`) — pas un boolean. Permet :
+
 - notifs de groupe (fastFood avec `target: 'all'`) lues indépendamment par chaque marchand ;
 - MAJ atomique `arrayUnion(userId)` dans `markNotificationAsRead.services.js` ;
 - émission socket `isRead` vers la room du user pour sync multi-device.

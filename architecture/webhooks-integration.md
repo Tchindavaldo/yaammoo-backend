@@ -19,24 +19,18 @@ const crypto = require('crypto');
 const verifySignature = (req, secret) => {
   const signature = req.headers['x-signature'];
   if (!signature) return false;
-  
+
   const payload = JSON.stringify(req.body);
-  const hash = crypto
-    .createHmac('sha256', secret)
-    .update(payload)
-    .digest('hex');
-  
-  return crypto.timingSafeEqual(
-    Buffer.from(signature),
-    Buffer.from(hash)
-  );
+  const hash = crypto.createHmac('sha256', secret).update(payload).digest('hex');
+
+  return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(hash));
 };
 
 router.post('/webhook/mobilewallet', (req, res, next) => {
   if (!verifySignature(req, process.env.MOBILEWALLET_WEBHOOK_SECRET)) {
     return res.status(401).json({ error: 'Invalid signature' });
   }
-  
+
   next();
 });
 ```
@@ -47,26 +41,26 @@ router.post('/webhook/mobilewallet', (req, res, next) => {
 // Webhook handler
 exports.mobilewalletWebhook = async (req, res) => {
   const { transactionId, externalId, status } = req.body;
-  
+
   // Check already processed
   const existing = await repos.webhookLogs.getByExternalId(externalId);
   if (existing) {
     // Avoid duplicate processing
     return res.status(200).json({ message: 'Already processed' });
   }
-  
+
   try {
     // Process webhook
     await paymentService.handlePaymentWebhook(req.body);
-    
+
     // Log success
     await repos.webhookLogs.create({
       externalId,
       source: 'mobilewallet',
       status: 'success',
-      payload: req.body
+      payload: req.body,
     });
-    
+
     res.status(200).json({ success: true });
   } catch (error) {
     // Log failure
@@ -75,9 +69,9 @@ exports.mobilewalletWebhook = async (req, res) => {
       source: 'mobilewallet',
       status: 'error',
       error: error.message,
-      payload: req.body
+      payload: req.body,
     });
-    
+
     res.status(500).json({ error: error.message });
   }
 };
@@ -110,35 +104,35 @@ POST /webhook/mobilewallet
 
 ```javascript
 // src/services/payment/paymentWebhookService.js
-exports.handleMobilewalletWebhook = async (payload) => {
+exports.handleMobilewalletWebhook = async payload => {
   const { externalId, transactionId, status } = payload;
-  
+
   // Find payment
   const payment = await repos.payments.getByExternalId(externalId);
   if (!payment) {
     throw new Error(`Payment not found: ${externalId}`);
   }
-  
+
   // Update payment status
   await repos.payments.update(payment.id, {
-    status: status === 'completed' ? 'completed' : 'failed'
+    status: status === 'completed' ? 'completed' : 'failed',
   });
-  
+
   // Update order
   const order = await repos.orders.getById(payment.orderId);
   if (status === 'completed') {
     await repos.orders.update(order.id, { status: 'confirmed' });
-    
+
     // Emit socket
     const io = require('../../socket').getIO();
     io.to(`user:${order.userId}`).emit('payment.settled', {
       paymentId: payment.id,
-      status: 'success'
+      status: 'success',
     });
   } else {
     io.to(`user:${order.userId}`).emit('payment.settled', {
       paymentId: payment.id,
-      status: 'failed'
+      status: 'failed',
     });
   }
 };
@@ -173,7 +167,7 @@ POST /webhook/sms
 if (req.body.Body.includes('Code:')) {
   const code = req.body.Body.match(/\d{6}/)[0];
   const phoneNumber = req.body.From;
-  
+
   await verificationService.verify2FA(phoneNumber, code);
 }
 ```
@@ -193,10 +187,10 @@ WebhookLog {
   statusCode: number         // HTTP response code we sent
   payload: object            // Original payload
   error?: string             // Error message if failed
-  
+
   retryCount: number         // Retry attempts
   lastRetry?: ISO8601
-  
+
   createdAt: ISO8601
 }
 ```
@@ -240,23 +234,23 @@ exports.initiateMobilewalletPayment = async (amount, orderId) => {
     currency: 'XOF',
     callbackUrl: `${process.env.API_URL}/webhook/mobilewallet`,
     externalId: orderId,
-    description: `Order #${orderId}`
+    description: `Order #${orderId}`,
   };
-  
+
   try {
     const response = await axios.post(
       `${process.env.MOBILEWALLET_URL}/api/transactions/create`,
       payload,
-      { timeout: 10000 }  // 10s timeout
+      { timeout: 10000 } // 10s timeout
     );
-    
+
     if (!response.data.success) {
       throw new Error(response.data.error);
     }
-    
+
     return {
       externalTransactionId: response.data.transactionId,
-      paymentNumber: response.data.paymentNumber
+      paymentNumber: response.data.paymentNumber,
     };
   } catch (error) {
     console.error(`❌ MobileWallet API error: ${error.message}`);
@@ -275,7 +269,7 @@ const retry = async (fn, maxRetries = 3) => {
       return await fn();
     } catch (error) {
       if (i === maxRetries - 1) throw error;
-      const delay = Math.pow(2, i) * 1000;  // 1s, 2s, 4s
+      const delay = Math.pow(2, i) * 1000; // 1s, 2s, 4s
       await new Promise(resolve => setTimeout(resolve, delay));
     }
   }

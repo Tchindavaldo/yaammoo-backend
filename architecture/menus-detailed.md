@@ -8,17 +8,17 @@ Gestion complète des menus (articles) : création, édition, suppression, gesti
 
 ## Routes
 
-| Méthode | Endpoint | Contrôleur | Rôle |
-|---------|----------|-----------|------|
-| POST | `/menu` | `createMenu` | Ajoute menu à boutique |
-| GET | `/menu/:fastFoodId` | `getMenusByFastFood` | Liste menus d'une boutique |
-| GET | `/menu/:id` | `getMenuById` | Détail menu (avec images, extras) |
-| PUT | `/menu/:id` | `updateMenu` | Édite menu (prix, stock, dispo) |
-| DELETE | `/menu/:id` | `deleteMenu` | Supprime menu |
-| PATCH | `/menu/:id/stock` | `updateMenuStock` | Décrément stock (après commande) |
-| PATCH | `/menu/:id/availability` | `toggleMenuAvailability` | On/off disponibilité |
-| POST | `/menu/:id/rating` | `rateMenuController` | Noter un plat (client livré) — voir [ratings.md](./ratings.md) |
-| GET | `/menu/:id/ratings` | `getMenuRatingsController` | Liste des avis d'un plat |
+| Méthode | Endpoint                 | Contrôleur                 | Rôle                                                           |
+| ------- | ------------------------ | -------------------------- | -------------------------------------------------------------- |
+| POST    | `/menu`                  | `createMenu`               | Ajoute menu à boutique                                         |
+| GET     | `/menu/:fastFoodId`      | `getMenusByFastFood`       | Liste menus d'une boutique                                     |
+| GET     | `/menu/:id`              | `getMenuById`              | Détail menu (avec images, extras)                              |
+| PUT     | `/menu/:id`              | `updateMenu`               | Édite menu (prix, stock, dispo)                                |
+| DELETE  | `/menu/:id`              | `deleteMenu`               | Supprime menu                                                  |
+| PATCH   | `/menu/:id/stock`        | `updateMenuStock`          | Décrément stock (après commande)                               |
+| PATCH   | `/menu/:id/availability` | `toggleMenuAvailability`   | On/off disponibilité                                           |
+| POST    | `/menu/:id/rating`       | `rateMenuController`       | Noter un plat (client livré) — voir [ratings.md](./ratings.md) |
+| GET     | `/menu/:id/ratings`      | `getMenuRatingsController` | Liste des avis d'un plat                                       |
 
 > **Notes plat** : chaque menu porte `ratingAvg` + `ratingCount` (pré-calculés, colonnes
 > `menus.rating_avg/count`). Détail du système : [ratings.md](./ratings.md).
@@ -31,12 +31,12 @@ Gestion complète des menus (articles) : création, édition, suppression, gesti
 Menu {
   id: string                    // UUID
   fastFoodId: string            // Référence boutique propriétaire
-  
+
   // Identification
   name: string                  // Nom plat (ex: "Poulet Grillé")
   titre: string                 // Titre alternatif (?)
   description: string           // Description longue
-  
+
   // Tarification — ⚠️ c'est `prices[]` qui fait foi
   prices: { price: number, description: string }[]
                                 // ex: [{price:2500, description:"Petit"},
@@ -47,24 +47,24 @@ Menu {
   // toute la base. Ne pas les lire, ne pas les écrire.
   prix1 / prix2 / prix3 : number
   optionPrix1 / optionPrix2 / optionPrix3 : string
-  
+
   // Images
   image: string                 // Image principale (URL Supabase)
   coverImage: string            // Image cover/hero
   images: string[]              // Galerie additionnelle
-  
+
   // Stock & disponibilité
   stock: number                 // Quantité disponible
   disponibilite: boolean        // En vente (on/off par marchand)
   status: 'available' | 'sold_out' | 'hidden' | 'discontinued'
-  
+
   // Suppléments & boissons
   extra: MenuItem[]             // Suppléments (sauce, épices, taille)
   drink: MenuItem[]             // Boissons associées
-  
+
   // Métadonnées
   createdBy: string             // UID marchand propriétaire
-  
+
   createdAt: ISO8601
   updatedAt: ISO8601
 }
@@ -83,6 +83,7 @@ MenuItem {
 ### Création menu (Marchand)
 
 1. Marchand (MenuManagePanel) : POST `/menu`
+
    ```json
    {
      "fastFoodId": "...",
@@ -97,9 +98,7 @@ MenuItem {
        { "label": "Sauce piquante", "price": 500 },
        { "label": "Sauce douce", "price": 500 }
      ],
-     "drink": [
-       { "label": "Jus", "price": 1500 }
-     ]
+     "drink": [{ "label": "Jus", "price": 1500 }]
    }
    ```
 
@@ -137,6 +136,7 @@ MenuItem {
 ## Services & Repositories
 
 **menuService.js**
+
 - `createMenu(data)` — crée menu + upload image
 - `getMenusByFastFood(fastFoodId)` — liste menus disponibles
 - `getMenuById(id)` — détail complet
@@ -152,12 +152,14 @@ MenuItem {
 ## Stock management
 
 **Logique** :
+
 - Stock initial : défini par marchand
 - Après chaque commande : décrémenté de 1 (ou qty commandée)
 - Stock = 0 → `status: 'sold_out'`
 - Marchand peut réaprovisionner : PUT `/menu/:id` avec nouveau stock
 
 **Problème concurrent** :
+
 - 2 clients achètent en même temps stock=1
 - Solution : transaction DB (Firestore) ou atomic update (Supabase)
 

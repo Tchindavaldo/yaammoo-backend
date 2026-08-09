@@ -57,7 +57,7 @@ Le bénéfice yaammoo est porté par la **marge plateforme** et l'**écart de zo
 > portefeuille d'un argent destiné à partir ailleurs.
 
 Les **frais de retrait** (MTN / Orange) sont, eux, fondus dans le prix affiché
-en amont : voir [pricing.md](./pricing.md#les-frais-de-retrait-entrent-dans-le-prix).
+en amont : voir [pricing-fees.md](./pricing-fees.md#les-frais-de-retrait-entrent-dans-le-prix).
 La vue marchand renvoie `withdrawalFee` par commande — une **estimation** de ce
 que coûtera la sortie de cet argent, le frais réel portant sur le montant
 effectivement retiré (qui agrège plusieurs commandes).
@@ -81,6 +81,7 @@ bloc `status === 'successful'` : après le traitement des items (update/create),
 crédite **chaque item** via
 [creditMerchant.service.js](../src/services/transaction/creditMerchant.service.js)
 (`creditMerchantForItem`) :
+
 - résout le marchand : `repos.fastfoods.getById(item.fastFoodId).userId` ;
 - crée la transaction `merchant_credit` (net) ;
 - émet socket `wallet.credited` vers le marchand (room = `userId`).
@@ -92,31 +93,34 @@ crédite **chaque item** via
 
 ## Routes (`/wallet`, protégées `firebaseAuth`)
 
-| Méthode | Endpoint | Rôle |
-|---|---|---|
-| GET | `/wallet/balance` | `{ balance, totalEarned, totalWithdrawn }` du marchand (`req.user.uid`) |
-| GET | `/wallet/history` | payin (gains) + payout (retraits), filtrable, triés DESC |
-| GET | `/wallet/stats` | totaux payin/payout/net agrégés par jour/semaine/mois |
-| POST | `/wallet/withdraw` | demande de retrait `{ amount, phone, network, receiverName?, narration? }` |
+| Méthode | Endpoint           | Rôle                                                                       |
+| ------- | ------------------ | -------------------------------------------------------------------------- |
+| GET     | `/wallet/balance`  | `{ balance, totalEarned, totalWithdrawn }` du marchand (`req.user.uid`)    |
+| GET     | `/wallet/history`  | payin (gains) + payout (retraits), filtrable, triés DESC                   |
+| GET     | `/wallet/stats`    | totaux payin/payout/net agrégés par jour/semaine/mois                      |
+| POST    | `/wallet/withdraw` | demande de retrait `{ amount, phone, network, receiverName?, narration? }` |
 
 ### `GET /wallet/history`
+
 Chaque entrée porte un champ **`direction`** : `payin` (= `merchant_credit`) ou
 `payout` (= `withdrawal`). Query params :
+
 - `direction=payin|payout` — filtre par sens (sinon les deux) ;
 - `period=today|week|month|all` — raccourci de période ;
 - `from=<ISO>&to=<ISO>` — intervalle explicite (**prime sur `period`**).
 
 ### `GET /wallet/stats`
+
 Agrégats pour graphiques/résumés. Query : `groupBy=day|week|month` (+ `period` ou `from/to`).
+
 ```json
 {
   "groupBy": "day",
   "totals": { "payin": 14250, "payout": 100, "net": 14150 },
-  "series": [
-    { "period": "2026-06-18", "payin": 4650, "payout": 0, "net": 4650, "count": 1 }
-  ]
+  "series": [{ "period": "2026-06-18", "payin": 4650, "payout": 0, "net": 4650, "count": 1 }]
 }
 ```
+
 Clés `period` : `YYYY-MM-DD` (day), `YYYY-Www` semaine ISO (week), `YYYY-MM` (month).
 Helper : [src/utils/period.js](../src/utils/period.js) (`resolvePeriod`, `groupKey`).
 
@@ -149,6 +153,7 @@ Body : `{ amount, phone, network, receiverName?, narration? }`.
 Même double canal que les paiements. [webhookMobilewallet.service](../src/services/transaction/webhookMobilewallet.service.js)
 **route en tête** : si `transaction_id` correspond à un `withdrawals.mw_payout_id` →
 [webhookPayout.service](../src/services/transaction/webhookPayout.service.js) :
+
 - idempotence via `reserveSettlement` (table partagée) ;
 - `successful` → crée la transaction `withdrawal` (**débit réel**) + `status='completed'` +
   socket `wallet.withdrawal` (`status='completed'`, `newBalance`) ;

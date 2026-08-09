@@ -8,12 +8,12 @@ Suivi des transactions financières : paiements, remboursements, transferts. Mar
 
 ## Routes
 
-| Méthode | Endpoint | Contrôleur | Rôle |
-|---------|----------|-----------|------|
-| POST | `/transaction` | `createTransaction` | Crée une transaction (paiement reçu) |
-| GET | `/transaction/:userId` | `getTransactions` | Récupère historique user/marchand |
-| PUT | `/transaction/:id` | `updateTransaction` | Met à jour statut transaction |
-| POST | `/transaction/webhook/mobilewallet` | `webhookMobilewallet` | Reçoit verdict paiement MobileWallet |
+| Méthode | Endpoint                            | Contrôleur            | Rôle                                 |
+| ------- | ----------------------------------- | --------------------- | ------------------------------------ |
+| POST    | `/transaction`                      | `createTransaction`   | Crée une transaction (paiement reçu) |
+| GET     | `/transaction/:userId`              | `getTransactions`     | Récupère historique user/marchand    |
+| PUT     | `/transaction/:id`                  | `updateTransaction`   | Met à jour statut transaction        |
+| POST    | `/transaction/webhook/mobilewallet` | `webhookMobilewallet` | Reçoit verdict paiement MobileWallet |
 
 ---
 
@@ -24,23 +24,23 @@ Transaction {
   id: string                   // UUID
   userId: string               // User qui a payé OU marchand qui reçoit
   type: 'payment' | 'refund' | 'transfer' | 'payout'
-  
+
   // Montants
   amount: number               // Montant (XOF, etc.)
   currentAmount: number        // Solde après transaction (portefeuille marchand)
   remainingAmount: number      // Montant restant à verser (si payout partialisé)
-  
+
   // Métadonnées
   payBy: string                // Méthode : 'mobilewallet', 'card', etc.
   name: string                 // Description (ex: "Paiement commande #123")
-  
+
   // Statuts
   status: 'pending' | 'completed' | 'failed' | 'refunded'
-  
+
   // Tracabilité
   relatedPaymentId?: string    // Référence au payment/order
   relatedOrderId?: string      // Référence commande
-  
+
   createdAt: ISO8601
   updatedAt: ISO8601
 }
@@ -89,20 +89,25 @@ Transaction {
 ## Services & Repositories
 
 **postTransactionService.js**
+
 - `createTransaction(data)` — crée transaction + appelle MobileWallet si `payBy === 'mobilemoney'`
 - `getMwTransactionMap()` — mappe `mw_transaction_id` → `userId` pour webhook
 
 **mobilewalletService.js**
+
 - `pay({ amount, phone, network, email, mode })` — appelle POST /pay sur MobileWallet
 
 **webhookMobilewalletService.js**
+
 - `webhookMobilewalletService(payload)` — traite verdict + émet socket
 
 **mobilewalletSocketClient.js**
+
 - `initMobileWalletSocket()` — connexion Socket.io vers MobileWallet
 - Écoute `transaction.update` → appelle webhookMobilewalletService
 
 **repos.transactions** : Implémentés Firestore/Supabase
+
 - `create(data)`
 - `getById(id)`
 - `getByUserId(userId)`
@@ -133,7 +138,7 @@ Backend appelle MobileWallet /pay
   │   (Frontend reçoit et affiche code USSD)
   │
   └─→ MobileWallet envoie verdict via 2 CANAUX EN PARALLÈLE:
-      
+
       CANAL 1: Socket.IO (push temps réel)
       ────────────────────────────────────
       • Backend = client Socket.io (connecté à MobileWallet)
@@ -149,13 +154,13 @@ Backend appelle MobileWallet /pay
             ...
           }
         }
-      
+
       CANAL 2: Webhook HTTP (callback signé)
       ───────────────────────────────────────
       • POST /transaction/webhook/mobilewallet
       • Header: X-MobileWallet-Signature: t=<ts>,v1=<hmac>
       • Payload: {type, data} (même format Socket.io)
-      
+
       Les deux arrivent asynchronement (ordre aléatoire!)
       ↓
       IDEMPOTENCE GARANTIE:
@@ -214,6 +219,7 @@ APP_ID=app_xyz123                              # ID de l'app (reçu de MobileWal
 ## Idempotence: Socket + Webhook
 
 **Problème:** MobileWallet peut envoyer le verdict par 2 canaux différents:
+
 - **Socket.IO** : push temps réel (si WebSocket ouvert)
 - **Webhook HTTP** : callback signé (fallback fiable)
 
@@ -225,7 +231,7 @@ Ces signaux peuvent arriver dans n'importe quel ordre, même en parallèle!
 // Avant de traiter un verdict :
 const reserved = await repos.transactions.reserveSettlement(
   transaction_id,
-  'webhook',  // ou 'socket'
+  'webhook', // ou 'socket'
   status
 );
 
@@ -239,6 +245,7 @@ io.to(`user:${userId}`).emit('payment.settled', { status, transaction_id });
 ```
 
 **Flux de réservation (atomique):**
+
 1. Webhook arrive → essaie INSERT dans `transactionSettlements`
 2. Si succès (INSERT réussit) → c'est le premier, traite le verdict
 3. Si échec (UNIQUE constraint) → Socket a déjà traité, abandon

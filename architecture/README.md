@@ -12,35 +12,42 @@ Documentation d'architecture du backend Node.js / Express / Supabase / Socket.io
 
 ### Métier (Features)
 
-| Fichier | Feature | Status |
-|---|---|---|
-| [users.md](./users.md) | Utilisateurs — registration, auth, profile, **isMarchand recalculé** | ✅ |
-| [merchants.md](./merchants.md) | Marchands — creation boutique, config heures livraison | ✅ |
-| [menus-detailed.md](./menus-detailed.md) | Menus — catalogue produits, stock, extras, boissons | ✅ |
-| [orders.md](./orders.md) | Commandes — routes `/order`, rank queue, stock, transitions statut, **délégation livreur** | ✅ |
-| [drivers.md](./drivers.md) | Livreurs — candidatures `/driver`, `user.driverId` vs `order.driverId`, listes | ✅ |
-| [deliveries.md](./deliveries.md) | Livraisons — tracking, livreur assignation, GPS, statuts | ✅ |
-| [pricing.md](./pricing.md) | **Tarification** — prix affiché calculé (livraison + marge + commission + **frais de retrait**), **qui livre (`deliveryBy` : fastfood ou plateforme)**, **arrondi au pas + amorti livreur plafonné**, `settings` modifiables à chaud, `order_settlements` (l'argent) + `order_deliveries` (la course) | ✅ |
-| [ratings.md](./ratings.md) | Notes & Avis — table polymorphe `ratings`, note plat/livreur, moyennes pré-calculées | ✅ |
-| [payment.md](./payment.md) | Paiements — MobileWallet, `/transaction` → `/pay`, verdict double canal (webhook HTTP + socket), idempotence | ✅ |
-| [payment-amount-check.md](./payment-amount-check.md) | **Contrôle du montant** — recalcul serveur du `total`, livraison offerte (bonus) vs déduction panier groupé | ✅ |
-| [transactions.md](./transactions.md) | Transactions — historique paiements, portefeuille marchand, remboursements | ✅ |
-| [wallet.md](./wallet.md) | Portefeuille marchand — crédit au paiement, solde dérivé, commissions, retraits `/wallet` | ✅ |
-| [bonus.md](./bonus.md) | Bonus — fidélité par paliers, `bonusStats` recalculé au GET, livraison manuelle des accès, **livraison offerte : armement + `deliveryOffer`**, **une réclamation = une ligne (`is_current`)**, **`status_view` : campagne datée (`criteria.schedule`), flyer à poster + preuve vidéo, `canDownload`/`canUpload`, téléchargement marqué et non purgé au claim** | ✅ |
-| [notifications.md](./notifications.md) | Notifications — FCM/Expo dispatcher, routes `/notification` | ✅ |
-| [support.md](./support.md) | Chat support client (fils, messages, socket `support.message`) | ✅ |
-| [socket-events.md](./socket-events.md) | Événements Socket.io — émetteurs, destinataires, rooms | ✅ |
-| [auth.md](./auth.md) | Authentification — middleware Bearer, routes `/auth`, Firebase tokens | ✅ |
+| Fichier                                                  | Feature                                                                                                                                                  | Status |
+| -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| [users.md](./users.md)                                   | Utilisateurs — registration, auth, profile, **isMarchand recalculé**                                                                                     | ✅     |
+| [merchants.md](./merchants.md)                           | Marchands — creation boutique, config heures livraison                                                                                                   | ✅     |
+| [menus-detailed.md](./menus-detailed.md)                 | Menus — catalogue produits, stock, extras, boissons                                                                                                      | ✅     |
+| [orders.md](./orders.md)                                 | Commandes — routes `/order`, rank queue, stock, transitions statut, **délégation livreur**                                                               | ✅     |
+| [drivers.md](./drivers.md)                               | Livreurs — candidatures `/driver`, `user.driverId` vs `order.driverId`, listes                                                                           | ✅     |
+| [deliveries.md](./deliveries.md)                         | Livraisons — tracking, livreur assignation, GPS, statuts                                                                                                 | ✅     |
+| [pricing.md](./pricing.md)                               | **Tarification (hub)** — composition du prix affiché, **zone MAX fondue dans le plat vs course réelle ajoutée au total**, `settings` modifiables à chaud | ✅     |
+| [pricing-delivery-modes.md](./pricing-delivery-modes.md) | Qui livre (`deliveryBy` : fastfood ou plateforme), arrondi au pas, amorti livreur plafonné, cascade                                                      | ✅     |
+| [pricing-fees.md](./pricing-fees.md)                     | Les deux frais : commission **agrégateur** (5 %) vs frais de **retrait** MTN/Orange, une ponction par boutique                                           | ✅     |
+| [pricing-settlement.md](./pricing-settlement.md)         | Vérité comptable — `order_settlements` (l'argent) + `order_deliveries` (la course), à emporter, déclenchement                                            | ✅     |
+| [pricing-roles.md](./pricing-roles.md)                   | Quel prix pour quel rôle — client / livreur / marchand, sockets menu, `rawPrice`                                                                         | ✅     |
+| [ratings.md](./ratings.md)                               | Notes & Avis — table polymorphe `ratings`, note plat/livreur, moyennes pré-calculées                                                                     | ✅     |
+| [payment.md](./payment.md)                               | Paiements — MobileWallet, `/transaction` → `/pay`, verdict double canal (webhook HTTP + socket), idempotence                                             | ✅     |
+| [payment-amount-check.md](./payment-amount-check.md)     | **Contrôle du montant** — recalcul serveur du `total`, livraison offerte (bonus) vs déduction panier groupé                                              | ✅     |
+| [transactions.md](./transactions.md)                     | Transactions — historique paiements, portefeuille marchand, remboursements                                                                               | ✅     |
+| [wallet.md](./wallet.md)                                 | Portefeuille marchand — crédit au paiement, solde dérivé, commissions, retraits `/wallet`                                                                | ✅     |
+| [bonus.md](./bonus.md)                                   | **Bonus (hub)** — fidélité par paliers, modèle de données, routes, `criteria` / `status_view`, une réclamation = une ligne (`is_current`)                | ✅     |
+| [bonus-lifecycle.md](./bonus-lifecycle.md)               | Réclamation, livraison manuelle des accès, `rewardCredentials`, décrément du solde, code & consommation                                                  | ✅     |
+| [bonus-delivery-offer.md](./bonus-delivery-offer.md)     | Livraison offerte — armement, consommation à `POST /order`, `deliveryOffer`                                                                              | ✅     |
+| [bonus-definition.md](./bonus-definition.md)             | Validation de la définition, autorisation, résolution de la cible, performance                                                                           | ✅     |
+| [notifications.md](./notifications.md)                   | Notifications — FCM/Expo dispatcher, routes `/notification`                                                                                              | ✅     |
+| [support.md](./support.md)                               | Chat support client (fils, messages, socket `support.message`)                                                                                           | ✅     |
+| [socket-events.md](./socket-events.md)                   | Événements Socket.io — émetteurs, destinataires, rooms                                                                                                   | ✅     |
+| [auth.md](./auth.md)                                     | Authentification — middleware Bearer, routes `/auth`, Firebase tokens                                                                                    | ✅     |
 
 ### Infrastructure (Patterns & Configuration)
 
-| Fichier | Sujet | Status |
-|---|---|---|
-| [structure.md](./structure.md) | Arborescence `src/` (app, server, routes, controllers, services) | ✅ |
-| [validation-errors.md](./validation-errors.md) | Validation données, error handling, HTTP codes, logging | ✅ |
-| [config-secrets.md](./config-secrets.md) | Variables d'env, secrets, DB provider router, configuration par env | ✅ |
-| [webhooks-integration.md](./webhooks-integration.md) | Webhooks entrants, signature verification, intégrations externes | ✅ |
-| [performance-optimization.md](./performance-optimization.md) | N+1 prevention, caching, indexes, pagination, monitoring | ✅ |
+| Fichier                                                      | Sujet                                                               | Status |
+| ------------------------------------------------------------ | ------------------------------------------------------------------- | ------ |
+| [structure.md](./structure.md)                               | Arborescence `src/` (app, server, routes, controllers, services)    | ✅     |
+| [validation-errors.md](./validation-errors.md)               | Validation données, error handling, HTTP codes, logging             | ✅     |
+| [config-secrets.md](./config-secrets.md)                     | Variables d'env, secrets, DB provider router, configuration par env | ✅     |
+| [webhooks-integration.md](./webhooks-integration.md)         | Webhooks entrants, signature verification, intégrations externes    | ✅     |
+| [performance-optimization.md](./performance-optimization.md) | N+1 prevention, caching, indexes, pagination, monitoring            | ✅     |
 
 ---
 
@@ -94,11 +101,14 @@ BACKEND/
 
 ## Points d'attention connus
 
-| Sujet | À savoir |
-|---|---|
-| Prix d'un menu | C'est **`prices[]`** (`{price, description}`) qui fait foi. `prix1/prix2/prix3` existent dans le mapper mais sont **NULL sur toute la base** |
-| Une commande | = **UN plat** × `quantity`. Un panier de 3 plats = 3 commandes, reliées par `orders.group_id` |
-| Zones de livraison | Un même lieu a **deux tarifs** : `periodicZones` et `expressZones`. Toujours filtrer par `orders.delivery.type` |
-| Frais de paiement | **Inclus** dans les prix affichés. Aucune ligne de frais n'est jamais présentée au user |
-| `platform_revenues` | Table **posée d'avance, pas encore alimentée** — socle pour les revenus hors commandes (flyers, abonnements…) |
-| `pickupAllowed` | « le client peut venir récupérer sur place ». **N'exclut pas la livraison** — ex-`pickupOnly`, dont le nom disait l'inverse |
+| Sujet                         | À savoir                                                                                                                                                                                                                                                      |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Prix d'un menu                | C'est **`prices[]`** (`{price, description}`) qui fait foi. `prix1/prix2/prix3` existent dans le mapper mais sont **NULL sur toute la base**                                                                                                                  |
+| Une commande                  | = **UN plat** × `quantity`. Un panier de 3 plats = 3 commandes, reliées par `orders.group_id`                                                                                                                                                                 |
+| Zones de livraison            | Un même lieu a **deux tarifs** : `periodicZones` et `expressZones`. Toujours filtrer par `orders.delivery.type`                                                                                                                                               |
+| Livraison — **deux** montants | La **zone MAX** est fondue dans le prix du plat (matelas → marge) ; la **course réelle** (`delivery.prix`) est **ajoutée au total**. Les confondre est le piège n°1 : voir [pricing.md](./pricing.md) et [payment-amount-check.md](./payment-amount-check.md) |
+| Frais de paiement             | **Inclus** dans les prix affichés. Aucune ligne de frais n'est jamais présentée au user                                                                                                                                                                       |
+| Les **deux** frais            | `payment_fee_percent` (5 %) = commission de l'**agrégateur** MobileWallet ; `withdrawal_fee_*` = frais de l'**opérateur** MTN/Orange au retrait. Ne pas appeler le premier « commission MTN »                                                                 |
+| Le résidu de la cascade       | C'est **`platform_margin`**, jamais `items_real` : le fastfood touche son prix exact (`rawPrice` figés) dans les deux régimes                                                                                                                                 |
+| `platform_revenues`           | Table **posée d'avance, pas encore alimentée** — socle pour les revenus hors commandes (flyers, abonnements…)                                                                                                                                                 |
+| `pickupAllowed`               | « le client peut venir récupérer sur place ». **N'exclut pas la livraison** — ex-`pickupOnly`, dont le nom disait l'inverse                                                                                                                                   |
