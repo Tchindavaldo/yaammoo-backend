@@ -4,6 +4,8 @@
 const repos = require('../../repositories');
 const { getIO } = require('../../socket');
 const { sanitizeDeliveryHours } = require('../../utils/deliveryHoursSanitize');
+const { validateDeliveryZones } = require('../pricing/menuPriceGuard');
+const { getPricingSettings } = require('../settings/settings.service');
 
 exports.updateFastFoodService = async (fastFoodId, data) => {
   const existing = await repos.fastfoods.getById(fastFoodId);
@@ -30,6 +32,15 @@ exports.updateFastFoodService = async (fastFoodId, data) => {
   // garde que les créneaux réellement exploitables. Voir utils/deliveryHoursSanitize.
   if (data.deliveryHours !== undefined) {
     updateData.deliveryHours = sanitizeDeliveryHours(data.deliveryHours);
+
+    // Une zone trop chère n'est plus absorbée par le surplus d'arrondi du plat :
+    // la commission prélevée dessus sortirait de la marge. Refusé AVANT écriture.
+    const zoneErrors = validateDeliveryZones(updateData.deliveryHours, await getPricingSettings());
+    if (zoneErrors.length > 0) {
+      const error = new Error(zoneErrors.map(e => e.message).join(' '));
+      error.code = 400;
+      throw error;
+    }
   }
 
   const updated = await repos.fastfoods.update(fastFoodId, updateData);

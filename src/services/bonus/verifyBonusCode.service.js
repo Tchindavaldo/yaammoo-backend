@@ -15,12 +15,21 @@
 const repos = require('../../repositories');
 const { normalizeBonusCode } = require('./bonusCode.util');
 const { checkDeliveryBonusUsable, buildDeliveryOffer, messageForReason } = require('./deliveryOffer');
+const { checkFreeDeliveryAffordable, affordabilityMessage } = require('./deliveryOfferAffordability');
+const { getPricingSettings } = require('../settings/settings.service');
+const { toNumber } = require('../pricing/deliveryPricing');
 
 /**
  * @param {string} rawCode    code présenté
  * @param {string} [fastFoodId] boutique visée — omis, la correspondance n'est pas testée
+ * @param {Object} [order]     contexte de la commande en cours de composition :
+ *   `{ brutUnit, quantity, coursePrice }`. Fourni, il permet d'annoncer AVANT
+ *   la commande qu'un bonus plateforme n'est pas finançable (« ajoutez N plats »)
+ *   — le même refus que `POST /transaction` opposera, mais sans surprise.
+ *   Omis, ce contrôle est simplement sauté : la vérification d'un code hors
+ *   contexte reste possible.
  */
-exports.verifyBonusCodeService = async (rawCode, fastFoodId) => {
+exports.verifyBonusCodeService = async (rawCode, fastFoodId, order) => {
   try {
     const code = normalizeBonusCode(rawCode);
     if (!code) return { success: false, status: 400, message: 'Code bonus requis.' };
@@ -46,6 +55,38 @@ exports.verifyBonusCodeService = async (rawCode, fastFoodId) => {
           remainingUses: check.remainingUses ?? null,
         },
       };
+    }
+
+    // Finançabilité : contrôlée seulement si le contexte de commande est fourni.
+    // Le refus est DUR à la commande — mieux vaut l'annoncer ici, pendant que le
+    // user peut encore ajouter un plat.
+    if (order && fastFoodId) {
+      const pricing = await getPricingSettings();
+      const fastfood = await repos.fastfoods.getById(fastFoodId).catch(() => null);
+      const afford = checkFreeDeliveryAffordable({
+        fastfood,
+        brutUnit: toNumber(order.brutUnit),
+        quantity: order.quantity,
+        coursePrice: toNumber(order.coursePrice),
+        coveredBy: buildDeliveryOffer(bonus, request)?.coveredBy,
+        pricing,
+      });
+      if (!afford.affordable) {
+        return {
+          success: true,
+          status: 200,
+          message: affordabilityMessage(afford),
+          data: {
+            valid: false,
+            reason: 'not_affordable',
+            bonusId: bonus.id,
+            minItems: Number.isFinite(afford.minItems) ? afford.minItems : null,
+            missingItems: afford.missing,
+            expiresAt: check.expiresAt,
+            remainingUses: check.remainingUses,
+          },
+        };
+      }
     }
 
     return {

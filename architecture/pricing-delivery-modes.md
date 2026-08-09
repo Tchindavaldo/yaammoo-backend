@@ -21,15 +21,22 @@ d'arrondi, et cascade de répartition dans les deux sens.
 
 `fastfoods.deliveryBy` — **décidé par l'admin**, jamais par la boutique.
 
-| Valeur              | Zones utilisées                | Base du prix affiché | Prix affiché                   | Course versée à |
-| ------------------- | ------------------------------ | -------------------- | ------------------------------ | --------------- |
-| `fastfood` (défaut) | `deliveryHours` de la boutique | max des DEUX listes  | exact, aucun arrondi           | **fastfood**    |
-| `platform`          | `platformDeliveryZones`        | **périodique seul**  | calé sur `price_rounding_step` | **livreur**     |
+| Valeur              | Zones utilisées                | Base du prix affiché                     | Prix affiché                               | Course versée à |
+| ------------------- | ------------------------------ | ---------------------------------------- | ------------------------------------------ | --------------- |
+| `fastfood` (défaut) | `deliveryHours` de la boutique | **marge par palier seule** (aucune zone) | calé sur le pas, **toujours vers le haut** | **fastfood**    |
+| `platform`          | `platformDeliveryZones`        | zone **périodique** + marge de base      | calé sur le pas, **descend** si absorbable | **livreur**     |
 
 > ⚠️ En régime plateforme, l'affichage se base sur le **périodique**. Un client
 > qui choisit l'express paie son supplément en connaissance de cause ; caler le
 > catalogue entier sur l'express gonflerait tous les prix pour un mode que la
-> plupart ne prendront pas. En régime fastfood, on garde le max des deux listes.
+> plupart ne prendront pas.
+>
+> ⚠️ En régime **fastfood**, plus aucune zone n'entre dans le prix du plat
+> (migration 038). Fondre la zone la plus chère gonflait tout le catalogue pour
+> couvrir un cas rare : un plat brut à 2000 chez une boutique à 1000 de zone max
+> s'affichait 3320 alors que la course due valait 250. La course est désormais
+> facturée à part, au tarif réel, et c'est le **surplus d'arrondi** qui absorbe
+> la commission prélevée dessus.
 
 ---
 
@@ -67,10 +74,15 @@ fonctionnent dessus sans rien savoir du régime.
 
 ## L'arrondi au pas — et pourquoi il vient EN DERNIER
 
-En régime plateforme, le prix affiché est toujours un multiple de
-`price_rounding_step` (500). On **descend** tant que le manque reste absorbable
-par la course (`driver_amortization_max`, 100 F) ; au-delà on **monte**, et le
-surplus revient à la plateforme.
+Le prix affiché est un multiple de `price_rounding_step` (500) dans les **deux**
+régimes, mais la règle diffère :
+
+| Régime     | Sens de l'arrondi                                                                                                       |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `platform` | **descend** tant que le manque reste sous `driver_amortization_max` (100 F, absorbé par la course) ; au-delà, **monte** |
+| `fastfood` | **monte toujours** — il n'y a aucune course plateforme à amortir, et descendre mettrait la marge en négatif             |
+
+Dans les deux cas, le surplus revient à la plateforme.
 
 > ⚠️ **L'ordre est le tout.** Arrondir le prix BRUT en amont ferait franchir un
 > palier entier une fois les frais ajoutés (2500 → 3500 au lieu de 3000). On
@@ -82,6 +94,35 @@ surplus revient à la plateforme.
 > le haut est un surplus payé par le client, il revient à la plateforme.
 > Sans ce plafond, un plat à 3500 arrondi de 4110 à 4500 versait 619 F au livreur
 > pour une course qui en vaut 250.
+
+### Grille en régime `fastfood` (migration 038)
+
+Marge 200 (palier 1) / 300 (palier 2 dès brut 3500), commission 5 %, retrait MTN,
+pas 500. La course s'ajoute au total, elle n'est pas dans ces colonnes.
+
+| Brut | Marge | Juste | Affiché | Surplus | Course max couverte |
+| ---- | ----- | ----- | ------- | ------- | ------------------- |
+| 500  | 200   | 794   | 1000    | 206     | **4 120**           |
+| 1000 | 200   | 1320  | 1500    | 180     | **3 600**           |
+| 1500 | 200   | 1847  | 2000    | 153     | **3 060**           |
+| 2000 | 200   | 2373  | 2500    | 127     | **2 540**           |
+| 2500 | 200   | 2899  | 3000    | 101     | **2 020**           |
+| 3000 | 200   | 3426  | 3500    | 74      | **1 480**           |
+| 3500 | 300   | 4057  | 4500    | 443     | **8 860**           |
+| 4000 | 300   | 4586  | 5000    | 414     | **8 280**           |
+| 5000 | 300   | 5651  | 6000    | 349     | **6 980**           |
+| 8000 | 300   | 8847  | 9000    | 153     | **3 060**           |
+| 9000 | 300   | 9912  | 10000   | 88      | **1 760**           |
+
+**« Course max couverte »** = `surplus / commission` : au-delà, la commission
+prise sur la course entame la marge de base. Les zones réelles (50 à 300 F)
+en sont très loin, mais le surplus se resserre en haut de grille — c'est là
+qu'un palier de marge supplémentaire aurait du sens.
+
+> ⚠️ Le surplus dépend du prix **brut** du marchand, sur lequel la plateforme n'a
+> aucune prise. Un brut dont le prix juste tombe pile sur un multiple de 500
+> donne un surplus nul : la marge de base porte alors seule la commission de la
+> course.
 
 ### Grille en régime plateforme
 
@@ -108,7 +149,8 @@ encaisse.
 ## La cascade, dans les deux sens
 
 Composition (à l'affichage) puis répartition (au règlement) sont exactement
-inverses. Plat brut 2000, marge 100, zone 250, commission 5 %, retrait MTN 54 :
+inverses. Plat brut 2000, zone réelle 250, commission 5 %, retrait MTN 54 —
+marge 200 en `fastfood` (palier 1), 100 en `platform` :
 
 |                          | `fastfood`                  | `platform`                  |
 | ------------------------ | --------------------------- | --------------------------- |

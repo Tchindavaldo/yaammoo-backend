@@ -7,6 +7,8 @@ const { validateMenu } = require('../../utils/validator/validatMenu');
 const { getFastFoodService } = require('../fastfood/getFastFood');
 const { reliableEmit } = require('../../utils/reliableEmit');
 const { enrichMenuForClient } = require('./enrichMenuForClient');
+const { validateMenuPrices } = require('../pricing/menuPriceGuard');
+const { getPricingSettings } = require('../settings/settings.service');
 
 exports.updateMenuService = async (menuId, updateData) => {
   if (!menuId) return { success: false, message: 'ID du menu est requis' };
@@ -20,6 +22,14 @@ exports.updateMenuService = async (menuId, updateData) => {
   try {
     const existing = await repos.menus.getById(menuId);
     if (!existing) return { success: false, message: 'Menu non trouvé' };
+
+    // Contrôle des prix AVANT écriture. `updateData` peut ne porter aucun prix :
+    // `validateMenuPrices` ne regarde alors rien, l'édition passe telle quelle.
+    const fastFoodForPrices = await getFastFoodService(existing.fastFoodId);
+    const priceErrors = validateMenuPrices(updateData, fastFoodForPrices, await getPricingSettings());
+    if (priceErrors.length > 0) {
+      return { success: false, message: priceErrors.map(e => e.message).join(' ') };
+    }
 
     const updatedMenu = await repos.menus.update(menuId, updateData);
 

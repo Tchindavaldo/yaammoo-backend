@@ -35,7 +35,7 @@ const { generateId } = require('../../repositories/idGen');
 const { getPricingSettings } = require('../settings/settings.service');
 const { resolveOffer } = require('../pricing/deliveryOfferResolver');
 const { resolveDeliveryBonus, consumeDeliveryBonus } = require('../bonus/applyDeliveryBonus.service');
-const { splitDeliveryAmounts, toNumber, feeIncludedIn, isPlatformDelivered } = require('../pricing/deliveryPricing');
+const { splitDeliveryAmounts, toNumber, feeIncludedIn, isPlatformDelivered, marginForBrut } = require('../pricing/deliveryPricing');
 const { withdrawalFee } = require('../pricing/withdrawalFees');
 // Clé PARTAGÉE avec `validatePaymentAmount` : on verse exactement le nombre de
 // courses qu'on a facturé au user.
@@ -45,14 +45,22 @@ const { deliveryGroupKey } = require('../pricing/deliveryGroupKey');
 const withdrawalFee_ = (amount, pricing, order) => withdrawalFee(amount, pricing?.withdrawalFees, order?.network ?? order?.payBy);
 
 /**
- * Montant RÉEL des articles d'une commande, depuis les prix bruts figés à
- * l'achat (`rawPrice`). Sert en régime PLATEFORME, où le prix payé a été calé
- * sur un multiple du pas : le fastfood doit toucher son prix, pas un résidu.
+ * Prix BRUT unitaire du plat choisi, depuis les `rawPrice` figés à l'achat.
+ * C'est lui qui décide du palier de marge — pas le prix payé, qui porte déjà
+ * la marge qu'on cherche à retrouver.
  */
-function rawItemsOf(order) {
+function rawUnitPriceOf(order) {
   const prices = order?.menu?.prices;
   const idx = Math.max(0, toNumber(order?.selectedPriceIndex) - 1);
-  const unit = Array.isArray(prices) ? toNumber(prices[idx]?.rawPrice ?? prices[idx]?.price) : 0;
+  return Array.isArray(prices) ? toNumber(prices[idx]?.rawPrice ?? prices[idx]?.price) : 0;
+}
+
+/**
+ * Montant RÉEL des articles d'une commande, depuis les prix bruts figés à
+ * l'achat (`rawPrice`). Le fastfood touche son prix exact, jamais un résidu.
+ */
+function rawItemsOf(order) {
+  const unit = rawUnitPriceOf(order);
   const qty = Math.max(1, toNumber(order?.quantity) || 1);
 
   const sum = (list, factorOf) => (Array.isArray(list) ? list : []).reduce((acc, it) => (it?.status === true ? acc + toNumber(it?.rawPrice ?? it?.prix) * factorOf(it) : acc), 0);
@@ -169,12 +177,17 @@ exports.settleDeliveryService = async ({ orders, bonusCode }) => {
       const applies = delivered && (!offer || offer.fastFoodId == null || offer.fastFoodId === ffId);
       const orderOffer = applies ? settled.offer : null;
 
+      // La marge dépend du prix BRUT du plat (palier) — plus une constante. On
+      // repart des `rawPrice` figés dans la commande, comme `itemsReal`.
+      const unitBrut = rawUnitPriceOf(order);
+      const marginPerItem = marginForBrut(unitBrut, pricing);
+
       const amounts = splitDeliveryAmounts({
         fastfood,
         zone: order.delivery?.zone,
         // Un même lieu n'a pas le même prix en express et en périodique.
         deliveryType: order.delivery?.type,
-        platformMargin: pricing.platformMargin,
+        platformMargin: marginPerItem,
         quantity: order.quantity,
         courseBilled,
         delivered,
@@ -194,7 +207,7 @@ exports.settleDeliveryService = async ({ orders, bonusCode }) => {
       const withdrawalFee = holdsWithdrawal ? toNumber(withdrawalByKey[withdrawalKey]) : 0;
       const net = Math.max(0, afterPaymentFee - withdrawalFee);
       const qty = Math.max(1, toNumber(order.quantity) || 1);
-      const marginDue = toNumber(pricing.platformMargin) * qty;
+      const marginDue = marginPerItem * qty;
 
       // ── Ce qui revient au fastfood ────────────────────────────────────────
       // Le fastfood touche son prix RÉEL, dans les deux régimes : on part des
@@ -241,7 +254,11 @@ exports.settleDeliveryService = async ({ orders, bonusCode }) => {
           // La MARGE est le résidu, dans les deux régimes : tout ce qui n'est ni
           // le fastfood, ni la course, ni les frais. Elle absorbe donc l'arrondi
           // vers le haut comme la commission prise sur la course.
-          platformMargin: Math.max(0, net - itemsReal - driverAmount),
+          // ⚠️ PEUT être négatif : sur une livraison offerte, la course est
+          // versée au fastfood sans avoir été encaissée. Offrir un bonus est une
+          // décision commerciale prise en connaissance de cause — son coût réel
+          // doit apparaître en base, pas être masqué par un plancher à 0.
+          platformMargin: net - itemsReal - driverAmount,
           delivered,
         });
         settled.settlements.push(settlement);

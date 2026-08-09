@@ -44,6 +44,18 @@ const KEYS = {
   // Livraison PLATEFORME (migration 037)
   PRICE_ROUNDING_STEP: 'price_rounding_step',
   DRIVER_AMORTIZATION_MAX: 'driver_amortization_max',
+  // Marge en régime FASTFOOD (migration 038) — clé DISTINCTE de
+  // `platform_margin` : les deux régimes ne composent pas le prix de la même
+  // façon (le fastfood ne fond plus aucune zone dedans), leur marge n'a donc
+  // aucune raison de bouger ensemble.
+  FASTFOOD_MARGIN: 'fastfood_margin',
+  // Palier 2 : à partir de ce prix BRUT, la marge fastfood vaut le montant du
+  // palier au lieu de `fastfood_margin`.
+  FASTFOOD_MARGIN_TIER_2_MIN_BRUT: 'fastfood_margin_tier_2_min_brut',
+  FASTFOOD_MARGIN_TIER_2_MARGIN: 'fastfood_margin_tier_2_margin',
+  // Course qu'un plat doit pouvoir couvrir à lui seul, via son surplus
+  // d'arrondi (migration 039). Sert à REFUSER les prix de menu trop justes.
+  FASTFOOD_MIN_COVERED_COURSE: 'fastfood_min_covered_course',
 };
 
 const FALLBACKS = {
@@ -64,6 +76,14 @@ const FALLBACKS = {
   // aucune course amortie : un incident de lecture ne doit pas rogner le livreur.
   [KEYS.PRICE_ROUNDING_STEP]: 0,
   [KEYS.DRIVER_AMORTIZATION_MAX]: 0,
+  // Marge fastfood à 0 : aucune marge inventée si la clé manque, comme
+  // `platform_margin`. Seuil de palier à 0 = aucun palier.
+  [KEYS.FASTFOOD_MARGIN]: 0,
+  [KEYS.FASTFOOD_MARGIN_TIER_2_MIN_BRUT]: 0,
+  [KEYS.FASTFOOD_MARGIN_TIER_2_MARGIN]: 0,
+  // 0 = aucune exigence : tous les prix passent. Repli sûr — une clé absente ne
+  // doit pas bloquer la création de menus.
+  [KEYS.FASTFOOD_MIN_COVERED_COURSE]: 0,
 };
 
 // Les réglages Apple Review n'ont VOLONTAIREMENT aucun repli : inventer une
@@ -116,6 +136,10 @@ async function getPricingSettings() {
     deliveryFreeMode: s[KEYS.DELIVERY_FREE_MODE] === true,
     priceRoundingStep: Number(s[KEYS.PRICE_ROUNDING_STEP]) || 0,
     driverAmortizationMax: Number(s[KEYS.DRIVER_AMORTIZATION_MAX]) || 0,
+    fastfoodMargin: Number(s[KEYS.FASTFOOD_MARGIN]) || 0,
+    fastfoodMarginTier2MinBrut: Number(s[KEYS.FASTFOOD_MARGIN_TIER_2_MIN_BRUT]) || 0,
+    fastfoodMarginTier2Margin: Number(s[KEYS.FASTFOOD_MARGIN_TIER_2_MARGIN]) || 0,
+    fastfoodMinCoveredCourse: Number(s[KEYS.FASTFOOD_MIN_COVERED_COURSE]) || 0,
     withdrawalFees: {
       mtn: {
         threshold: Number(s[KEYS.WITHDRAWAL_FEE_MTN_THRESHOLD]) || 0,

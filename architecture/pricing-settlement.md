@@ -32,6 +32,10 @@ driverAmount   = tarif de la zone (plafonné)       ← dû
 platformMargin = net − itemsReal − driverAmount    ← LE RÉSIDU
 ```
 
+La marge **due** (`marginForBrut`) dépend du prix BRUT du plat, par palier —
+plus d'une constante. Elle sert à borner la course en régime plateforme ; en
+régime fastfood la marge effective est simplement le résidu.
+
 **La marge est la seule variable d'ajustement.** Le fastfood touche son prix
 exact dans les deux régimes, la course est due au tarif de la zone, et tout ce
 qui reste — arrondi vers le haut, écart de zone, commission prise sur la course —
@@ -95,8 +99,31 @@ transaction `driver_credit`, idempotente). Voir [wallet.md](./wallet.md).
 | `covered_by`              | `fastfood` \| `platform`                            | qui renonce au montant |
 | `bonus_id` / `bonus_code` | bonus appliqué                                      | suivi                  |
 
-**`platform_margin` n'est jamais négatif** (contrainte SQL) : une gratuité fait
-renoncer à un gain, elle ne crée pas une dépense.
+### ⚠️ `platform_margin` PEUT être négatif (migration 038)
+
+La contrainte `platform_margin >= 0` a été **levée** sur `order_settlements` et
+`order_deliveries`. Elle supposait qu'une gratuité fait seulement renoncer à un
+gain — vrai tant que la zone max était fondue dans le prix (marge 1100), faux
+depuis que la marge fastfood vaut 200 et ne porte plus de zone.
+
+Plat brut 2000 (affiché 2500), livraison **offerte**, `covered_by = 'platform'` :
+
+| Course offerte | Versé au fastfood | `platform_margin` |
+| -------------- | ----------------- | ----------------- |
+| 250            | 2250              | **71**            |
+| 321            | 2321              | **0** ← seuil     |
+| 500            | 2500              | **−179**          |
+| 1000           | 3000              | **−679**          |
+
+Encaissé 2500 − commission 125 − retrait 54 = **2321** à répartir. Au-delà de
+~320 F de course offerte, la plateforme verse plus qu'elle n'a encaissé.
+
+Borner à 0 n'annulait pas la perte, il la rendait **invisible**. Offrir un bonus
+est une décision commerciale prise en connaissance de cause (commandes déjà
+passées, marge déjà rapportée par ce client) : son coût doit être mesurable.
+
+> `platform_revenues` garde sa contrainte — c'est un grand livre de RECETTES, où
+> une ligne négative n'aurait pas de sens.
 
 ---
 
@@ -128,10 +155,14 @@ la table restent, eux, strictement comptables. Voir [orders.md](./orders.md).
 
 ## À emporter : marge pure
 
-Le supplément livraison (zone max) est fondu dans le prix du plat **depuis le
-home**, avant que le user ait choisi son mode. S'il vient chercher sa commande
-lui-même, il l'a donc déjà payé — mais il n'y a **aucune course à verser**. La
-course réelle n'est, elle, jamais ajoutée au total dans ce cas.
+En régime **`platform`**, la zone périodique est fondue dans le prix du plat
+**depuis le home**, avant que le user ait choisi son mode. S'il vient chercher sa
+commande lui-même, il l'a donc déjà payée — mais il n'y a **aucune course à
+verser** : le montant part intégralement en marge.
+
+En régime **`fastfood`** (migration 038), aucune zone n'est fondue : une commande
+en retrait ne porte plus de livraison fantôme, `charged_price` vaut `0` et il n'y
+a plus de marge de livraison à récupérer. Le plat ne porte que sa marge.
 
 |                           | Livré (zone réelle 500)          | À emporter           |
 | ------------------------- | -------------------------------- | -------------------- |

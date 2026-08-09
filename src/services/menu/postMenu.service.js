@@ -7,6 +7,8 @@ const { validateMenu } = require('../../utils/validator/validatMenu');
 const { getFastFoodService } = require('../fastfood/getFastFood');
 const { reliableEmit } = require('../../utils/reliableEmit');
 const { enrichMenuForClient } = require('./enrichMenuForClient');
+const { validateMenuPrices } = require('../pricing/menuPriceGuard');
+const { getPricingSettings } = require('../settings/settings.service');
 
 exports.postMenuService = async data => {
   try {
@@ -18,6 +20,14 @@ exports.postMenuService = async data => {
         message: `Erreur de validation lors de la création du menu: ${errors}`,
         data: null,
       };
+    }
+
+    // Le prix doit financer sa propre livraison — contrôlé AVANT l'écriture,
+    // sinon un menu invalide vivrait en base jusqu'à sa prochaine édition.
+    const fastFoodForPrices = await getFastFoodService(data.fastFoodId);
+    const priceErrors = validateMenuPrices(data, fastFoodForPrices, await getPricingSettings());
+    if (priceErrors.length > 0) {
+      return { success: false, message: priceErrors.map(e => e.message).join(' '), data: null };
     }
 
     const menuAdded = await repos.menus.create(data);

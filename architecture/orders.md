@@ -80,6 +80,22 @@ Détail complet du modèle : [bonus-delivery-offer.md](./bonus-delivery-offer.md
 **Arbitrage campagne / bonus** : si une campagne globale (`delivery_free_mode`)
 est active, elle prime et le bonus n'est **pas** consommé.
 
+### ⚠️ Une commande = UN plat — ce que `quantity` désigne
+
+| Terme          | Ce que c'est                                                                  |
+| -------------- | ----------------------------------------------------------------------------- |
+| **commande**   | **UN** plat (`menu`), ses extras, ses boissons, sa livraison                  |
+| **`quantity`** | le nombre d'**exemplaires de ce plat** — jamais un nombre de plats différents |
+| **panier**     | **plusieurs commandes**, reliées par `groupId`                                |
+
+Un panier de 3 plats différents = **3 commandes**, chacune avec son `quantity`.
+Trois fois le même plat = **1 commande** avec `quantity: 3`.
+
+C'est structurant : une règle métier qui compte « le nombre de plats » doit dire
+si elle parle de `quantity` (dans une commande) ou du nombre de commandes du
+panier — les deux ne se valent pas. Voir
+[bonus-delivery-offer.md](./bonus-delivery-offer.md#la-gratuité-doit-rester-finançable).
+
 ### Composition et contrôle du `total` — AVANT le paiement
 
 `order.total` (et `amount` racine) sont **fournis par le client** et **recalculés**
