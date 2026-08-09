@@ -30,10 +30,10 @@ created_at / updated_at
 Jamais recalculées en lisant toutes les lignes : mises à jour de façon
 **incrémentale et atomique** dans la fonction SQL `rate_target()`.
 
-| Cible | Colonnes moyenne | Exposées par |
-|---|---|---|
-| plat (`menu`) | `menus.rating_avg`, `menus.rating_count` | mapper menu → `ratingAvg`, `ratingCount` |
-| livreur (`driver`) | `users.driver_rating_avg`, `users.driver_rating_count` | mapper user → `driverRatingAvg`, `driverRatingCount` |
+| Cible                               | Colonnes moyenne                                               | Exposées par                                             |
+| ----------------------------------- | -------------------------------------------------------------- | -------------------------------------------------------- |
+| plat (`menu`)                       | `menus.rating_avg`, `menus.rating_count`                       | mapper menu → `ratingAvg`, `ratingCount`                 |
+| livreur (`driver`)                  | `users.driver_rating_avg`, `users.driver_rating_count`         | mapper user → `driverRatingAvg`, `driverRatingCount`     |
 | fastFood-livreur (`fastfoodDriver`) | `fastfoods.driver_rating_avg`, `fastfoods.driver_rating_count` | mapper fastfood → `driverRatingAvg`, `driverRatingCount` |
 
 Le catalogue (`GET /menu/:fastFoodId`) et le profil livreur portent donc déjà la
@@ -52,15 +52,15 @@ Route vers `menus` (`menu`), `fastfoods` (`fastfoodDriver`) ou `users` (`driver`
 
 ## Routes
 
-| Méthode | Endpoint | Auth | Rôle |
-|---|---|---|---|
-| POST | `/menu/:menuId/rating` | ✅ `firebaseAuth` | Noter un plat (`{ orderId, value, comment? }`) |
-| GET | `/menu/:menuId/ratings` | public | Liste des avis d'un plat |
-| POST | `/driver/:driverId/rating` | ✅ `firebaseAuth` | Noter un livreur (`{ orderId, value, comment? }`) |
-| GET | `/driver/:driverId/ratings` | public | Liste des avis d'un livreur |
-| GET | `/fastFood/:fastFoodId/delivery-stats` | ✅ `firebaseAuth` | Stats auto-livraison du fastFood (scope `self`/`client`) |
-| GET | `/menu/:menuId/stats` | ✅ `firebaseAuth` | Stats de commande d'un plat (scope `self`/`client`) |
-| GET | `/rating/order/:orderId` | ✅ `firebaseAuth` | Note (menu + livreur) laissée par l'user pour sa commande |
+| Méthode | Endpoint                               | Auth              | Rôle                                                      |
+| ------- | -------------------------------------- | ----------------- | --------------------------------------------------------- |
+| POST    | `/menu/:menuId/rating`                 | ✅ `firebaseAuth` | Noter un plat (`{ orderId, value, comment? }`)            |
+| GET     | `/menu/:menuId/ratings`                | public            | Liste des avis d'un plat                                  |
+| POST    | `/driver/:driverId/rating`             | ✅ `firebaseAuth` | Noter un livreur (`{ orderId, value, comment? }`)         |
+| GET     | `/driver/:driverId/ratings`            | public            | Liste des avis d'un livreur                               |
+| GET     | `/fastFood/:fastFoodId/delivery-stats` | ✅ `firebaseAuth` | Stats auto-livraison du fastFood (scope `self`/`client`)  |
+| GET     | `/menu/:menuId/stats`                  | ✅ `firebaseAuth` | Stats de commande d'un plat (scope `self`/`client`)       |
+| GET     | `/rating/order/:orderId`               | ✅ `firebaseAuth` | Note (menu + livreur) laissée par l'user pour sa commande |
 
 > `value` : entier 1-5. L'`uid` de l'auteur vient du token (`req.user.uid`), **jamais du body**.
 
@@ -71,22 +71,22 @@ Route vers `menus` (`menu`), `fastfoods` (`fastfoodDriver`) ou `users` (`driver`
 Le front envoie l'`orderId` ; le backend lit la commande et vérifie **lui-même** :
 
 **Note plat** (`services/rating/rateMenu.service.js`) :
+
 1. commande existe → sinon `404`
 2. `order.userId === uid` → sinon `403`
 3. `order.status === 'delivered'` → sinon `403`
 4. `order.menu.id === menuId` (la commande contient ce plat) → sinon `403`
 
 **Note livreur** (`services/rating/rateDriver.service.js`) :
-1-3. idem (existe / à ce user / delivered)
-4. `order.driverId === driverId` (livrée par ce livreur) → sinon `403`
+1-3. idem (existe / à ce user / delivered) 4. `order.driverId === driverId` (livrée par ce livreur) → sinon `403`
 
 ---
 
 ## Sockets (moyenne à jour diffusée en direct, via `reliableEmit`)
 
-| Event | Destinataires | Payload |
-|---|---|---|
-| `menuRatingUpdated` | **marchand** (`fastfoods.userId`) + **user** auteur | `{ data: { menuId, ratingAvg, ratingCount, value } }` |
+| Event                 | Destinataires                                             | Payload                                                 |
+| --------------------- | --------------------------------------------------------- | ------------------------------------------------------- |
+| `menuRatingUpdated`   | **marchand** (`fastfoods.userId`) + **user** auteur       | `{ data: { menuId, ratingAvg, ratingCount, value } }`   |
 | `driverRatingUpdated` | **livreur** (`driverId`) + **user** auteur + **marchand** | `{ data: { driverId, ratingAvg, ratingCount, value } }` |
 
 - Fiabilisés (outbox + rejeu) : le front doit gérer `__eventId` (dédoublonnage) + appeler l'ACK.
@@ -184,11 +184,11 @@ Service : `services/rating/getMenuStats.service.js`.
 
 La **forme de la réponse dépend de qui appelle** :
 
-| Scope | Qui | Contenu |
-|---|---|---|
-| `self` | marchand propriétaire du plat (`viewerUid === fastfood.userId`) | `totalOrders` + ventilation par statut (`stats`) |
-| `client` | user ayant déjà commandé ce plat | `totalOrders` (total du plat, tous users) + `myTotalOrders` (ses commandes) + `hasRated`/`canRate` |
-| autre | ni propriétaire ni client du plat | `403` |
+| Scope    | Qui                                                             | Contenu                                                                                            |
+| -------- | --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `self`   | marchand propriétaire du plat (`viewerUid === fastfood.userId`) | `totalOrders` + ventilation par statut (`stats`)                                                   |
+| `client` | user ayant déjà commandé ce plat                                | `totalOrders` (total du plat, tous users) + `myTotalOrders` (ses commandes) + `hasRated`/`canRate` |
+| autre    | ni propriétaire ni client du plat                               | `403`                                                                                              |
 
 ### Réponse (200) — scope `self`
 
@@ -197,8 +197,12 @@ La **forme de la réponse dépend de qui appelle** :
   "success": true,
   "scope": "self",
   "data": {
-    "menuId": "...", "fastFoodId": "...", "name": "Poulet DG", "image": "...",
-    "ratingAvg": 4.33, "ratingCount": 27,
+    "menuId": "...",
+    "fastFoodId": "...",
+    "name": "Poulet DG",
+    "image": "...",
+    "ratingAvg": 4.33,
+    "ratingCount": 27,
     "totalOrders": 126,
     "stats": { "delivered": 120, "inProgress": 4, "pending": 2 }
   }
@@ -212,8 +216,12 @@ La **forme de la réponse dépend de qui appelle** :
   "success": true,
   "scope": "client",
   "data": {
-    "menuId": "...", "fastFoodId": "...", "name": "Poulet DG", "image": "...",
-    "ratingAvg": 4.33, "ratingCount": 27,
+    "menuId": "...",
+    "fastFoodId": "...",
+    "name": "Poulet DG",
+    "image": "...",
+    "ratingAvg": 4.33,
+    "ratingCount": 27,
     "totalOrders": 126,
     "myTotalOrders": 4,
     "hasRated": false,

@@ -10,14 +10,14 @@ Gestion centralisée configuration, variables d'environnement, secrets (clés AP
 
 ### `src/config/` Directory
 
-| Fichier | Rôle |
-|---------|------|
-| `firebase.js` | Init Firebase Admin SDK |
-| `supabase.js` | Init Supabase client |
-| `dbProvider.js` | Router DB_PROVIDER (Firestore vs Supabase) |
-| `swagger.js` | Config Swagger/OpenAPI |
-| `multer.js` | Upload fichiers (image) |
-| `serviceAccountKey.js` | Charger Firebase service account |
+| Fichier                | Rôle                                       |
+| ---------------------- | ------------------------------------------ |
+| `firebase.js`          | Init Firebase Admin SDK                    |
+| `supabase.js`          | Init Supabase client                       |
+| `dbProvider.js`        | Router DB_PROVIDER (Firestore vs Supabase) |
+| `swagger.js`           | Config Swagger/OpenAPI                     |
+| `multer.js`            | Upload fichiers (image)                    |
+| `serviceAccountKey.js` | Charger Firebase service account           |
 
 ### `.env` (gitignoré)
 
@@ -87,7 +87,7 @@ console.log(`[dbProvider] mode=${DB_PROVIDER}`);
 module.exports = {
   getProvider: () => DB_PROVIDER,
   isFirestore: () => DB_PROVIDER === 'firestore',
-  isSupabase: () => DB_PROVIDER === 'supabase'
+  isSupabase: () => DB_PROVIDER === 'supabase',
 };
 ```
 
@@ -117,7 +117,7 @@ module.exports = {
   orders,
   transactions,
   notifications,
-  bonus
+  bonus,
 };
 ```
 
@@ -133,10 +133,12 @@ module.exports = {
 const admin = require('firebase-admin');
 const serviceAccount = require('./serviceAccountKey');
 
-const db = admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-  databaseURL: process.env.FIREBASE_DATABASE_URL
-}).firestore();
+const db = admin
+  .initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+    databaseURL: process.env.FIREBASE_DATABASE_URL,
+  })
+  .firestore();
 
 module.exports = { db, admin };
 ```
@@ -145,9 +147,7 @@ module.exports = { db, admin };
 
 ```javascript
 // Charge depuis env var (base64 encoded JSON)
-const key = JSON.parse(
-  Buffer.from(process.env.FIREBASE_SERVICE_KEY || '{}', 'base64').toString()
-);
+const key = JSON.parse(Buffer.from(process.env.FIREBASE_SERVICE_KEY || '{}', 'base64').toString());
 
 module.exports = key;
 ```
@@ -165,7 +165,7 @@ const { createClient } = require('@supabase/supabase-js');
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY  // Service role (admin access)
+  process.env.SUPABASE_SERVICE_KEY // Service role (admin access)
 );
 
 module.exports = { supabase };
@@ -250,25 +250,25 @@ const options = {
     info: {
       title: 'Yaammoo API',
       version: '1.0.0',
-      description: 'Backend API pour app yaammoo'
+      description: 'Backend API pour app yaammoo',
     },
     servers: [
       {
         url: process.env.API_URL || 'http://localhost:3000',
-        description: 'API server'
-      }
+        description: 'API server',
+      },
     ],
     components: {
       securitySchemes: {
         bearerAuth: {
           type: 'http',
           scheme: 'bearer',
-          bearerFormat: 'JWT'
-        }
-      }
-    }
+          bearerFormat: 'JWT',
+        },
+      },
+    },
   },
-  apis: ['./src/routes/*.js']  // Swagger comments in routes
+  apis: ['./src/routes/*.js'], // Swagger comments in routes
 };
 
 const specs = swaggerJsdoc(options);
@@ -283,11 +283,7 @@ module.exports = specs;
 
 ```javascript
 // src/server.js
-const requiredEnvVars = [
-  'NODE_ENV',
-  'DB_PROVIDER',
-  'API_URL'
-];
+const requiredEnvVars = ['NODE_ENV', 'DB_PROVIDER', 'API_URL'];
 
 const missing = requiredEnvVars.filter(v => !process.env[v]);
 if (missing.length > 0) {

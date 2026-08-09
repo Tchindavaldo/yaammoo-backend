@@ -8,16 +8,16 @@ Gestion des utilisateurs : enregistrement, authentification, récupération de p
 
 ## Routes
 
-| Méthode | Endpoint | Contrôleur | Rôle |
-|---------|----------|-----------|------|
-| POST | `/user` | `createUser` | Crée un nouvel utilisateur (protected) |
-| GET | `/user/:id` | `getOneUserByIdController` | Récupère un user par UID |
-| GET | `/user/email/:email` | `getUserByEmail` | Récupère user par email |
-| GET | `/user/phone/:phone` | `getUserByPhone` | Récupère user par téléphone |
-| PUT | `/user/:id` | `updateUser` | Met à jour le profil user |
-| DELETE | `/user/delete-account` | `deleteOwnAccount` | Supprime le compte (RGPD) |
-| POST | `/user/push-token/add` | `addPushToken` | Enregistre un token push (multi-device) |
-| POST | `/user/push-token/remove` | `removePushToken` | Désenregistre un token push |
+| Méthode | Endpoint                  | Contrôleur                 | Rôle                                    |
+| ------- | ------------------------- | -------------------------- | --------------------------------------- |
+| POST    | `/user`                   | `createUser`               | Crée un nouvel utilisateur (protected)  |
+| GET     | `/user/:id`               | `getOneUserByIdController` | Récupère un user par UID                |
+| GET     | `/user/email/:email`      | `getUserByEmail`           | Récupère user par email                 |
+| GET     | `/user/phone/:phone`      | `getUserByPhone`           | Récupère user par téléphone             |
+| PUT     | `/user/:id`               | `updateUser`               | Met à jour le profil user               |
+| DELETE  | `/user/delete-account`    | `deleteOwnAccount`         | Supprime le compte (RGPD)               |
+| POST    | `/user/push-token/add`    | `addPushToken`             | Enregistre un token push (multi-device) |
+| POST    | `/user/push-token/remove` | `removePushToken`          | Désenregistre un token push             |
 
 ---
 
@@ -79,7 +79,7 @@ PushToken {
 2. Backend : `getOneUserByIdController()` → `userService.getUserById()`
 3. Mapper Supabase (`mappers.js`) :
    ```javascript
-   isMarchand: !!row.fastfood_id
+   isMarchand: !!row.fastfood_id;
    ```
 4. Frontend : reçoit user avec `isMarchand` recalculé automatiquement ✅
 
@@ -102,13 +102,14 @@ PushToken {
 
 ```javascript
 // Firestore users.repo.js (ligne 30)
-return { ...rawData, isMarchand: !!rawData.fastFoodId }
+return { ...rawData, isMarchand: !!rawData.fastFoodId };
 
 // Supabase users.repo.js via mapper (ligne 72)
-isMarchand: !!row.fastfood_id
+isMarchand: !!row.fastfood_id;
 ```
 
 **Résultat** :
+
 - ✅ Nouveau compte créé → `isMarchand: false` (pas de boutique)
 - ✅ Boutique créée → `isMarchand: true` (fastFoodId assigné)
 - ✅ Ancien compte avec `fastFoodId` → `isMarchand: true` (recalculé au read)
@@ -119,6 +120,7 @@ isMarchand: !!row.fastfood_id
 ## Services & Repositories
 
 **userService.js** : Façade stable vers repos (idempotent pour migration Firestore ↔ Supabase)
+
 - `getAllUsers()`
 - `getUserById(id)`
 - `createUser(data)`
@@ -129,6 +131,7 @@ isMarchand: !!row.fastfood_id
 - `deleteUserAccount(uid)` — suppression complète RGPD
 
 **repos.users** : Interface stable implémentée par :
+
 - `supabase/users.repo.js` — Supabase via `supabase-js` (seule impl. active)
 
 ---

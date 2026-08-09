@@ -97,10 +97,10 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 ## Convention des couches
 
-| Couche | Responsabilité |
-|---|---|
-| **route** | Déclare path + verbe + swagger doc, pointe sur 1 controller |
-| **controller** | Parse `req`, vérifie présence des params, appelle service, retourne `res.status().json()` |
-| **service** | Logique métier : Firestore, socket, push, transactions |
-| **helpers** (dans services) | Fonctions partagées entre services (ex: `notifyOrderEvent`) |
-| **utils/validator** | Fonctions pures → retournent `errors[]` |
+| Couche                      | Responsabilité                                                                            |
+| --------------------------- | ----------------------------------------------------------------------------------------- |
+| **route**                   | Déclare path + verbe + swagger doc, pointe sur 1 controller                               |
+| **controller**              | Parse `req`, vérifie présence des params, appelle service, retourne `res.status().json()` |
+| **service**                 | Logique métier : Firestore, socket, push, transactions                                    |
+| **helpers** (dans services) | Fonctions partagées entre services (ex: `notifyOrderEvent`)                               |
+| **utils/validator**         | Fonctions pures → retournent `errors[]`                                                   |

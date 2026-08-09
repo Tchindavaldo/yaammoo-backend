@@ -5,15 +5,16 @@
 Piloté par **deux réglages de la table `settings`** (migration 036), modifiables à chaud
 via `PATCH /settings/:key` — plus aucune variable d'env :
 
-| Clé | Type | Rôle |
-|-----|------|------|
-| `apple_review_mode` | booléen | Exposé au frontend dans `GET /fastFood/all` (champ `appleReviewMode`). N'a **aucun** effet sur le paiement. |
-| `apple_version_review_mode` | string | Version d'app exacte en review (ex. `"1.4.2"`). Vide = aucune. Seule clé qui déclenche le bypass paiement. |
+| Clé                         | Type    | Rôle                                                                                                        |
+| --------------------------- | ------- | ----------------------------------------------------------------------------------------------------------- |
+| `apple_review_mode`         | booléen | Exposé au frontend dans `GET /fastFood/all` (champ `appleReviewMode`). N'a **aucun** effet sur le paiement. |
+| `apple_version_review_mode` | string  | Version d'app exacte en review (ex. `"1.4.2"`). Vide = aucune. Seule clé qui déclenche le bypass paiement.  |
 
 Le bypass de `POST /transaction` (`payBy=mobilemoney`) se déclenche sur **égalité stricte**
 entre le header `x-app-version` du client et `apple_version_review_mode` : la build soumise
 à Apple ne paie pas, toutes les autres versions paient normalement. Il **bypasse entièrement
 MobileWallet** :
+
 1. Validation normale (`items`, `phone`, etc.) — le frontend envoie exactement la même requête
 2. `createOrderService` / `updateOrders` appelés directement sur les `items`
 3. Crédit marchand appliqué normalement
@@ -47,8 +48,9 @@ Le frontend appelle `POST /transaction` ; le backend yaammoo **proxie** vers Mob
 
 > ⚠️ **Point central** : MobileWallet renvoie le verdict d'un paiement par **DEUX canaux
 > en parallèle** :
+>
 > 1. un **webhook HTTP** (`callback_url` → `POST /transaction/webhook/mobilewallet`)
-> 2. un **événement Socket.io** (`transaction.update`, le backend est *client socket* de MobileWallet)
+> 2. un **événement Socket.io** (`transaction.update`, le backend est _client socket_ de MobileWallet)
 >
 > Le backend yaammoo **reçoit et traite les deux**. Les deux convergent vers le même service
 > (`webhookMobilewalletService`), qui garantit l'**idempotence** via `reserveSettlement` :
@@ -58,12 +60,12 @@ Le frontend appelle `POST /transaction` ; le backend yaammoo **proxie** vers Mob
 
 ## Routes
 
-| Méthode | Endpoint | Contrôleur | Rôle |
-|---------|----------|-----------|------|
-| POST | `/transaction` | `postTransactionController` | Initie une transaction (proxy MobileWallet `/pay` si `payBy=mobilemoney`) |
-| POST | `/transaction/webhook/mobilewallet` | `webhookMobilewalletController` | Reçoit le verdict via **webhook HTTP** (callback MobileWallet) |
-| GET | `/transaction/:userId` | `getTransactions` | Récupère les transactions d'un user (fallback polling frontend) |
-| GET | `/payment-page` | `paymentPageRoutes` | Page HTML du paiement, chargée par la WebView de l'app |
+| Méthode | Endpoint                            | Contrôleur                      | Rôle                                                                      |
+| ------- | ----------------------------------- | ------------------------------- | ------------------------------------------------------------------------- |
+| POST    | `/transaction`                      | `postTransactionController`     | Initie une transaction (proxy MobileWallet `/pay` si `payBy=mobilemoney`) |
+| POST    | `/transaction/webhook/mobilewallet` | `webhookMobilewalletController` | Reçoit le verdict via **webhook HTTP** (callback MobileWallet)            |
+| GET     | `/transaction/:userId`              | `getTransactions`               | Récupère les transactions d'un user (fallback polling frontend)           |
+| GET     | `/payment-page`                     | `paymentPageRoutes`             | Page HTML du paiement, chargée par la WebView de l'app                    |
 
 ### `GET /payment-page` — page de paiement (WebView)
 
@@ -109,6 +111,7 @@ saisie du numéro avec ses états `input` → `waiting` → `ussd_sent` → `suc
 > ⚠️ **`items` = tableau de commandes COMPLÈTES** (forme produite par `createOrder()` côté
 > frontend), **chacune portant son propre `fastFoodId`**. Au verdict réussi, le backend crée
 > **une commande par item** via `createOrderService` :
+>
 > - **cas individuel** (`/home`) : un seul item ;
 > - **cas panier global** : plusieurs items, potentiellement de fastfoods différents.
 >
@@ -143,7 +146,7 @@ Réponse (200) si initiation OK :
    `fastFoodId` (voir § Validations).
    Le status HTTP de la réponse suit `response.httpStatus` (400 validation, 409 doublon/stock,
    503 indispo, 502 autre MobileWallet, 500 exception) — plus de 400 forcé.
-2bis. **Pré-check stock (avant `/pay`)** : on somme les quantités par `menu.id` (gère le même
+   2bis. **Pré-check stock (avant `/pay`)** : on somme les quantités par `menu.id` (gère le même
    plat en double + restos différents) et on compare au stock brut (`repos.menus.getRawStock`).
    `stock === null` → menu illimité → OK. Si insuffisant → **HTTP 409** `code:'insufficient_stock'`
    **sans débiter** le client. Le check atomique au verdict (create/update) reste le garde-fou final.
@@ -178,6 +181,7 @@ MobileWallet émet le verdict via **les deux canaux en parallèle** :
 
 **Canal A — Webhook HTTP**
 `POST /transaction/webhook/mobilewallet` → `webhookMobilewalletController` :
+
 - parse le payload, appelle `mwVerdictService(payload, 'webhook')`
 - **retourne toujours 200** (même en erreur) pour éviter les retries en boucle.
 
@@ -187,6 +191,7 @@ reconnexion auto) écoute `transaction.update`, normalise le payload, puis appel
 `mwVerdictService(payload, 'socket')`.
 
 **Traitement commun — `mwVerdictService(payload, source)`**
+
 1. Retrouve le contexte via `repos.pendingPayments.getByMwTransactionId(transaction_id)`, fallback
    `getLatestByUser(end_user_ref)` (MobileWallet peut renvoyer un tx_id différent).
 2. **Idempotence** : `repos.transactions.reserveSettlement(transaction_id, source, status)`
@@ -201,10 +206,10 @@ reconnexion auto) écoute `transaction.update`, normalise le payload, puis appel
      (transition `pendingToBuy → pending` : stock check + rank + notif marchand). Le tableau
      est groupé par fastfood → gère le panier multi-fastfood.
    - item **sans `id`** = commande nouvelle (achat direct) → **`createOrderService`** (INSERT).
-   **Échec partiel toléré** : on traite tout ce qui peut l'être, les échecs sont loggués (pas
-   de rollback ; le client a payé le total).
-   > ⚠️ `createOrderService` fait toujours un INSERT → l'utiliser sur une commande déjà en base
-   > (panier) lève `duplicate key ... orders_pkey`. D'où le routage sur la présence d'`id`.
+     **Échec partiel toléré** : on traite tout ce qui peut l'être, les échecs sont loggués (pas
+     de rollback ; le client a payé le total).
+     > ⚠️ `createOrderService` fait toujours un INSERT → l'utiliser sur une commande déjà en base
+     > (panier) lève `duplicate key ... orders_pkey`. D'où le routage sur la présence d'`id`.
 5. `repos.pendingPayments.markSettled(...)` pour l'audit/purge.
 
 > ✅ Comme **webhook et socket appellent le même service**, la confirmation de commande
@@ -214,11 +219,12 @@ reconnexion auto) écoute `transaction.update`, normalise le payload, puis appel
 ### Phase 4 — Frontend reçoit le verdict
 
 ```js
-socket.on('payment.settled', (data) => {
+socket.on('payment.settled', data => {
   if (data.status === 'successful') navigate('/orders');
   else showError('Paiement échoué');
 });
 ```
+
 Fallback : si aucun événement après ~2 min → polling `GET /transaction/{userId}`.
 
 ---
@@ -248,12 +254,14 @@ Frontend ──POST /transaction──► Backend yaammoo ──POST /pay──�
 ## Points clés
 
 ### MobileWallet notifie via webhook ET socket
+
 - Les deux peuvent arriver dans n'importe quel ordre (ou un seul si l'autre est indispo).
 - Le backend gère **les deux réponses reçues de MobileWallet** ; `reserveSettlement` garantit
   qu'**un seul** déclenche l'émission `payment.settled` et la confirmation de commande.
 - Le paramètre `source` (`'webhook'` / `'socket'`) sert au logging/debug.
 
 ### Contexte de paiement persisté en BD
+
 - Table Supabase `pending_payments` (`repos.pendingPayments`) — remplace l'ancienne Map en mémoire.
 - Survit aux redémarrages et fonctionne en multi-instance.
 - Migrations : `002_pending_payments.sql` (création), `003_drop_unused_pending_columns.sql`
@@ -261,15 +269,18 @@ Frontend ──POST /transaction──► Backend yaammoo ──POST /pay──�
   contexte vit dans `items`).
 
 ### Clé API MobileWallet
+
 - `MOBILEWALLET_YAAMMOO_KEY` (env var), **jamais exposée au frontend**.
 - Utilisée à la fois pour `Authorization: Bearer` (HTTP `/pay`) et `auth.token` (socket client).
 - `MOBILEWALLET_URL` et `BACKEND_URL` sont aussi en env var.
 
 ### payment_number ≠ numéro de livraison
+
 - **payment_number** : généré par MobileWallet, unique par transaction, affiché au client pour l'USSD.
 - **Numéro livraison** : numéro OM de la boutique (stocké dans fastfood), identique pour toutes les commandes.
 
 ### Format numéro de téléphone — `/pay` vs `/payout`
+
 - **`/pay` (paiement entrant)** : le `phone` est passé tel quel depuis le frontend. MobileWallet gère le format côté USSD — **aucune normalisation backend**.
 - **`/payout` (retrait sortant)** : MobileWallet attend **obligatoirement** le format `237XXXXXXXXX` (indicatif Cameroun sans `+`). Le backend normalise automatiquement dans `mobilewalletService.payout()` : strip tout préfixe (`+237`, `00237`) puis préfixe `237`. Le frontend peut donc envoyer `677087298`, `+237677087298` ou `00237677087298` — le résultat sera toujours `237677087298`.
 

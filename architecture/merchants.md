@@ -8,16 +8,16 @@ Gestion des fastfoods (boutiques marchand) : création, édition infos boutique,
 
 ## Routes
 
-| Méthode | Endpoint | Contrôleur | Rôle |
-|---------|----------|-----------|------|
-| POST | `/fastfood` | `createFastFood` | Crée une nouvelle boutique |
-| GET | `/fastfood/:id` | `getFastFoodById` | Récupère les infos d'une boutique |
-| POST | `/fastfood/:id` | `updateFastFood` | Édite infos boutique (nom, heures, OM…) |
-| GET | `/menu/:fastFoodId` | `getMenusByFastFood` | Récupère tous les menus d'une boutique |
-| GET | `/fastFood/:fastFoodId/delivery-stats` | `getFastFoodDeliveryStatsController` | Stats auto-livraison du fastFood (scope `self`/`client`, auth requise) |
-| POST | `/menu` | `createMenu` | Ajoute un menu à une boutique |
-| PUT | `/menu/:id` | `updateMenu` | Édite un menu |
-| DELETE | `/menu/:id` | `deleteMenu` | Supprime un menu |
+| Méthode | Endpoint                               | Contrôleur                           | Rôle                                                                   |
+| ------- | -------------------------------------- | ------------------------------------ | ---------------------------------------------------------------------- |
+| POST    | `/fastfood`                            | `createFastFood`                     | Crée une nouvelle boutique                                             |
+| GET     | `/fastfood/:id`                        | `getFastFoodById`                    | Récupère les infos d'une boutique                                      |
+| POST    | `/fastfood/:id`                        | `updateFastFood`                     | Édite infos boutique (nom, heures, OM…)                                |
+| GET     | `/menu/:fastFoodId`                    | `getMenusByFastFood`                 | Récupère tous les menus d'une boutique                                 |
+| GET     | `/fastFood/:fastFoodId/delivery-stats` | `getFastFoodDeliveryStatsController` | Stats auto-livraison du fastFood (scope `self`/`client`, auth requise) |
+| POST    | `/menu`                                | `createMenu`                         | Ajoute un menu à une boutique                                          |
+| PUT     | `/menu/:id`                            | `updateMenu`                         | Édite un menu                                                          |
+| DELETE  | `/menu/:id`                            | `deleteMenu`                         | Supprime un menu                                                       |
 
 ---
 
@@ -36,10 +36,10 @@ FastFood {
   openTime: "HH:mm"           // Heure ouverture (ex: "09:00")
   closeTime: "HH:mm"          // Heure fermeture (ex: "22:00")
   image: string                // URL image (Supabase storage)
-  
+
   // Livraison
   orderLeadTime: number        // Délai avant livraison (minutes)
-                               // Clients ne peuvent pas commander 
+                               // Clients ne peuvent pas commander
                                // après minuit - orderLeadTime
   advanceDays: number          // Nombre de jours à l'avance pour commander (défaut: 0)
   pickupAllowed: boolean       // true = le client peut venir récupérer sur place.
@@ -52,7 +52,7 @@ FastFood {
   // Zones de la PLATEFORME, même forme que deliveryHours (periodicZones ET
   // expressZones). Utilisées seulement quand deliveryBy = 'platform'.
   platformDeliveryZones: DeliveryHour[]
-  
+
   // Métadonnées
   createdAt: ISO8601
   updatedAt: ISO8601
@@ -80,25 +80,25 @@ Menu {
   fastFoodId: string           // Référence FastFood
   name: string                 // Nom plat
   titre: string                // Titre (variante du name?)
-  
+
   // Prix — ⚠️ c'est `prices[]` qui fait foi ; prix1/prix2/prix3 sont des
   // colonnes obsolètes, NULL sur toute la base. Cf. menus-detailed.md
   prices: { price: number, description: string }[]
-  
+
   // Images
   image: string                // Image principale
   coverImage: string           // Image cover
   images: string[]             // Galerie
-  
+
   // Stock & disponibilité
   stock: number                // Quantité disponible
   disponibilite: boolean       // En vente ou non
   status: string               // 'available', 'sold_out', etc.
-  
+
   // Extras
   extra: MenuItem[]            // Suppléments (ex: sauce, épices)
   drink: MenuItem[]            // Boissons associées
-  
+
   createdAt: ISO8601
   updatedAt: ISO8601
 }
@@ -117,6 +117,7 @@ MenuItem {
 ### Création de boutique
 
 1. Frontend : POST `/fastfood` avec :
+
    ```json
    {
      "userId": "uid-user",
@@ -170,7 +171,7 @@ MenuItem {
    - `deliveryBy` / `platformDeliveryZones` : **hors de cette route**. Réservés à
      l'ADMIN via `PATCH /fastFood/:fastFoodId/delivery` (ou `/fastFood/delivery`
      pour tout le parc) — une boutique ne décide pas qui la livre ni à quel
-     tarif. Voir [pricing.md](./pricing.md#configurer-qui-livre-routes-admin)
+     tarif. Voir [pricing-delivery-modes.md](./pricing-delivery-modes.md#configurer-qui-livre-routes-admin)
    - Nettoie `deliveryHours` via `utils/deliveryHoursSanitize.js` (voir ci-dessous)
    - Met à jour doc fastfoods
    - Émet socket `fastfoodUpdated` (broadcast global)
@@ -185,7 +186,6 @@ MenuItem {
 
    `sanitizeDeliveryHours()` ne conserve donc un créneau que s'il a **au moins un
    mode actif pourvu de zones valides** :
-
    - `express: true` **et** `expressZones` contient au moins une zone valide, **ou**
    - `periodic: true` **et** `periodicZones` contient au moins une zone valide.
 
@@ -202,6 +202,7 @@ MenuItem {
 ### Gestion des menus
 
 1. Marchand ajoute menu : POST `/menu`
+
    ```json
    {
      "fastFoodId": "...",
@@ -221,11 +222,13 @@ MenuItem {
 ## Services & Repositories
 
 **fastfoodService.js**
+
 - `createFastfood(data)` — création + update user + socket emit
 - `getFastfoodById(id)` — récupère boutique
 - `updateFastfood(id, data)` — édition boutique
 
 **menuService.js**
+
 - `createMenu(data)`
 - `getMenusByFastFood(fastFoodId)`
 - `updateMenu(id, data)`
@@ -238,6 +241,7 @@ MenuItem {
 ## Validations
 
 **FastFood**
+
 - userId : non-vide, valide
 - name : 3+ caractères
 - number : format téléphone valide
@@ -245,6 +249,7 @@ MenuItem {
 - deliveryHours : array d'objets DeliveryHour
 
 **Menu**
+
 - name : 3+ caractères
 - prices : au moins une entrée, chaque `price` > 0
 - stock : >= 0
@@ -289,6 +294,7 @@ Le backend **downgrade** donc vers le format legacy selon le client appelant.
 **Détection de la version** — utilitaire générique `src/utils/appVersion.js`
 (`resolveClientVersion`, `clientVersionAtLeast`) ; la transformation deliveryHours
 vit dans `src/utils/deliveryHoursFormat.js` qui s'appuie dessus :
+
 1. Header `x-app-version` (prioritaire) — version réelle du client.
 2. Fallback `FRONTEND_APP_VERSION` (.env, défaut `1.0.0`) si aucun header.
 

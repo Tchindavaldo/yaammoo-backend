@@ -55,8 +55,7 @@ function rawItemsOf(order) {
   const unit = Array.isArray(prices) ? toNumber(prices[idx]?.rawPrice ?? prices[idx]?.price) : 0;
   const qty = Math.max(1, toNumber(order?.quantity) || 1);
 
-  const sum = (list, factorOf) =>
-    (Array.isArray(list) ? list : []).reduce((acc, it) => (it?.status === true ? acc + toNumber(it?.rawPrice ?? it?.prix) * factorOf(it) : acc), 0);
+  const sum = (list, factorOf) => (Array.isArray(list) ? list : []).reduce((acc, it) => (it?.status === true ? acc + toNumber(it?.rawPrice ?? it?.prix) * factorOf(it) : acc), 0);
 
   return unit * qty + sum(order?.extra, () => 1) + sum(order?.drink, d => Math.max(1, toNumber(d?.quantite) || 1));
 }
@@ -198,17 +197,18 @@ exports.settleDeliveryService = async ({ orders, bonusCode }) => {
       const marginDue = toNumber(pricing.platformMargin) * qty;
 
       // ── Ce qui revient au fastfood ────────────────────────────────────────
-      // Régime FASTFOOD : le reste après retrait de tout ce qui ne lui
-      // appartient pas — comme avant, frais de retrait en plus.
+      // Le fastfood touche son prix RÉEL, dans les deux régimes : on part des
+      // prix bruts figés dans la commande (`rawPrice`). Il n'est JAMAIS le
+      // résidu de la cascade, sinon tout prélèvement fait en amont sort de sa
+      // poche alors qu'il n'a décidé d'aucun d'eux.
       //
-      // Régime PLATEFORME : le prix affiché a été calé sur un multiple du pas,
-      // donc le net encaissé ne retombe pas sur le compte juste. Le fastfood
-      // doit toucher son prix RÉEL quoi qu'il arrive : on part donc des prix
-      // bruts figés dans la commande (`rawPrice`) et c'est la COURSE qui
-      // absorbe l'écart. Sans cela, l'arrondi vers le bas serait payé par le
-      // marchand, qui n'a rien à voir avec la décision d'arrondir.
+      // ⚠️ La course est facturée au user EN PLUS du prix du plat
+      // (`total = base + delivery.prix`), donc `itemsCharged` la contient et la
+      // commission de l'agrégateur porte dessus aussi. Cette part de commission
+      // n'appartient pas au marchand : elle revient à la MARGE, seule variable
+      // d'ajustement. En résidu, le marchand la payait — 2000 devenait 1987.
       const platformDelivered = isPlatformDelivered(fastfood);
-      const itemsReal = platformDelivered ? rawItemsOf(order) : Math.max(0, net - amounts.chargedPrice - marginDue);
+      const itemsReal = rawItemsOf(order);
 
       // Ce qui reste au livreur : le résidu de la cascade. Il porte l'arrondi
       // (à la baisse comme à la hausse) dans la limite fixée par
@@ -238,9 +238,10 @@ exports.settleDeliveryService = async ({ orders, bonusCode }) => {
           withdrawalGroupId: withdrawalGroupIdByKey[withdrawalKey] ?? null,
           withdrawalBilled: holdsWithdrawal,
           driverAmount,
-          // Régime PLATEFORME : tout ce qui n'est ni le fastfood, ni le livreur,
-          // ni les frais revient à la plateforme — l'arrondi vers le haut inclus.
-          platformMargin: platformDelivered ? Math.max(0, net - itemsReal - driverAmount) : amounts.platformMargin,
+          // La MARGE est le résidu, dans les deux régimes : tout ce qui n'est ni
+          // le fastfood, ni la course, ni les frais. Elle absorbe donc l'arrondi
+          // vers le haut comme la commission prise sur la course.
+          platformMargin: Math.max(0, net - itemsReal - driverAmount),
           delivered,
         });
         settled.settlements.push(settlement);

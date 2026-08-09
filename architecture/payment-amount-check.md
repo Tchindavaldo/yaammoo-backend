@@ -1,5 +1,16 @@
 # Feature — Contrôle du montant encaissé (`validatePaymentAmount`)
 
+> **Ce fichier fait autorité sur la composition de `order.total`.** C'est ici,
+> et nulle part ailleurs, qu'on lit si la course s'ajoute au total.
+
+| Besoin                                        | Fichier                                          |
+| --------------------------------------------- | ------------------------------------------------ |
+| Composition du prix affiché (zone max fondue) | [pricing.md](./pricing.md)                       |
+| Ce qui est versé à chacun au règlement        | [pricing-settlement.md](./pricing-settlement.md) |
+| Commission agrégateur / frais de retrait      | [pricing-fees.md](./pricing-fees.md)             |
+| Verdict de gratuité (bonus / campagne)        | [bonus.md](./bonus.md)                           |
+| Champs de la commande                         | [orders.md](./orders.md)                         |
+
 ## Rôle
 
 `amount` (racine) et `items[].total` sont **fournis par le client** → jamais de
@@ -14,9 +25,13 @@ sous-paiement, sur-paiement, livraison facturée en double, total/amount trafiqu
 
 ## La brique de base : `total` d'une commande
 
-Le prix affiché d'un plat contient déjà la **marge** (supplément fondu depuis le
-home). Le **prix de la course** (`delivery.prix`), lui, s'ajoute au total **quand la
-livraison n'est pas offerte** :
+Deux montants de livraison, à ne pas confondre (détail dans
+[pricing.md](./pricing.md)) :
+
+- la **zone MAX** est déjà **fondue dans le prix du plat** depuis le home — elle
+  n'apparaît jamais en ligne et n'est jamais rajoutée ici ;
+- la **course réelle** (`delivery.prix`), tarif de la zone effectivement choisie,
+  **s'ajoute au total** quand la livraison est due et **non offerte**.
 
 ```
 base  = (prices[selectedPriceIndex − 1].price × quantity)   // plat × quantité
@@ -60,10 +75,10 @@ La course est facturée dans **chaque** total non offert. Or plusieurs commandes
 qui partent **ensemble** ne font qu'**une** course. On regroupe les commandes
 livrées **ET non offertes** :
 
-| Mode | Clé de groupe |
-|---|---|
-| **express** | `fastFoodId + zone + type + date` |
-| **time** | `fastFoodId + zone + type + date + heure` |
+| Mode        | Clé de groupe                             |
+| ----------- | ----------------------------------------- |
+| **express** | `fastFoodId + zone + type + date`         |
+| **time**    | `fastFoodId + zone + type + date + heure` |
 
 Chaque segment porte une raison d'être un départ distinct :
 
@@ -96,14 +111,14 @@ amount == attendu ?   sinon → 400
 
 ## Récapitulatif des cas (vérifiés)
 
-| Cas | `total` d'une cmd | Déduction | Résultat |
-|---|---|---|---|
-| 1 cmd, livrée, **non offerte** | base + delivery.prix | 0 | `amount == total` |
-| 1 cmd, livrée, **offerte** (bonus/campagne) | base (sans delivery.prix) | 0 | course en marge |
-| 1 cmd, **retrait** | base | 0 | pas de livraison |
-| Panier, cmd non offertes **zones/créneaux ≠** | base + delivery.prix chacune | 0 | N livraisons dues |
-| Panier, **N cmd même groupe** non offert | base + delivery.prix chacune | **(N−1)×delivery.prix** | 1 seule course |
-| front oublie / ajoute mal la livraison, ou total/amount trafiqué | — | — | **400** |
+| Cas                                                              | `total` d'une cmd            | Déduction               | Résultat          |
+| ---------------------------------------------------------------- | ---------------------------- | ----------------------- | ----------------- |
+| 1 cmd, livrée, **non offerte**                                   | base + delivery.prix         | 0                       | `amount == total` |
+| 1 cmd, livrée, **offerte** (bonus/campagne)                      | base (sans delivery.prix)    | 0                       | course en marge   |
+| 1 cmd, **retrait**                                               | base                         | 0                       | pas de livraison  |
+| Panier, cmd non offertes **zones/créneaux ≠**                    | base + delivery.prix chacune | 0                       | N livraisons dues |
+| Panier, **N cmd même groupe** non offert                         | base + delivery.prix chacune | **(N−1)×delivery.prix** | 1 seule course    |
+| front oublie / ajoute mal la livraison, ou total/amount trafiqué | —                            | —                       | **400**           |
 
 ---
 
@@ -144,6 +159,6 @@ qui partage un déplacement. Les commandes en retrait vont dans `(sans livraison
 - Appelé par `src/services/transaction/postTransaction.service.js` (avant MobileWallet,
   avec `{ userId, bonusCode }` ; le `bonusCode` est extrait de `items[].bonusCode`).
 - Verdict d'offre : `resolveDeliveryBonus` (`services/bonus/applyDeliveryBonus.service.js`)
-  + `resolveOffer` (`services/pricing/deliveryOfferResolver.js`) + `getPricingSettings`.
+  - `resolveOffer` (`services/pricing/deliveryOfferResolver.js`) + `getPricingSettings`.
 - Prix affiché : `src/services/pricing/deliveryPricing.js`.
 - Champs commande : `src/interface/orderFields.js`.
