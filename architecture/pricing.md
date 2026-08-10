@@ -18,10 +18,13 @@ reste, aller directement dans le module concerné — ne pas chercher ici :
 | Sujet                                                                | Fichier                                                  |
 | -------------------------------------------------------------------- | -------------------------------------------------------- |
 | Qui livre (`fastfood` / `platform`), arrondi au pas, grille, cascade | [pricing-delivery-modes.md](./pricing-delivery-modes.md) |
+| Régime PLATEFORME en détail : fondu, bandes de marge, gratuité, express | [pricing-platform-delivery.md](./pricing-platform-delivery.md) |
+| Régime FASTFOOD : risque de marge, plafond de course, pertes acceptées | [pricing-margin-risk.md](./pricing-margin-risk.md)       |
 | Commission agrégateur, frais de retrait, groupement par boutique     | [pricing-fees.md](./pricing-fees.md)                     |
 | `order_settlements` / `order_deliveries`, à emporter, déclenchement  | [pricing-settlement.md](./pricing-settlement.md)         |
 | Recalcul serveur du montant payé (`validatePaymentAmount`)           | [payment-amount-check.md](./payment-amount-check.md)     |
 | Campagne / bonus livraison offerte                                   | [bonus.md](./bonus.md)                                   |
+| **Ce que coûte une livraison offerte** — cas dépliés, quand on perd  | [pricing-free-delivery-cost.md](./pricing-free-delivery-cost.md) |
 | Portefeuille marchand, retraits                                      | [wallet.md](./wallet.md)                                 |
 | Champs commande, `deliveryGroupId` / `courseBilled`                  | [orders.md](./orders.md)                                 |
 
@@ -235,6 +238,9 @@ Table clé/valeur (migration 019), lue via `services/settings/settings.service`.
 | `withdrawal_fee_mtn_*` / `withdrawal_fee_orange_*` | 4200 / 54 / 1.2 / 4 | Barème de retrait par **opérateur mobile** : `threshold`, `flat`, `percent`, `addend` (migration 037) — voir [pricing-fees.md](./pricing-fees.md)                      |
 | `price_rounding_step`                              | 500                 | Pas d'arrondi du prix affiché, dans les **deux** régimes (migration 037, étendu en 038)                                                                                |
 | `driver_amortization_max`                          | 100                 | Ce que la course peut absorber pour arrondir vers le bas. **Régime `platform` seul** — en `fastfood` on ne descend jamais (migration 037)                              |
+| `express_price_rounding_step`                      | 500                 | Pas d'arrondi des zones EXPRESS, régime plateforme. Toujours vers le haut (migration 040)                                                                              |
+| `platform_free_delivery_min_items_bonus`           | 2                   | Plats minimum sur un DÉPART pour qu'un bonus livraison s'applique, régime plateforme. Protège le **livreur** (migration 041)                                           |
+| `platform_free_delivery_min_items_campaign`        | 2                   | Idem pour la **campagne** globale. Clé distincte : les deux motifs se pilotent séparément (migration 041)                                                              |
 
 > ⚠️ `payment_fee_percent` et `withdrawal_fee_*` sont **deux frais distincts** :
 > le premier est prélevé par l'agrégateur sur ce qu'il encaisse, le second par
@@ -315,3 +321,5 @@ src/
 | `037_delivery_by_platform.sql`             | `fastfoods.delivery_by`, `platform_delivery_zones`, barèmes de retrait, pas d'arrondi                                                      |
 | `038_margin_tiers_fastfood_pricing.sql`    | marge par palier + régime `fastfood` sans zone max, calé sur le pas                                                                        |
 | `039_fastfood_min_covered_course.sql`    | garde-fou sur les prix de menu (surplus suffisant)                                                                                         |
+| `040_express_zone_pricing.sql`             | zones EXPRESS tarifées (frais + arrondi) — le livreur n'absorbe plus leurs frais                                                          |
+| `041_platform_free_delivery_min_items.sql` | plats minimum pour une gratuité en régime plateforme — deux clés (bonus / campagne)                                                       |

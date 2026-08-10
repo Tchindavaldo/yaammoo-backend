@@ -26,10 +26,14 @@ d'arrondi, et cascade de répartition dans les deux sens.
 | `fastfood` (défaut) | `deliveryHours` de la boutique | **marge par palier seule** (aucune zone) | calé sur le pas, **toujours vers le haut** | **fastfood**    |
 | `platform`          | `platformDeliveryZones`        | zone **périodique** + marge de base      | calé sur le pas, **descend** si absorbable | **livreur**     |
 
-> ⚠️ En régime plateforme, l'affichage se base sur le **périodique**. Un client
-> qui choisit l'express paie son supplément en connaissance de cause ; caler le
+> ⚠️ En régime plateforme, l'affichage se base sur le **périodique** : caler le
 > catalogue entier sur l'express gonflerait tous les prix pour un mode que la
-> plupart ne prendront pas.
+> plupart ne prendront pas. L'express est donc facturé **à part**, tous frais
+> inclus et arrondi au pas (migration 040) — jusque-là il partait brut, et le
+> livreur en absorbait la commission et le retrait.
+>
+> Le détail du régime plateforme — fondu, bandes de marge, gratuité, express —
+> est dans [pricing-platform-delivery.md](./pricing-platform-delivery.md).
 >
 > ⚠️ En régime **fastfood**, plus aucune zone n'entre dans le prix du plat
 > (migration 038). Fondre la zone la plus chère gonflait tout le catalogue pour

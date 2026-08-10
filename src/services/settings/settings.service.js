@@ -44,6 +44,10 @@ const KEYS = {
   // Livraison PLATEFORME (migration 037)
   PRICE_ROUNDING_STEP: 'price_rounding_step',
   DRIVER_AMORTIZATION_MAX: 'driver_amortization_max',
+  // Pas d'arrondi propre aux ZONES EXPRESS (migration 040). Distinct de
+  // `price_rounding_step` : le pas des plats s'applique à des montants bien plus
+  // gros, où il se dilue. Toujours vers le HAUT, jamais d'amortissement.
+  EXPRESS_PRICE_ROUNDING_STEP: 'express_price_rounding_step',
   // Marge en régime FASTFOOD (migration 038) — clé DISTINCTE de
   // `platform_margin` : les deux régimes ne composent pas le prix de la même
   // façon (le fastfood ne fond plus aucune zone dedans), leur marge n'a donc
@@ -56,6 +60,12 @@ const KEYS = {
   // Course qu'un plat doit pouvoir couvrir à lui seul, via son surplus
   // d'arrondi (migration 039). Sert à REFUSER les prix de menu trop justes.
   FASTFOOD_MIN_COVERED_COURSE: 'fastfood_min_covered_course',
+  // Plats minimum sur un DÉPART pour qu'une livraison offerte s'applique, en
+  // régime PLATEFORME (migration 041). Deux clés DISTINCTES : une campagne
+  // globale et un bonus nominatif ne se pilotent pas ensemble — on peut vouloir
+  // durcir l'une sans toucher à l'autre.
+  PLATFORM_FREE_DELIVERY_MIN_ITEMS_BONUS: 'platform_free_delivery_min_items_bonus',
+  PLATFORM_FREE_DELIVERY_MIN_ITEMS_CAMPAIGN: 'platform_free_delivery_min_items_campaign',
 };
 
 const FALLBACKS = {
@@ -76,6 +86,9 @@ const FALLBACKS = {
   // aucune course amortie : un incident de lecture ne doit pas rogner le livreur.
   [KEYS.PRICE_ROUNDING_STEP]: 0,
   [KEYS.DRIVER_AMORTIZATION_MAX]: 0,
+  // 0 = aucun arrondi sur l'express : le prix juste (frais inclus) est servi tel
+  // quel. Le livreur reste couvert, seul l'affichage perd sa rondeur.
+  [KEYS.EXPRESS_PRICE_ROUNDING_STEP]: 0,
   // Marge fastfood à 0 : aucune marge inventée si la clé manque, comme
   // `platform_margin`. Seuil de palier à 0 = aucun palier.
   [KEYS.FASTFOOD_MARGIN]: 0,
@@ -84,6 +97,12 @@ const FALLBACKS = {
   // 0 = aucune exigence : tous les prix passent. Repli sûr — une clé absente ne
   // doit pas bloquer la création de menus.
   [KEYS.FASTFOOD_MIN_COVERED_COURSE]: 0,
+  // Repli à 1, pas à 0 : une clé illisible ne doit JAMAIS refuser un paiement
+  // par excès de zèle. À 1, la gratuité s'applique dès le premier plat — le
+  // livreur peut y absorber une partie de sa course, mais la marge reste servie
+  // et aucune commande n'est bloquée à tort.
+  [KEYS.PLATFORM_FREE_DELIVERY_MIN_ITEMS_BONUS]: 1,
+  [KEYS.PLATFORM_FREE_DELIVERY_MIN_ITEMS_CAMPAIGN]: 1,
 };
 
 // Les réglages Apple Review n'ont VOLONTAIREMENT aucun repli : inventer une
@@ -135,6 +154,9 @@ async function getPricingSettings() {
     paymentFeePercent: Number(s[KEYS.PAYMENT_FEE_PERCENT]) || 0,
     deliveryFreeMode: s[KEYS.DELIVERY_FREE_MODE] === true,
     priceRoundingStep: Number(s[KEYS.PRICE_ROUNDING_STEP]) || 0,
+    expressPriceRoundingStep: Number(s[KEYS.EXPRESS_PRICE_ROUNDING_STEP]) || 0,
+    platformFreeDeliveryMinItemsBonus: Number(s[KEYS.PLATFORM_FREE_DELIVERY_MIN_ITEMS_BONUS]) || 1,
+    platformFreeDeliveryMinItemsCampaign: Number(s[KEYS.PLATFORM_FREE_DELIVERY_MIN_ITEMS_CAMPAIGN]) || 1,
     driverAmortizationMax: Number(s[KEYS.DRIVER_AMORTIZATION_MAX]) || 0,
     fastfoodMargin: Number(s[KEYS.FASTFOOD_MARGIN]) || 0,
     fastfoodMarginTier2MinBrut: Number(s[KEYS.FASTFOOD_MARGIN_TIER_2_MIN_BRUT]) || 0,

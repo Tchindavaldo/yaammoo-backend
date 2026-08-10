@@ -72,7 +72,7 @@ function checkDeliveryBonusUsable(bonus, request, { fastFoodId, now = new Date()
  * Construit l'objet exposé au front. `null` quand aucune offre ne s'applique —
  * le front n'a alors rien à afficher de particulier.
  */
-function buildDeliveryOffer(bonus, request, { reason = OFFER_REASON_BONUS } = {}) {
+function buildDeliveryOffer(bonus, request, { reason = OFFER_REASON_BONUS, minItems = 0 } = {}) {
   if (!bonus) return null;
   const state = deriveRequestState(request);
   return {
@@ -83,6 +83,10 @@ function buildDeliveryOffer(bonus, request, { reason = OFFER_REASON_BONUS } = {}
     bonusCode: state.code,
     bonusName: bonus.name ?? null,
     fastFoodId: bonus.fastFoodId ?? null,
+    // Plats minimum sur le DÉPART. Connu d'avance en régime plateforme (seuil
+    // fixe) ; en régime fastfood il dépend de la zone et du prix du plat, donc
+    // reste à 0 ici — `POST /bonus/verify` le calcule avec le contexte réel.
+    minItems,
   };
 }
 

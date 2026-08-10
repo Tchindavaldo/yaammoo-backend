@@ -1,4 +1,4 @@
-# Bonus — livraison offerte (armement & consommation)
+je reformile ma quesiotn en # Bonus — livraison offerte (armement & consommation)
 
 > **Prérequis** : [bonus.md](./bonus.md) pour le modèle. Pour ce que « offerte »
 > change à l'argent, lire [pricing.md](./pricing.md) : c'est la **course réelle**
@@ -13,6 +13,7 @@
 | Qui renonce au montant (`covered_by`)             | [pricing-settlement.md](./pricing-settlement.md)     |
 | Verdict serveur de gratuité au paiement           | [payment-amount-check.md](./payment-amount-check.md) |
 | Ce que `quantity` désigne (exemplaires d'un plat) | [orders.md](./orders.md)                             |
+| **Ce que la gratuité coûte, déplié cas par cas**  | [pricing-free-delivery-cost.md](./pricing-free-delivery-cost.md) |
 
 ## Livraison offerte : armement & consommation
 
@@ -34,6 +35,18 @@ Bonus de `type: "free_delivery"`. Deux notions **distinctes** :
 - **Écran de commande → armement LOCAL, non persisté.** Le front arme tout seul ;
   il valide juste le code via `POST /bonus/verify` (lecture seule) pour son
   rendu, puis envoie `bonusCode` (string à la racine) dans `POST /order`.
+
+> ⚠️ **L'armement ne vaut QUE pour les boutiques en régime `platform`.** Chez une
+> boutique en régime `fastfood`, un bonus seulement armé est **ignoré** au
+> paiement : le **code est obligatoire**. La raison est le minimum de plats — il
+> dépend de la zone et du prix du plat, et seul `POST /bonus/verify` peut
+> l'annoncer avant le paiement. Sans ce passage, le user découvrirait le refus au
+> moment de payer.
+>
+> Le front doit donc, chez une boutique fastfood, faire saisir le code et le
+> valider — l'armement depuis la page bonus n'y produit aucun effet. Le chemin
+> d'armement reste en place côté backend (rien n'a été supprimé) : il redeviendra
+> actif si la règle change.
 
 **Exclusivité** : armer un bonus désarme automatiquement tout autre bonus armé
 qui le **recouvre** (même boutique, ou l'un des deux plateforme) — sinon l'offre
@@ -87,8 +100,30 @@ commande créée). Il porte des **données**, jamais une consigne d'affichage :
   "bonusCode": "YAM-7K3F9QW2",
   "bonusName": "Livraison offerte",
   "fastFoodId": "ff_42", // null = bonus plateforme, valable partout
+  "minItems": 2, // plats minimum sur le DÉPART ; 0 = à calculer via /bonus/verify
 }
 ```
+
+**`minItems`** évite au front d'avoir à deviner le seuil :
+
+| Régime     | Valeur | Pourquoi                                                       |
+| ---------- | ------ | -------------------------------------------------------------- |
+| `platform` | **2**  | seuil fixe, piloté en base (migration 041)                     |
+| `fastfood` | **0**  | dépend de la zone et du prix : `POST /bonus/verify` le calcule |
+
+Deux réglages **distincts**, pour durcir l'un sans toucher à l'autre :
+
+| Clé                                         | Défaut | Portée                       |
+| ------------------------------------------- | -----: | ---------------------------- |
+| `platform_free_delivery_min_items_bonus`    |      2 | bonus nominatif              |
+| `platform_free_delivery_min_items_campaign` |      2 | campagne `delivery_free_mode` |
+
+Repli applicatif à **1** si la clé est illisible — jamais 0 : une lecture ratée
+ne doit pas refuser un paiement par excès de zèle.
+
+C'est indispensable pour la **campagne globale**, qui ne passe jamais par
+`/bonus/verify` : sans ce champ, le front n'aurait aucun moyen d'annoncer le
+minimum avant le paiement.
 
 `null` quand aucune offre ne s'applique — ou, sur `/fastfood/all`, quand
 l'appelant n'est pas authentifié.
@@ -135,11 +170,18 @@ qty minimale = plafond( course / contribution )
 Marge et surplus sont facturés sur **chaque** exemplaire, la course reste unique :
 commander plus de plats rend l'offre finançable.
 
-| Brut | Contribution / plat | Course 250 | Course 500 | Course 1000 |
-| ---- | ------------------- | ---------- | ---------- | ----------- |
-| 1000 | 361                 | 1 plat     | 2 plats    | 3 plats     |
-| 2000 | 311                 | 1 plat     | 2 plats    | 4 plats     |
-| 3000 | 260                 | 1 plat     | 2 plats    | 4 plats     |
+| Brut | Contribution / plat | Course 250 | Course 500 | Course 1000 | Course 1400 |
+| ---- | ------------------- | ---------- | ---------- | ----------- | ----------- |
+| 1000 | 361                 | 1 plat     | 2 plats    | 3 plats     | 4 plats     |
+| 2000 | 311                 | 1 plat     | 2 plats    | 4 plats     | 5 plats     |
+| 3000 | 260                 | 1 plat     | 2 plats    | 4 plats     | 6 plats     |
+| 3500 | **706**             | 1 plat     | 1 plat     | 2 plats     | 2 plats     |
+| 5000 | 617                 | 1 plat     | 1 plat     | 2 plats     | 3 plats     |
+
+> ⚠️ La contribution **ne suit pas** la hauteur du prix : 3500 (706) finance deux
+> fois mieux que 3000 (260). Elle dépend de la marge du palier ET de la position
+> du prix juste dans le pas de 500. Voir
+> [pricing-margin-risk.md](./pricing-margin-risk.md).
 
 ### Refus DUR
 
@@ -152,6 +194,7 @@ contexte de commande facultatif** et annonce la règle à l'avance :
 ```jsonc
 POST /bonus/verify
 { "code": "ABC123", "fastFoodId": "ff_42",
+  // quantity = total de plats du DÉPART, pas d'une commande isolée
   "order": { "brutUnit": 2000, "quantity": 1, "coursePrice": 500 } }
 
 → { "valid": false, "reason": "not_affordable",
@@ -159,18 +202,64 @@ POST /bonus/verify
     "message": "Ajoutez 1 plat pour bénéficier de la livraison offerte (2 plats minimum pour cette zone)." }
 ```
 
+En régime `platform`, le message ne mentionne pas la zone — le seuil y est fixe :
+
+```
+"Ajoutez 1 plat pour bénéficier de la livraison offerte (2 plats minimum)."
+```
+
 `order` omis → contrôle sauté, la vérification hors contexte reste possible.
 
 ### Quand la règle ne s'applique PAS
 
-| Cas                                     | Pourquoi                                                                |
-| --------------------------------------- | ----------------------------------------------------------------------- |
-| `coveredBy = 'fastfood'`                | le **marchand** renonce à sa course, la plateforme ne finance rien      |
-| Régime `deliveryBy = 'platform'`        | la zone périodique est fondue dans le prix, elle finance déjà la course |
-| Campagne globale (`delivery_free_mode`) | décision commerciale assumée, hors de ce contrôle                       |
+| Cas                      | Pourquoi                                                           |
+| ------------------------ | ------------------------------------------------------------------ |
+| `coveredBy = 'fastfood'` | le **marchand** renonce à sa course, la plateforme ne finance rien |
 
-> ⚠️ `quantity` = exemplaires **d'un même plat**, pas le nombre de commandes du
-> panier (cf. [orders.md](./orders.md)). Le minimum porte sur la commande qui
-> porte le bonus. Un panier de 3 plats différents ne satisfait donc PAS un
-> minimum de 3 : c'est un choix conservateur, la course étant portée par une
-> seule des trois commandes.
+> ⚠️ **La campagne globale n'est PLUS exemptée.** Elle passait sans aucun
+> contrôle : sur un départ d'un seul plat, le livreur était rogné exactement
+> comme avec un bonus. Elle applique désormais le même minimum, et le refus est
+> identique.
+
+> ⚠️ En régime `platform`, le minimum n'est pas supprimé : il vaut **2 plats,
+> fixe**. Ce n'est pas la marge qu'il protège (elle n'est jamais menacée ici)
+> mais le **livreur** — à un seul plat il absorbe une partie de sa course,
+> jusqu'à `driver_amortization_max`. Dès deux plats il touche son tarif entier.
+> Fixe et non calculé : l'absorption dépend de la position du prix juste dans le
+> pas d'arrondi, un seuil variable serait inexplicable au user.
+
+> ⚠️ **La campagne globale ne s'applique PLUS en régime `fastfood`.** Elle
+> contournait le contrôle de finançabilité — aucun minimum de plats — alors que
+> la course y est facturée à part : une campagne pouvait produire des marges
+> négatives en série. En fastfood, la gratuité passe désormais par un **bonus à
+> code** uniquement.
+
+### Le minimum se mesure sur le DÉPART, pas sur une commande
+
+Une commande = **un plat** et ses options ; `quantity` en est le nombre
+d'exemplaires (cf. [orders.md](./orders.md)). Un panier de 3 plats différents
+fait donc 3 commandes — mais **une seule course** si elles partent ensemble.
+
+Le minimum porte donc sur le total de plats du **départ**, identifié par
+`deliveryGroupKey` (`fastFoodId | zone | type | date (+ heure)`) :
+
+```
+panier : 2 commandes × 1 plat, même boutique, même zone, même créneau
+       → 1 seul départ, 2 plats  → minimum de 2 ATTEINT
+```
+
+C'est exactement équivalent à une commande de 2 plats — même argent encaissé,
+même course unique à financer :
+
+| Panier                | Livreur touche | Il absorbe | Marge plateforme |
+| --------------------- | -------------- | ---------- | ---------------- |
+| 1 commande × 1 plat   | 246 / 250      | 4          | 100              |
+| **2 commandes × 1 plat** | **250 / 250** | **0**   | **496**          |
+| 1 commande × 2 plats  | 250 / 250      | 0          | 496              |
+
+> ⚠️ Deux commandes de **zones différentes** ne partagent pas de départ : ce sont
+> deux courses, chacune doit atteindre le minimum par elle-même.
+
+> ⚠️ **Le front doit passer le cumul du départ** dans `order.quantity` à
+> `POST /bonus/verify`, pas la quantité d'une commande isolée — sinon il annonce
+> un refus qui n'aura pas lieu au paiement.
