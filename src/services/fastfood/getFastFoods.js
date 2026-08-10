@@ -14,8 +14,9 @@ const repos = require('../../repositories');
 const { getMenuService } = require('../menu/getMenu.services');
 const { getArmedDeliveryOffers, pickOfferForFastFood } = require('../bonus/armBonus.service');
 const { getPricingSettings } = require('../settings/settings.service');
-const { applyDisplayPricing } = require('../pricing/deliveryPricing');
+const { applyDisplayPricing, isPlatformDelivered } = require('../pricing/deliveryPricing');
 const { buildCampaignOffer } = require('../pricing/deliveryOfferResolver');
+const { platformMinItems } = require('../bonus/deliveryOfferAffordability');
 
 /**
  * @param {string} [userId] uid du user courant (auth FACULTATIVE sur cette route).
@@ -32,7 +33,12 @@ exports.getFastFoodsService = async userId => {
 
     // Campagne globale : elle PRIME sur les bonus et s'applique à tout le monde,
     // y compris aux visiteurs non connectés.
-    const campaignOffer = pricing.deliveryFreeMode ? buildCampaignOffer() : null;
+    //
+    // ⚠️ Réservée au régime PLATEFORME — en fastfood la course est facturée à
+    // part, l'offrir sortirait réellement de la caisse. Elle porte donc son
+    // `minItems` : ne passant pas par `POST /bonus/verify`, c'est le seul moyen
+    // pour le front de connaître le seuil avant le paiement.
+    const campaignOffer = pricing.deliveryFreeMode ? buildCampaignOffer(platformMinItems(pricing, 'campaign')) : null;
 
     // [TEMP-LOG] à retirer
     console.log('[FFALL] userId=%s campaign=%s byFastFood=%j platform=%s', userId || '(anonyme)', !!campaignOffer, Object.keys(offers.byFastFood || {}), !!offers.platform);
@@ -47,9 +53,12 @@ exports.getFastFoodsService = async userId => {
         // Sa gestion de catalogue passe par `GET /menu/:fastFoodId`, qui sert
         // les prix bruts.
         const priced = applyDisplayPricing({ ...fastfood, menus }, pricing, false);
+        // La campagne ne vaut que chez les boutiques livrées par la plateforme ;
+        // ailleurs on retombe sur l'éventuel bonus armé du user.
+        const campaign = campaignOffer && isPlatformDelivered(fastfood) ? campaignOffer : null;
         return {
           ...priced,
-          deliveryOffer: campaignOffer || pickOfferForFastFood(offers, fastfood.id),
+          deliveryOffer: campaign || pickOfferForFastFood(offers, fastfood.id),
         };
       })
     );

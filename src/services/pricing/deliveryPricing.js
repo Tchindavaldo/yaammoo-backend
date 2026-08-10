@@ -165,6 +165,22 @@ const DELIVERY_BY_PLATFORM = 'platform';
 /** Valeurs acceptées par `fastfoods.delivery_by` (contrainte SQL, migration 037). */
 const DELIVERY_BY_VALUES = [DELIVERY_BY_FASTFOOD, DELIVERY_BY_PLATFORM];
 
+/**
+ * Liste de zones qui sert de BASE au prix affiché en régime plateforme.
+ *
+ * Le PÉRIODIQUE seul : un client qui choisit l'express paie son supplément en
+ * connaissance de cause, alors que caler tout le catalogue sur l'express
+ * gonflerait chaque prix pour un mode que la plupart ne prendront pas.
+ *
+ * ⚠️ Constante PARTAGÉE entre la composition (`applyDisplayPricing`) et la
+ * répartition (`splitDeliveryAmounts`). Les deux doivent lire la MÊME liste :
+ * quand la composition fondait le périodique (250) et que la répartition
+ * facturait le max des deux listes (400, l'express), `charged_price` enregistrait
+ * 150 F de plus que ce qui avait réellement été fondu — et la marge de
+ * `order_deliveries` était gonflée d'autant.
+ */
+const PLATFORM_DISPLAY_ZONE_TYPE = 'time';
+
 /** Vrai si la plateforme assure elle-même la livraison de cette boutique. */
 function isPlatformDelivered(fastfood) {
   return fastfood?.deliveryBy === DELIVERY_BY_PLATFORM;
@@ -181,6 +197,65 @@ function isPlatformDelivered(fastfood) {
 function deliverySource(fastfood) {
   if (!isPlatformDelivered(fastfood)) return fastfood;
   return { ...fastfood, deliveryHours: fastfood?.platformDeliveryZones || [] };
+}
+
+/**
+ * Habille les zones EXPRESS de leurs frais, en régime plateforme.
+ *
+ * Le prix affiché du plat est calé sur la zone PÉRIODIQUE
+ * (`PLATFORM_DISPLAY_ZONE_TYPE`) : celle-ci est fondue dedans, frais compris.
+ * L'express, lui, était facturé BRUT — la commission et le retrait étaient donc
+ * prélevés dessus sans avoir jamais été encaissés, et c'est le LIVREUR qui les
+ * absorbait. Sur une zone périodique à 250 et un express à 400, il ne touchait
+ * que 221 : 179 de manque, bien au-delà de `driverAmortizationMax`.
+ *
+ * L'express porte désormais ses frais comme un extra ou une boisson : `prix` est
+ * ce que paie le client, `rawPrice` ce que touche le livreur. L'arrondi au pas
+ * s'applique VERS LE HAUT (jamais de descente : rien ici n'a à être amorti), le
+ * client ne voyant ainsi que des montants ronds.
+ *
+ * ⚠️ Le forfait de retrait est appliqué à la zone ISOLÉE alors qu'en réalité le
+ * retrait porte une seule fois sur le total de la commande. On facture donc
+ * jusqu'à 54 F pour un surcoût réel de 5 F au maximum (400 × 1,2 %). L'écart est
+ * toujours en faveur de la plateforme, jamais l'inverse.
+ *
+ * ⚠️ Les zones PÉRIODIQUES restent brutes : déjà fondues dans le prix du plat,
+ * les habiller les ferait payer deux fois.
+ */
+function expressDisplayPrice(brut, pricing) {
+  const base = toNumber(brut);
+  if (base <= 0) return 0;
+  const priced = withAllFees(base, pricing);
+  const step = toNumber(pricing?.expressPriceRoundingStep);
+  // Jamais de descente : `amortizationMax` à 0 force l'arrondi supérieur.
+  return step > 0 ? roundToStep(priced, { step, amortizationMax: 0 }) : priced;
+}
+
+/**
+ * Prix AFFICHÉ de la zone express choisie — ce que le client a réellement payé
+ * pour sa course, par opposition à `zoneDeliveryPrice` qui donne le brut versé
+ * au livreur. L'écart entre les deux est la part de frais encaissée.
+ */
+function expressZoneDisplayPrice(fastfood, zoneName, pricing) {
+  return expressDisplayPrice(zoneDeliveryPrice(fastfood, zoneName, 'express'), pricing);
+}
+
+function applyExpressZonePricing(deliveryHours, pricing) {
+  if (!Array.isArray(deliveryHours)) return deliveryHours;
+
+  const display = brut => expressDisplayPrice(brut, pricing);
+
+  return deliveryHours.map(slot => {
+    if (!slot || typeof slot !== 'object' || !Array.isArray(slot.expressZones)) return slot;
+    return {
+      ...slot,
+      expressZones: slot.expressZones.map(zone => {
+        const brut = toNumber(zone?.prix);
+        if (!zone || brut <= 0) return zone;
+        return { ...zone, prix: display(brut), rawPrice: brut };
+      }),
+    };
+  });
 }
 
 /**
@@ -320,7 +395,7 @@ function applyDisplayPricing(fastfood, pricing, raw = false) {
   // pas qui la couvre (le surplus absorbe sa commission). Le supplément se
   // réduit donc à la MARGE, calculée par palier sur le prix brut de chaque plat
   // — d'où `marginByBrut`, qui la fait varier d'une ligne à l'autre.
-  const surcharge = platformDelivered ? displaySurcharge(source, platformMargin, 'time') : 0;
+  const surcharge = platformDelivered ? displaySurcharge(source, platformMargin, PLATFORM_DISPLAY_ZONE_TYPE) : 0;
 
   // Le pas d'arrondi vaut désormais dans les DEUX régimes. En plateforme, la
   // course du livreur absorbe la baisse ; en fastfood, on ne descend jamais
@@ -335,7 +410,7 @@ function applyDisplayPricing(fastfood, pricing, raw = false) {
   // et le front n'a rien à recalculer.
   const meta = {
     surcharge,
-    maxDeliveryPrice: maxDeliveryPrice(source, platformDelivered ? 'time' : undefined),
+    maxDeliveryPrice: maxDeliveryPrice(source, platformDelivered ? PLATFORM_DISPLAY_ZONE_TYPE : undefined),
     platformMargin,
     paymentFeePercent: feePercent,
     deliveryBy: platformDelivered ? DELIVERY_BY_PLATFORM : 'fastfood',
@@ -351,7 +426,15 @@ function applyDisplayPricing(fastfood, pricing, raw = false) {
 
   const opts = { surcharge, pricing, rounding, marginByBrut: !platformDelivered };
   const menus = Array.isArray(fastfood.menus) ? fastfood.menus.map(m => applyDisplayPricingToMenu(m, opts)) : fastfood.menus;
-  return { ...fastfood, menus, pricing: meta };
+
+  // Régime PLATEFORME uniquement : les zones express portent leurs frais. En
+  // régime fastfood, la course est facturée au tarif réel et ses frais sont déjà
+  // couverts par le surplus d'arrondi du plat (`fastfood_min_covered_course`).
+  const out = { ...fastfood, menus, pricing: meta };
+  if (platformDelivered) {
+    out.platformDeliveryZones = applyExpressZonePricing(fastfood.platformDeliveryZones, pricing);
+  }
+  return out;
 }
 
 /**
@@ -370,7 +453,7 @@ function applyDisplayPricing(fastfood, pricing, raw = false) {
  * marge fastfood ne portant plus de zone, offrir une course chère coûte
  * réellement de l'argent — et ce coût doit être tracé, pas borné à 0.
  */
-function splitDeliveryAmounts({ fastfood, zone, deliveryType, platformMargin, quantity = 1, courseBilled = true, delivered = true, freeReason = null }) {
+function splitDeliveryAmounts({ fastfood, zone, deliveryType, platformMargin, pricing, quantity = 1, courseBilled = true, delivered = true, freeReason = null }) {
   const qty = Math.max(1, toNumber(quantity) || 1);
 
   // Facturé au user au titre de la LIVRAISON, dans le prix du plat.
@@ -384,8 +467,21 @@ function splitDeliveryAmounts({ fastfood, zone, deliveryType, platformMargin, qu
   // Régime FASTFOOD : plus aucune zone n'est fondue dans le prix du plat — la
   // course est facturée à part, au tarif réel. Rien n'est donc « chargé » ici,
   // et une commande en retrait ne porte plus de livraison fantôme.
+  //
+  // ⚠️ La liste consultée est la MÊME que celle de la composition
+  // (`PLATFORM_DISPLAY_ZONE_TYPE`). Sans ce filtre, on facturait le max des deux
+  // listes — soit l'express (400) alors que le prix affiché portait le
+  // périodique (250) : 150 F de marge fantôme par commande.
+  //
+  // ⚠️ L'EXPRESS s'ajoute par-dessus : sa zone est facturée à part, tous frais
+  // inclus (`applyExpressZonePricing`), et une SEULE fois — c'est une course,
+  // pas un supplément par plat. Sans elle, le montant réellement encaissé
+  // manquait à l'appel et le livreur en faisait les frais.
   const source = deliverySource(fastfood);
-  const chargedPrice = isPlatformDelivered(fastfood) ? maxDeliveryPrice(source) * qty : 0;
+  const platformDelivered = isPlatformDelivered(fastfood);
+  const periodicCharged = platformDelivered ? maxDeliveryPrice(source, PLATFORM_DISPLAY_ZONE_TYPE) * qty : 0;
+  const expressCharged = platformDelivered && delivered && courseBilled && deliveryType === 'express' ? expressZoneDisplayPrice(source, zone, pricing) : 0;
+  const chargedPrice = periodicCharged + expressCharged;
 
   // Pas de livraison = pas de course : rien n'est dû au fastfood.
   const realPrice = delivered ? zoneDeliveryPrice(source, zone, deliveryType) : 0;
@@ -410,6 +506,7 @@ module.exports = {
   DELIVERY_BY_PLATFORM,
   DELIVERY_BY_VALUES,
   isPlatformDelivered,
+  PLATFORM_DISPLAY_ZONE_TYPE,
   deliverySource,
   withAllFees,
   roundToStep,
@@ -419,6 +516,7 @@ module.exports = {
   maxDeliveryPrice,
   zoneDeliveryPrice,
   displaySurcharge,
+  applyExpressZonePricing,
   marginForBrut,
   applyDisplayPricingToMenu,
   applyDisplayPricing,

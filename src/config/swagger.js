@@ -254,6 +254,15 @@ const options = {
             bonusCode: { type: 'string', nullable: true },
             bonusName: { type: 'string', nullable: true },
             fastFoodId: { type: 'string', nullable: true, description: 'null = bonus plateforme, valable partout.' },
+            minItems: {
+              type: 'integer',
+              description:
+                "Plats minimum sur le DEPART (meme boutique, meme zone, meme creneau) pour que la gratuite s'applique. " +
+                "Vaut 2 en regime 'platform' (seuil fixe, connu sans contexte). Vaut 0 en regime 'fastfood' : le seuil y depend de la zone et du prix du plat, " +
+                'et se calcule via POST /bonus/verify en fournissant le contexte de commande. ' +
+                "Indispensable pour la CAMPAGNE globale, qui ne passe jamais par /bonus/verify : sans ce champ le front ne pourrait pas annoncer le minimum avant le paiement. " +
+                'En dessous du seuil, POST /transaction refuse en 400.',
+            },
           },
         },
         // Forme RÉELLE (cf. interface/fastfoodFields.js et mappers.fastfoodFromSupabase).
@@ -281,7 +290,11 @@ const options = {
             },
             platformDeliveryZones: {
               type: 'array',
-              description: "Zones de livraison de la PLATEFORME. Meme forme que `deliveryHours` (periodicZones ET expressZones par creneau). Utilisees seulement quand deliveryBy = 'platform'.",
+              description:
+                "Zones de livraison de la PLATEFORME. Meme forme que `deliveryHours` (periodicZones ET expressZones par creneau). Utilisees seulement quand deliveryBy = 'platform'. " +
+                'EN LECTURE, les zones `expressZones` sont renvoyees TARIFEES : `prix` porte la commission et les frais de retrait puis est arrondi au pas ' +
+                '(`express_price_rounding_step`, toujours vers le haut), et `rawPrice` conserve le montant brut verse au livreur — meme convention que les extras et boissons. ' +
+                'Les `periodicZones` restent BRUTES : elles sont deja fondues dans le prix du plat. Le front doit renvoyer `rawPrice` dans la commande.',
               items: { type: 'object' },
             },
             cities: { type: 'array', items: { type: 'string' } },

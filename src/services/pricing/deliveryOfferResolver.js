@@ -15,8 +15,17 @@
 
 const OFFER_REASON_CAMPAIGN = 'campaign';
 
-/** Offre issue d'une campagne globale : c'est la plateforme qui renonce à sa marge. */
-function buildCampaignOffer() {
+/**
+ * Offre issue d'une campagne globale : c'est la plateforme qui renonce à sa marge.
+ *
+ * ⚠️ La campagne ne dispense PAS du minimum de plats. Elle ne passe pas par
+ * `POST /bonus/verify` — le front n'aurait donc aucun moyen de connaître le
+ * seuil : `minItems` est porté par l'offre elle-même.
+ *
+ * @param {number} [minItems=0] plats minimum sur le DÉPART ; 0 = aucun contrôle
+ *   (régime fastfood, où la campagne ne s'applique pas).
+ */
+function buildCampaignOffer(minItems = 0) {
   return {
     active: true,
     reason: OFFER_REASON_CAMPAIGN,
@@ -25,6 +34,7 @@ function buildCampaignOffer() {
     bonusCode: null,
     bonusName: null,
     fastFoodId: null,
+    minItems,
   };
 }
 

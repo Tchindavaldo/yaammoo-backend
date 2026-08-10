@@ -27,7 +27,7 @@
 // ⚠️ Ne s'applique qu'au paiement PLEIN (l'appelant exclut le partiel).
 // ============================================================================
 
-const { toNumber } = require('../../services/pricing/deliveryPricing');
+const { toNumber, isPlatformDelivered } = require('../../services/pricing/deliveryPricing');
 const { getPricingSettings } = require('../../services/settings/settings.service');
 const { resolveDeliveryBonus } = require('../../services/bonus/applyDeliveryBonus.service');
 const { resolveOffer } = require('../../services/pricing/deliveryOfferResolver');
@@ -73,9 +73,14 @@ function recomputeItemBase(item) {
 /**
  * Détermine, commande par commande, si la livraison est offerte côté SERVEUR.
  *
+ * ⚠️ Le minimum de plats se mesure sur le DÉPART (`deliveryGroupKey`), pas sur
+ * une commande isolée : la course est unique par départ, donc tous les plats qui
+ * partent ensemble la financent. Un panier de deux commandes d'un plat vaut
+ * exactement une commande de deux plats.
+ *
  * @returns {Promise<{offered:Set<number>, refusal:string|null}>}
  *   `refusal` : message d'erreur quand un bonus PLATEFORME n'est pas finançable
- *   par la commande (cf. `deliveryOfferAffordability`). Refus DUR : mieux vaut
+ *   par le départ (cf. `deliveryOfferAffordability`). Refus DUR : mieux vaut
  *   une commande sans gratuité qu'une commande à perte.
  */
 async function resolveOfferedDeliveries(orders, { userId, bonusCode }) {
@@ -85,17 +90,67 @@ async function resolveOfferedDeliveries(orders, { userId, bonusCode }) {
   const offered = new Set();
   let bonusSpent = false;
 
+  // Plats cumulés par DÉPART (même boutique, même zone, même créneau). Le
+  // minimum de finançabilité doit porter là-dessus, pas sur une commande isolée :
+  // ce qui finance la gratuité, c'est le nombre de suppléments encaissés face à
+  // une course UNIQUE. Deux commandes d'un plat rapportent exactement autant
+  // qu'une commande de deux plats — les refuser serait arbitraire.
+  const platsByGroup = {};
+  for (const o of orders) {
+    if (o?.delivery?.status !== true) continue;
+    const key = deliveryGroupKey(o);
+    if (!key) continue;
+    platsByGroup[key] = (platsByGroup[key] || 0) + Math.max(1, toNumber(o.quantity) || 1);
+  }
+
   for (let i = 0; i < orders.length; i++) {
     const order = orders[i];
     if (order?.delivery?.status !== true) continue; // retrait : pas de livraison
 
+    // Le régime de la boutique commande TOUT ce qui suit : la campagne globale
+    // et l'armement sans code sont réservés au régime plateforme.
+    const fastfood = await repos.fastfoods.getById(order.fastFoodId).catch(() => null);
+    const platformDelivered = isPlatformDelivered(fastfood);
+
+    // ── Campagne globale : régime PLATEFORME uniquement ────────────────────
+    // En plateforme, la zone est fondue dans le prix du plat : elle est déjà
+    // encaissée, offrir la course ne coûte qu'un manque à gagner.
+    // En fastfood, la course est facturée à part — l'offrir sort réellement de
+    // la caisse, et la campagne contournait le contrôle de finançabilité
+    // (aucun minimum de plats). Une campagne globale pouvait donc générer des
+    // marges négatives en série. Elle n'y est plus appliquée.
     if (campaignOffer) {
+      if (!platformDelivered) continue;
+
+      // La campagne ne dispense PAS du minimum de plats : elle a la même
+      // conséquence qu'un bonus plateforme — le livreur serait rogné sur un
+      // départ d'un seul plat. Elle passait autrefois sans contrôle.
+      const check = checkFreeDeliveryAffordable({
+        fastfood,
+        brutUnit: rawUnitPriceOf(order),
+        quantity: platsByGroup[deliveryGroupKey(order)] ?? Math.max(1, toNumber(order.quantity) || 1),
+        coursePrice: toNumber(order.delivery?.prix),
+        coveredBy: campaignOffer.coveredBy,
+        reason: 'campaign',
+        pricing,
+      });
+      if (!check.affordable) {
+        return { offered, refusal: affordabilityMessage(check) };
+      }
+
       offered.add(i);
       continue;
     }
-    // Toujours interroger le pipeline (même sans `bonusCode`) : `resolveDeliveryBonus`
-    // retombe sur l'ARMEMENT global du user (après réclamation, le user arme son
-    // bonus au lieu de présenter un code). Un userId est requis pour l'armement.
+
+    // ── Bonus ───────────────────────────────────────────────────────────────
+    // En régime PLATEFORME, l'armement global suffit : `resolveDeliveryBonus`
+    // retombe dessus quand aucun code n'est présenté.
+    // En régime FASTFOOD, le CODE est obligatoire — le front doit le faire
+    // saisir et le valider via `POST /bonus/verify`, qui annonce le minimum de
+    // plats avant tout paiement. Un bonus seulement armé y est ignoré : sans
+    // passage par verify, le user découvrirait le refus au moment de payer.
+    if (!platformDelivered && !bonusCode) continue;
+
     if (!bonusSpent && (bonusCode || userId)) {
       const attempt = await resolveDeliveryBonus({ userId, fastFoodId: order.fastFoodId, bonusCode }).catch(() => null);
       if (attempt?.offer) {
@@ -104,11 +159,15 @@ async function resolveOfferedDeliveries(orders, { userId, bonusCode }) {
         // ait été encaissée. Marge + surplus d'arrondi sont facturés par
         // exemplaire, la course non : sous un certain nombre de plats, la
         // commande part à perte. On refuse plutôt que d'absorber.
-        const fastfood = await repos.fastfoods.getById(order.fastFoodId).catch(() => null);
+        // Quantité du DÉPART entier, pas de cette seule commande — cf. le
+        // cumul `platsByGroup` plus haut.
+        const groupKey = deliveryGroupKey(order);
+        const qtyGroup = platsByGroup[groupKey] ?? Math.max(1, toNumber(order.quantity) || 1);
+
         const check = checkFreeDeliveryAffordable({
           fastfood,
           brutUnit: rawUnitPriceOf(order),
-          quantity: order.quantity,
+          quantity: qtyGroup,
           coursePrice: toNumber(order.delivery?.prix),
           coveredBy: attempt.offer.coveredBy,
           pricing,

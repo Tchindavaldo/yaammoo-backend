@@ -60,6 +60,11 @@ exports.verifyBonusCodeService = async (rawCode, fastFoodId, order) => {
     // Finançabilité : contrôlée seulement si le contexte de commande est fourni.
     // Le refus est DUR à la commande — mieux vaut l'annoncer ici, pendant que le
     // user peut encore ajouter un plat.
+    //
+    // ⚠️ `order.quantity` doit porter le total de plats du DÉPART (même boutique,
+    // même zone, même créneau), pas d'une commande isolée : c'est ainsi que
+    // `validatePaymentAmount` comptera. Un panier de deux commandes d'un plat
+    // vaut deux plats — passer 1 ici annoncerait un refus qui n'aura pas lieu.
     if (order && fastFoodId) {
       const pricing = await getPricingSettings();
       const fastfood = await repos.fastfoods.getById(fastFoodId).catch(() => null);

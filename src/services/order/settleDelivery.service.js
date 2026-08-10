@@ -188,6 +188,8 @@ exports.settleDeliveryService = async ({ orders, bonusCode }) => {
         // Un même lieu n'a pas le même prix en express et en périodique.
         deliveryType: order.delivery?.type,
         platformMargin: marginPerItem,
+        // Nécessaire au calcul du prix AFFICHÉ d'une zone express (frais + pas).
+        pricing,
         quantity: order.quantity,
         courseBilled,
         delivered,

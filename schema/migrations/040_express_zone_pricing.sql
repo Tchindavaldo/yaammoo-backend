@@ -1,0 +1,68 @@
+-- ============================================================================
+-- 040_express_zone_pricing.sql
+-- ============================================================================
+-- Les zones EXPRESS portent désormais leurs frais — le livreur ne les paie plus.
+--
+-- En régime PLATEFORME, le prix affiché d'un plat est calé sur la zone
+-- PÉRIODIQUE : celle-ci est fondue dedans, commission et frais de retrait
+-- compris. L'express, lui, était facturé BRUT. La commission et le retrait
+-- étaient donc prélevés dessus sans jamais avoir été encaissés, et c'est le
+-- LIVREUR qui absorbait la différence :
+--
+--   plat brut 2000, marge 100, zone périodique 250, zone express 400
+--
+--   prix affiché = arrondi(withAllFees(2000 + 100 + 250)) = 2500
+--   client paie 2500 → commission 125 → retrait 54 → net 2321
+--   règlement : items 2000, marge 100 servie → reste 221 pour le livreur
+--
+--     course périodique 250 → il touche 221, absorbe  29   (tolérable)
+--     course express    400 → il touche 221, absorbe 179   ← bien au-delà de
+--                                                            `driver_amortization_max`
+--
+-- L'express est maintenant tarifé comme un extra ou une boisson : `prix` est ce
+-- que paie le client, `rawPrice` ce que touche le livreur.
+--
+--   zone express 400
+--     retrait 400 < seuil 4200        → forfait 54
+--     juste = ceil((400 + 54) / 0,95) = 478
+--     affiché = 500 (arrondi ↑ 500)
+--
+--   client paie 500 → commission 25 → retrait 54 → le livreur touche ses 400.
+--   Absorption : 0.
+--
+-- ⚠️ On DIVISE par (1 − commission), on ne multiplie pas. 400 × 1,05 = 420
+-- laisserait la commission porter sur 420 et oublierait le retrait.
+--
+-- ⚠️ Le forfait de retrait est appliqué à la zone ISOLÉE alors qu'en réalité le
+-- retrait porte UNE SEULE fois sur le total de la commande. On facture donc
+-- jusqu'à 54 F pour un surcoût réel de 5 F au maximum (400 × 1,2 %) :
+--
+--   total 2900 → retrait 54, il aurait été 54 sans la zone → coût réel 0
+--   total 4400 → retrait 57, il aurait été 54 sans la zone → coût réel 3
+--   total 12000 → retrait 148, il aurait été 143 sans la zone → coût réel 5
+--
+-- L'écart est TOUJOURS en faveur de la plateforme, jamais l'inverse. Choix
+-- assumé : modéliser le seuil exactement supposerait de connaître le total de la
+-- commande au moment où la zone est affichée — or le panier n'existe pas encore.
+--
+-- ⚠️ Les zones PÉRIODIQUES restent BRUTES : déjà fondues dans le prix du plat,
+-- les habiller les ferait payer deux fois.
+--
+-- ⚠️ Régime PLATEFORME uniquement. En régime fastfood, la course est facturée au
+-- tarif réel et ses frais sont déjà couverts par le surplus d'arrondi du plat
+-- (cf. `fastfood_min_covered_course`, migration 039).
+--
+-- Le pas d'arrondi est propre à l'express : `price_rounding_step` s'applique à
+-- des prix de plats bien plus gros, où un pas de 500 se dilue. Sur une course de
+-- 400 à 1400, le même pas est grossier — il est ici assumé, l'écart revenant
+-- intégralement à la plateforme. Toujours vers le HAUT, jamais d'amortissement :
+-- le livreur n'a pas à financer l'arrondi.
+--
+-- Valeur à 0 = aucun arrondi, le prix juste (frais inclus) est servi tel quel.
+-- Le livreur reste couvert dans tous les cas ; seul l'affichage perd sa rondeur.
+-- ============================================================================
+
+INSERT INTO settings (key, value, description) VALUES
+  ('express_price_rounding_step', '500',
+   'Pas d''arrondi (FCFA) des zones de livraison EXPRESS, regime plateforme. Toujours vers le haut. 0 = aucun arrondi.')
+ON CONFLICT (key) DO NOTHING;
