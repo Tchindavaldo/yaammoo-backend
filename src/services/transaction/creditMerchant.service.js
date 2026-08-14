@@ -27,7 +27,7 @@ const { reliableEmit } = require('../../utils/reliableEmit');
  * @param {string} params.clientUserId  user qui a payé (pour traçabilité/log)
  */
 exports.creditMerchantForItem = async ({ item, clientUserId }) => {
-  const logPrefix = `[creditMerchant] fastFoodId=${item?.fastFoodId}`;
+  const logPrefix = `[creditMerchant] orderId=${item?.id || '∅'} fastFoodId=${item?.fastFoodId}`;
 
   const fastFoodId = item?.fastFoodId;
   const gross = Number(item?.total) || 0;
@@ -51,8 +51,12 @@ exports.creditMerchantForItem = async ({ item, clientUserId }) => {
   let credited = gross;
   try {
     const settlement = await repos.orderSettlements.getByOrder(item?.id);
-    if (settlement) credited = Math.max(0, Number(settlement.itemsReal) || 0);
-    else console.warn(`${logPrefix} ⚠️ règlement absent → crédit sur le total client (${gross})`);
+    if (settlement) {
+      credited = Math.max(0, Number(settlement.itemsReal) || 0);
+      console.info(`${logPrefix} règlement trouvé → crédit=${credited} (total client=${gross})`);
+    } else {
+      console.warn(`${logPrefix} ⚠️ règlement absent → crédit sur le total client (${gross}) — settleDelivery n'a PAS tourné pour cette commande (updateOrders échoué ou commande jamais passée en pending)`);
+    }
   } catch (e) {
     console.warn(`${logPrefix} ⚠️ règlement non lu (${e.message}) → crédit sur le total client`);
   }

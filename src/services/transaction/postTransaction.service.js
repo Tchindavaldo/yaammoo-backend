@@ -80,11 +80,35 @@ exports.postTransactionService = async (data, req) => {
       const toUpdate = orders.filter(o => o && o.id);
       const toCreate = orders.filter(o => o && !o.id);
 
+      // ── Trace panier : d'où part chaque commande ────────────────────────────
+      log.info(`${logPrefix} [panier] ${orders.length} cmd reçue(s) → ${toUpdate.length} à mettre à jour, ${toCreate.length} à créer`);
+      orders.forEach((o, i) => {
+        log.info(`${logPrefix} [panier] #${i + 1} id=${o?.id || '∅ (nouvelle)'} fastFoodId=${o?.fastFoodId} menu=${o?.menu?.id || '?'} qty=${o?.quantity} total=${o?.total} statusEnvoyé=${o?.status || '∅'} livraison=${o?.delivery?.status === true ? `${o?.delivery?.type}/${o?.delivery?.date}${o?.delivery?.time ? '/' + o.delivery.time : ''}` : 'retrait'}`);
+      });
+
+      // Le retour de `updateOrders` est AUTORITAIRE : en cas d'échec (stock
+      // insuffisant, validation…), les commandes restent en `pendingToBuy` —
+      // donc dans le panier du client — et `settleDelivery` n'a pas tourné.
+      // On ABANDONNE ici : créditer le marchand et enregistrer un paiement pour
+      // des commandes que le backend considère lui-même comme non payées créerait
+      // de l'argent en trop (crédit sur le total client, faute de règlement) et
+      // renverrait un faux succès au front.
       if (toUpdate.length > 0) {
-        await updateOrders(toUpdate, userId);
+        const upd = await updateOrders(toUpdate, userId);
+        if (!upd?.success) {
+          log.error(`${logPrefix} [panier] ❌ updateOrders ÉCHEC: ${upd?.message} → ABANDON : aucun crédit marchand, aucune transaction, panier laissé intact`);
+          return { success: false, httpStatus: 400, message: upd?.message || 'Mise à jour des commandes impossible' };
+        } else {
+          log.info(`${logPrefix} [panier] ✓ updateOrders OK: ${upd.message}`);
+          (upd.data || []).forEach(o => {
+            log.info(`${logPrefix} [panier]   id=${o?.id} status=${o?.status} groupId=${o?.groupId || '∅'} rank=${o?.rank ?? '∅'}`);
+          });
+        }
       }
       for (const order of toCreate) {
-        await createOrderService({ ...order, userId });
+        const created = await createOrderService({ ...order, userId });
+        const createdId = created?.data?.id || created?.id || '?';
+        log.info(`${logPrefix} [panier] + commande créée id=${createdId} fastFoodId=${order?.fastFoodId}`);
       }
       for (const item of orders) {
         await creditMerchantForItem({ item, clientUserId: userId }).catch(e => log.error(`${logPrefix} ❌ Crédit marchand échoué: ${e.message}`));

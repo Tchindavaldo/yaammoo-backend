@@ -66,6 +66,8 @@ exports.updateOrders = async (orders, userId) => {
 
     const removedOrders = [];
     const updates = Array.isArray(orders) ? orders : [orders];
+
+    console.info(`[updateOrders] ═══ ${updates.length} cmd · userId=${userId} ═══`);
     const groupedByFastFood = {};
     const results = [];
     const transitions = [];
@@ -75,6 +77,7 @@ exports.updateOrders = async (orders, userId) => {
       const errors = validateOrder(updateData, false, false);
       if (errors && errors.length > 0) {
         const formattedErrors = errors.map(err => `${err.field}: ${err.message}`).join(', ');
+        console.error(`[updateOrders] ❌ ABANDON validation id=${updateData.id || '?'} — ${formattedErrors}`);
         return {
           success: false,
           message: `Erreur de validation pour la commande ${updateData.id || 'inconnue'}: ${formattedErrors}`,
@@ -83,12 +86,24 @@ exports.updateOrders = async (orders, userId) => {
       }
 
       const { id, status, fastFoodId } = updateData;
-      if (!id) return { success: false, message: 'ID de commande manquant pour une mise à jour.', data: null };
-      if (!userId) return { success: false, message: 'userId manquant pour une mise à jour.', data: null };
-      if (!fastFoodId) return { success: false, message: 'fastFoodId manquant pour une mise à jour.', data: null };
+      if (!id) {
+        console.error('[updateOrders] ❌ ABANDON — ID de commande manquant');
+        return { success: false, message: 'ID de commande manquant pour une mise à jour.', data: null };
+      }
+      if (!userId) {
+        console.error(`[updateOrders] ❌ ABANDON id=${id} — userId manquant`);
+        return { success: false, message: 'userId manquant pour une mise à jour.', data: null };
+      }
+      if (!fastFoodId) {
+        console.error(`[updateOrders] ❌ ABANDON id=${id} — fastFoodId manquant`);
+        return { success: false, message: 'fastFoodId manquant pour une mise à jour.', data: null };
+      }
 
       const prevData = await repos.orders.getById(id);
-      if (!prevData) return { success: false, message: `Commande non trouvée pour l'ID ${id}`, data: null };
+      if (!prevData) {
+        console.error(`[updateOrders] ❌ ABANDON id=${id} — commande introuvable en DB`);
+        return { success: false, message: `Commande non trouvée pour l'ID ${id}`, data: null };
+      }
 
       const prevStatus = prevData.status;
       const prevRank = prevData.rank;
@@ -119,6 +134,8 @@ exports.updateOrders = async (orders, userId) => {
             newStatus = prevStatus;
         }
       }
+
+      console.info(`[updateOrders] id=${id} transition ${prevStatus} → ${newStatus}${prevStatus === newStatus ? ' (INCHANGÉ)' : ''} · fastFoodId=${fastFoodId} · statusDemandé=${status || '∅'}`);
 
       const setData = {
         ...updateData,
@@ -154,6 +171,7 @@ exports.updateOrders = async (orders, userId) => {
           const menu = await repos.menus.getById(menuId);
           if (menu && typeof menu.stock === 'number') {
             if (menu.stock < qty) {
+              console.error(`[updateOrders] ❌ ABANDON id=${id} — stock insuffisant menu=${menuId} (dispo=${menu.stock}, demandé=${qty}) → tout le panier reste en pendingToBuy`);
               return {
                 success: false,
                 message: `Stock insuffisant pour "${menu.name || menu.titre || 'ce menu'}". Stock disponible : ${menu.stock}`,
@@ -209,6 +227,8 @@ exports.updateOrders = async (orders, userId) => {
     // le panier peut encore être vidé.
     const becamePending = transitions.filter(t => t.prevStatus === 'pendingToBuy' && t.newStatus === 'pending').map(t => t.order);
 
+    console.info(`[updateOrders] ${becamePending.length}/${updates.length} cmd pendingToBuy → pending (déclenche groupId + settleDelivery)`);
+
     if (becamePending.length > 0) {
       // Panier de plusieurs plats : un `groupId` commun permet de les réafficher
       // ensemble côté marchand comme côté client — un seul client, une seule
@@ -216,6 +236,7 @@ exports.updateOrders = async (orders, userId) => {
       // Inutile sur une commande seule : on ne pollue pas la donnée.
       if (becamePending.length > 1) {
         const groupId = generateId();
+        console.info(`[updateOrders] groupId=${groupId} appliqué à ${becamePending.length} cmd du même panier`);
         for (const order of becamePending) {
           try {
             await repos.orders.update(order.id, { groupId });
@@ -229,6 +250,7 @@ exports.updateOrders = async (orders, userId) => {
       // Le bonus voyage avec le panier, pas avec un plat en particulier.
       const bonusCode = updates.find(o => o && o.bonusCode)?.bonusCode;
       const settled = await settleDeliveryService({ orders: becamePending, bonusCode });
+      console.info(`[updateOrders] settleDelivery terminé · bonusCode=${bonusCode || '∅'} · offre=${settled?.offer ? 'appliquée' : '∅'} → order_settlements créés pour ${becamePending.length} cmd`);
       // Le front reçoit l'offre appliquée sans avoir à re-GET.
       if (settled.offer) {
         for (const order of becamePending) order.deliveryOffer = settled.offer;
@@ -251,6 +273,7 @@ exports.updateOrders = async (orders, userId) => {
         });
 
         if (pendingOrders.length > 0) {
+          console.info(`[updateOrders] → émission 'newFastFoodOrders' à marchand=${fastfood.userId} (fastFoodId=${fastFoodId}) · ${pendingOrders.length} cmd: ${pendingOrders.map(o => o.id).join(', ')}`);
           toMerchantView(pendingOrders)
             .then(merchantOrders =>
               reliableEmit(io, fastfood.userId, 'newFastFoodOrders', {
@@ -334,8 +357,11 @@ exports.updateOrders = async (orders, userId) => {
       message = 'Nouvelle livraison lancée avec succès';
     }
 
+    console.info(`[updateOrders] ✓ terminé — ${results.map(o => `${o.id}:${o.status}`).join(' | ')}`);
+
     return { success: true, message, data: results };
   } catch (error) {
+    console.error(`[updateOrders] ❌ EXCEPTION: ${error.message}`, error.stack);
     return {
       success: false,
       message: error.message || 'Erreur lors de la mise à jour des commandes',
