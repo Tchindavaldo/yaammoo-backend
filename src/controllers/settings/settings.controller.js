@@ -6,7 +6,7 @@
 // prend sur chaque commande.
 // ============================================================================
 const repos = require('../../repositories');
-const { getPricingSettings, setSetting, KEYS } = require('../../services/settings/settings.service');
+const { getPricingSettings, getAppVersionGate, setSetting, KEYS } = require('../../services/settings/settings.service');
 
 /** Clés modifiables via l'API. Toute autre clé est refusée. */
 const EDITABLE_KEYS = new Set(Object.values(KEYS));
@@ -31,6 +31,17 @@ exports.getPublicPricingController = async (req, res) => {
     return res.status(200).json({ success: true, message: 'Réglages tarifaires.', data: { paymentFeePercent, deliveryFreeMode } });
   } catch (error) {
     console.error('Erreur lecture réglages :', error);
+    return res.status(500).json({ success: false, message: error.message || 'Erreur serveur.' });
+  }
+};
+
+/** GET /settings/app-version — public. État de version pour le client courant. */
+exports.getAppVersionGateController = async (req, res) => {
+  try {
+    const data = await getAppVersionGate(req);
+    return res.status(200).json({ success: true, message: 'État de version.', data });
+  } catch (error) {
+    console.error('Erreur lecture version app :', error);
     return res.status(500).json({ success: false, message: error.message || 'Erreur serveur.' });
   }
 };
@@ -61,12 +72,20 @@ exports.patchSettingController = async (req, res) => {
     }
 
     const { value } = req.body;
+    const VERSION_KEYS = new Set([KEYS.MIN_APP_VERSION, KEYS.LATEST_APP_VERSION]);
     // Typage explicite : une valeur mal typée fausserait silencieusement les
     // calculs de prix (ex. "100" concaténé au lieu d'être additionné).
     if (key === KEYS.DELIVERY_FREE_MODE && typeof value !== 'boolean') {
       return res.status(400).json({ success: false, message: '`value` doit être un booléen.' });
     }
-    if (key !== KEYS.DELIVERY_FREE_MODE && (typeof value !== 'number' || !Number.isFinite(value) || value < 0)) {
+    if (VERSION_KEYS.has(key) && (typeof value !== 'string' || !/^\d+\.\d+\.\d+$/.test(value))) {
+      return res.status(400).json({ success: false, message: '`value` doit être une version au format "x.y.z".' });
+    }
+    if (
+      key !== KEYS.DELIVERY_FREE_MODE &&
+      !VERSION_KEYS.has(key) &&
+      (typeof value !== 'number' || !Number.isFinite(value) || value < 0)
+    ) {
       return res.status(400).json({ success: false, message: '`value` doit être un nombre positif.' });
     }
 

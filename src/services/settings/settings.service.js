@@ -17,7 +17,7 @@
 // cache local, mais pas celui des autres machines.
 // ============================================================================
 const repos = require('../../repositories');
-const { resolveClientVersion } = require('../../utils/appVersion');
+const { resolveClientVersion, compareVersions } = require('../../utils/appVersion');
 
 const CACHE_TTL_MS = Number(process.env.SETTINGS_CACHE_TTL_MS);
 
@@ -66,6 +66,9 @@ const KEYS = {
   // durcir l'une sans toucher à l'autre.
   PLATFORM_FREE_DELIVERY_MIN_ITEMS_BONUS: 'platform_free_delivery_min_items_bonus',
   PLATFORM_FREE_DELIVERY_MIN_ITEMS_CAMPAIGN: 'platform_free_delivery_min_items_campaign',
+  // Gate de version d'app (migration 042) — écran de mise à jour forcée.
+  MIN_APP_VERSION: 'min_app_version',
+  LATEST_APP_VERSION: 'latest_app_version',
 };
 
 const FALLBACKS = {
@@ -103,6 +106,10 @@ const FALLBACKS = {
   // et aucune commande n'est bloquée à tort.
   [KEYS.PLATFORM_FREE_DELIVERY_MIN_ITEMS_BONUS]: 1,
   [KEYS.PLATFORM_FREE_DELIVERY_MIN_ITEMS_CAMPAIGN]: 1,
+  // "0.0.0" = jamais bloquant : une clé absente ou illisible ne doit jamais
+  // couper l'accès à l'app.
+  [KEYS.MIN_APP_VERSION]: '0.0.0',
+  [KEYS.LATEST_APP_VERSION]: '0.0.0',
 };
 
 // Les réglages Apple Review n'ont VOLONTAIREMENT aucun repli : inventer une
@@ -198,10 +205,30 @@ async function isAppleReviewClient(req) {
   return resolveClientVersion(req) === reviewVersion;
 }
 
+/**
+ * État de version pour le client courant : faut-il bloquer (forceUpdate) ou
+ * juste signaler qu'une nouvelle version existe (updateAvailable).
+ * Ne lève jamais — clés absentes ou mal formées = repli "0.0.0", jamais bloquant.
+ */
+async function getAppVersionGate(req) {
+  const s = await getSettings();
+  const minVersion = String(s[KEYS.MIN_APP_VERSION] || '0.0.0');
+  const latestVersion = String(s[KEYS.LATEST_APP_VERSION] || '0.0.0');
+  const clientVersion = resolveClientVersion(req);
+
+  return {
+    clientVersion,
+    minVersion,
+    latestVersion,
+    forceUpdate: compareVersions(clientVersion, minVersion) < 0,
+    updateAvailable: compareVersions(clientVersion, latestVersion) < 0,
+  };
+}
+
 async function setSetting(key, value) {
   const saved = await repos.settings.set(key, value);
   invalidate();
   return saved;
 }
 
-module.exports = { KEYS, getSettings, getPricingSettings, getAppleReviewMode, isAppleReviewClient, setSetting, invalidate };
+module.exports = { KEYS, getSettings, getPricingSettings, getAppleReviewMode, isAppleReviewClient, getAppVersionGate, setSetting, invalidate };
