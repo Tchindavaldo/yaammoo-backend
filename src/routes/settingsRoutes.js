@@ -50,7 +50,7 @@ route.get('/pricing', getPublicPricingController);
  *     summary: État de version pour le client courant
  *     description: >-
  *       Public. Compare la version du client (header `x-app-version`) à
- *       `min_app_version` et `latest_app_version`. `forceUpdate` = le client
+ *       `platform_min_app_version` et `platform_latest_app_version`. `forceUpdate` = le client
  *       est sous le minimum, l'app doit bloquer l'accès. `updateAvailable` =
  *       une version plus récente existe, mise à jour non bloquante.
  *     tags:

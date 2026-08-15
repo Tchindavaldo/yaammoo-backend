@@ -67,8 +67,8 @@ const KEYS = {
   PLATFORM_FREE_DELIVERY_MIN_ITEMS_BONUS: 'platform_free_delivery_min_items_bonus',
   PLATFORM_FREE_DELIVERY_MIN_ITEMS_CAMPAIGN: 'platform_free_delivery_min_items_campaign',
   // Gate de version d'app (migration 042) — écran de mise à jour forcée.
-  MIN_APP_VERSION: 'min_app_version',
-  LATEST_APP_VERSION: 'latest_app_version',
+  MIN_APP_VERSION: 'platform_min_app_version',
+  LATEST_APP_VERSION: 'platform_latest_app_version',
 };
 
 const FALLBACKS = {
