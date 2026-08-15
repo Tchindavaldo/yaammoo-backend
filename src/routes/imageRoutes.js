@@ -2,7 +2,7 @@
 const express = require('express');
 
 const upload = require('../config/multer');
-const { handleUpload } = require('../controllers/images/upladImage-controler');
+const { handleUpload, handleDelete } = require('../controllers/images/uploadImage-controler');
 
 const router = express.Router();
 
@@ -46,5 +46,7 @@ const router = express.Router();
  *         description: Invalid image or upload error
  */
 router.post('/upload', upload.single('image'), handleUpload);
+
+router.delete('/', handleDelete);
 
 module.exports = router;

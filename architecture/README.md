@@ -41,6 +41,7 @@ Documentation d'architecture du backend Node.js / Express / Supabase / Socket.io
 | [support.md](./support.md)                               | Chat support client (fils, messages, socket `support.message`)                                                                                              | ✅     |
 | [socket-events.md](./socket-events.md)                   | Événements Socket.io — émetteurs, destinataires, rooms                                                                                                      | ✅     |
 | [auth.md](./auth.md)                                     | Authentification — middleware Bearer, routes `/auth`, Firebase tokens                                                                                       | ✅     |
+| [banners.md](./banners.md)                                 | **Banners** — carrousel pub du home, table `banners`, CRUD admin, `/banner`, injection dans `/fastfood/all`, réordonnancement auto                       | ✅     |
 
 ### Infrastructure (Patterns & Configuration)
 

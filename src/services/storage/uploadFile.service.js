@@ -1,7 +1,7 @@
 // ============================================================================
 // uploadFileToSupabase — Upload générique vers Supabase Storage
 // ============================================================================
-// Généralisation de `images/upladImage.service` : même bucket, même mécanique,
+// Généralisation de `images/uploadImage.service` : même bucket, même mécanique,
 // mais le dossier est paramétrable et le type MIME libre (les preuves de bonus
 // sont des VIDÉOS, pas des images).
 // ============================================================================

@@ -533,6 +533,40 @@ const driverApplicationFromSupabase = row => {
   };
 };
 
+
+
+// ---------------------------------------------------------------------------
+// BANNERS (publicité carrousel home)
+// ---------------------------------------------------------------------------
+const bannerToSupabase = data => {
+  return {
+    ...(data.id !== undefined ? { id: data.id } : {}),
+    title: data.title ?? null,
+    image_url: data.imageUrl,
+    type: data.type ?? 'none',
+    target_id: data.targetId ?? null,
+    active: data.active ?? true,
+    sort_order: data.sortOrder ?? 0,
+    created_at: toIso(data.createdAt),
+    updated_at: toIso(data.updatedAt),
+  };
+};
+
+const bannerFromSupabase = row => {
+  if (!row) return null;
+  return {
+    id: row.id,
+    title: row.title ?? '',
+    imageUrl: row.image_url,
+    type: row.type,
+    targetId: row.target_id ?? null,
+    active: row.active,
+    sortOrder: row.sort_order,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+};
+
 // ---------------------------------------------------------------------------
 // SUPPORT (chat client <-> support yaammoo)
 // ---------------------------------------------------------------------------
@@ -613,4 +647,5 @@ module.exports = {
   driverApplication: { toSupabase: driverApplicationToSupabase, fromSupabase: driverApplicationFromSupabase },
   supportThread: { toSupabase: supportThreadToSupabase, fromSupabase: supportThreadFromSupabase },
   supportMessage: { toSupabase: supportMessageToSupabase, fromSupabase: supportMessageFromSupabase },
+  banner: { toSupabase: bannerToSupabase, fromSupabase: bannerFromSupabase },
 };

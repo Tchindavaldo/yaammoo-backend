@@ -30,10 +30,12 @@ src/
 │   ├── imageRoutes.js         → /image
 │   ├── smsRoutes.js           → /sms (WhatsApp)
 │   ├── supportRoutes.js       → /support (chat support client/marchand)
+│   ├── bannersRoutes.js        → /banner (publicité carrousel home)
 │   └── paymentPageRoutes.js   → /payment-page (page HTML paiement, WebView app)
 │
 ├── controllers/               # HTTP → service
 │   ├── auth/
+│   ├── banners/
 │   ├── bonus/ bonusRequest/
 │   ├── fastfood/
 │   ├── images/
@@ -49,9 +51,10 @@ src/
 │
 ├── services/                  # Logique métier
 │   ├── auth/
+│   ├── banners/
 │   ├── bonus/ bonusRequest/
 │   ├── fastfood/
-│   ├── images/                # upload Supabase
+│   ├── images/                # upload + delete Supabase
 │   ├── menu/
 │   ├── notification/
 │   │   ├── request/           # postNotification.service, get, markAsRead
@@ -91,6 +94,7 @@ app.use('/bonusRequest', bonusRequestRoutes);
 app.use('/image', imageRoutes);
 app.use('/sms', smsRoutes);
 app.use('/support', supportRoutes);
+app.use('/banner', bannersRoutes);
 app.use('/payment-page', paymentPageRoutes);
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 ```

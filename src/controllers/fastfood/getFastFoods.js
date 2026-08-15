@@ -1,4 +1,5 @@
 const { getFastFoodsService } = require('../../services/fastfood/getFastFoods');
+const { getActiveBanners } = require('../../services/banners/banners.service');
 const { formatFastfoodsForClient } = require('../../utils/deliveryHoursFormat');
 const { getAppleReviewMode } = require('../../services/settings/settings.service');
 
@@ -9,7 +10,13 @@ exports.getfastfoodController = async (req, res) => {
     const fastfoods = await getFastFoodsService(req.user?.uid);
     const data = formatFastfoodsForClient(fastfoods, req);
     const appleReviewMode = await getAppleReviewMode();
-    return res.status(200).json({ success: true, message: 'fastfoods récupérées avec succès.', data, appleReviewMode });
+    // Bannières publicitaires ACTIVES, pour le carrousel du home. Serties ici
+    // pour que le home n'ait qu'un seul appel à faire. Lecture jamais bloquante.
+    const banners = await getActiveBanners().catch(err => {
+      console.error('Erreur lecture bannières (fallback vide):', err.message);
+      return [];
+    });
+    return res.status(200).json({ success: true, message: 'fastfoods récupérées avec succès.', data, banners, appleReviewMode });
   } catch (error) {
     console.error('Erreur récupération fastfood :', error);
     return res.status(error.message === 'Fastfood non trouvé' ? 404 : 500).json({
