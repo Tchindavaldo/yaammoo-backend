@@ -1,7 +1,12 @@
 // src/routes/settingsRoutes.js
 const express = require('express');
 const firebaseAuth = require('../middlewares/authMiddleware');
-const { getPublicPricingController, getSettingsController, patchSettingController } = require('../controllers/settings/settings.controller');
+const {
+  getPublicPricingController,
+  getAppVersionGateController,
+  getSettingsController,
+  patchSettingController,
+} = require('../controllers/settings/settings.controller');
 
 const route = express.Router();
 
@@ -37,6 +42,39 @@ const route = express.Router();
  *                       description: Campagne « livraison offerte » globale en cours.
  */
 route.get('/pricing', getPublicPricingController);
+
+/**
+ * @swagger
+ * /settings/app-version:
+ *   get:
+ *     summary: État de version pour le client courant
+ *     description: >-
+ *       Public. Compare la version du client (header `x-app-version`) à
+ *       `min_app_version` et `latest_app_version`. `forceUpdate` = le client
+ *       est sous le minimum, l'app doit bloquer l'accès. `updateAvailable` =
+ *       une version plus récente existe, mise à jour non bloquante.
+ *     tags:
+ *       - Settings
+ *     responses:
+ *       200:
+ *         description: État de version
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: boolean }
+ *                 message: { type: string }
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     clientVersion: { type: string }
+ *                     minVersion: { type: string }
+ *                     latestVersion: { type: string }
+ *                     forceUpdate: { type: boolean }
+ *                     updateAvailable: { type: boolean }
+ */
+route.get('/app-version', getAppVersionGateController);
 
 /**
  * @swagger
