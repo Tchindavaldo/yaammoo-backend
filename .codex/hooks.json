@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash '/home/valdoblair/Documents/RUDAVO/APPS/yaammoo/Y0/BACKEND/.codex/hooks/session-start-read.sh'",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
