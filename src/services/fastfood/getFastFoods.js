@@ -15,6 +15,7 @@ const { getMenuService } = require('../menu/getMenu.services');
 const { getArmedDeliveryOffers, pickOfferForFastFood } = require('../bonus/armBonus.service');
 const { getPricingSettings } = require('../settings/settings.service');
 const { applyDisplayPricing, isPlatformDelivered } = require('../pricing/deliveryPricing');
+const { withMenuThumbnails } = require('../images/thumbnailUrl');
 const { buildCampaignOffer } = require('../pricing/deliveryOfferResolver');
 const { platformMinItems } = require('../bonus/deliveryOfferAffordability');
 
@@ -53,6 +54,10 @@ exports.getFastFoodsService = async userId => {
         // Sa gestion de catalogue passe par `GET /menu/:fastFoodId`, qui sert
         // les prix bruts.
         const priced = applyDisplayPricing({ ...fastfood, menus }, pricing, false);
+        // Vignettes : le home affiche ces menus dans des cartes de 130 à 260 px,
+        // les originaux pèsent 300 Ko à 1,1 Mo. Servi ici et non côté app pour
+        // que tous les clients en profitent sans rebuild.
+        priced.menus = (priced.menus || []).map(withMenuThumbnails);
         // La campagne ne vaut que chez les boutiques livrées par la plateforme ;
         // ailleurs on retombe sur l'éventuel bonus armé du user.
         const campaign = campaignOffer && isPlatformDelivered(fastfood) ? campaignOffer : null;

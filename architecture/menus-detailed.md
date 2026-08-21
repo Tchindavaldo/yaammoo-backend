@@ -208,3 +208,36 @@ await updateMenuStock(menuId, quantityDesired);
 - 400 : Données invalides
 - 409 : Stock insuffisant
 - 403 : Marchand non propriétaire (edit autre marchand)
+
+
+---
+
+## Vignettes d'images (servies au client)
+
+Les fichiers stockés sont en pleine résolution (300 Ko à 1,1 Mo) alors que les
+cartes du home les affichent dans des zones de 130 à 260 px. Le backend sert
+donc au client des **URLs de vignettes** Supabase (`/render/image/public/`),
+l'original restant intact et accessible.
+
+| Fichier | Rôle |
+|---|---|
+| `src/services/images/thumbnailUrl.js` | `thumbnailUrl(url, width)` + `withMenuThumbnails(menu)` |
+
+**Largeurs** : `coverImage` → 400 px (carte du home), `images[]` → 900 px (vue
+détaillée), bannières → 828 px.
+
+**Mesures** : carte 327 Ko → 21 Ko (-94 %), bannière 648 Ko → 88 Ko (-86 %).
+`format=webp` est le levier principal : beaucoup d'originaux sont des PNG,
+insensibles à `quality`. Le préfixe `/render/image/` **seul ne réduit rien**.
+
+**Où c'est appliqué** — uniquement sur les chemins CLIENT :
+- `getFastFoods.js` → `/fastfood/all` (catalogue du home)
+- `enrichMenuForClient.js` → émissions socket `globalMenuUpdated` / `newGlobalMenu`
+
+> ⚠️ **Jamais sur le chemin MARCHAND** (`GET /menu/:fastFoodId`). Le marchand
+> édite son catalogue : lui servir une URL transformée la ferait réenregistrer
+> en base au prochain `PUT /menu`, corrompant la donnée de façon irréversible.
+
+**Garde-fou projet** : la réécriture n'est appliquée que sur les hôtes listés
+dans `TRANSFORM_ENABLED_HOSTS` (plan Pro). Sur un projet gratuit,
+`/render/image/` répond 403 `FeatureNotEnabled` et l'image ne s'afficherait pas.

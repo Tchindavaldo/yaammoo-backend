@@ -18,6 +18,7 @@
 const repos = require('../../repositories');
 const { getPricingSettings } = require('../settings/settings.service');
 const { applyDisplayPricing } = require('../pricing/deliveryPricing');
+const { withMenuThumbnails } = require('../images/thumbnailUrl');
 
 /**
  * @param {Object} menu menu BRUT (tel que stocké)
@@ -31,7 +32,11 @@ async function enrichMenuForClient(menu) {
 
     // Enrichit la boutique avec ce seul menu, puis récupère le menu prixé.
     const priced = applyDisplayPricing({ ...fastfood, menus: [menu] }, pricing, false);
-    return Array.isArray(priced?.menus) ? priced.menus[0] : menu;
+    const out = Array.isArray(priced?.menus) ? priced.menus[0] : menu;
+    // Mêmes vignettes que `/fastfood/all` : un menu reçu par socket doit être
+    // interchangeable avec celui du catalogue, sinon la carte rechargerait
+    // l'original pleine résolution à la moindre mise à jour.
+    return withMenuThumbnails(out);
   } catch (e) {
     // Un incident de pricing ne doit pas casser l'émission : on retombe sur le brut.
     console.warn(`[enrichMenuForClient] pricing non appliqué (${menu?.id}): ${e.message}`);
