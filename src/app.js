@@ -26,7 +26,6 @@ const ratingRoutes = require('./routes/ratingRoutes');
 const settingsRoutes = require('./routes/settingsRoutes');
 const bannersRoutes = require('./routes/bannersRoutes');
 const paymentPageRoutes = require('./routes/paymentPageRoutes');
-const deleteAccountPageRoutes = require('./routes/deleteAccountPageRoutes');
 
 const app = express();
 
@@ -59,7 +58,6 @@ app.use('/rating', ratingRoutes);
 app.use('/settings', settingsRoutes);
 app.use('/banner', bannersRoutes);
 app.use('/payment-page', paymentPageRoutes);
-app.use('/delete-account', deleteAccountPageRoutes);
 
 // Ajouter l'endpoint de diagnostic Firebase
 app.get('/debug-firebase', (req, res) => {
