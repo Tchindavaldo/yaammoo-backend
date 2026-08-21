@@ -221,17 +221,24 @@ l'original restant intact et accessible.
 
 | Fichier | Rôle |
 |---|---|
-| `src/services/images/thumbnailUrl.js` | `thumbnailUrl(url, width)` + `withMenuThumbnails(menu)` |
+| `src/services/images/thumbnailUrl.js` | `optimizedUrl(url)` + `withMenuThumbnails(menu)` + `withBannerThumbnail(banner)` |
 
-**Largeurs** : `coverImage` → 400 px (carte du home), `images[]` → 900 px (vue
-détaillée), bannières → 828 px.
+**Aucun redimensionnement** : les dimensions d'origine sont conservées, seul le
+format change.
 
-**Mesures** : carte 327 Ko → 21 Ko (-94 %), bannière 648 Ko → 88 Ko (-86 %).
-`format=webp` est le levier principal : beaucoup d'originaux sont des PNG,
-insensibles à `quality`. Le préfixe `/render/image/` **seul ne réduit rien**.
+> ⚠️ `width` seul **déforme** l'image : Supabase force la largeur sans ajuster
+> la hauteur. Une image 500x503 devenait 400x503 — ratio 0,99 → 0,79. Passer
+> aussi `height` + `resize=contain` corrigerait, mais pour 2 Ko de gain sur 23 :
+> le WebP seul suffit.
+
+**Mesures** : 327 Ko → 23 Ko (-93 %) à dimensions identiques ; bannière 648 Ko →
+~90 Ko. `format=webp` est le seul levier qui compte — beaucoup d'originaux sont
+des PNG, insensibles à `quality`, et le préfixe `/render/image/` **seul ne
+réduit rien** (327 Ko → 327 Ko).
 
 **Où c'est appliqué** — uniquement sur les chemins CLIENT :
-- `getFastFoods.js` → `/fastfood/all` (catalogue du home)
+- `getFastFoods.js` → `/fastfood/all` (menus du catalogue)
+- `controllers/fastfood/getFastFoods.js` → bannières du carrousel
 - `enrichMenuForClient.js` → émissions socket `globalMenuUpdated` / `newGlobalMenu`
 
 > ⚠️ **Jamais sur le chemin MARCHAND** (`GET /menu/:fastFoodId`). Le marchand
