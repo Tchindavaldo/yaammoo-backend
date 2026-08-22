@@ -92,10 +92,10 @@ exports.getFastFoodsService = async (userId, page) => {
 
     const withMenus = fastfoodsWithMenus.filter(f => Array.isArray(f.menus) && f.menus.length > 0);
 
-    // ⚠️ Une page de 10 peut n'en rendre que 7 : les boutiques sans plat sont
-    // écartées ICI, après la lecture. Le curseur, lui, est calculé par le repo
-    // sur la dernière ligne LUE — repartir de la dernière boutique AFFICHÉE
-    // ferait sauter celles qu'on vient d'écarter.
+    // Filet de sécurité : en mode paginé, `getPage()` a déjà écarté les
+    // boutiques sans plat par jointure interne, donc ce filtre ne retire rien
+    // et la page rend bien `limit` boutiques. Il reste indispensable au mode
+    // complet (`getAll()`), qui ne filtre pas.
     return paginated ? { items: withMenus, nextCursor } : withMenus;
   } catch (error) {
     console.error('Erreur dans getFastfoods:', error);
