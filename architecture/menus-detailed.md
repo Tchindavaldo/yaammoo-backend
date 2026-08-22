@@ -212,16 +212,23 @@ await updateMenuStock(menuId, quantityDesired);
 
 ---
 
-## Vignettes d'images (servies au client)
+## Images optimisées (servies au client)
 
-Les fichiers stockés sont en pleine résolution (300 Ko à 1,1 Mo) alors que les
-cartes du home les affichent dans des zones de 130 à 260 px. Le backend sert
-donc au client des **URLs de vignettes** Supabase (`/render/image/public/`),
+Les fichiers stockés sont en pleine résolution (300 Ko à 1,1 Mo), majoritairement
+en PNG. Le backend les sert au client en **WebP** via `/render/image/public/`,
 l'original restant intact et accessible.
 
 | Fichier | Rôle |
 |---|---|
-| `src/services/images/thumbnailUrl.js` | `optimizedUrl(url)` + `withMenuThumbnails(menu)` + `withBannerThumbnail(banner)` |
+| `src/services/images/thumbnailUrl.js` | `optimizedUrl(url)` + `withMenuThumbnails(menu)` + `withBannerThumbnail(banner)` + `withFastfoodThumbnail(fastfood)` |
+
+Champs couverts :
+
+| Objet | Champ(s) | Appliqué par |
+|---|---|---|
+| Menu | `coverImage`, `images[]` | `getFastFoods`, `enrichMenuForClient` |
+| Bannière | `imageUrl` | contrôleur `getFastFoods` |
+| Boutique | `image` | `getFastFoods` |
 
 **Aucun redimensionnement** : les dimensions d'origine sont conservées, seul le
 format change.
