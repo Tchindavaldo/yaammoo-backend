@@ -3,7 +3,7 @@
 Ce fichier est **versionné** : ses règles s'appliquent automatiquement sur tout
 PC où le projet est cloné/pull, dans n'importe quelle session Claude Code.
 
-> **19 règles numérotées R1 → R19.** Toute nouvelle règle ajoutée à ce fichier
+> **20 règles numérotées R1 → R20.** Toute nouvelle règle ajoutée à ce fichier
 > DOIT recevoir le numéro suivant (R20, R21, …) et le total ci-dessus doit être
 > mis à jour. On cite une règle par son numéro (ex. « R1 » pour le style de réponse).
 
@@ -445,3 +445,31 @@ d'œil dans les logs et les tableaux de doc — on les garde.
 > Règle identique côté **frontend** (`yaammoo/CLAUDE.md`, R15).
 > Un emoji décoratif croisé dans un fichier qu'on touche = le retirer avant de
 > clore, même s'il était déjà là. Les emojis de statut, on n'y touche pas.
+
+---
+
+## R20 — Hooks : les règles sont APPLIQUÉES, pas seulement écrites
+
+Trois hooks (`.claude/hooks/`, déclarés dans `.claude/settings.json`) font
+respecter ce fichier par le harness. Ils sont **identiques au frontend**
+(`yaammoo/.claude/hooks/`), à l'adaptation d'arborescence près.
+
+| Hook | Déclencheur | Effet |
+|---|---|---|
+| `session-start-read.sh` | `UserPromptSubmit` | Injecte CLAUDE.md + `architecture/README.md` au 1er prompt (R2) |
+| `require-architecture-read.sh` | `PreToolUse` | Bloque une recherche sur une feature dont le doc n'a pas été lu, et tout agent Explore/Plan/general-purpose (R2, R3) |
+| `no-bash-file-edit.sh` | `PreToolUse` | Refuse Bash pour lire/écrire un fichier — `Read`/`Edit`/`Write` à la place |
+
+**Adaptation backend** de `require-architecture-read.sh` : la feature est
+déduite de `src/services/<x>`, `src/controllers/<x>`, `src/routes/<x>` et
+`src/repositories/supabase/<x>.repo.js` (le frontend utilise `src/features/` et
+`app/(tabs)/`). Les suffixes `.repo` / `.service` / `.controller` sont retirés
+avant de chercher `architecture/<x>*.md`.
+
+**Conséquences pratiques** :
+
+- Une feature **sans** `architecture/*.md` n'est pas bloquée — le hook émet une
+  NOTE demandant de créer le doc. Rien à maintenir à chaque nouvelle feature.
+- `git`, `npm`, `curl`, les pipelines et `> /dev/null` restent libres.
+- Un hook qui bloque n'est pas un bug : c'est la règle qui s'applique. Lire le
+  doc demandé ou utiliser l'outil dédié — ne jamais contourner.
