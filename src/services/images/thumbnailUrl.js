@@ -60,8 +60,16 @@ function withBannerThumbnail(banner) {
   return { ...banner, imageUrl: optimizedUrl(banner.imageUrl) };
 }
 
+/** Idem pour l'image d'une boutique (`image`), servie par `/fastfood/all`. */
+function withFastfoodThumbnail(fastfood) {
+  if (!fastfood || typeof fastfood !== 'object') return fastfood;
+  if (!fastfood.image) return fastfood;
+  return { ...fastfood, image: optimizedUrl(fastfood.image) };
+}
+
 module.exports = {
   optimizedUrl,
+  withFastfoodThumbnail,
   // Conservé sous son ancien nom : déjà appelé par getFastFoods et
   // enrichMenuForClient.
   withMenuThumbnails,

@@ -15,7 +15,7 @@ const { getMenuService } = require('../menu/getMenu.services');
 const { getArmedDeliveryOffers, pickOfferForFastFood } = require('../bonus/armBonus.service');
 const { getPricingSettings } = require('../settings/settings.service');
 const { applyDisplayPricing, isPlatformDelivered } = require('../pricing/deliveryPricing');
-const { withMenuThumbnails } = require('../images/thumbnailUrl');
+const { withMenuThumbnails, withFastfoodThumbnail } = require('../images/thumbnailUrl');
 const { buildCampaignOffer } = require('../pricing/deliveryOfferResolver');
 const { platformMinItems } = require('../bonus/deliveryOfferAffordability');
 
@@ -83,8 +83,10 @@ exports.getFastFoodsService = async (userId, page) => {
         // La campagne ne vaut que chez les boutiques livrées par la plateforme ;
         // ailleurs on retombe sur l'éventuel bonus armé du user.
         const campaign = campaignOffer && isPlatformDelivered(fastfood) ? campaignOffer : null;
+        // Image de la boutique : WebP a dimensions identiques, comme les menus
+        // et les bannieres. Elle etait jusqu'ici la seule servie brute.
         return {
-          ...priced,
+          ...withFastfoodThumbnail(priced),
           deliveryOffer: campaign || pickOfferForFastFood(offers, fastfood.id),
         };
       })
