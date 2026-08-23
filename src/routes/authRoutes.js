@@ -96,12 +96,9 @@ router.post('/signUp', signUpController);
  *               properties:
  *                 success: { type: 'boolean', example: true }
  *                 message: { type: 'string', example: 'Code de vérification envoyé' }
- *                 data:
- *                   type: object
- *                   properties:
- *                     verificationId: { type: 'string' }
- *                     phoneNumber: { type: 'string', example: '+237698087460' }
- *                     expiresIn: { type: 'integer', example: 600 }
+ *                 verificationId: { type: 'string' }
+ *                 phoneNumber: { type: 'string', example: '+237698087460' }
+ *                 expiresIn: { type: 'integer', example: 600 }
  *       400:
  *         description: Numéro invalide ou échec de l'envoi
  *       429:
@@ -113,10 +110,7 @@ router.post('/signUp', signUpController);
  *               properties:
  *                 success: { type: 'boolean', example: false }
  *                 code: { type: 'string', example: 'cooldown' }
- *                 data:
- *                   type: object
- *                   properties:
- *                     retryAfter: { type: 'integer', example: 42 }
+ *                 retryAfter: { type: 'integer', example: 42 }
  */
 router.post('/phone/request', requestPhoneAuthController);
 
@@ -159,33 +153,30 @@ router.post('/phone/request', requestPhoneAuthController);
  *               properties:
  *                 success: { type: 'boolean', example: true }
  *                 message: { type: 'string', example: 'Connexion réussie' }
- *                 data:
+ *                 customToken:
+ *                   type: 'string'
+ *                   description: >
+ *                     ⚠️ Token à usage unique, valable 1 h. Ce n'est PAS un token
+ *                     d'accès : il ne fonctionne pas dans un en-tête Authorization.
+ *                     L'échanger via signInWithCustomToken(), puis utiliser
+ *                     getIdToken() pour appeler les routes protégées.
+ *                 isNewUser: { type: 'boolean' }
+ *                 user:
  *                   type: object
  *                   properties:
- *                     customToken:
- *                       type: 'string'
- *                       description: >
- *                         ⚠️ Token à usage unique, valable 1 h. Ce n'est PAS un token
- *                         d'accès : il ne fonctionne pas dans un en-tête Authorization.
- *                         L'échanger via signInWithCustomToken(), puis utiliser
- *                         getIdToken() pour appeler les routes protégées.
- *                     isNewUser: { type: 'boolean' }
- *                     user:
- *                       type: object
- *                       properties:
- *                         id: { type: 'string' }
- *                         uid: { type: 'string' }
- *                         phoneNumber: { type: 'string' }
- *                         nom: { type: 'string', nullable: true }
- *                         prenom: { type: 'string', nullable: true }
- *                         email: { type: 'string', nullable: true }
- *                         fastFoodId: { type: 'string', nullable: true }
- *                         isMarchand: { type: 'boolean' }
- *                     cost:
- *                       type: object
- *                       properties:
- *                         totalCost: { type: 'number', example: 0.009 }
- *                         currencyCode: { type: 'string', example: 'USD' }
+ *                     id: { type: 'string' }
+ *                     uid: { type: 'string' }
+ *                     phoneNumber: { type: 'string' }
+ *                     nom: { type: 'string', nullable: true }
+ *                     prenom: { type: 'string', nullable: true }
+ *                     email: { type: 'string', nullable: true }
+ *                     fastFoodId: { type: 'string', nullable: true }
+ *                     isMarchand: { type: 'boolean' }
+ *                 cost:
+ *                   type: object
+ *                   properties:
+ *                     totalCost: { type: 'number', example: 0.009 }
+ *                     currencyCode: { type: 'string', example: 'USD' }
  *       400:
  *         description: Paramètre manquant
  *       401:
@@ -197,11 +188,8 @@ router.post('/phone/request', requestPhoneAuthController);
  *               properties:
  *                 success: { type: 'boolean', example: false }
  *                 message: { type: 'string', example: 'Code OTP incorrect' }
- *                 data:
- *                   type: object
- *                   properties:
- *                     reason: { type: 'string', example: 'incorrect_code' }
- *                     attemptsRemaining: { type: 'integer', example: 3 }
+ *                 reason: { type: 'string', example: 'incorrect_code' }
+ *                 attemptsRemaining: { type: 'integer', example: 3 }
  */
 router.post('/phone/verify', verifyPhoneAuthController);
 

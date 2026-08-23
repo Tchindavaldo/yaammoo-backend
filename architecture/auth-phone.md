@@ -58,10 +58,29 @@ Réponse : `{ verificationId, phoneNumber, expiresIn }`.
    Connu → mise à jour `phoneVerified` / `lastLoginAt`, profil non écrasé.
 6. `admin.auth().createCustomToken(uid, { authProvider: 'phone' })`.
 
-Réponse : `{ customToken, isNewUser, user, cost }`.
+Réponse : `{ success, message, customToken, isNewUser, user, cost }`.
 
 **Codes HTTP** : `200` succès · `400` paramètre manquant · `401` code refusé
-(`reason`, `attemptsRemaining` dans `data`) · `429` cooldown.
+(`reason`, `attemptsRemaining`) · `429` cooldown.
+
+### Forme des réponses : À PLAT, pas sous `data`
+
+Les deux endpoints étalent les champs du résultat **à la racine** de la réponse :
+
+```json
+{ "success": true, "message": "Compte créé", "isNewUser": true, "customToken": "…", "user": {} }
+```
+
+C'est la convention déjà suivie par les autres routes de compte
+(`userController.addPushToken` : `res.json({ success: true, ...result })`), et donc
+ce que lit le frontend (`whatsappAuthService.ts` → `data.customToken`).
+
+Le service interne, lui, retourne `{ success, message, data: {…} }` : le controller
+applique un helper `flatten()` à la sortie. Ne pas retirer ce helper — imbriquer
+sous `data` obligerait l'appelant à écrire `response.data.data.customToken`, et
+produit sinon un `customToken: undefined` **silencieux** : la requête réussit en
+`200`, et l'erreur ne surgit qu'au `signInWithCustomToken()` sous la forme
+trompeuse `auth/internal-error`.
 
 ### Côté frontend
 
