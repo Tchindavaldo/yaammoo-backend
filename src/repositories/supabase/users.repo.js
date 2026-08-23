@@ -125,6 +125,25 @@ exports.getUserByPhone = async phone => {
 };
 
 // ============================================================================
+// Recherche par numéro, plusieurs formes acceptées.
+// ============================================================================
+// `users.numero` est un BIGINT sans '+' : les comptes existants ont été créés
+// avec le numéro LOCAL saisi par l'utilisateur (698087460), tandis que l'auth
+// par téléphone normalise en E.164 (237698087460). Chercher une seule forme
+// créerait un doublon de compte pour un utilisateur déjà inscrit.
+exports.getUserByAnyPhone = async candidates => {
+  const numeros = [...new Set((candidates || []).map(c => Number(String(c).replace(/\D/g, ''))).filter(Number.isSafeInteger))];
+  if (!numeros.length) return null;
+
+  // `.in()` peut renvoyer plusieurs lignes (même numéro sous deux formes) :
+  // on prend la plus ancienne, qui est le compte d'origine.
+  const { data, error } = await supabase.from(TABLE).select('*').in('numero', numeros).order('created_at', { ascending: true }).limit(1);
+  if (error) throw error;
+  if (!data || !data.length) return null;
+  return fetchUserBundle(data[0].id);
+};
+
+// ============================================================================
 // Suppression complète des données d'un utilisateur (RGPD / Apple 5.1.1(v)).
 // Supprime la ligne users + toutes les données liées en BD. NE TOUCHE PAS à
 // Firebase Auth (géré par le service, qui reste responsable de admin.auth()).

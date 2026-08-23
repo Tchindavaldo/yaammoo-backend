@@ -220,9 +220,32 @@ base, et le réel comme le facturé sont stockés côte à côte
 
 ---
 
-## Réglages (`settings`)
+## Réglages (`settings_<categorie>`)
 
-Table clé/valeur (migration 019), lue via `services/settings/settings.service`.
+Tables clé/valeur, lues via `services/settings/settings.service`.
+
+Depuis la **migration 046**, l'ancienne table `settings` unique est éclatée en
+**cinq tables par catégorie** — elle mélangeait des réglages qui n'ont ni le même
+public, ni la même criticité, ni le même rythme de changement :
+
+| Table                 | Contenu                                            |
+| --------------------- | -------------------------------------------------- |
+| `settings_pricing`    | Marges, frais de paiement, arrondis, amortissement |
+| `settings_delivery`   | Livraison offerte et ses seuils                    |
+| `settings_withdrawal` | Barèmes de frais de retrait, par opérateur         |
+| `settings_deployment` | Versions d'app et Apple Review                     |
+| `settings_auth`       | OTP Bird — voir [auth-phone.md](./auth-phone.md)   |
+
+La catégorie d'une clé est **déclarée** dans `KEY_CATEGORY`
+(`settings.service.js`), jamais déduite de son préfixe : `platform_margin` est un
+réglage de prix tandis que `platform_min_app_version` relève du déploiement. Une
+clé ajoutée à `KEYS` sans y être rangée fait échouer le chargement du service.
+
+L'API ne change pas : `PATCH /settings/:key` déduit la table côté serveur.
+`GET /settings` renvoie désormais les réglages **groupés par catégorie**.
+
+⚠️ **Aucun secret dans ces tables.** La clé d'API Bird reste en variable
+d'environnement (`.env` en local, secrets Fly en production).
 
 | Clé                                                | Défaut              | Rôle                                                                                                                                                                   |
 | -------------------------------------------------- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -309,7 +332,7 @@ src/
 
 | Fichier                                    | Contenu                                                                                                                                    |
 | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `019_settings.sql`                         | table `settings` + valeurs initiales (`ON CONFLICT DO NOTHING`)                                                                            |
+| `019_settings.sql`                         | table `settings` + valeurs initiales (`ON CONFLICT DO NOTHING`) — **éclatée par la 046**                                                   |
 | `020_order_deliveries.sql`                 | table `order_deliveries` + contraintes + index                                                                                             |
 | `021_order_deliveries_group.sql`           | `delivery_group_id`, `course_billed`, `items_real`, `items_charged`, `payment_fee`                                                         |
 | `022_orders_group_id.sql`                  | `orders.group_id` — commandes d'un même panier (cf. [orders.md](./orders.md))                                                              |
@@ -323,3 +346,5 @@ src/
 | `039_fastfood_min_covered_course.sql`    | garde-fou sur les prix de menu (surplus suffisant)                                                                                         |
 | `040_express_zone_pricing.sql`             | zones EXPRESS tarifées (frais + arrondi) — le livreur n'absorbe plus leurs frais                                                          |
 | `041_platform_free_delivery_min_items.sql` | plats minimum pour une gratuité en régime plateforme — deux clés (bonus / campagne)                                                       |
+| `045_phone_auth_bird.sql`                  | tables `phone_otp` et `bird_costs` — auth par téléphone (cf. [auth-phone.md](./auth-phone.md))                                            |
+| `046_settings_split_by_category.sql`       | éclate `settings` en cinq tables `settings_<categorie>`, reprend les valeurs de prod, puis `DROP TABLE settings`                          |

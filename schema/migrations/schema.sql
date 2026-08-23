@@ -654,26 +654,102 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- ============================================================================
--- TABLE: settings (migration 019)
+-- TABLES: settings_<categorie> (migrations 019 → 046)
 -- ============================================================================
--- Réglages métier modifiables À CHAUD (marge, frais de paiement, campagne
--- « livraison offerte »). En base et non dans .env : ce sont des décisions
--- commerciales, `flyctl secrets set` redémarrerait la machine.
--- Les seuils de version d'app restent, eux, en .env.
-CREATE TABLE IF NOT EXISTS settings (
+-- Réglages métier modifiables À CHAUD. En base et non dans .env : ce sont des
+-- décisions commerciales, `flyctl secrets set` redémarrerait la machine.
+--
+-- La migration 046 a éclaté la table `settings` unique en CINQ tables, une par
+-- catégorie : elle mélangeait des réglages qui n'ont ni le même public, ni la
+-- même criticité, ni le même rythme de changement.
+--
+--   settings_auth       — authentification (OTP Bird)
+--   settings_pricing    — composition des prix et marges
+--   settings_delivery   — livraison offerte et ses seuils
+--   settings_withdrawal — barèmes de frais de retrait, par opérateur
+--   settings_deployment — versions d'app et Apple Review
+--
+-- Toutes ont la même forme ; seule la table change. La catégorie d'une clé est
+-- déclarée dans `KEY_CATEGORY` (settings.service.js), jamais déduite du préfixe.
+--
+-- ⚠️ Aucun SECRET ici : la clé d'API Bird reste en variable d'environnement.
+
+CREATE TABLE IF NOT EXISTS settings_auth (
   key         TEXT PRIMARY KEY,
   value       JSONB NOT NULL,
   description TEXT,
   updated_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
-INSERT INTO settings (key, value, description) VALUES
-  ('platform_margin',     '100'::jsonb,   'Marge Yaammoo ajoutée au prix affiché de chaque plat (FCFA).'),
-  ('payment_fee_percent', '5'::jsonb,     'Frais du prestataire de paiement, en % du montant payé. Arrondi à l''entier SUPÉRIEUR.'),
-  ('delivery_free_mode',  'false'::jsonb, 'Campagne « livraison offerte » globale.'),
-  -- migration 036 : Apple Review Mode, sorti de .env pour basculer sans redéployer.
-  ('apple_review_mode',         'false'::jsonb, 'Mode Apple Review global. Exposé au frontend par GET /fastFood/all (appleReviewMode).'),
-  ('apple_version_review_mode', '""'::jsonb,    'Version d''app exacte en cours de review App Store. POST /transaction bypasse le paiement seulement si le header x-app-version est identique. Vide = aucune.')
+CREATE TABLE IF NOT EXISTS settings_pricing (
+  key         TEXT PRIMARY KEY,
+  value       JSONB NOT NULL,
+  description TEXT,
+  updated_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS settings_delivery (
+  key         TEXT PRIMARY KEY,
+  value       JSONB NOT NULL,
+  description TEXT,
+  updated_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS settings_withdrawal (
+  key         TEXT PRIMARY KEY,
+  value       JSONB NOT NULL,
+  description TEXT,
+  updated_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS settings_deployment (
+  key         TEXT PRIMARY KEY,
+  value       JSONB NOT NULL,
+  description TEXT,
+  updated_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+INSERT INTO settings_auth (key, value, description) VALUES
+  ('otp_resend_cooldown_seconds', '60'::jsonb,    'Delai minimum entre deux demandes de code pour un meme numero (secondes). Chaque envoi est facture par Bird.'),
+  ('otp_expires_in_seconds',      '600'::jsonb,   'Duree de validite annoncee au frontend (secondes). Bird gere l''expiration reelle.'),
+  ('otp_default_country_code',    '"237"'::jsonb, 'Indicatif ajoute aux numeros saisis sans prefixe, avant normalisation E.164.'),
+  ('otp_bird_timeout_ms',         '15000'::jsonb, 'Timeout des appels HTTP vers la plateforme Bird (millisecondes).')
+ON CONFLICT (key) DO NOTHING;
+
+INSERT INTO settings_pricing (key, value, description) VALUES
+  ('platform_margin',                 '100'::jsonb, 'Marge Yaammoo ajoutee au prix affiche de chaque plat (FCFA), en regime plateforme.'),
+  ('payment_fee_percent',             '5'::jsonb,   'Frais du prestataire de paiement, en % du montant paye. Arrondi a l''entier SUPERIEUR.'),
+  ('price_rounding_step',             '0'::jsonb,   'Pas d''arrondi du prix des plats (FCFA). 0 = aucun arrondi.'),
+  ('express_price_rounding_step',     '0'::jsonb,   'Pas d''arrondi propre aux zones express. Toujours vers le HAUT.'),
+  ('driver_amortization_max',         '0'::jsonb,   'Montant maximum de course qu''un surplus d''arrondi peut amortir (FCFA).'),
+  ('fastfood_margin',                 '0'::jsonb,   'Marge en regime FASTFOOD. Cle distincte de platform_margin.'),
+  ('fastfood_margin_tier_2_min_brut', '0'::jsonb,   'Prix BRUT a partir duquel la marge fastfood passe au palier 2. 0 = aucun palier.'),
+  ('fastfood_margin_tier_2_margin',   '0'::jsonb,   'Marge appliquee au palier 2, en remplacement de fastfood_margin.'),
+  ('fastfood_min_covered_course',     '0'::jsonb,   'Course qu''un plat doit couvrir seul via son surplus d''arrondi. 0 = aucune exigence.')
+ON CONFLICT (key) DO NOTHING;
+
+INSERT INTO settings_delivery (key, value, description) VALUES
+  ('delivery_free_mode',                        'false'::jsonb, 'Campagne « livraison offerte » globale. Seul deliveryOffer.reason = campaign change.'),
+  ('platform_free_delivery_min_items_bonus',    '1'::jsonb,     'Plats minimum sur un depart pour qu''un bonus nominatif de livraison offerte s''applique.'),
+  ('platform_free_delivery_min_items_campaign', '1'::jsonb,     'Plats minimum sur un depart pour qu''une campagne de livraison offerte s''applique.')
+ON CONFLICT (key) DO NOTHING;
+
+INSERT INTO settings_withdrawal (key, value, description) VALUES
+  ('withdrawal_fee_mtn_threshold',    '0'::jsonb, 'MTN : montant en dessous duquel le frais forfaitaire s''applique.'),
+  ('withdrawal_fee_mtn_flat',         '0'::jsonb, 'MTN : frais forfaitaire sous le seuil (FCFA).'),
+  ('withdrawal_fee_mtn_percent',      '0'::jsonb, 'MTN : frais en % au-dessus du seuil.'),
+  ('withdrawal_fee_mtn_addend',       '0'::jsonb, 'MTN : montant fixe ajoute au frais en pourcentage (FCFA).'),
+  ('withdrawal_fee_orange_threshold', '0'::jsonb, 'Orange : montant en dessous duquel le frais forfaitaire s''applique.'),
+  ('withdrawal_fee_orange_flat',      '0'::jsonb, 'Orange : frais forfaitaire sous le seuil (FCFA).'),
+  ('withdrawal_fee_orange_percent',   '0'::jsonb, 'Orange : frais en % au-dessus du seuil.'),
+  ('withdrawal_fee_orange_addend',    '0'::jsonb, 'Orange : montant fixe ajoute au frais en pourcentage (FCFA).')
+ON CONFLICT (key) DO NOTHING;
+
+INSERT INTO settings_deployment (key, value, description) VALUES
+  ('platform_min_app_version',    '"1.0.0"'::jsonb, 'Version minimale requise. En dessous : ecran de mise a jour forcee, non fermable.'),
+  ('platform_latest_app_version', '"1.0.0"'::jsonb, 'Derniere version publiee sur les stores. Mise a jour non bloquante.'),
+  ('apple_review_mode',           'false'::jsonb,   'Mode Apple Review global. Expose au frontend par GET /fastFood/all (appleReviewMode).'),
+  ('apple_version_review_mode',   '""'::jsonb,      'Version d''app exacte en cours de review App Store. Vide = aucune.')
 ON CONFLICT (key) DO NOTHING;
 
 -- ============================================================================
@@ -804,6 +880,63 @@ CREATE INDEX IF NOT EXISTS idx_platform_revenues_occurred
 
 CREATE INDEX IF NOT EXISTS idx_platform_revenues_fastfood
   ON platform_revenues(fastfood_id, occurred_at) WHERE fastfood_id IS NOT NULL;
+
+-- ============================================================================
+-- TABLE: phone_otp (migration 045)
+-- ============================================================================
+-- Authentification par numéro de téléphone (Bird Verify). Une ligne par numéro :
+-- une nouvelle demande écrase la précédente, et `created_at` porte le verrou
+-- anti-renvoi (chaque envoi est facturé par Bird).
+--
+-- Le CODE n'est JAMAIS stocké : Bird le génère, le valide, gère son expiration
+-- et le nombre de tentatives. On ne conserve que l'identifiant de vérification,
+-- nécessaire au contrôle et à la lecture du coût réel.
+CREATE TABLE IF NOT EXISTS phone_otp (
+  phone_number    TEXT PRIMARY KEY,
+  verification_id TEXT NOT NULL,
+  user_id         TEXT,
+  status          TEXT DEFAULT 'pending',
+  created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_phone_otp_verification_id ON phone_otp(verification_id);
+
+-- ============================================================================
+-- TABLE: bird_costs (migration 045)
+-- ============================================================================
+-- Journal des dépenses Bird. Bird n'expose aucune vue agrégée par API : le coût
+-- n'est lisible qu'en interrogeant chaque vérification une par une. Sans trace
+-- locale, impossible de savoir ce qui a été dépensé.
+--
+-- Une ligne est écrite dès l'envoi (`total_cost` encore NULL : Bird ne le résout
+-- qu'une fois les tentatives de livraison terminées), puis complétée à la
+-- vérification. Les demandes jamais validées restent donc visibles plutôt que
+-- d'être absentes — elles ont bien été facturées.
+CREATE TABLE IF NOT EXISTS bird_costs (
+  id                   TEXT PRIMARY KEY,          -- verification_id
+  phone_number         TEXT,
+  email                TEXT,
+  user_id              TEXT,
+  status               TEXT DEFAULT 'pending',
+  destination_country  TEXT,
+  total_cost           NUMERIC(12, 4),
+  currency_code        TEXT,
+  -- Une entrée par canal tenté par Bird : WhatsApp d'abord, SMS en repli si la
+  -- livraison échoue. Chaque tentative porte son propre coût et ses segments.
+  attempts             JSONB DEFAULT '[]'::jsonb,
+  delivered_channel    TEXT,
+  verified             BOOLEAN DEFAULT FALSE,
+  -- Bird réutilise le même verification_id lors d'un renvoi mais facture chaque
+  -- envoi : on incrémente au lieu d'écraser, sinon le total sous-estimerait.
+  send_count           INTEGER DEFAULT 1,
+  sent_at              TIMESTAMPTZ DEFAULT NOW(),
+  last_sent_at         TIMESTAMPTZ DEFAULT NOW(),
+  resolved_at          TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_bird_costs_sent_at ON bird_costs(sent_at);
+CREATE INDEX IF NOT EXISTS idx_bird_costs_phone_number ON bird_costs(phone_number);
+CREATE INDEX IF NOT EXISTS idx_bird_costs_pending ON bird_costs(sent_at) WHERE total_cost IS NULL;
 
 -- ============================================================================
 -- FIN DU SCHEMA

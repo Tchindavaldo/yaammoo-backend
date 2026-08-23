@@ -18,6 +18,7 @@ Gestion centralisée configuration, variables d'environnement, secrets (clés AP
 | `swagger.js`           | Config Swagger/OpenAPI                     |
 | `multer.js`            | Upload fichiers (image)                    |
 | `serviceAccountKey.js` | Charger Firebase service account           |
+| `bird.js`              | Secret Bird (OTP) + région/URL déduites    |
 
 ### `.env` (gitignoré)
 
@@ -43,10 +44,21 @@ FRONTEND_APP_VERSION=1.0.0
 # Seuil : version minimale comprenant le format deliveryHours enrichi
 APP_DELIVERY_NEW_MIN_VERSION=1.0.1
 
-# Tarification — cache mémoire des réglages `settings` (ms)
+# Tarification — cache mémoire des réglages `settings_*` (ms)
 # ⚠️ Les réglages EUX-MÊMES (marge, frais, campagne) sont en BASE, pas ici :
 #    ce sont des décisions commerciales à basculer sans redéploiement.
+#    Répartis par catégorie depuis la migration 046 (settings_pricing,
+#    settings_delivery, settings_withdrawal, settings_deployment, settings_auth).
 SETTINGS_CACHE_TTL_MS=30000
+
+# Bird — auth par numéro de téléphone (OTP WhatsApp/SMS)
+# SEUL le secret est ici. Les réglages (cooldown de renvoi, durée annoncée,
+# indicatif par défaut, timeout) sont en base : table `settings_auth`, préfixe
+# `otp_`, modifiables à chaud via PATCH /settings/:key.
+# Voir architecture/auth-phone.md
+BIRD_API_KEY=bk_us1_xxxx...              # région et URL déduites de la clé
+# BIRD_REGION=us1                        # optionnel, surcharge la région déduite
+# BIRD_API_URL=https://us1.platform.bird.com  # optionnel, si Bird change de domaine
 
 # Payments
 MOBILEWALLET_URL=https://api.mobilewallet.com
