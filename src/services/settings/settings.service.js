@@ -1,10 +1,19 @@
 // ============================================================================
 // settingsService — Réglages métier modifiables à chaud
 // ============================================================================
-// Source unique de vérité : la table `settings` (migration 019). Aucun de ces
-// réglages ne vit dans `.env` : ce sont des décisions COMMERCIALES qu'on doit
-// pouvoir basculer sans redéployer (`flyctl secrets set` redémarre la machine
-// et ne rebuild pas le code — cf. CLAUDE.md).
+// Source unique de vérité : les tables `settings_<categorie>` (migration 046,
+// qui a éclaté l'ancienne table `settings` unique). Aucun de ces réglages ne vit
+// dans `.env` : ce sont des décisions COMMERCIALES qu'on doit pouvoir basculer
+// sans redéployer (`flyctl secrets set` redémarre la machine et ne rebuild pas
+// le code — cf. CLAUDE.md).
+//
+// Cinq catégories : auth, pricing, delivery, withdrawal, deployment. Chaque clé
+// appartient à UNE catégorie, déclarée dans `KEY_CATEGORY` ci-dessous — c'est
+// elle qui décide de la table écrite. Ajouter une clé à `KEYS` sans l'y ranger
+// est une erreur détectée au démarrage.
+//
+// ⚠️ Aucun SECRET dans ces tables : la clé d'API Bird reste en variable
+// d'environnement (`.env` en local, secrets Fly en production).
 //
 // Les seuils de version d'app (compatibilité ascendante des données) restent en
 // `.env` : ils sont liés au déploiement. Exception : `apple_version_review_mode`,
@@ -69,7 +78,79 @@ const KEYS = {
   // Gate de version d'app (migration 042) — écran de mise à jour forcée.
   MIN_APP_VERSION: 'platform_min_app_version',
   LATEST_APP_VERSION: 'platform_latest_app_version',
+  // Auth par numéro de téléphone / OTP Bird (migration 046). Une clé par
+  // réglage : le cooldown est le levier direct sur la facture Bird (chaque
+  // envoi est payant) et doit pouvoir se durcir sans toucher aux autres.
+  // ⚠️ La clé d'API Bird n'est PAS ici : c'est un secret (.env / secrets Fly).
+  OTP_RESEND_COOLDOWN_SECONDS: 'otp_resend_cooldown_seconds',
+  OTP_EXPIRES_IN_SECONDS: 'otp_expires_in_seconds',
+  OTP_DEFAULT_COUNTRY_CODE: 'otp_default_country_code',
+  OTP_BIRD_TIMEOUT_MS: 'otp_bird_timeout_ms',
 };
+
+// ---------------------------------------------------------------------------
+// Rangement des clés par catégorie (migration 046)
+// ---------------------------------------------------------------------------
+// La catégorie détermine la TABLE écrite. Elle est déclarée, jamais déduite du
+// préfixe de la clé : `platform_margin` est un réglage de prix tandis que
+// `platform_min_app_version` relève du déploiement — un préfixe commun ne dit
+// rien de la catégorie.
+const KEY_CATEGORY = {
+  // auth — authentification par numéro de téléphone (OTP Bird)
+  [KEYS.OTP_RESEND_COOLDOWN_SECONDS]: 'auth',
+  [KEYS.OTP_EXPIRES_IN_SECONDS]: 'auth',
+  [KEYS.OTP_DEFAULT_COUNTRY_CODE]: 'auth',
+  [KEYS.OTP_BIRD_TIMEOUT_MS]: 'auth',
+
+  // pricing — composition des prix et marges
+  [KEYS.PLATFORM_MARGIN]: 'pricing',
+  [KEYS.PAYMENT_FEE_PERCENT]: 'pricing',
+  [KEYS.PRICE_ROUNDING_STEP]: 'pricing',
+  [KEYS.EXPRESS_PRICE_ROUNDING_STEP]: 'pricing',
+  [KEYS.DRIVER_AMORTIZATION_MAX]: 'pricing',
+  [KEYS.FASTFOOD_MARGIN]: 'pricing',
+  [KEYS.FASTFOOD_MARGIN_TIER_2_MIN_BRUT]: 'pricing',
+  [KEYS.FASTFOOD_MARGIN_TIER_2_MARGIN]: 'pricing',
+  [KEYS.FASTFOOD_MIN_COVERED_COURSE]: 'pricing',
+
+  // delivery — livraison offerte et ses seuils
+  [KEYS.DELIVERY_FREE_MODE]: 'delivery',
+  [KEYS.PLATFORM_FREE_DELIVERY_MIN_ITEMS_BONUS]: 'delivery',
+  [KEYS.PLATFORM_FREE_DELIVERY_MIN_ITEMS_CAMPAIGN]: 'delivery',
+
+  // withdrawal — barèmes de frais de retrait, par opérateur
+  [KEYS.WITHDRAWAL_FEE_MTN_THRESHOLD]: 'withdrawal',
+  [KEYS.WITHDRAWAL_FEE_MTN_FLAT]: 'withdrawal',
+  [KEYS.WITHDRAWAL_FEE_MTN_PERCENT]: 'withdrawal',
+  [KEYS.WITHDRAWAL_FEE_MTN_ADDEND]: 'withdrawal',
+  [KEYS.WITHDRAWAL_FEE_ORANGE_THRESHOLD]: 'withdrawal',
+  [KEYS.WITHDRAWAL_FEE_ORANGE_FLAT]: 'withdrawal',
+  [KEYS.WITHDRAWAL_FEE_ORANGE_PERCENT]: 'withdrawal',
+  [KEYS.WITHDRAWAL_FEE_ORANGE_ADDEND]: 'withdrawal',
+
+  // deployment — versions d'app et Apple Review
+  [KEYS.MIN_APP_VERSION]: 'deployment',
+  [KEYS.LATEST_APP_VERSION]: 'deployment',
+  [KEYS.APPLE_REVIEW_MODE]: 'deployment',
+  [KEYS.APPLE_VERSION_REVIEW_MODE]: 'deployment',
+};
+
+// Garde-fou au chargement : une clé ajoutée à `KEYS` sans être rangée ici
+// serait écrite dans aucune table. Mieux vaut le voir au démarrage qu'au
+// premier PATCH en production.
+{
+  const unmapped = Object.values(KEYS).filter(k => !KEY_CATEGORY[k]);
+  if (unmapped.length) {
+    throw new Error(`settings: clés sans catégorie déclarée dans KEY_CATEGORY — ${unmapped.join(', ')}`);
+  }
+}
+
+/** Catégorie (donc table) d'une clé. Lève si la clé est inconnue. */
+function categoryOf(key) {
+  const category = KEY_CATEGORY[key];
+  if (!category) throw new Error(`settings: clé inconnue "${key}"`);
+  return category;
+}
 
 const FALLBACKS = {
   [KEYS.PLATFORM_MARGIN]: 0,
@@ -110,6 +191,13 @@ const FALLBACKS = {
   // couper l'accès à l'app.
   [KEYS.MIN_APP_VERSION]: '0.0.0',
   [KEYS.LATEST_APP_VERSION]: '0.0.0',
+  // OTP : replis PRUDENTS, dans le sens qui protège la facture Bird. Un
+  // cooldown à 0 sur clé absente ouvrirait les renvois en rafale — donc 60 s.
+  // L'indicatif tombe sur le Cameroun, seul pays servi aujourd'hui.
+  [KEYS.OTP_RESEND_COOLDOWN_SECONDS]: 60,
+  [KEYS.OTP_EXPIRES_IN_SECONDS]: 600,
+  [KEYS.OTP_DEFAULT_COUNTRY_CODE]: '237',
+  [KEYS.OTP_BIRD_TIMEOUT_MS]: 15000,
 };
 
 // Les réglages Apple Review n'ont VOLONTAIREMENT aucun repli : inventer une
@@ -117,7 +205,7 @@ const FALLBACKS = {
 // pleine review, sans que personne ne le sache. Clé absente = erreur explicite.
 function requireSetting(settings, key) {
   if (!(key in settings)) {
-    throw new Error(`settings: réglage "${key}" absent de la base (migration 036 non appliquée ?)`);
+    throw new Error(`settings: réglage "${key}" absent de la base (migration 046 non appliquée ?)`);
   }
   return settings[key];
 }
@@ -186,6 +274,30 @@ async function getPricingSettings() {
   };
 }
 
+/**
+ * Réglages de l'auth par téléphone (OTP Bird). Ne lève jamais : les replis
+ * ci-dessus s'appliquent, dans le sens qui protège la facture.
+ *
+ * La clé d'API Bird n'en fait PAS partie : c'est un secret, lu depuis
+ * `process.env.BIRD_API_KEY` par `config/bird.js`.
+ */
+async function getOtpSettings() {
+  const s = await getSettings();
+  const cooldown = Number(s[KEYS.OTP_RESEND_COOLDOWN_SECONDS]);
+  const expiresIn = Number(s[KEYS.OTP_EXPIRES_IN_SECONDS]);
+  const timeout = Number(s[KEYS.OTP_BIRD_TIMEOUT_MS]);
+  const countryCode = String(s[KEYS.OTP_DEFAULT_COUNTRY_CODE] ?? '').replace(/\D/g, '');
+
+  return {
+    // `Number.isFinite` et non `|| fallback` : un cooldown volontairement mis à
+    // 0 (désactivé en recette) doit être respecté, pas écrasé par le repli.
+    resendCooldownSeconds: Number.isFinite(cooldown) && cooldown >= 0 ? cooldown : 60,
+    expiresInSeconds: Number.isFinite(expiresIn) && expiresIn > 0 ? expiresIn : 600,
+    birdTimeoutMs: Number.isFinite(timeout) && timeout > 0 ? timeout : 15000,
+    defaultCountryCode: countryCode || '237',
+  };
+}
+
 /** Mode Apple Review global, tel qu'exposé au frontend. Lève si la clé manque. */
 async function getAppleReviewMode() {
   const s = await getSettings();
@@ -225,10 +337,11 @@ async function getAppVersionGate(req) {
   };
 }
 
+/** Écrit un réglage dans la table de SA catégorie. Lève si la clé est inconnue. */
 async function setSetting(key, value) {
-  const saved = await repos.settings.set(key, value);
+  const saved = await repos.settings.set(categoryOf(key), key, value);
   invalidate();
   return saved;
 }
 
-module.exports = { KEYS, getSettings, getPricingSettings, getAppleReviewMode, isAppleReviewClient, getAppVersionGate, setSetting, invalidate };
+module.exports = { KEYS, KEY_CATEGORY, categoryOf, getSettings, getPricingSettings, getOtpSettings, getAppleReviewMode, isAppleReviewClient, getAppVersionGate, setSetting, invalidate };

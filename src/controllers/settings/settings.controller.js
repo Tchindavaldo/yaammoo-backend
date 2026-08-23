@@ -11,6 +11,51 @@ const { getPricingSettings, getAppVersionGate, setSetting, KEYS } = require('../
 /** Clés modifiables via l'API. Toute autre clé est refusée. */
 const EDITABLE_KEYS = new Set(Object.values(KEYS));
 
+// ---------------------------------------------------------------------------
+// Type attendu, PAR CLÉ
+// ---------------------------------------------------------------------------
+// 'number'  : nombre fini >= 0 (montants, pourcentages, seuils, durées)
+// 'boolean' : booléen strict
+// 'version' : chaîne "x.y.z"
+// 'text'    : chaîne libre, vide autorisée (une version en review qu'on efface)
+// 'digits'  : chaîne de chiffres non vide (indicatif téléphonique)
+//
+// Toute clé absente de cette table est traitée en 'number' : c'est le cas de la
+// grande majorité des réglages (prix, frais, seuils).
+const VALUE_TYPES = {
+  [KEYS.DELIVERY_FREE_MODE]: 'boolean',
+  [KEYS.APPLE_REVIEW_MODE]: 'boolean',
+  [KEYS.MIN_APP_VERSION]: 'version',
+  [KEYS.LATEST_APP_VERSION]: 'version',
+  // Chaîne vide = aucune version en review : c'est la façon de désactiver le
+  // bypass, elle doit rester acceptée.
+  [KEYS.APPLE_VERSION_REVIEW_MODE]: 'text',
+  [KEYS.OTP_DEFAULT_COUNTRY_CODE]: 'digits',
+};
+
+/**
+ * Valide la valeur soumise pour une clé.
+ * @returns {string|null} le message d'erreur, ou null si la valeur est bonne
+ */
+function validateSettingValue(key, value) {
+  switch (VALUE_TYPES[key] || 'number') {
+    case 'boolean':
+      return typeof value === 'boolean' ? null : '`value` doit être un booléen.';
+
+    case 'version':
+      return typeof value === 'string' && /^\d+\.\d+\.\d+$/.test(value) ? null : '`value` doit être une version au format "x.y.z".';
+
+    case 'text':
+      return typeof value === 'string' ? null : '`value` doit être une chaîne.';
+
+    case 'digits':
+      return typeof value === 'string' && /^\d+$/.test(value) ? null : '`value` doit être une chaîne de chiffres (ex. "237").';
+
+    default:
+      return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? null : '`value` doit être un nombre positif.';
+  }
+}
+
 async function requireAdmin(req, res) {
   const viewer = await repos.users.getUserByIdSafe(req.user?.uid);
   if (!viewer) {
@@ -72,21 +117,16 @@ exports.patchSettingController = async (req, res) => {
     }
 
     const { value } = req.body;
-    const VERSION_KEYS = new Set([KEYS.MIN_APP_VERSION, KEYS.LATEST_APP_VERSION]);
+
     // Typage explicite : une valeur mal typée fausserait silencieusement les
     // calculs de prix (ex. "100" concaténé au lieu d'être additionné).
-    if (key === KEYS.DELIVERY_FREE_MODE && typeof value !== 'boolean') {
-      return res.status(400).json({ success: false, message: '`value` doit être un booléen.' });
-    }
-    if (VERSION_KEYS.has(key) && (typeof value !== 'string' || !/^\d+\.\d+\.\d+$/.test(value))) {
-      return res.status(400).json({ success: false, message: '`value` doit être une version au format "x.y.z".' });
-    }
-    if (
-      key !== KEYS.DELIVERY_FREE_MODE &&
-      !VERSION_KEYS.has(key) &&
-      (typeof value !== 'number' || !Number.isFinite(value) || value < 0)
-    ) {
-      return res.status(400).json({ success: false, message: '`value` doit être un nombre positif.' });
+    //
+    // Le type est déclaré PAR CLÉ. Un défaut « nombre positif » ne convient pas :
+    // plusieurs réglages sont des booléens, des versions ou du texte libre, et
+    // les traiter en nombres les rendrait impossibles à modifier.
+    const typeError = validateSettingValue(key, value);
+    if (typeError) {
+      return res.status(400).json({ success: false, message: typeError });
     }
 
     const data = await setSetting(key, value);
