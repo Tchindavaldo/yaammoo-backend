@@ -18,6 +18,7 @@ const { applyDisplayPricing, isPlatformDelivered } = require('../pricing/deliver
 const { withMenuThumbnails, withFastfoodThumbnail } = require('../images/thumbnailUrl');
 const { buildCampaignOffer } = require('../pricing/deliveryOfferResolver');
 const { platformMinItems } = require('../bonus/deliveryOfferAffordability');
+const { buildRatingStats } = require('./fastfoodRatingStats');
 
 /**
  * @param {string} [userId] uid du user courant (auth FACULTATIVE sur cette route).
@@ -88,6 +89,9 @@ exports.getFastFoodsService = async (userId, page) => {
         return {
           ...withFastfoodThumbnail(priced),
           deliveryOffer: campaign || pickOfferForFastFood(offers, fastfood.id),
+          // Note de la boutique, synthétisée depuis les plats déjà chargés
+          // ci-dessus : aucune requête supplémentaire.
+          stats: buildRatingStats(priced.menus),
         };
       })
     );
