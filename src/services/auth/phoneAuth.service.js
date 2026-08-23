@@ -181,10 +181,17 @@ exports.verifyPhoneAuth = async ({ phoneNumber, code, profile = {} }) => {
     // accepte ensuite les idTokens issus de ce parcours.
     try {
       await admin.auth().createUser({ uid, phoneNumber: recipient });
+      console.log(`✅ [PHONE-AUTH] Compte Firebase Auth créé : ${uid}`);
     } catch (error) {
-      // Le compte Auth peut survivre à la suppression de la ligne users.
-      if (error.code !== 'auth/uid-already-exists' && error.code !== 'auth/phone-number-already-exists') {
-        console.error(`❌ [PHONE-AUTH] Création Firebase Auth échouée : ${error.message}`);
+      // Le compte Auth peut survivre à la suppression de la ligne users : ces
+      // deux codes disent « il existe déjà », ce n'est pas un échec.
+      if (error.code === 'auth/uid-already-exists' || error.code === 'auth/phone-number-already-exists') {
+        console.log(`[PHONE-AUTH] Compte Auth déjà présent (${error.code}) : ${uid}`);
+      } else {
+        // Tout le reste est une vraie panne — credentials, réseau, quota. Le
+        // code d'erreur est journalisé : sans lui, un `app/invalid-credential`
+        // est indiscernable d'un conflit d'uid.
+        console.error(`❌ [PHONE-AUTH] Création Firebase Auth échouée : ${error.code} — ${error.message}`);
         return { success: false, message: 'Échec de la création du compte' };
       }
     }
@@ -229,9 +236,48 @@ exports.verifyPhoneAuth = async ({ phoneNumber, code, profile = {} }) => {
   // (inscription e-mail/Google), et c'est celui-là qui porte la session Firebase.
   const authUid = user.uid || user.id || uid;
 
+  // ---------------------------------------------------------------------------
+  // Le compte existe-t-il VRAIMENT côté Firebase Auth ?
+  // ---------------------------------------------------------------------------
+  // Un custom token se signe hors ligne : il est émis même pour un uid inconnu
+  // de Firebase Auth. Le client échoue alors à l'échanger, sans que le backend
+  // n'ait rien signalé. On vérifie donc explicitement, et on répare si la ligne
+  // Supabase existe sans son compte Auth (création passée en erreur, ou compte
+  // supprimé côté Firebase).
+  try {
+    const authUser = await admin.auth().getUser(authUid);
+    console.log(`[PHONE-AUTH] Compte Auth OK — uid=${authUser.uid} · phone=${authUser.phoneNumber || 'aucun'} · disabled=${authUser.disabled}`);
+  } catch (error) {
+    if (error.code === 'auth/user-not-found') {
+      console.warn(`⚠️ [PHONE-AUTH] Compte Auth absent pour ${authUid} — création de rattrapage`);
+      try {
+        await admin.auth().createUser({ uid: authUid, phoneNumber: recipient });
+        console.log(`✅ [PHONE-AUTH] Compte Auth créé en rattrapage : ${authUid}`);
+      } catch (createError) {
+        console.error(`❌ [PHONE-AUTH] Rattrapage impossible : ${createError.code} — ${createError.message}`);
+        return { success: false, message: "Compte introuvable côté authentification. Réessayez." };
+      }
+    } else {
+      // Panne de communication avec Firebase (credentials, réseau, horloge).
+      // Émettre un token ici produirait un échec silencieux côté client.
+      console.error(`❌ [PHONE-AUTH] Firebase Auth injoignable : ${error.code} — ${error.message}`);
+      return { success: false, message: "Service d'authentification indisponible. Réessayez." };
+    }
+  }
+
   let customToken;
   try {
     customToken = await admin.auth().createCustomToken(authUid, { authProvider: 'phone' });
+
+    // Diagnostic : un custom token est un JWT signé pour UN projet Firebase
+    // précis. Si le client échoue à l'échanger, ces trois informations disent
+    // immédiatement si le token est en cause ou non.
+    const [, payloadB64] = customToken.split('.');
+    const claims = JSON.parse(Buffer.from(payloadB64, 'base64').toString());
+    console.log(
+      `[PHONE-AUTH] Token émis — uid=${claims.uid} · aud_projet=${claims.aud?.split('/').pop() || '?'} ` +
+        `· signataire=${claims.iss} · longueur=${customToken.length}`
+    );
   } catch (error) {
     console.error(`❌ [PHONE-AUTH] Génération du token échouée : ${error.message}`);
     return { success: false, message: 'Compte validé mais génération du token impossible' };

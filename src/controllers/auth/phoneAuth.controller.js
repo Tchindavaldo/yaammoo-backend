@@ -2,6 +2,21 @@ const { requestPhoneAuth, verifyPhoneAuth } = require('../../services/auth/phone
 const { getCostSummary } = require('../../services/notification/bird/birdCost.service');
 const { getVerificationDetails } = require('../../services/notification/bird/getVerification.service');
 
+// Les endpoints d'authentification répondent À PLAT — les champs du résultat
+// sont étalés à la racine, pas imbriqués sous `data` :
+//
+//   { success, message, customToken, isNewUser, user, cost }
+//
+// C'est la forme qu'utilisent déjà les autres routes de compte
+// (`userController.addPushToken` / `removePushToken` : `{ success: true, ...result }`),
+// et donc celle que le frontend lit. Imbriquer sous `data` obligerait l'appelant
+// à écrire `response.data.data.customToken` — source d'un `undefined` silencieux
+// qui ne se voit qu'au moment de l'échange du token.
+const flatten = response => {
+  const { data, ...rest } = response;
+  return { ...rest, ...(data || {}) };
+};
+
 exports.requestPhoneAuthController = async (req, res) => {
   try {
     const { phoneNumber, phone } = req.body;
@@ -17,10 +32,10 @@ exports.requestPhoneAuthController = async (req, res) => {
     // compte à rebours au lieu d'un message d'erreur générique.
     if (response.code === 'cooldown') {
       res.set('Retry-After', String(response.data.retryAfter));
-      return res.status(429).json(response);
+      return res.status(429).json(flatten(response));
     }
 
-    return res.status(response.success ? 200 : 400).json(response);
+    return res.status(response.success ? 200 : 400).json(flatten(response));
   } catch (error) {
     console.error('❌ Erreur Controller demande auth téléphone:', error);
     return res.status(500).json({
@@ -51,7 +66,7 @@ exports.verifyPhoneAuthController = async (req, res) => {
 
     // 401 sur un code refusé : c'est un échec d'authentification, pas une
     // requête malformée.
-    return res.status(response.success ? 200 : 401).json(response);
+    return res.status(response.success ? 200 : 401).json(flatten(response));
   } catch (error) {
     console.error('❌ Erreur Controller vérification auth téléphone:', error);
     return res.status(500).json({
