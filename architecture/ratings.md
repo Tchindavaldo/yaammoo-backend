@@ -39,6 +39,42 @@ Jamais recalculées en lisant toutes les lignes : mises à jour de façon
 Le catalogue (`GET /menu/:fastFoodId`) et le profil livreur portent donc déjà la
 moyenne — **aucune requête d'agrégat** au chargement.
 
+### Note de BOUTIQUE : dérivée, jamais stockée
+
+Aucune table ne porte de note de fastfood — on ne note pas une boutique, on note
+ses **plats**. La note affichée sur une carte du home est synthétisée à la volée
+depuis les menus déjà chargés (`services/fastfood/fastfoodRatingStats.js`), donc
+sans requête supplémentaire, et exposée par `GET /fastfood/all` :
+
+```json
+"stats": { "rating": 4.2, "count": 37 }
+```
+
+| Champ    | Sens                                                          |
+| -------- | ------------------------------------------------------------- |
+| `count`  | Total des votes reçus par **l'ensemble des plats** de la boutique |
+| `rating` | Moyenne de ces votes, arrondie au dixième, **plancher à 3**   |
+
+Trois règles :
+
+1. **Moyenne pondérée par le nombre de votes**, jamais moyenne des moyennes — un
+   plat noté 5 une seule fois ne doit pas peser autant qu'un plat noté 4 par 200
+   clients.
+2. **Un plat sans note est ignoré**, il ne compte pas comme un 3 : sinon la note
+   de la boutique bougerait à chaque ajout au catalogue, sans qu'aucun client
+   n'ait voté.
+3. **Plancher de 3** (`MIN_RATING`) : `count: 0` → `rating: 3`, et une moyenne
+   réelle inférieure à 3 est remontée à 3. Une boutique neuve n'est pas mauvaise,
+   elle est seulement nouvelle.
+
+> ⚠️ Le plancher ne vaut que pour la note **agrégée** de la boutique. Chaque
+> `menus[].ratingAvg` reste servi tel quel — c'est la donnée réelle, la relever
+> mentirait sur un plat précis.
+>
+> ⚠️ Ne pas confondre avec `driverRatingAvg` / `driverRatingCount`, portés par la
+> même boutique dans la même réponse : ceux-là notent ses **livraisons**, pas sa
+> cuisine.
+
 ### Fonction SQL `rate_target(...)`
 
 Upsert + recalcul en **une transaction** (verrous `FOR UPDATE` → pas de race) :
