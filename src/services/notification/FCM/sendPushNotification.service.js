@@ -79,7 +79,12 @@ const sendSingleToken = async ({ token, title, body, data = {} }) => {
     android: {
       notification: {
         channelId: 'high_priority_channel',
-        icon: 'ic_launcher',
+        // `notification_icon` (silhouette blanche generee par expo-notifications),
+        // PAS `ic_launcher` : Android ne garde que l'alpha de l'icone de notif, et
+        // ic_launcher etant opaque partout, elle s'affichait en rond gris uni des
+        // que l'app etait fermee (app ouverte, c'est le JS qui affiche et prend
+        // deja le bon drawable).
+        icon: 'notification_icon',
         sound: 'default',
       },
     },
