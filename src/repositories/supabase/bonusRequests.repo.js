@@ -54,9 +54,17 @@ exports.claimCountsByBonus = async (claimedStatuses = ['approved', 'completed'])
     return counts;
   }
 
-  // Repli si la migration 013 n'est pas encore appliquée (fonction absente).
-  console.warn('bonus_claim_counts indisponible, repli sur le comptage applicatif:', error.message);
-  return countClaimsInApp(claimedStatuses);
+  // Repli UNIQUEMENT si la migration 013 n'est pas appliquée (fonction absente).
+  // 42883 = undefined_function (Postgres), PGRST202 = fonction introuvable (PostgREST).
+  if (error.code === '42883' || error.code === 'PGRST202') {
+    console.warn('bonus_claim_counts absente (migration 013 non appliquee), repli applicatif:', error.message);
+    return countClaimsInApp(claimedStatuses);
+  }
+
+  // Erreur reseau / indisponibilite Supabase (ex. TypeError: fetch failed) :
+  // ne PAS replier sur le scan complet de la table, ca aggrave la surcharge.
+  console.error('bonus_claim_counts a echoue (erreur non fonctionnelle):', error.message);
+  throw error;
 };
 
 /** Comptage applicatif — repli uniquement (scanne toute la table). */

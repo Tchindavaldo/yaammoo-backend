@@ -54,6 +54,22 @@ services/notification/
 
 Retour unifié : `{ success: boolean, response?, error? }`.
 
+### Icône Android (`android.notification.icon`)
+
+⚠️ Le payload FCM doit référencer **`notification_icon`**, jamais `ic_launcher`.
+
+Android ne conserve que le **canal alpha** de l'icône de notification : la
+silhouette est redessinée en blanc, la couleur d'origine est ignorée.
+`ic_launcher` étant opaque sur toute sa surface, elle s'affichait en **rond gris
+uni**. `notification_icon` est le drawable transparent généré par
+`expo-notifications` (5 densités), déclaré côté app dans le manifeste via
+`default_notification_icon`.
+
+Le bug ne se voyait que **app fermée** : app ouverte, c'est le JS
+(`expo-notifications`) qui construit la notification et prend déjà le bon
+drawable, alors qu'app fermée, Android affiche directement le bloc `notification`
+du payload — où le champ `icon` prime sur le défaut du manifeste.
+
 ## postNotification.service.js (flux complet)
 
 **Entrée** : `{ data: {title, body, type, ...}, userId?, fastFoodId?, token?, tokens?[], extraFcmData? }`
