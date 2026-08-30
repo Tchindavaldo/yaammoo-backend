@@ -31,6 +31,11 @@ exports.updateMenuService = async (menuId, updateData) => {
       return { success: false, message: priceErrors.map(e => e.message).join(' ') };
     }
 
+    // Statut passé à 'unavailable' → stock forcé à 0 (le plat n'est plus vendable).
+    if (updateData.status === 'unavailable') {
+      updateData.stock = 0;
+    }
+
     const updatedMenu = await repos.menus.update(menuId, updateData);
 
     const fastFood = await getFastFoodService(existing.fastFoodId);

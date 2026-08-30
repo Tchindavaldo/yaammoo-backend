@@ -157,6 +157,8 @@ MenuItem {
 - Après chaque commande : décrémenté de 1 (ou qty commandée)
 - Stock = 0 → `status: 'sold_out'`
 - Marchand peut réaprovisionner : PUT `/menu/:id` avec nouveau stock
+- Statut passé à `'unavailable'` via PUT `/menu/:id` → **stock forcé à 0** côté
+  service (`updateMenu.service.js`), même si le front envoie un stock > 0
 
 **Problème concurrent** :
 
