@@ -97,6 +97,10 @@ exports.OrderFields = {
         type: 'string',
         required: false,
       },
+      // Numéro de contact du client. REQUIS en retrait (status !== true) :
+      // le marchand doit pouvoir joindre le client quand la commande est prête.
+      // Condition validée dans validateOrder.js (le champ reste optionnel en
+      // livraison, où c'est userData.phoneNumber qui est exigé).
       phone: { type: 'string', required: false },
       voiceNoteUri: { type: 'string', required: false },
       record: { type: 'string', required: false },

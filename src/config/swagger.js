@@ -228,7 +228,7 @@ const options = {
             zone: { type: 'string', description: 'Zone de livraison choisie.' },
             prix: { type: 'number', description: 'Frais de livraison. Toujours renvoyé au montant réel, jamais forcé à 0 : la gratuité est portée par `deliveryOffer`.' },
             location: { type: 'string' },
-            phone: { type: 'string' },
+            phone: { type: 'string', description: 'Numéro de contact du client. Requis pour une commande en retrait (status = false).' },
             voiceNoteUri: { type: 'string' },
             record: { type: 'string' },
             note: { type: 'string' },

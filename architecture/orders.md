@@ -68,6 +68,13 @@ concerné. Le format HH:MM est validé pour tous dès qu'une heure est présente
 Zéro impact : course (`deliveryGroupKey` → `null` en retrait), `total` (pas de
 `delivery.prix`), DB (colonne JSONB — pas de migration).
 
+### Téléphone de contact — requis en retrait
+
+`delivery.phone` est **requis pour une commande en retrait** (`delivery.status !== true`) :
+le marchand doit pouvoir joindre le client quand la commande est prête à récupérer.
+Validé dans `validateOrder.js` (champ déclaré optionnel dans `orderFields.js` car
+sans objet en livraison, où c'est `userData.phoneNumber` qui est exigé).
+
 ### Bonus livraison offerte
 
 `POST /order` accepte un champ d'entrée **`bonusCode`** (string à la racine, non

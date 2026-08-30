@@ -114,7 +114,7 @@ exports.validateOrder = (data, checkRequired = true, formatErrors = true) => {
 
   // Validation personnalisée pour le champ delivery
   if (data.delivery) {
-    const { status, type, time, location } = data.delivery;
+    const { status, type, time, location, phone } = data.delivery;
 
     // Ne pas vérifier les champs requis si checkRequired est false
     if (!checkRequired) {
@@ -145,6 +145,15 @@ exports.validateOrder = (data, checkRequired = true, formatErrors = true) => {
           message: 'Le numéro de téléphone est requis lorsque la livraison est activée',
         });
       }
+    }
+
+    // Retrait (status !== true) : `delivery.phone` est REQUIS — le marchand
+    // doit pouvoir joindre le client quand la commande est prête à récupérer.
+    if (status !== true && checkRequired && !phone) {
+      errors.push({
+        field: 'delivery.phone',
+        message: 'Le numéro de téléphone est requis pour une commande en retrait',
+      });
     }
 
     // Si le type est 'time', vérifier que l'heure est fournie et au bon format
