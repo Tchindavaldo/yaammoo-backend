@@ -224,7 +224,7 @@ const options = {
             status: { type: 'boolean', description: 'true = livraison, false = retrait sur place.' },
             date: { type: 'string', description: 'Date de livraison (YYYY-MM-DD).' },
             type: { type: 'string', enum: ['express', 'time'] },
-            time: { type: 'string', description: 'Heure souhaitée (HH:mm), si type = time.' },
+            time: { type: 'string', description: "Livraison programmée (type = time) : heure de livraison. Retrait (status = false) : heure de récupération, optionnelle. Format HH:mm." },
             zone: { type: 'string', description: 'Zone de livraison choisie.' },
             prix: { type: 'number', description: 'Frais de livraison. Toujours renvoyé au montant réel, jamais forcé à 0 : la gratuité est portée par `deliveryOffer`.' },
             location: { type: 'string' },

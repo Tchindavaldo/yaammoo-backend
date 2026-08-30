@@ -58,6 +58,16 @@ paiement (qui appellent directement le service) échappaient au validateur.
 `type` (`express|time`), `time`, `zone`, `prix`, `location`, `phone`, `voiceNoteUri`,
 `record`, `note`. Tout champ non déclaré = rejet `Champ non autorisé`.
 
+### Heure de récupération (retrait)
+
+Quand `delivery.status !== true`, `delivery.time` porte **l'heure de récupération** :
+celle à laquelle le client viendra chercher sa commande sur place (HH:MM, même
+champ que l'heure de livraison programmée — aucun champ supplémentaire). Champ
+**optionnel** : ajout purement additif ignoré par les anciennes apps, R11 non
+concerné. Le format HH:MM est validé pour tous dès qu'une heure est présente.
+Zéro impact : course (`deliveryGroupKey` → `null` en retrait), `total` (pas de
+`delivery.prix`), DB (colonne JSONB — pas de migration).
+
 ### Bonus livraison offerte
 
 `POST /order` accepte un champ d'entrée **`bonusCode`** (string à la racine, non

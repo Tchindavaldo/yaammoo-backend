@@ -78,6 +78,9 @@ exports.OrderFields = {
         required: false,
         allowedValues: ['express', 'time'],
       },
+      // Livraison programmée (type = 'time') : heure de livraison.
+      // Retrait (status !== true) : heure de récupération, OPTIONNELLE.
+      // Format HH:MM validé dès qu'une heure est présente (validateOrder.js).
       time: {
         type: 'string',
         required: false,

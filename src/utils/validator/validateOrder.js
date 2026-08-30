@@ -169,6 +169,18 @@ exports.validateOrder = (data, checkRequired = true, formatErrors = true) => {
         message: 'Une heure de livraison ne doit pas être fournie pour une livraison express',
       });
     }
+
+    // Retrait (delivery.status !== true) : `delivery.time` porte l'heure
+    // (optionnelle) à laquelle le client viendra récupérer sa commande.
+    // Format HH:MM validé dès qu'une heure est présente.
+    if (status !== true) {
+      if (time && !/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(time)) {
+        errors.push({
+          field: 'delivery.time',
+          message: "Format d'heure invalide. Utilisez le format HH:MM (ex: 14:30)",
+        });
+      }
+    }
   }
 
   // Retourner le résultat au format demandé
