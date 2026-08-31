@@ -229,13 +229,18 @@ Détails feature : [ratings.md](./ratings.md).
 | ----------------- | -------------------- | ------------------------------------- | ----------------------- |
 | `newFastfood`     | **tous** (`io.emit`) | `services/fastfood/createFastFood.js` | `{ message, fastFood }` |
 | `fastfoodUpdated` | **tous** (`io.emit`) | `services/fastfood/updateFastFood.js` | `{ message, fastFood }` |
+| `fastfoodsDeleted` | **tous** (`io.emit`) | `services/fastfood/deleteFastfood.service.js` | `{ ids: string[] }` |
+
+`fastfoodsDeleted` : suppression admin (soft delete). Le front retire ces
+boutiques du home sans refresh — elles sont déjà invisibles côté API. Voir
+[merchants.md](./merchants.md#suppression-admin-dune-boutique-soft-delete).
 
 ---
 
 ## Règles d'adressage
 
 - Par défaut : `io.to(userId).emit(...)` — une room par utilisateur.
-- Broadcast global (`io.emit`) : `newGlobalMenu`, `globalMenuUpdated`, `globalMenuDeleted`, `newFastfood`, `fastfoodUpdated`.
+- Broadcast global (`io.emit`) : `newGlobalMenu`, `globalMenuUpdated`, `globalMenuDeleted`, `newFastfood`, `fastfoodUpdated`, `fastfoodsDeleted`.
 - Le `userId` marchand est stocké dans le document `fastfoods` → champ `userId`.
 
 ## Récepteurs côté client

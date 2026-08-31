@@ -7,6 +7,14 @@ const m = require('../mappers');
 
 const TABLE = 'fastfoods';
 
+// ⚠️ Toutes les lectures ci-dessous excluent les boutiques en corbeille
+// (`deleted_at IS NOT NULL`, migration 047). Une boutique supprimée par un admin
+// doit disparaître du home et de l'API immédiatement, même si son effacement
+// définitif n'intervient que 30 jours plus tard.
+// Pour LIRE une boutique supprimée (écrans d'administration), passer par
+// `fastfoodDeletion.repo.js`, qui ne filtre pas.
+const alive = qb => qb.is('deleted_at', null);
+
 exports.create = async data => {
   const id = data.id || generateId();
   const payload = m.fastfood.toSupabase({
@@ -20,13 +28,13 @@ exports.create = async data => {
 };
 
 exports.getById = async id => {
-  const { data, error } = await supabase.from(TABLE).select('*').eq('id', id).maybeSingle();
+  const { data, error } = await alive(supabase.from(TABLE).select('*').eq('id', id)).maybeSingle();
   if (error) throw error;
   return m.fastfood.fromSupabase(data);
 };
 
 exports.getAll = async () => {
-  const { data, error } = await supabase.from(TABLE).select('*');
+  const { data, error } = await alive(supabase.from(TABLE).select('*'));
   if (error) throw error;
   return (data || []).map(m.fastfood.fromSupabase);
 };
@@ -80,9 +88,10 @@ exports.getPage = async ({ limit = 10, cursor, q } = {}) => {
   // On ne sélectionne qu'`id` du menu : il ne sert qu'à prouver l'existence,
   // les menus complets sont chargés ensuite par le service.
   const build = () => {
-    let qb = supabase
-      .from(TABLE)
-      .select('*, menus!inner(id)')
+    let qb = alive(supabase.from(TABLE).select('*, menus!inner(id)'))
+      // Le filtre porte aussi sur la table jointe : un menu en corbeille ne doit
+      // pas suffire à faire apparaître sa boutique sur le home.
+      .is('menus.deleted_at', null)
       .order('created_at', { ascending: false })
       .order('id', { ascending: false });
     const t = (q || '').trim();
@@ -143,7 +152,7 @@ exports.getPage = async ({ limit = 10, cursor, q } = {}) => {
 };
 
 exports.getByUserId = async userId => {
-  const { data, error } = await supabase.from(TABLE).select('*').eq('user_id', userId).maybeSingle();
+  const { data, error } = await alive(supabase.from(TABLE).select('*').eq('user_id', userId)).maybeSingle();
   if (error) throw error;
   return m.fastfood.fromSupabase(data);
 };
@@ -164,13 +173,13 @@ exports.update = async (id, fields) => {
 exports.searchByName = async (q, { limit = 20 } = {}) => {
   const term = (q || '').trim();
   if (!term) return [];
-  const { data, error } = await supabase.from(TABLE).select('id, name').ilike('name', `%${term}%`).limit(limit);
+  const { data, error } = await alive(supabase.from(TABLE).select('id, name').ilike('name', `%${term}%`)).limit(limit);
   if (error) throw error;
   return (data || []).map(r => ({ id: r.id, nom: r.name }));
 };
 
 exports.exists = async id => {
-  const { count, error } = await supabase.from(TABLE).select('*', { count: 'exact', head: true }).eq('id', id);
+  const { count, error } = await alive(supabase.from(TABLE).select('*', { count: 'exact', head: true }).eq('id', id));
   if (error) throw error;
   return (count || 0) > 0;
 };

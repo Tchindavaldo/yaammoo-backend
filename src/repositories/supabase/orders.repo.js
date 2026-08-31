@@ -20,20 +20,25 @@ exports.getById = async id => {
   return m.order.fromSupabase(data);
 };
 
+// Les commandes d'une boutique supprimée par un admin sont en corbeille
+// (`deleted_at`, migration 047) : elles disparaissent des listes marchand,
+// client et livreur sans attendre la purge.
+const alive = qb => qb.is('deleted_at', null);
+
 exports.getByFastFood = async fastFoodId => {
-  const { data, error } = await supabase.from(TABLE).select('*').eq('fastfood_id', fastFoodId).order('created_at', { ascending: false });
+  const { data, error } = await alive(supabase.from(TABLE).select('*').eq('fastfood_id', fastFoodId)).order('created_at', { ascending: false });
   if (error) throw error;
   return (data || []).map(m.order.fromSupabase);
 };
 
 exports.getByUser = async userId => {
-  const { data, error } = await supabase.from(TABLE).select('*').eq('user_id', userId).order('created_at', { ascending: false });
+  const { data, error } = await alive(supabase.from(TABLE).select('*').eq('user_id', userId)).order('created_at', { ascending: false });
   if (error) throw error;
   return (data || []).map(m.order.fromSupabase);
 };
 
 exports.getByDriver = async driverId => {
-  const { data, error } = await supabase.from(TABLE).select('*').eq('driver_id', driverId).order('created_at', { ascending: false });
+  const { data, error } = await alive(supabase.from(TABLE).select('*').eq('driver_id', driverId)).order('created_at', { ascending: false });
   if (error) throw error;
   return (data || []).map(m.order.fromSupabase);
 };
@@ -42,7 +47,7 @@ exports.getByDriver = async driverId => {
  * Query flexible (équivalent du repo Firestore).
  */
 exports.query = async ({ fastFoodId, userId, status, orderByCreated = 'desc' } = {}) => {
-  let q = supabase.from(TABLE).select('*');
+  let q = alive(supabase.from(TABLE).select('*'));
   if (fastFoodId) q = q.eq('fastfood_id', fastFoodId);
   if (userId) q = q.eq('user_id', userId);
   if (status) {
