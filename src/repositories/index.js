@@ -20,6 +20,7 @@ const cfg = require('../config/dbProvider');
 const sb = {
   users: require('./supabase/users.repo'),
   fastfoods: require('./supabase/fastfoods.repo'),
+  fastfoodDeletion: require('./supabase/fastfoodDeletion.repo'),
   menus: require('./supabase/menus.repo'),
   orders: require('./supabase/orders.repo'),
   transactions: require('./supabase/transactions.repo'),
@@ -65,6 +66,7 @@ module.exports = {
   config: cfg,
   users,
   fastfoods: sb.fastfoods,
+  fastfoodDeletion: sb.fastfoodDeletion,
   menus: sb.menus,
   orders: sb.orders,
   transactions: sb.transactions,

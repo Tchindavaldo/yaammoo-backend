@@ -90,17 +90,25 @@ CREATE TABLE IF NOT EXISTS fastfoods (
   extra_data        JSONB DEFAULT '{}'::jsonb,
   created_at        TIMESTAMPTZ DEFAULT NOW(),
   updated_at        TIMESTAMPTZ DEFAULT NOW(),
+  -- Suppression admin en SOFT DELETE (migration 047) : la boutique est marquée
+  -- ici, puis réellement effacée après la rétention. Toutes les lectures
+  -- courantes filtrent `deleted_at IS NULL`.
+  deleted_at        TIMESTAMPTZ,
   CONSTRAINT fastfoods_user_unique UNIQUE (user_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_fastfoods_user_id ON fastfoods(user_id);
+CREATE INDEX IF NOT EXISTS idx_fastfoods_alive ON fastfoods(id) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_fastfoods_deleted_at ON fastfoods(deleted_at) WHERE deleted_at IS NOT NULL;
 
 -- ============================================================================
 -- TABLE: menus
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS menus (
   id              TEXT PRIMARY KEY,
-  fastfood_id     TEXT NOT NULL REFERENCES fastfoods(id) ON DELETE CASCADE,
+  -- RESTRICT et non CASCADE (migration 047) : une cascade effacerait les menus
+  -- au DELETE de la boutique, court-circuitant la rétention du soft delete.
+  fastfood_id     TEXT NOT NULL REFERENCES fastfoods(id) ON DELETE RESTRICT,
   titre           TEXT,
   name            TEXT,
   prix1           NUMERIC(12,2),
@@ -119,11 +127,13 @@ CREATE TABLE IF NOT EXISTS menus (
   drink           JSONB DEFAULT '[]'::jsonb,
   extra_data      JSONB DEFAULT '{}'::jsonb,
   created_at      TIMESTAMPTZ DEFAULT NOW(),
-  updated_at      TIMESTAMPTZ DEFAULT NOW()
+  updated_at      TIMESTAMPTZ DEFAULT NOW(),
+  deleted_at      TIMESTAMPTZ   -- soft delete (migration 047)
 );
 
 CREATE INDEX IF NOT EXISTS idx_menus_fastfood ON menus(fastfood_id);
 CREATE INDEX IF NOT EXISTS idx_menus_fastfood_created ON menus(fastfood_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_menus_alive ON menus(fastfood_id) WHERE deleted_at IS NULL;
 
 -- ============================================================================
 -- TABLE: orders
@@ -155,9 +165,11 @@ CREATE TABLE IF NOT EXISTS orders (
   group_id          TEXT,
   extra_data        JSONB DEFAULT '{}'::jsonb,
   created_at        TIMESTAMPTZ DEFAULT NOW(),
-  updated_at        TIMESTAMPTZ DEFAULT NOW()
+  updated_at        TIMESTAMPTZ DEFAULT NOW(),
+  deleted_at        TIMESTAMPTZ   -- soft delete (migration 047)
 );
 
+CREATE INDEX IF NOT EXISTS idx_orders_alive ON orders(fastfood_id) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_orders_fastfood_created ON orders(fastfood_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_user_created ON orders(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_status_created ON orders(status, created_at ASC);
@@ -212,7 +224,9 @@ CREATE TABLE IF NOT EXISTS bonus (
   name           TEXT,
   description    TEXT,
   criteria       JSONB DEFAULT '{}'::jsonb,
-  fastfood_id    TEXT REFERENCES fastfoods(id) ON DELETE CASCADE,
+  -- RESTRICT et non CASCADE (migration 047) : la rétention du soft delete
+  -- passe avant toute suppression en chaîne.
+  fastfood_id    TEXT REFERENCES fastfoods(id) ON DELETE RESTRICT,
   fastfood_name  TEXT,
   active         BOOLEAN DEFAULT TRUE,
   -- Livraison manuelle (016) : le claim reste `pending` au lieu d'être
@@ -226,6 +240,7 @@ CREATE TABLE IF NOT EXISTS bonus (
   created_by     TEXT,
   extra_data     JSONB DEFAULT '{}'::jsonb,
   created_at     TIMESTAMPTZ DEFAULT NOW(),
+  deleted_at     TIMESTAMPTZ,  -- soft delete (migration 047)
   -- Nom d'affichage toujours requis : boutique, ou PLATFORM_NAME si
   -- fastfood_id IS NULL (bonus plateforme).
   CONSTRAINT bonus_fastfood_name_chk CHECK (fastfood_name IS NOT NULL AND fastfood_name <> '')
@@ -301,6 +316,7 @@ CREATE TABLE IF NOT EXISTS notifications (
   all_notif   JSONB NOT NULL DEFAULT '[]'::jsonb,
   updated_at  TIMESTAMPTZ DEFAULT NOW(),
   created_at  TIMESTAMPTZ DEFAULT NOW(),
+  deleted_at  TIMESTAMPTZ,  -- soft delete (migration 047)
   CONSTRAINT notifications_owner CHECK (
     (user_id IS NOT NULL AND fastfood_id IS NULL) OR
     (user_id IS NULL AND fastfood_id IS NOT NULL) OR
@@ -325,7 +341,8 @@ CREATE TABLE IF NOT EXISTS driver_applications (
   status        TEXT NOT NULL DEFAULT 'pending',
   extra_data    JSONB DEFAULT '{}'::jsonb,
   created_at    TIMESTAMPTZ DEFAULT NOW(),
-  updated_at    TIMESTAMPTZ DEFAULT NOW()
+  updated_at    TIMESTAMPTZ DEFAULT NOW(),
+  deleted_at    TIMESTAMPTZ   -- soft delete (migration 047)
 );
 
 CREATE INDEX IF NOT EXISTS idx_driver_applications_fastfood ON driver_applications(fastfood_id, status, created_at DESC);
@@ -667,7 +684,8 @@ $$ LANGUAGE plpgsql;
 --   settings_pricing    — composition des prix et marges
 --   settings_delivery   — livraison offerte et ses seuils
 --   settings_withdrawal — barèmes de frais de retrait, par opérateur
---   settings_deployment — versions d'app et Apple Review
+--   settings_deployment — versions d'app, Apple Review, et rétention de la
+--                         suppression admin de boutiques (migration 048)
 --
 -- Toutes ont la même forme ; seule la table change. La catégorie d'une clé est
 -- déclarée dans `KEY_CATEGORY` (settings.service.js), jamais déduite du préfixe.
@@ -780,6 +798,7 @@ CREATE TABLE IF NOT EXISTS order_deliveries (
   delivery_group_id TEXT,
   course_billed     BOOLEAN NOT NULL DEFAULT TRUE,
   created_at      TIMESTAMPTZ DEFAULT NOW(),
+  deleted_at      TIMESTAMPTZ,  -- soft delete (migration 047)
   CONSTRAINT order_deliveries_free_reason_chk
     CHECK (free_reason IS NULL OR free_reason IN ('bonus', 'campaign')),
   CONSTRAINT order_deliveries_covered_by_chk
@@ -937,6 +956,32 @@ CREATE TABLE IF NOT EXISTS bird_costs (
 CREATE INDEX IF NOT EXISTS idx_bird_costs_sent_at ON bird_costs(sent_at);
 CREATE INDEX IF NOT EXISTS idx_bird_costs_phone_number ON bird_costs(phone_number);
 CREATE INDEX IF NOT EXISTS idx_bird_costs_pending ON bird_costs(sent_at) WHERE total_cost IS NULL;
+
+-- ============================================================================
+-- FONCTIONS: suppression admin de boutiques (migration 047)
+-- ============================================================================
+-- SOFT DELETE : `soft_delete_fastfood` marque, `restore_fastfood` annule tant
+-- que la rétention court, `purge_soft_deleted_fastfoods` efface pour de bon.
+--
+-- ⚠️ Les tables FINANCIÈRES (withdrawals, order_settlements, platform_revenues,
+-- transactions) ne portent PAS de `deleted_at` et ne sont jamais touchées : ce
+-- sont des pièces comptables, elles survivent à la boutique.
+--
+-- Corps complet dans `047_soft_delete_fastfood.sql`. Rappel des signatures :
+--
+--   soft_delete_fastfood(p_fastfood_id TEXT, p_scopes TEXT[]) RETURNS JSONB
+--     Scopes : menus, orders, notifications, bonus, drivers, support, deliveries.
+--     Aucune valeur par défaut — l'appelant DOIT dire ce qu'il supprime.
+--     Vide aussi `users.fastfood_id` (le propriétaire redevient client).
+--
+--   restore_fastfood(p_fastfood_id TEXT) RETURNS JSONB
+--     Ne restaure que les lignes marquées au MÊME instant que la boutique, pour
+--     ne pas ressusciter un menu supprimé légitimement des mois plus tôt.
+--
+--   purge_soft_deleted_fastfoods(p_retention_days INTEGER DEFAULT 30) RETURNS JSONB
+--     Renvoie `imageUrls` : Postgres n'accède pas au storage, c'est l'appelant
+--     Node qui efface les fichiers du bucket.
+-- ============================================================================
 
 -- ============================================================================
 -- FIN DU SCHEMA

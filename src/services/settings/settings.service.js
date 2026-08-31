@@ -86,6 +86,11 @@ const KEYS = {
   OTP_EXPIRES_IN_SECONDS: 'otp_expires_in_seconds',
   OTP_DEFAULT_COUNTRY_CODE: 'otp_default_country_code',
   OTP_BIRD_TIMEOUT_MS: 'otp_bird_timeout_ms',
+  // Suppression admin de boutiques (migration 048). La rétention décide du délai
+  // pendant lequel une suppression reste annulable : il doit pouvoir s'allonger
+  // à chaud, typiquement pour sauver une boutique dont les 30 jours expirent.
+  FASTFOOD_DELETE_RETENTION_DAYS: 'fastfood_delete_retention_days',
+  FASTFOOD_PURGE_INTERVAL_MS: 'fastfood_purge_interval_ms',
 };
 
 // ---------------------------------------------------------------------------
@@ -133,6 +138,9 @@ const KEY_CATEGORY = {
   [KEYS.LATEST_APP_VERSION]: 'deployment',
   [KEYS.APPLE_REVIEW_MODE]: 'deployment',
   [KEYS.APPLE_VERSION_REVIEW_MODE]: 'deployment',
+  // Suppression de boutiques : exploitation, pas tarification ni livraison.
+  [KEYS.FASTFOOD_DELETE_RETENTION_DAYS]: 'deployment',
+  [KEYS.FASTFOOD_PURGE_INTERVAL_MS]: 'deployment',
 };
 
 // Garde-fou au chargement : une clé ajoutée à `KEYS` sans être rangée ici
@@ -198,6 +206,11 @@ const FALLBACKS = {
   [KEYS.OTP_EXPIRES_IN_SECONDS]: 600,
   [KEYS.OTP_DEFAULT_COUNTRY_CODE]: '237',
   [KEYS.OTP_BIRD_TIMEOUT_MS]: 15000,
+  // Rétention : le repli va dans le sens qui PROTÈGE la donnée. Une clé absente
+  // ou illisible ne doit jamais raccourcir le délai — elle l'allonge (90 j).
+  // Purger trop tôt est irréversible ; purger trop tard ne coûte que du stockage.
+  [KEYS.FASTFOOD_DELETE_RETENTION_DAYS]: 90,
+  [KEYS.FASTFOOD_PURGE_INTERVAL_MS]: 86400000,
 };
 
 // Les réglages Apple Review n'ont VOLONTAIREMENT aucun repli : inventer une
@@ -298,6 +311,27 @@ async function getOtpSettings() {
   };
 }
 
+/**
+ * Réglages de la suppression admin de boutiques (migration 048).
+ * Ne lève jamais : les replis ci-dessus s'appliquent, dans le sens qui protège
+ * la donnée (rétention allongée plutôt que raccourcie).
+ */
+async function getFastfoodDeletionSettings() {
+  const s = await getSettings();
+  const retention = Number(s[KEYS.FASTFOOD_DELETE_RETENTION_DAYS]);
+  const interval = Number(s[KEYS.FASTFOOD_PURGE_INTERVAL_MS]);
+
+  return {
+    // `> 0` et non `>= 0` : une rétention à 0 effacerait au premier passage du
+    // job, ce que ce réglage ne doit pas permettre — pour purger tout de suite,
+    // il y a `POST /fastFood/admin/purge` avec un `retentionDays` explicite.
+    retentionDays: Number.isFinite(retention) && retention > 0 ? retention : 90,
+    // 0 est ici légitime : il DÉSACTIVE la purge automatique (le job ne démarre
+    // pas). D'où `>= 0`, contrairement à la rétention.
+    purgeIntervalMs: Number.isFinite(interval) && interval >= 0 ? interval : 86400000,
+  };
+}
+
 /** Mode Apple Review global, tel qu'exposé au frontend. Lève si la clé manque. */
 async function getAppleReviewMode() {
   const s = await getSettings();
@@ -344,4 +378,4 @@ async function setSetting(key, value) {
   return saved;
 }
 
-module.exports = { KEYS, KEY_CATEGORY, categoryOf, getSettings, getPricingSettings, getOtpSettings, getAppleReviewMode, isAppleReviewClient, getAppVersionGate, setSetting, invalidate };
+module.exports = { KEYS, KEY_CATEGORY, categoryOf, getSettings, getPricingSettings, getOtpSettings, getFastfoodDeletionSettings, getAppleReviewMode, isAppleReviewClient, getAppVersionGate, setSetting, invalidate };

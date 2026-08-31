@@ -7,8 +7,10 @@ const { updateFastfoodController } = require('../controllers/fastfood/updateFast
 const { searchFastfoodController } = require('../controllers/fastfood/searchFastfood');
 const { getFastFoodDeliveryStatsController } = require('../controllers/fastfood/getFastFoodDeliveryStats');
 const { patchFastFoodDeliveryController, patchAllFastFoodsDeliveryController } = require('../controllers/fastfood/deliveryConfig.controller');
+const { deleteFastfoodsController, restoreFastfoodController, listDeletedFastfoodsController, purgeDeletedFastfoodsController } = require('../controllers/fastfood/deleteFastfood.controller');
 const firebaseAuth = require('../middlewares/authMiddleware');
 const adminGuard = require('../middlewares/adminMiddleware');
+const fastfoodOwnerGuard = require('../middlewares/fastfoodOwnerMiddleware');
 const optionalFirebaseAuth = require('../middlewares/optionalAuthMiddleware');
 
 const route = express.Router();
@@ -168,9 +170,14 @@ route.get('/all', optionalFirebaseAuth, getfastfoodController);
  *       200:
  *         description: FastFood details
  *   post:
- *     summary: Update a fastfood restaurant
+ *     summary: Update a fastfood restaurant (propriétaire ou admin)
+ *     description: >-
+ *       Réservé au **propriétaire** de la boutique, ou à un **admin plateforme**
+ *       (qui peut modifier n'importe quelle boutique). Auparavant publique.
  *     tags:
  *       - FastFood
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: fastFoodId
@@ -239,6 +246,12 @@ route.get('/all', optionalFirebaseAuth, getfastfoodController);
  *     responses:
  *       200:
  *         description: FastFood successfully updated
+ *       401:
+ *         description: Non authentifié
+ *       403:
+ *         description: Cette boutique ne vous appartient pas
+ *       404:
+ *         description: Boutique introuvable
  */
 /**
  * @swagger
@@ -370,7 +383,130 @@ route.patch('/:fastFoodId/delivery', firebaseAuth, adminGuard, patchFastFoodDeli
 
 route.get('/:fastFoodId/delivery-stats', firebaseAuth, getFastFoodDeliveryStatsController);
 
+// ============================================================================
+// Suppression ADMIN de boutiques (soft delete, restaurable)
+// ----------------------------------------------------------------------------
+// ⚠️ Ces routes DOIVENT rester déclarées avant `/:fastFoodId` : Express prend la
+// première qui matche, et `/admin/deleted` serait sinon capté comme un id de
+// boutique nommé « admin ».
+// ============================================================================
+
+/**
+ * @swagger
+ * /fastFood/admin:
+ *   delete:
+ *     tags: [FastFood]
+ *     summary: Supprime une ou plusieurs boutiques (admin, soft delete)
+ *     description: >-
+ *       Marque les boutiques et les données choisies comme supprimées. Rien
+ *       n'est effacé physiquement avant `FASTFOOD_DELETE_RETENTION_DAYS` jours :
+ *       `POST /fastFood/admin/{fastFoodId}/restore` annule jusque-là.
+ *
+ *       **`scopes` est obligatoire** — aucune suppression « tout » implicite.
+ *       Passer `"all"` (chaîne) pour tout emporter, ou la liste voulue parmi
+ *       `menus`, `orders`, `notifications`, `bonus`, `drivers`, `support`,
+ *       `deliveries`.
+ *
+ *       ⚠️ Les données FINANCIÈRES (`withdrawals`, `order_settlements`,
+ *       `platform_revenues`, `transactions`) ne sont jamais supprimables :
+ *       les demander explicitement renvoie 400.
+ *     security: [{ bearerAuth: [] }]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [fastFoodIds, scopes]
+ *             properties:
+ *               fastFoodIds:
+ *                 type: array
+ *                 items: { type: string }
+ *               scopes:
+ *                 oneOf:
+ *                   - type: string
+ *                     enum: [all]
+ *                   - type: array
+ *                     items:
+ *                       type: string
+ *                       enum: [menus, orders, notifications, bonus, drivers, support, deliveries]
+ *     responses:
+ *       200: { description: Toutes les boutiques demandées ont été supprimées }
+ *       207: { description: Lot partiellement appliqué (voir `skipped`) }
+ *       400: { description: scopes manquant/invalide, scope financier, ou liste vide }
+ *       403: { description: Réservé aux administrateurs }
+ */
+route.delete('/admin', firebaseAuth, adminGuard, deleteFastfoodsController);
+
+/**
+ * @swagger
+ * /fastFood/admin/deleted:
+ *   get:
+ *     tags: [FastFood]
+ *     summary: Boutiques en corbeille (admin)
+ *     description: Chaque entrée porte `deletedAt` et `daysUntilPurge`.
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       200: { description: Liste des boutiques supprimées non encore purgées }
+ *       403: { description: Réservé aux administrateurs }
+ */
+route.get('/admin/deleted', firebaseAuth, adminGuard, listDeletedFastfoodsController);
+
+/**
+ * @swagger
+ * /fastFood/admin/purge:
+ *   post:
+ *     tags: [FastFood]
+ *     summary: Efface définitivement les boutiques expirées (admin)
+ *     description: >-
+ *       Normalement déclenchée par le job planifié. Supprime les lignes ET les
+ *       images du bucket. Irréversible.
+ *     security: [{ bearerAuth: [] }]
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               retentionDays:
+ *                 type: integer
+ *                 description: Surcharge ponctuelle du délai de rétention.
+ *     responses:
+ *       200: { description: Bilan de la purge (purged, ids, imagesDeleted, imageErrors) }
+ *       403: { description: Réservé aux administrateurs }
+ */
+route.post('/admin/purge', firebaseAuth, adminGuard, purgeDeletedFastfoodsController);
+
+/**
+ * @swagger
+ * /fastFood/admin/{fastFoodId}/restore:
+ *   post:
+ *     tags: [FastFood]
+ *     summary: Annule la suppression d'une boutique (admin)
+ *     description: >-
+ *       Possible tant que la purge n'est pas passée. Ne restaure que les lignes
+ *       marquées au même instant que la boutique. ⚠️ `users.fastFoodId` n'est
+ *       PAS réattribué automatiquement (le propriétaire a pu créer une autre
+ *       boutique entre-temps).
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: fastFoodId
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: Boutique restaurée }
+ *       400: { description: Boutique non supprimée ou déjà purgée }
+ *       403: { description: Réservé aux administrateurs }
+ */
+route.post('/admin/:fastFoodId/restore', firebaseAuth, adminGuard, restoreFastfoodController);
+
 route.get('/:fastFoodId', getfastfood);
-route.post('/:fastFoodId', updateFastfoodController);
+
+// ⚠️ Cette route était PUBLIQUE : n'importe qui, sans être connecté, pouvait
+// renommer une boutique ou changer son numéro Mobile Money. Désormais réservée
+// au propriétaire — ou à un admin plateforme, qui doit pouvoir corriger
+// n'importe quelle boutique.
+route.post('/:fastFoodId', firebaseAuth, fastfoodOwnerGuard, updateFastfoodController);
 
 module.exports = route;

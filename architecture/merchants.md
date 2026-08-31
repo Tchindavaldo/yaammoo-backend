@@ -12,12 +12,16 @@ Gestion des fastfoods (boutiques marchand) : création, édition infos boutique,
 | ------- | -------------------------------------- | ------------------------------------ | ---------------------------------------------------------------------- |
 | POST    | `/fastfood`                            | `createFastFood`                     | Crée une nouvelle boutique                                             |
 | GET     | `/fastfood/:id`                        | `getFastFoodById`                    | Récupère les infos d'une boutique                                      |
-| POST    | `/fastfood/:id`                        | `updateFastFood`                     | Édite infos boutique (nom, heures, OM…)                                |
+| POST    | `/fastfood/:id`                        | `updateFastFood`                     | Édite infos boutique — **propriétaire ou admin** (voir ci-dessous)     |
 | GET     | `/menu/:fastFoodId`                    | `getMenusByFastFood`                 | Récupère tous les menus d'une boutique                                 |
 | GET     | `/fastFood/:fastFoodId/delivery-stats` | `getFastFoodDeliveryStatsController` | Stats auto-livraison du fastFood (scope `self`/`client`, auth requise) |
 | POST    | `/menu`                                | `createMenu`                         | Ajoute un menu à une boutique                                          |
 | PUT     | `/menu/:id`                            | `updateMenu`                         | Édite un menu                                                          |
 | DELETE  | `/menu/:id`                            | `deleteMenu`                         | Supprime un menu                                                       |
+| DELETE  | `/fastFood/admin`                      | `deleteFastfoodsController`          | **Admin** — supprime N boutiques (soft delete). Voir ci-dessous        |
+| GET     | `/fastFood/admin/deleted`              | `listDeletedFastfoodsController`     | **Admin** — corbeille (`deletedAt`, `daysUntilPurge`)                  |
+| POST    | `/fastFood/admin/:fastFoodId/restore`  | `restoreFastfoodController`          | **Admin** — annule une suppression avant la purge                      |
+| POST    | `/fastFood/admin/purge`                | `purgeDeletedFastfoodsController`    | **Admin** — force l'effacement définitif des boutiques expirées        |
 
 ---
 
@@ -306,6 +310,138 @@ devant adapter sa réponse selon la version de l'app.
 
 **Appliqué dans** : `getFastFoods` (liste home) et `getFastFood` (détail).
 Au déploiement de la 1.0.1, passer `FRONTEND_APP_VERSION=1.0.1`.
+
+---
+
+## Qui peut modifier une boutique
+
+`POST /fastFood/:fastFoodId` est protégée par `firebaseAuth` +
+`fastfoodOwnerGuard` (`middlewares/fastfoodOwnerMiddleware.js`) :
+
+| Demandeur | Accès |
+| --- | --- |
+| Propriétaire (`fastfood.userId === uid`) | ✅ |
+| **Admin plateforme** (`isAdmin`) | ✅ — n'importe quelle boutique, sans en être propriétaire |
+| Tout autre user authentifié | ❌ 403 |
+| Non authentifié | ❌ 401 |
+
+> ⚠️ **Cette route était PUBLIQUE.** Aucun `firebaseAuth`, et aucun contrôle de
+> propriété ni dans le controller ni dans le service : n'importe qui, sans même
+> être connecté, pouvait renommer une boutique, changer son numéro Mobile Money
+> ou vider ses créneaux de livraison. Corrigé — les clients front qui appelaient
+> cette route sans token doivent désormais envoyer leur Bearer.
+
+L'admin passe sans lecture préalable de la boutique : c'est le service qui
+renvoie 404 si elle n'existe pas.
+
+---
+
+## Suppression admin d'une boutique (soft delete)
+
+`DELETE /fastFood/admin` — réservé aux administrateurs (`firebaseAuth` + `adminGuard`).
+Migration `047_soft_delete_fastfood.sql`.
+
+### Pourquoi soft et pas DELETE
+
+Supprimer une boutique emporte ses menus, ses commandes et ses notifications. Un
+DELETE réel rend l'erreur définitive : un mauvais id saisi, et l'historique d'une
+boutique active est perdu. Les lignes sont donc **marquées** `deleted_at`, puis
+effacées après `FASTFOOD_DELETE_RETENTION_DAYS` jours (30). Entre les deux,
+`POST /fastFood/admin/:fastFoodId/restore` annule tout.
+
+### Payload
+
+```json
+{
+  "fastFoodIds": ["id1", "id2"],
+  "scopes": ["menus", "orders", "notifications"]
+}
+```
+
+| Champ         | Obligatoire | Valeurs                                                                       |
+| ------------- | ----------- | ----------------------------------------------------------------------------- |
+| `fastFoodIds` | oui         | Au moins un id. Le lot est traité id par id (`deleted` / `skipped`).          |
+| `scopes`      | **oui**     | `"all"`, ou un tableau parmi `menus`, `orders`, `notifications`, `bonus`, `drivers`, `support`, `deliveries` |
+
+> ⚠️ **`scopes` n'a pas de valeur par défaut.** L'omettre renvoie 400, jamais une
+> suppression totale : un « tout » implicite est précisément l'accident que ce
+> endpoint doit rendre impossible. `"all"` reste possible, mais explicitement écrit.
+
+La boutique elle-même (`fastfoods`) part toujours — c'est l'objet de l'appel — et
+`users.fastfood_id` est vidé, ce qui suffit à retirer le statut marchand (`isMarchand`
+est dérivé, cf. R5).
+
+### Données JAMAIS supprimables
+
+`withdrawals`, `order_settlements`, `platform_revenues`, `transactions` sont des
+**pièces comptables** : elles survivent à la boutique. Les demander explicitement
+dans `scopes` renvoie 400 — ce n'est pas un oubli, c'est un refus.
+
+### Réponse
+
+```json
+{
+  "deleted": [{ "id": "...", "deletedAt": "...", "counts": { "menus": 12, "orders": 340 } }],
+  "skipped": [{ "id": "...", "reason": "Boutique introuvable ou déjà supprimée." }],
+  "scopes": ["menus", "orders"],
+  "retentionDays": 30
+}
+```
+
+Statut `207` si le lot est partiellement appliqué, `200` sinon.
+
+### Effet sur les lectures
+
+Toutes les lectures courantes filtrent `deleted_at IS NULL` — la boutique
+disparaît du home, du catalogue et des listes de commandes **immédiatement**,
+sans attendre la purge :
+
+| Fichier | Lectures filtrées |
+| --- | --- |
+| `fastfoods.repo.js` | `getById`, `getAll`, `getPage` (+ jointure `menus`), `getByUserId`, `searchByName`, `exists` |
+| `menus.repo.js` | `getByFastFood` |
+| `orders.repo.js` | `getByFastFood`, `getByUser`, `getByDriver`, `query` |
+
+Pour LIRE une boutique supprimée (écrans d'admin), passer par
+`fastfoodDeletion.repo.js`, qui ne filtre pas.
+
+Socket : `fastfoodsDeleted` `{ ids: string[] }` (broadcast global) pour que le
+front retire les boutiques sans refresh.
+
+### Purge définitive
+
+`utils/fastfoodPurgeJob.js`, toutes les `FASTFOOD_PURGE_INTERVAL_MS` (24h).
+Efface les lignes ET les images du bucket (boutique + `image`, `cover_image`,
+`images[]` de chaque menu). Postgres n'ayant pas accès au storage, la fonction SQL
+renvoie les URL et c'est le service Node qui les supprime ; une image qui résiste
+n'annule pas la purge (signalée dans `imageErrors`).
+
+`menus` et `bonus` sont passés de `ON DELETE CASCADE` à `RESTRICT` : une cascade
+court-circuiterait la rétention de 30 jours.
+
+### Réglages — en BASE, pas en `.env`
+
+Table `settings_deployment` (migration 048), modifiables à chaud via
+`PATCH /settings/:key` — allonger la rétention pour sauver une boutique dont les
+30 jours expirent ne doit pas demander un redéploiement.
+
+| Clé | Défaut | Repli si absente | Rôle |
+| --- | --- | --- | --- |
+| `fastfood_delete_retention_days` | `30` | **`90`** | Jours avant effacement définitif |
+| `fastfood_purge_interval_ms` | `86400000` | `86400000` | Intervalle du job de purge (`0` = désactivé) |
+
+> Le repli de la rétention est **plus long** que le défaut, volontairement : une
+> clé illisible ne doit jamais purger plus tôt que prévu. Effacer trop tôt est
+> irréversible, effacer trop tard ne coûte que du stockage.
+
+L'intervalle est relu à **chaque tour** du job (`setTimeout` réarmé, pas
+`setInterval`) : le changer en base se propage sans redémarrer le process.
+
+### Limite connue — restauration
+
+`restore` ne réattribue **pas** `users.fastfood_id` : entre-temps le propriétaire
+a pu créer une autre boutique, et écraser ce lien lui en ferait perdre une. La
+réponse porte `ownerReattached: false` — le rattachement se fait à la main.
 
 ---
 

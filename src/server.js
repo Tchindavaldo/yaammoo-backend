@@ -4,6 +4,7 @@ const socket = require('./socket');
 const socketIo = require('socket.io');
 const { startKeepAlive } = require('./utils/supabaseKeepAlive');
 const { initMobileWalletSocket } = require('./services/transaction/mobilewalletSocketClient');
+const { startFastfoodPurgeJob } = require('./utils/fastfoodPurgeJob');
 const HOST = '0.0.0.0';
 const PORT = process.env.PORT || 5000;
 
@@ -18,5 +19,8 @@ startKeepAlive(4);
 // Connexion vers MobileWallet en tant que client Socket.io
 // (pour recevoir les événements de verdict de paiement)
 initMobileWalletSocket();
+
+// Purge des boutiques supprimées dont la rétention est écoulée (migration 047)
+startFastfoodPurgeJob();
 
 server.listen(PORT, HOST, () => console.log(`Serveur lancé sur http://localhost:${PORT}`));

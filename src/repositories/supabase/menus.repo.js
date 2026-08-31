@@ -39,7 +39,9 @@ exports.getRawStock = async id => {
 };
 
 exports.getByFastFood = async fastFoodId => {
-  const { data, error } = await supabase.from(TABLE).select('*').eq('fastfood_id', fastFoodId).order('created_at', { ascending: false });
+  // Exclut les menus en corbeille (migration 047) : une boutique supprimée par
+  // un admin ne doit plus exposer son catalogue, même avant la purge.
+  const { data, error } = await supabase.from(TABLE).select('*').eq('fastfood_id', fastFoodId).is('deleted_at', null).order('created_at', { ascending: false });
   if (error) throw error;
   return (data || []).map(m.menu.fromSupabase);
 };
