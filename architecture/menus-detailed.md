@@ -214,6 +214,21 @@ await updateMenuStock(menuId, quantityDesired);
 
 ---
 
+## Nettoyage du storage (update / delete)
+
+`purgeUnusedImages(oldUrls, keptUrls)` (`services/images/uploadImage.service.js`)
+efface du bucket Supabase toute image qui n'est plus référencée, APRÈS l'écriture
+en base (best effort : un échec est loggé, la requête ne tombe pas ; les URL hors
+Supabase sont ignorées).
+
+| Entité | Update (image remplacée/retirée) | Delete |
+|---|---|---|
+| Menu (`image`, `coverImage`, `images[]`) | `updateMenu.service.js` | `deleteMenu.service.js` |
+| Boutique (`image`) | `updateFastFood.js` | purge 30 j (`deleteFastfood.service.js`) |
+| Bannière (`imageUrl`) | `banners.service.js` `updateBanner` | `deleteBanner` |
+
+---
+
 ## Images optimisées (servies au client)
 
 Les fichiers stockés sont en pleine résolution (300 Ko à 1,1 Mo), majoritairement

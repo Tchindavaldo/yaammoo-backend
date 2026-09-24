@@ -82,3 +82,24 @@ exports.deleteImageFromSupabase = async publicUrl => {
     throw error;
   }
 };
+
+/**
+ * Purge du storage les images qui ne sont plus référencées après une
+ * modification ou une suppression : chaque URL de `oldUrls` absente de
+ * `keptUrls` est effacée. Best effort : appelée APRÈS l'écriture en base, un
+ * échec laisse un fichier orphelin (loggé) sans faire échouer la requête.
+ * Les URL hors storage Supabase (déjà hébergées ailleurs) sont ignorées.
+ */
+exports.purgeUnusedImages = async (oldUrls, keptUrls = []) => {
+  const kept = new Set((keptUrls || []).filter(Boolean).map(u => String(u).split('?')[0]));
+  const base = `${process.env.SUPABASE_URL}/storage/v1/object/public/`;
+  const toDelete = [...new Set((oldUrls || []).filter(Boolean).map(u => String(u).split('?')[0]))].filter(u => !kept.has(u) && u.startsWith(base));
+
+  for (const url of toDelete) {
+    try {
+      await exports.deleteImageFromSupabase(url);
+    } catch (err) {
+      console.warn(`[purgeUnusedImages] Impossible de supprimer l'image (${url}) :`, err.message);
+    }
+  }
+};

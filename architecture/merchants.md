@@ -178,6 +178,7 @@ MenuItem {
      tarif. Voir [pricing-delivery-modes.md](./pricing-delivery-modes.md#configurer-qui-livre-routes-admin)
    - Nettoie `deliveryHours` via `utils/deliveryHoursSanitize.js` (voir ci-dessous)
    - Met à jour doc fastfoods
+   - Si `image` change : l'ancienne est purgée du storage Supabase (`purgeUnusedImages`)
    - Émet socket `fastfoodUpdated` (broadcast global)
 
    **Nettoyage des créneaux à l'écriture (OBLIGATOIRE)**

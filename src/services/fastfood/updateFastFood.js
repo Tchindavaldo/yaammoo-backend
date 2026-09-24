@@ -6,6 +6,7 @@ const { getIO } = require('../../socket');
 const { sanitizeDeliveryHours } = require('../../utils/deliveryHoursSanitize');
 const { validateDeliveryZones } = require('../pricing/menuPriceGuard');
 const { getPricingSettings } = require('../settings/settings.service');
+const { purgeUnusedImages } = require('../images/uploadImage.service');
 
 exports.updateFastFoodService = async (fastFoodId, data) => {
   const existing = await repos.fastfoods.getById(fastFoodId);
@@ -44,6 +45,8 @@ exports.updateFastFoodService = async (fastFoodId, data) => {
   }
 
   const updated = await repos.fastfoods.update(fastFoodId, updateData);
+  // Image remplacée → l'ancienne est effacée du storage.
+  if (updateData.image !== undefined) await purgeUnusedImages([existing.image], [updated?.image]);
 
   getIO().emit('fastfoodUpdated', { message: 'Fastfood mis à jour', fastFood: updated });
 

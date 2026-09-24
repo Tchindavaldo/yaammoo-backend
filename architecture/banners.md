@@ -29,7 +29,7 @@ sont décalés — aucun doublon possible.
 
 - `create` à la position `p` : les éléments `>= p` reculent de 1.
 - `update` avec `sortOrder` : l'élément est déplacé à `p`, séquence re-plate.
-- `update` sans `sortOrder` : position conservée.
+- `update` sans `sortOrder` : position conservée. Si `imageUrl` change, l'ancienne image est purgée du storage (`purgeUnusedImages`).
 - `delete` : purge automatique de l'image associée de Supabase Storage (`deleteImageFromSupabase`) et resserrement des survivants.
 
 ## Endpoints
