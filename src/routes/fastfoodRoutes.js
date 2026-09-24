@@ -54,6 +54,15 @@ const route = express.Router();
  *                 type: number
  *               pickupAllowed:
  *                 type: boolean
+ *               openDays:
+ *                 type: array
+ *                 description: Jours d'ouverture, 0 (dimanche) à 6 (samedi). [] = indisponible.
+ *                 items:
+ *                   type: integer
+ *                 example: [1, 2, 3, 4, 5, 6]
+ *               isAvailable:
+ *                 type: boolean
+ *                 description: Coupure manuelle (false = indisponible, openDays conservé).
  *               cities:
  *                 type: array
  *                 items:
@@ -210,6 +219,15 @@ route.get('/all', optionalFirebaseAuth, getfastfoodController);
  *                 type: number
  *               pickupAllowed:
  *                 type: boolean
+ *               openDays:
+ *                 type: array
+ *                 description: Jours d'ouverture, 0 (dimanche) à 6 (samedi). [] = indisponible.
+ *                 items:
+ *                   type: integer
+ *                 example: [1, 2, 3, 4, 5, 6]
+ *               isAvailable:
+ *                 type: boolean
+ *                 description: Coupure manuelle (false = indisponible, openDays conservé).
  *               cities:
  *                 type: array
  *                 items:

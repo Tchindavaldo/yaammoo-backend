@@ -46,6 +46,9 @@ FastFood {
                                // Clients ne peuvent pas commander
                                // après minuit - orderLeadTime
   advanceDays: number          // Nombre de jours à l'avance pour commander (défaut: 0)
+  openDays: number[]           // Jours d'ouverture 0 (dim) … 6 (sam). Défaut : tous.
+  isAvailable: boolean         // Coupure MANUELLE (ne touche pas openDays)
+  available: boolean           // CALCULÉ à la lecture : isAvailable && openDays.length > 0
   pickupAllowed: boolean       // true = le client peut venir récupérer sur place.
                                // N'exclut PAS la livraison : une boutique qui
                                // ne livre pas ne déclare aucune zone.
@@ -311,6 +314,20 @@ devant adapter sa réponse selon la version de l'app.
 
 **Appliqué dans** : `getFastFoods` (liste home) et `getFastFood` (détail).
 Au déploiement de la 1.0.1, passer `FRONTEND_APP_VERSION=1.0.1`.
+
+---
+
+## Jours d'ouverture & disponibilité (migration 049)
+
+- `openDays` et `isAvailable` modifiables via `POST /fastfood/:id`. Les horaires
+  `openTime`/`closeTime` restent communs à tous les jours ouverts.
+- `available` n'est **jamais stocké** (comme `isMarchand`, R5) :
+  `isAvailable && openDays.length > 0`. Aucun jour coché → indisponible
+  automatiquement ; coupure manuelle → `openDays` conservé tel quel.
+- `GET /fastfood/all` exclut les boutiques `available: false` et les plats
+  indisponibles (`status: 'unavailable'` ou `disponibilite: false`), propriétaire
+  compris. `GET /fastfood/:id` et `GET /menu/:fastFoodId` ne filtrent pas : c'est
+  là que le propriétaire les voit.
 
 ---
 

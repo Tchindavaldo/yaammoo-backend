@@ -282,6 +282,9 @@ const options = {
             orderLeadTime: { type: 'number', description: 'Délai avant livraison (minutes).' },
             advanceDays: { type: 'number' },
             pickupAllowed: { type: 'boolean', description: "true = le user peut venir récupérer sur place. N'exclut PAS la livraison." },
+            openDays: { type: 'array', items: { type: 'integer' }, description: "Jours d'ouverture, 0 (dimanche) à 6 (samedi)." },
+            isAvailable: { type: 'boolean', description: 'Coupure manuelle par le marchand.' },
+            available: { type: 'boolean', description: 'CALCULÉ : isAvailable && openDays non vide. false = absent de /fastfood/all.' },
             deliveryBy: {
               type: 'string',
               enum: ['fastfood', 'platform'],
