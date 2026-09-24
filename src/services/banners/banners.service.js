@@ -8,7 +8,7 @@
 // boucle sont acceptables et garantissent une séquence exacte.
 // ============================================================================
 const repos = require('../../repositories');
-const { deleteImageFromSupabase } = require('../images/uploadImage.service');
+const { deleteImageFromSupabase, purgeUnusedImages } = require('../images/uploadImage.service');
 
 const clamp = (n, min, max) => Math.max(min, Math.min(max, Number(n) || 0));
 
@@ -64,6 +64,8 @@ exports.updateBanner = async (id, fields, requestedOrder) => {
 
   // Persiste d'abord les champs, puis remet a plat l'ordre.
   await repos.banners.update(id, fields);
+  // Image remplacée → l'ancienne est effacée du storage.
+  if (fields.imageUrl !== undefined) await purgeUnusedImages([existing.imageUrl], [fields.imageUrl]);
   await repos.banners.applyOrder(reindexed.map(({ id: bid, sortOrder }) => ({ id: bid, sortOrder })));
 
   return finalOrder || item;

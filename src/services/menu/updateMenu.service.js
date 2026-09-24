@@ -9,6 +9,9 @@ const { reliableEmit } = require('../../utils/reliableEmit');
 const { enrichMenuForClient } = require('./enrichMenuForClient');
 const { validateMenuPrices } = require('../pricing/menuPriceGuard');
 const { getPricingSettings } = require('../settings/settings.service');
+const { purgeUnusedImages } = require('../images/uploadImage.service');
+
+const menuImages = m => [m?.image, m?.coverImage, ...(m?.images || [])];
 
 exports.updateMenuService = async (menuId, updateData) => {
   if (!menuId) return { success: false, message: 'ID du menu est requis' };
@@ -37,6 +40,8 @@ exports.updateMenuService = async (menuId, updateData) => {
     }
 
     const updatedMenu = await repos.menus.update(menuId, updateData);
+    // Image remplacée ou retirée de la galerie → fichier effacé du storage.
+    await purgeUnusedImages(menuImages(existing), menuImages(updatedMenu));
 
     const fastFood = await getFastFoodService(existing.fastFoodId);
     const userId = fastFood.userId;

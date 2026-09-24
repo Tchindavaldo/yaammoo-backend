@@ -8,6 +8,7 @@ const { getMenuService } = require('./getMenu.services');
 const { reliableEmit } = require('../../utils/reliableEmit');
 const { getPricingSettings } = require('../settings/settings.service');
 const { applyDisplayPricing } = require('../pricing/deliveryPricing');
+const { purgeUnusedImages } = require('../images/uploadImage.service');
 
 exports.deleteMenuService = async menuId => {
   if (!menuId) return { success: false, message: 'ID du menu est requis' };
@@ -18,6 +19,7 @@ exports.deleteMenuService = async menuId => {
 
     const fastFoodId = existing.fastFoodId;
     await repos.menus.delete(menuId);
+    await purgeUnusedImages([existing.image, existing.coverImage, ...(existing.images || [])]);
 
     const fastFood = await getFastFoodService(fastFoodId);
     const updatedMenus = await getMenuService(fastFoodId);
