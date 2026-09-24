@@ -86,6 +86,13 @@ pour ne jamais balayer la table entière.
 Le curseur porte alors sur la dernière boutique **rendue**, ce qui est exact :
 la jointure garantit qu'aucune ne sera écartée ensuite par le service.
 
+## Boutiques et plats indisponibles
+
+Exclus du home. `getPage()` filtre en base (`is_available`, `open_days <> '{}'`,
+et sur la jointure `menus` : `status <> 'unavailable'`, `disponibilite <> false`)
+pour garder des pages pleines ; le service refiltre (mode complet `getAll()`).
+Voir [merchants.md](./merchants.md#jours-douverture--disponibilité-migration-049).
+
 ## Bannières
 
 Servies **uniquement** quand `cursor` est absent. Les renvoyer à chaque

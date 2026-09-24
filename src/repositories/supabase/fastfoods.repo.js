@@ -92,6 +92,13 @@ exports.getPage = async ({ limit = 10, cursor, q } = {}) => {
       // Le filtre porte aussi sur la table jointe : un menu en corbeille ne doit
       // pas suffire à faire apparaître sa boutique sur le home.
       .is('menus.deleted_at', null)
+      // Boutique indisponible (coupée OU aucun jour d'ouverture) et plats
+      // indisponibles : absents du home. Filtré ICI et pas seulement dans le
+      // service, sinon une page rendrait moins de `limit` boutiques.
+      .eq('is_available', true)
+      .neq('open_days', '{}')
+      .or('status.is.null,status.neq.unavailable', { referencedTable: 'menus' })
+      .or('disponibilite.is.null,disponibilite.eq.true', { referencedTable: 'menus' })
       .order('created_at', { ascending: false })
       .order('id', { ascending: false });
     const t = (q || '').trim();

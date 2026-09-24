@@ -8,6 +8,8 @@ const { validateDeliveryZones } = require('../pricing/menuPriceGuard');
 const { getPricingSettings } = require('../settings/settings.service');
 const { purgeUnusedImages } = require('../images/uploadImage.service');
 
+const badRequest = message => Object.assign(new Error(message), { code: 400 });
+
 exports.updateFastFoodService = async (fastFoodId, data) => {
   const existing = await repos.fastfoods.getById(fastFoodId);
   if (!existing) {
@@ -29,6 +31,15 @@ exports.updateFastFoodService = async (fastFoodId, data) => {
   if (data.advanceDays !== undefined) updateData.advanceDays = data.advanceDays;
   if (data.pickupAllowed !== undefined) updateData.pickupAllowed = data.pickupAllowed;
   if (data.cities !== undefined) updateData.cities = data.cities;
+  if (data.isAvailable !== undefined) {
+    if (typeof data.isAvailable !== 'boolean') throw badRequest('isAvailable doit être un booléen.');
+    updateData.isAvailable = data.isAvailable;
+  }
+  if (data.openDays !== undefined) {
+    const valid = Array.isArray(data.openDays) && data.openDays.every(d => Number.isInteger(d) && d >= 0 && d <= 6);
+    if (!valid) throw badRequest('openDays doit être un tableau d\'entiers 0 (dimanche) à 6 (samedi).');
+    updateData.openDays = [...new Set(data.openDays)].sort((a, b) => a - b);
+  }
   // Le front renvoie ses lignes d'heures vidées (mode actif, zéro zone) : on ne
   // garde que les créneaux réellement exploitables. Voir utils/deliveryHoursSanitize.
   if (data.deliveryHours !== undefined) {

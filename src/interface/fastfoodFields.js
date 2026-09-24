@@ -14,6 +14,11 @@ exports.FastfoodFields = {
   // true = le user peut venir récupérer sur place. N'exclut PAS la livraison.
   pickupAllowed: { type: 'bool', required: false },
   cities: { type: 'array', required: false },
+  // Jours d'ouverture : entiers 0 (dimanche) … 6 (samedi), sans doublon.
+  // [] = n'ouvre jamais → boutique indisponible (`available` calculé).
+  openDays: { type: 'array', required: false },
+  // Coupure manuelle par le marchand. false = indisponible, `openDays` conservé.
+  isAvailable: { type: 'bool', required: false },
   // Créneaux de livraison. Deux formats coexistent en base :
   //   - legacy (app < APP_DELIVERY_NEW_MIN_VERSION) : ["10:00", "14:00"]
   //   - actuel : objets enrichis décrits par `deliveryHourItem` ci-dessous.

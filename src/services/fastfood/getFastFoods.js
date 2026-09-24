@@ -20,6 +20,9 @@ const { buildCampaignOffer } = require('../pricing/deliveryOfferResolver');
 const { platformMinItems } = require('../bonus/deliveryOfferAffordability');
 const { buildRatingStats } = require('./fastfoodRatingStats');
 
+// Plat indisponible : `status: 'unavailable'` ou `disponibilite: false`.
+const isMenuAvailable = m => m.status !== 'unavailable' && m.disponibilite !== false;
+
 /**
  * @param {string} [userId] uid du user courant (auth FACULTATIVE sur cette route).
  *   Fourni, chaque boutique porte l'offre de livraison applicable à CE user.
@@ -67,9 +70,12 @@ exports.getFastFoodsService = async (userId, page) => {
     // pour le front de connaître le seuil avant le paiement.
     const campaignOffer = pricing.deliveryFreeMode ? buildCampaignOffer(platformMinItems(pricing, 'campaign')) : null;
 
+    // Home = écran d'achat : boutiques et plats indisponibles n'y figurent pas,
+    // propriétaire compris. Il les gère via `GET /fastfood/:id` et
+    // `GET /menu/:fastFoodId`, non filtrés.
     const fastfoodsWithMenus = await Promise.all(
-      fastfoods.map(async fastfood => {
-        const menus = await getMenuService(fastfood.id);
+      fastfoods.filter(f => f.available).map(async fastfood => {
+        const menus = (await getMenuService(fastfood.id)).filter(isMenuAvailable);
         // Prix AFFICHÉ pour tout le monde, y compris le propriétaire de la
         // boutique : `/fastfood/all` alimente le HOME, donc un écran d'achat.
         // Un marchand qui commande y est un client comme un autre — lui servir

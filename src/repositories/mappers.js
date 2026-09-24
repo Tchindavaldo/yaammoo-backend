@@ -94,7 +94,7 @@ const userFromSupabase = (row, pushTokens = []) => {
 // ---------------------------------------------------------------------------
 const fastfoodToSupabase = data => {
   const { createdAt, updatedAt, ...rest } = data;
-  const known = ['id', 'userId', 'name', 'number', 'momoNumber', 'whatsappNumber', 'openTime', 'closeTime', 'image', 'orderLeadTime', 'advanceDays', 'pickupAllowed', 'cities', 'deliveryHours', 'platformDeliveryZones', 'deliveryBy', 'driverRatingAvg', 'driverRatingCount'];
+  const known = ['id', 'userId', 'name', 'number', 'momoNumber', 'whatsappNumber', 'openTime', 'closeTime', 'image', 'orderLeadTime', 'advanceDays', 'pickupAllowed', 'cities', 'deliveryHours', 'platformDeliveryZones', 'deliveryBy', 'driverRatingAvg', 'driverRatingCount', 'openDays', 'isAvailable', 'available'];
   const extra = {};
   for (const k of Object.keys(rest)) {
     if (!known.includes(k)) extra[k] = rest[k];
@@ -102,6 +102,10 @@ const fastfoodToSupabase = data => {
   return {
     id: data.id,
     user_id: data.userId,
+    // Jours d'ouverture (migration 049) : 0 = dimanche … 6 = samedi (Date#getDay).
+    open_days: data.openDays ?? ALL_DAYS,
+    // Interrupteur MANUEL du marchand. `available` (lu) n'est jamais stocké.
+    is_available: data.isAvailable ?? true,
     name: data.name ?? null,
     number: data.number ?? null,
     momo_number: data.momoNumber ?? null,
@@ -148,7 +152,18 @@ const fastfoodFromSupabase = row => {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     ...(row.extra_data || {}),
+    ...fastfoodAvailability(row),
   };
+};
+
+// Disponibilité CALCULÉE à chaque lecture (comme isMarchand, R5) : la boutique
+// est disponible si le marchand ne l'a pas coupée ET qu'elle ouvre au moins un
+// jour. Couper manuellement ne touche pas `openDays`.
+const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
+const fastfoodAvailability = row => {
+  const openDays = Array.isArray(row.open_days) ? row.open_days : ALL_DAYS;
+  const isAvailable = row.is_available ?? true;
+  return { openDays, isAvailable, available: isAvailable && openDays.length > 0 };
 };
 
 // ---------------------------------------------------------------------------
