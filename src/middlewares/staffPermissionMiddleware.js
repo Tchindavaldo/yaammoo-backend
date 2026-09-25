@@ -51,6 +51,8 @@ const passes = async (uid, check) => {
 };
 
 exports.authorize = resolveChecks => async (req, res, next) => {
+  // Ancienne app sans jeton (cf. authMiddleware) : comportement d'avant, sans controle.
+  if (req.legacyNoAuth) return next();
   try {
     const uid = req.user?.uid;
     const viewer = await repos.users.getUserByIdSafe(uid);
