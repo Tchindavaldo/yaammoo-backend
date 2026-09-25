@@ -9,7 +9,8 @@
 // obtenu est stocké dans `image_url`. On peut aussi passer une `imageUrl`
 // directement en JSON (déjà hébergée) si besoin.
 // ============================================================================
-const { uploadImageToSupabase } = require('../../services/images/uploadImage.service');
+const { uploadFileToSupabase } = require('../../services/storage/uploadFile.service');
+const uploadImageToSupabase = file => uploadFileToSupabase(file, 'banners');
 const {
   getActiveBanners,
   getAllBanners,
