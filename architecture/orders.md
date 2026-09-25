@@ -31,6 +31,9 @@ BACKEND/src/
 
 ## Routes
 
+> **Toutes protégées** (`firebaseAuth` + `authorize`) : qui peut faire quoi →
+> [staff.md](./staff.md#gardes-middlewaresstaffpermissionmiddlewarejs--toujours-après-firebaseauth).
+
 | Méthode | Path                                     | Controller                | Description                                                       |
 | ------- | ---------------------------------------- | ------------------------- | ----------------------------------------------------------------- |
 | GET     | `/order/all/:fastFoodId`                 | `getOrders`               | Commandes d'une boutique (statuts marchand only, voir ci-dessous) |
@@ -57,6 +60,14 @@ paiement (qui appellent directement le service) échappaient au validateur.
 **Champs `delivery`** (déclarés dans `interface/orderFields.js`) : `status`, `date`,
 `type` (`express|time`), `time`, `zone`, `prix`, `location`, `phone`, `voiceNoteUri`,
 `record`, `note`. Tout champ non déclaré = rejet `Champ non autorisé`.
+
+`voiceNoteUri` = URL **publique** de la note vocale, envoyée au préalable sur
+`POST /image/upload` (champ fichier `image`, champ `folder=voiceNotes`). Les apps
+d'avant la 1.1.0 y mettaient l'URI locale du téléphone (`file://`), illisible
+ailleurs. Dossiers du stockage : `src/services/storage/storageFolders.js`
+(`menus`, `shops`, `banners`, `voiceNotes`, `bonusProofs` ; `fastFood/` = ancien
+dossier des apps qui n'envoient pas `folder`). Rangement de l'existant :
+`scripts/reorganize-storage.js` (simulation par défaut, `--apply` pour exécuter).
 
 ### Heure de récupération (retrait)
 

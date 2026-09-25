@@ -10,7 +10,7 @@ const { patchFastFoodDeliveryController, patchAllFastFoodsDeliveryController } =
 const { deleteFastfoodsController, restoreFastfoodController, listDeletedFastfoodsController, purgeDeletedFastfoodsController } = require('../controllers/fastfood/deleteFastfood.controller');
 const firebaseAuth = require('../middlewares/authMiddleware');
 const adminGuard = require('../middlewares/adminMiddleware');
-const fastfoodOwnerGuard = require('../middlewares/fastfoodOwnerMiddleware');
+const { requireFastfoodPermission } = require('../middlewares/staffPermissionMiddleware');
 const optionalFirebaseAuth = require('../middlewares/optionalAuthMiddleware');
 
 const route = express.Router();
@@ -525,6 +525,7 @@ route.get('/:fastFoodId', getfastfood);
 // renommer une boutique ou changer son numéro Mobile Money. Désormais réservée
 // au propriétaire — ou à un admin plateforme, qui doit pouvoir corriger
 // n'importe quelle boutique.
-route.post('/:fastFoodId', firebaseAuth, fastfoodOwnerGuard, updateFastfoodController);
+// Propriétaire, admin, ou employé ayant `fastfood.update` (cf. staff.md).
+route.post('/:fastFoodId', firebaseAuth, requireFastfoodPermission('fastfood.update'), updateFastfoodController);
 
 module.exports = route;

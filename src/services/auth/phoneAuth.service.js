@@ -6,6 +6,7 @@ const { getVerificationDetails } = require('../notification/bird/getVerification
 const { recordVerificationSent, recordVerificationCost } = require('../notification/bird/birdCost.service');
 const settingsService = require('../settings/settings.service');
 const { normalizePhoneNumber, phoneToNumero, phoneVariants } = require('../../utils/validator/validatePhoneNumber');
+const { linkStaffOnLogin } = require('../staff/staff.service');
 
 /**
  * Authentification par numéro de téléphone (Bird Verify + Firebase custom token).
@@ -235,6 +236,9 @@ exports.verifyPhoneAuth = async ({ phoneNumber, code, profile = {} }) => {
   // `user.uid` d'abord : un compte préexistant peut avoir un uid d'une autre origine
   // (inscription e-mail/Google), et c'est celui-là qui porte la session Firebase.
   const authUid = user.uid || user.id || uid;
+
+  // Employé créé par une boutique avant d'avoir un compte : rattachement.
+  await linkStaffOnLogin(recipient, defaultCountryCode, authUid);
 
   // ---------------------------------------------------------------------------
   // Le compte existe-t-il VRAIMENT côté Firebase Auth ?

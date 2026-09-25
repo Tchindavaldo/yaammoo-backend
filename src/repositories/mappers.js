@@ -663,4 +663,6 @@ module.exports = {
   supportThread: { toSupabase: supportThreadToSupabase, fromSupabase: supportThreadFromSupabase },
   supportMessage: { toSupabase: supportMessageToSupabase, fromSupabase: supportMessageFromSupabase },
   banner: { toSupabase: bannerToSupabase, fromSupabase: bannerFromSupabase },
+  // Employés (migration 050) — fichier dédié, ce fichier dépassant le plafond R3.
+  ...require('./staffMappers'),
 };

@@ -7,6 +7,10 @@ const { updateOrdersConstroller } = require('../controllers/order/updateOrdersCo
 const { updateOrdersField } = require('../controllers/order/updateOrdersField.controller');
 const { updateOrdersRankByDate } = require('../controllers/order/updateOrdersRankByDate');
 const { getDriverOrders } = require('../controllers/order/getDriverOrders');
+const firebaseAuth = require('../middlewares/authMiddleware');
+const { authorize, orderCreate, orderFromBody, ordersFromBody, ordersFromIds, fastfoodFromParam, selfFromParam } = require('../middlewares/staffPermissionMiddleware');
+
+// Toutes les routes /order exigent le Bearer (elles étaient publiques) — cf. staff.md.
 
 const router = express.Router();
 
@@ -45,7 +49,7 @@ const router = express.Router();
  *                   items:
  *                     $ref: '#/components/schemas/Order'
  */
-router.get('/all/:fastFoodId', getOrders);
+router.get('/all/:fastFoodId', firebaseAuth, authorize(fastfoodFromParam), getOrders);
 
 /**
  * @swagger
@@ -78,7 +82,7 @@ router.get('/all/:fastFoodId', getOrders);
  *                   items:
  *                     $ref: '#/components/schemas/Order'
  */
-router.get('/user/all/:userId', getUsersOrders);
+router.get('/user/all/:userId', firebaseAuth, authorize(selfFromParam('userId')), getUsersOrders);
 
 /**
  * @swagger
@@ -111,7 +115,7 @@ router.get('/user/all/:userId', getUsersOrders);
  *                   items:
  *                     $ref: '#/components/schemas/Order'
  */
-router.get('/driver/:driverId', getDriverOrders);
+router.get('/driver/:driverId', firebaseAuth, authorize(selfFromParam('driverId')), getDriverOrders);
 
 /**
  * @swagger
@@ -227,7 +231,7 @@ router.get('/driver/:driverId', getDriverOrders);
  *       400:
  *         description: Validation en échec, stock insuffisant, ou code bonus invalide
  */
-router.post('', createOrder);
+router.post('', firebaseAuth, authorize(orderCreate), createOrder);
 
 /**
  * @swagger
@@ -281,7 +285,7 @@ router.post('', createOrder);
  *       404:
  *         description: Order not found
  */
-router.put('', updateOrder);
+router.put('', firebaseAuth, authorize(orderFromBody), updateOrder);
 
 /**
  * @swagger
@@ -307,7 +311,7 @@ router.put('', updateOrder);
  *       200:
  *         description: Orders successfully updated
  */
-router.put('/tabs/:userId', updateOrdersConstroller);
+router.put('/tabs/:userId', firebaseAuth, authorize(ordersFromBody), updateOrdersConstroller);
 
 /**
  * @swagger
@@ -339,7 +343,7 @@ router.put('/tabs/:userId', updateOrdersConstroller);
  *       200:
  *         description: Orders successfully updated
  */
-router.put('/update-field', updateOrdersField);
+router.put('/update-field', firebaseAuth, authorize(ordersFromIds), updateOrdersField);
 
 /**
  * @swagger
@@ -359,6 +363,6 @@ router.put('/update-field', updateOrdersField);
  *       200:
  *         description: Order ranks successfully updated
  */
-router.put('/update-rank-by-date/:fastFoodId', updateOrdersRankByDate);
+router.put('/update-rank-by-date/:fastFoodId', firebaseAuth, authorize(fastfoodFromParam), updateOrdersRankByDate);
 
 module.exports = router;

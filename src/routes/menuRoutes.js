@@ -1,5 +1,6 @@
 const express = require('express');
 const firebaseAuth = require('../middlewares/authMiddleware');
+const { authorize, menuFromBody, menuFromParam } = require('../middlewares/staffPermissionMiddleware');
 const { postMenuController } = require('../controllers/menu/postMenu.controller');
 const { getMenuController } = require('../controllers/menu/getMenu.controller');
 const { deleteMenuController } = require('../controllers/menu/deleteMenu.controller');
@@ -76,7 +77,7 @@ const router = express.Router();
  *       400:
  *         description: Invalid input
  */
-router.post('', postMenuController);
+router.post('', firebaseAuth, authorize(menuFromBody), postMenuController);
 
 /**
  * @swagger
@@ -142,7 +143,7 @@ router.get('/:fastFoodId', getMenuController);
  *       404:
  *         description: Menu item not found
  */
-router.delete('/:menuId', deleteMenuController);
+router.delete('/:menuId', firebaseAuth, authorize(menuFromParam), deleteMenuController);
 
 /**
  * @swagger
@@ -212,7 +213,7 @@ router.delete('/:menuId', deleteMenuController);
  *       400:
  *         description: Invalid input
  */
-router.put('/:menuId', updateMenuController);
+router.put('/:menuId', firebaseAuth, authorize(menuFromParam), updateMenuController);
 
 /**
  * @swagger

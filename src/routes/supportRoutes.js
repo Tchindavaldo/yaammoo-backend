@@ -5,6 +5,10 @@ const { getSupportMessagesController } = require('../controllers/support/getSupp
 const { postSupportThreadController } = require('../controllers/support/postSupportThread.controller');
 const { postSupportMessageController } = require('../controllers/support/postSupportMessage.controller');
 const { markSupportThreadReadController } = require('../controllers/support/markSupportThreadRead.controller');
+const firebaseAuth = require('../middlewares/authMiddleware');
+const { authorize, supportThreadFromParam, supportThreadsQuery, supportThreadCreate } = require('../middlewares/staffPermissionMiddleware');
+
+// Toutes les routes /support exigent le Bearer (elles étaient publiques) — cf. staff.md.
 
 const route = express.Router();
 
@@ -83,7 +87,7 @@ const route = express.Router();
  *       400:
  *         description: userId manquant
  */
-route.get('/threads', getSupportThreadsController);
+route.get('/threads', firebaseAuth, authorize(supportThreadsQuery), getSupportThreadsController);
 
 /**
  * @swagger
@@ -123,7 +127,7 @@ route.get('/threads', getSupportThreadsController);
  *       400:
  *         description: Payload invalide
  */
-route.post('/threads', postSupportThreadController);
+route.post('/threads', firebaseAuth, authorize(supportThreadCreate), postSupportThreadController);
 
 /**
  * @swagger
@@ -165,7 +169,7 @@ route.post('/threads', postSupportThreadController);
  *       404:
  *         description: Discussion introuvable
  */
-route.get('/threads/:id/messages', getSupportMessagesController);
+route.get('/threads/:id/messages', firebaseAuth, authorize(supportThreadFromParam), getSupportMessagesController);
 
 /**
  * @swagger
@@ -204,7 +208,7 @@ route.get('/threads/:id/messages', getSupportMessagesController);
  *       404:
  *         description: Discussion introuvable
  */
-route.post('/threads/:id/messages', postSupportMessageController);
+route.post('/threads/:id/messages', firebaseAuth, authorize(supportThreadFromParam), postSupportMessageController);
 
 /**
  * @swagger
@@ -232,6 +236,6 @@ route.post('/threads/:id/messages', postSupportMessageController);
  *       404:
  *         description: Discussion introuvable
  */
-route.patch('/threads/:id/read', markSupportThreadReadController);
+route.patch('/threads/:id/read', firebaseAuth, authorize(supportThreadFromParam), markSupportThreadReadController);
 
 module.exports = route;

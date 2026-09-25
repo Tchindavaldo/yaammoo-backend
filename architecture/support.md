@@ -29,6 +29,8 @@ boutique. Les deux viennent de jointures dans `THREAD_SELECT`.
 
 ## Routes (`/support`)
 
+> **Toutes protégées** (`firebaseAuth` + `authorize`) — voir [staff.md](./staff.md).
+
 | Verbe | Path                                           | Role                                                                                        |
 | ----- | ---------------------------------------------- | ------------------------------------------------------------------------------------------- |
 | GET   | `/support/threads?userId=`                     | Fils d'un client (sans messages), plus recent d'abord                                       |

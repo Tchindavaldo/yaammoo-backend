@@ -334,12 +334,14 @@ Au déploiement de la 1.0.1, passer `FRONTEND_APP_VERSION=1.0.1`.
 ## Qui peut modifier une boutique
 
 `POST /fastFood/:fastFoodId` est protégée par `firebaseAuth` +
-`fastfoodOwnerGuard` (`middlewares/fastfoodOwnerMiddleware.js`) :
+`requireFastfoodPermission('fastfood.update')` (`middlewares/staffPermissionMiddleware.js`,
+qui remplace l'ancien `fastfoodOwnerGuard`) :
 
 | Demandeur | Accès |
 | --- | --- |
 | Propriétaire (`fastfood.userId === uid`) | ✅ |
 | **Admin plateforme** (`isAdmin`) | ✅ — n'importe quelle boutique, sans en être propriétaire |
+| Employé de la boutique avec `fastfood.update` | ✅ — voir [staff.md](./staff.md) |
 | Tout autre user authentifié | ❌ 403 |
 | Non authentifié | ❌ 401 |
 
