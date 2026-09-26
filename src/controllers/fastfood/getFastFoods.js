@@ -2,7 +2,8 @@ const { getFastFoodsService } = require('../../services/fastfood/getFastFoods');
 const { getActiveBanners } = require('../../services/banners/banners.service');
 const { withBannerThumbnail } = require('../../services/images/thumbnailUrl');
 const { formatFastfoodsForClient } = require('../../utils/deliveryHoursFormat');
-const { getAppleReviewMode } = require('../../services/settings/settings.service');
+const { getAppleReviewMode, isTestClient, getTestFastfoodVolume } = require('../../services/settings/settings.service');
+const { getVolumeTestPage } = require('../../services/fastfood/volumeTestFastFoods');
 
 /** Borne la taille de page : un `?limit=5000` annulerait tout l'intérêt. */
 const MAX_LIMIT = 50;
@@ -19,7 +20,18 @@ exports.getfastfoodController = async (req, res) => {
 
     // Auth facultative : sans token la route reste servie, simplement sans
     // `deliveryOffer` (on ne sait pas de quel user il s'agit).
-    const result = await getFastFoodsService(req.user?.uid, limit ? { limit, cursor, q } : undefined);
+    // Mode VOLUME : la build de test (`test_app_version`) reçoit un catalogue de
+    // `test_fastfood_volume` clones des boutiques réelles, pour éprouver la
+    // fluidité du home. Paginé seulement, et jamais sur une recherche (`q`) :
+    // elle reste servie par les données réelles.
+    const volumeTest = limit !== null && !q && (await isTestClient(req));
+    let result;
+    if (volumeTest) {
+      const volume = await getTestFastfoodVolume();
+      result = await getVolumeTestPage(req.user?.uid, { limit, cursor }, volume);
+    } else {
+      result = await getFastFoodsService(req.user?.uid, limit ? { limit, cursor, q } : undefined);
+    }
     const paginated = limit !== null;
     const fastfoods = paginated ? result.items : result;
     const data = formatFastfoodsForClient(fastfoods, req);

@@ -98,11 +98,44 @@ Voir [merchants.md](./merchants.md#jours-douverture--disponibilité-migration-04
 Servies **uniquement** quand `cursor` est absent. Les renvoyer à chaque
 `loadMore` serait du poids pur : le carrousel ne se recharge pas au scroll.
 
+## Mode volume (build de test)
+
+Pour éprouver la fluidité du home sur un vrai volume, la **build de test**
+reçoit un catalogue de `test_fastfood_volume` boutiques (500 par défaut) au lieu
+des données réelles. Même route, même contrat de réponse.
+
+- **Déclencheur** : `test_app_version` (`settings_deployment`, migration 051)
+  égal au header `x-app-version` du client. Égalité stricte sur le header
+  seulement : un client sans header n'est jamais la build de test. Vide = mode
+  coupé pour tout le monde. Réglage générique, réutilisable par tout futur
+  comportement réservé à la build de test (`isTestClient(req)`).
+- **Données** : clones des boutiques réelles telles que les renvoie
+  `getFastFoodsService` (prix, vignettes, notes déjà calculés), servis en
+  boucle. Rien n'est écrit en base.
+- **Identifiants** : `vt<rang>-<id réel>`, stables d'un appel à l'autre. Les
+  plats clonés portent l'id de leur boutique clonée : une commande passée sur un
+  clone échoue au lieu d'atterrir chez le vrai marchand.
+- **Curseur** : le rang de la boutique suivante, en base64url (opaque aussi).
+- **Limites** : mode paginé uniquement (`limit` présent) et jamais sur une
+  recherche `q`, servie par les données réelles.
+
+Activer / couper, sans redéployer (cache `SETTINGS_CACHE_TTL_MS`) :
+
+```sql
+UPDATE settings_deployment SET value = '"1.1.1"'::jsonb WHERE key = 'test_app_version';
+UPDATE settings_deployment SET value = '""'::jsonb      WHERE key = 'test_app_version';
+```
+
+> ⚠️ Couper le mode (valeur vide) avant qu'une version publiée sur les stores
+> porte ce numéro : ses utilisateurs verraient sinon les boutiques clonées.
+
 ## Fichiers
 
 | Fichier | Rôle |
 |---|---|
 | `repositories/supabase/fastfoods.repo.js` | `getPage()` — tri, curseur, jointure, dédup. `getAll()` intact. |
+| `services/fastfood/volumeTestFastFoods.js` | Mode volume : clones paginés des boutiques réelles. |
+| `services/settings/settings.service.js` | `isTestClient(req)`, `getTestFastfoodVolume()`. |
 | `services/fastfood/getFastFoods.js` | 2e argument optionnel ; renvoie `{items, nextCursor}` en paginé, un tableau sinon. |
 | `controllers/fastfood/getFastFoods.js` | Query params, plafond `MAX_LIMIT`, bannières page 1. |
 

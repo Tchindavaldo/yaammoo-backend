@@ -91,6 +91,10 @@ const KEYS = {
   // à chaud, typiquement pour sauver une boutique dont les 30 jours expirent.
   FASTFOOD_DELETE_RETENTION_DAYS: 'fastfood_delete_retention_days',
   FASTFOOD_PURGE_INTERVAL_MS: 'fastfood_purge_interval_ms',
+  // Build de TEST (migration 051) : version d'app exacte qui reçoit les
+  // comportements de test (ex. mode volume de `GET /fastFood/all`). Vide = aucune.
+  TEST_APP_VERSION: 'test_app_version',
+  TEST_FASTFOOD_VOLUME: 'test_fastfood_volume',
 };
 
 // ---------------------------------------------------------------------------
@@ -141,6 +145,8 @@ const KEY_CATEGORY = {
   // Suppression de boutiques : exploitation, pas tarification ni livraison.
   [KEYS.FASTFOOD_DELETE_RETENTION_DAYS]: 'deployment',
   [KEYS.FASTFOOD_PURGE_INTERVAL_MS]: 'deployment',
+  [KEYS.TEST_APP_VERSION]: 'deployment',
+  [KEYS.TEST_FASTFOOD_VOLUME]: 'deployment',
 };
 
 // Garde-fou au chargement : une clé ajoutée à `KEYS` sans être rangée ici
@@ -211,6 +217,10 @@ const FALLBACKS = {
   // Purger trop tôt est irréversible ; purger trop tard ne coûte que du stockage.
   [KEYS.FASTFOOD_DELETE_RETENTION_DAYS]: 90,
   [KEYS.FASTFOOD_PURGE_INTERVAL_MS]: 86400000,
+  // Build de test : repli à « aucune ». Une clé absente ne doit JAMAIS servir
+  // des données de test à une vraie app.
+  [KEYS.TEST_APP_VERSION]: '',
+  [KEYS.TEST_FASTFOOD_VOLUME]: 500,
 };
 
 // Les réglages Apple Review n'ont VOLONTAIREMENT aucun repli : inventer une
@@ -352,6 +362,29 @@ async function isAppleReviewClient(req) {
 }
 
 /**
+ * Vrai si le client est la build de TEST (`test_app_version`). Générique : tout
+ * comportement réservé à la build de test s'appuie sur cette seule fonction.
+ *
+ * Égalité stricte sur le header `x-app-version` UNIQUEMENT, sans le repli
+ * `FRONTEND_APP_VERSION` de `resolveClientVersion` : un client sans header
+ * (ancienne app, curl) ne doit jamais être pris pour la build de test.
+ * Ne lève jamais : clé absente = aucune build de test.
+ */
+async function isTestClient(req) {
+  const s = await getSettings();
+  const testVersion = String(s[KEYS.TEST_APP_VERSION] || '').trim();
+  const headerVersion = String(req?.headers?.['x-app-version'] || '').trim();
+  return !!testVersion && headerVersion === testVersion;
+}
+
+/** Boutiques servies en mode volume à la build de test. Ne lève jamais. */
+async function getTestFastfoodVolume() {
+  const s = await getSettings();
+  const n = Number(s[KEYS.TEST_FASTFOOD_VOLUME]);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 500;
+}
+
+/**
  * État de version pour le client courant : faut-il bloquer (forceUpdate) ou
  * juste signaler qu'une nouvelle version existe (updateAvailable).
  * Ne lève jamais — clés absentes ou mal formées = repli "0.0.0", jamais bloquant.
@@ -378,4 +411,19 @@ async function setSetting(key, value) {
   return saved;
 }
 
-module.exports = { KEYS, KEY_CATEGORY, categoryOf, getSettings, getPricingSettings, getOtpSettings, getFastfoodDeletionSettings, getAppleReviewMode, isAppleReviewClient, getAppVersionGate, setSetting, invalidate };
+module.exports = {
+  KEYS,
+  KEY_CATEGORY,
+  categoryOf,
+  getSettings,
+  getPricingSettings,
+  getOtpSettings,
+  getFastfoodDeletionSettings,
+  getAppleReviewMode,
+  isAppleReviewClient,
+  isTestClient,
+  getTestFastfoodVolume,
+  getAppVersionGate,
+  setSetting,
+  invalidate,
+};

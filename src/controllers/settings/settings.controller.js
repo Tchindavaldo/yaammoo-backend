@@ -30,6 +30,8 @@ const VALUE_TYPES = {
   // Chaîne vide = aucune version en review : c'est la façon de désactiver le
   // bypass, elle doit rester acceptée.
   [KEYS.APPLE_VERSION_REVIEW_MODE]: 'text',
+  // Même logique : chaîne vide = aucune build de test.
+  [KEYS.TEST_APP_VERSION]: 'text',
   [KEYS.OTP_DEFAULT_COUNTRY_CODE]: 'digits',
 };
 
