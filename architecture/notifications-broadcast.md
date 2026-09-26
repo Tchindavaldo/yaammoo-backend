@@ -96,8 +96,9 @@ Lancée par `setImmediate` après la réponse 201. Ne lève jamais.
 1. Fil : `append_notification` par destinataire (8 en parallèle), ou un seul
    groupe pour `all`.
 2. Push : tokens par lots de 200 users, envois par lots de 100 tokens,
-   `imageUrl` transmise (voir [notifications.md](./notifications.md), Image).
-   Tokens stales supprimés.
+   `imageUrl` transmise (voir [notifications.md](./notifications.md), Image)
+   et la boutique en `sender` (logo en avatar, même doc). Le logo vient de
+   `getFastfoodContext` (`image`). Tokens stales supprimés.
 3. Socket `newNotification` : room du user, ou global pour `all`.
 4. Bilan : `recipients_count`, `pushed_count` sur l'envoi.
 
@@ -132,5 +133,8 @@ src/routes/notificationRoutes.js
 - iOS : image affichée par la Notification Service Extension de l'app (clé
   `imageUrl`), à partir de la build native qui l'embarque ; les builds
   antérieures affichent le texte seul.
+- Android, boutique avec logo : push en données seules. Les builds sans le
+  module `notification-style` affichent une notification classique, sans
+  l'image.
 - Audience `all` : le groupe de la boutique est servi à tous par
   `GET /notification/user`, sans pagination ; le fil grossit avec les envois.

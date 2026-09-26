@@ -34,7 +34,7 @@ const fromRow = row =>
 exports.getFastfoodContext = async fastFoodId => {
   const { data, error } = await supabase
     .from('fastfoods')
-    .select('id, user_id, name, cities, broadcast_plan, deleted_at')
+    .select('id, user_id, name, image, cities, broadcast_plan, deleted_at')
     .eq('id', fastFoodId)
     .maybeSingle();
   if (error) throw error;
@@ -43,6 +43,8 @@ exports.getFastfoodContext = async fastFoodId => {
     id: data.id,
     ownerUid: data.user_id,
     name: data.name || '',
+    // Logo : avatar des notifications envoyées (helpers/shopSender.js).
+    image: data.image || null,
     cities: Array.isArray(data.cities) ? data.cities.filter(c => typeof c === 'string') : [],
     plan: data.broadcast_plan || 'free',
   };

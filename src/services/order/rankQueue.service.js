@@ -10,6 +10,7 @@ const repos = require('../../repositories');
 const { getIO } = require('../../socket');
 const { toMerchantView } = require('./toMerchantView');
 const { notifyOrderEvent } = require('../notification/helpers/notifyOrderEvent');
+const { shopSender } = require('../notification/helpers/shopSender');
 
 const FCM_NOTIFY_MAX_QUEUE_SIZE = 20;
 
@@ -74,6 +75,9 @@ exports.reindexQueue = async ({ fastFoodId, deliveryDate, status, removedRank, f
   // Les autres changements de rank ne déclenchent pas de notification — éviter le spam.
   try {
     const firstOrders = updatedOrders.filter(o => o.rank === 1);
+    // Logo de la boutique en avatar ; lu seulement s'il y a quelqu'un à prévenir.
+    const fastFood = firstOrders.length > 0 ? await repos.fastfoods.getById(fastFoodId).catch(() => null) : null;
+    const sender = shopSender(fastFood);
     await Promise.all(
       firstOrders.map(order =>
         notifyOrderEvent({
@@ -83,6 +87,7 @@ exports.reindexQueue = async ({ fastFoodId, deliveryDate, status, removedRank, f
           body: 'Votre commande va être traitée.',
           orderId: order.id,
           route: status === 'pending' ? '/(tabs)/cart?section=pending' : '/(tabs)/cart?section=active',
+          sender,
         })
       )
     );

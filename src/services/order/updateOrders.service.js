@@ -22,6 +22,7 @@ const { validateOrder } = require('../../utils/validator/validateOrder');
 const { getFastFoodService } = require('../fastfood/getFastFood');
 const { assignRank, reindexQueue } = require('./rankQueue.service');
 const { notifyOrderEvent } = require('../notification/helpers/notifyOrderEvent');
+const { shopSender } = require('../notification/helpers/shopSender');
 const { reliableEmit } = require('../../utils/reliableEmit');
 const { settleDeliveryService } = require('./settleDelivery.service');
 const { enrichMenuForClient } = require('../menu/enrichMenuForClient');
@@ -320,8 +321,10 @@ exports.updateOrders = async (orders, userId) => {
           }
         });
 
-        // Notifications de transitions
+        // Notifications de transitions. Vers le client, c'est la boutique qui
+        // parle : son logo en avatar (shopSender). Vers le marchand, l'icône de l'app.
         const ffTransitions = transitions.filter(t => t.fastFoodId === fastFoodId);
+        const sender = shopSender(fastfood);
         for (const t of ffTransitions) {
           const notif = buildTransitionNotif({
             prevStatus: t.prevStatus,
@@ -330,7 +333,10 @@ exports.updateOrders = async (orders, userId) => {
             merchantUserId: fastfood.userId,
           });
           if (notif) {
-            notifyOrderEvent(notif).catch(e => console.warn('[updateOrders] notify error:', e.message));
+            const toClient = notif.targetUserId !== fastfood.userId;
+            notifyOrderEvent({ ...notif, sender: toClient ? sender : null }).catch(e =>
+              console.warn('[updateOrders] notify error:', e.message)
+            );
           }
         }
 

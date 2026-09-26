@@ -14,11 +14,14 @@ const sendApnsPush = require('../APNS/sendApnsPush.service');
  * `imageUrl` (optionnel) : image de la notification. Android l'affiche seul
  * (FCM) ; iOS la reçoit via `mutable-content` et ne l'affiche qu'avec une
  * Notification Service Extension dans l'app, sinon texte seul.
+ *
+ * `sender` (optionnel, `helpers/shopSender.js`) : boutique expéditrice
+ * `{ id, name, imageUrl }`. L'app affiche alors son logo en avatar.
  */
-const sendPushNotification = async ({ token, tokens, apnsTokens, title, body, data = {}, imageUrl }) => {
+const sendPushNotification = async ({ token, tokens, apnsTokens, title, body, data = {}, imageUrl, sender }) => {
   // === Branche legacy: 1 token unique ===
   if (token && !tokens && !apnsTokens) {
-    return sendSingleToken({ token, title, body, data, imageUrl });
+    return sendSingleToken({ token, title, body, data, imageUrl, sender });
   }
 
   const fcmList = Array.isArray(tokens) ? tokens.filter(Boolean) : [];
@@ -28,7 +31,7 @@ const sendPushNotification = async ({ token, tokens, apnsTokens, title, body, da
 
   // === APNs (iOS direct) ===
   if (apnsList.length > 0) {
-    results.apns = await sendApnsPush({ tokens: apnsList, title, body, data, imageUrl });
+    results.apns = await sendApnsPush({ tokens: apnsList, title, body, data, imageUrl, sender });
     if (results.apns.tokensToDelete) {
       results.tokensToDelete.push(...results.apns.tokensToDelete);
     }
@@ -36,7 +39,7 @@ const sendPushNotification = async ({ token, tokens, apnsTokens, title, body, da
 
   // === FCM (Android via Firebase Admin) ===
   if (fcmList.length > 0) {
-    const fcmResults = await Promise.all(fcmList.map(tok => sendSingleToken({ token: tok, title, body, data, imageUrl })));
+    const fcmResults = await Promise.all(fcmList.map(tok => sendSingleToken({ token: tok, title, body, data, imageUrl, sender })));
     results.fcm = {
       success: fcmResults.every(r => r.success),
       details: fcmResults,
@@ -55,11 +58,41 @@ const sendPushNotification = async ({ token, tokens, apnsTokens, title, body, da
   return { success: true, ...results };
 };
 
+const ANDROID_CHANNEL = 'high_priority_channel';
+
+/**
+ * Message FCM d'une boutique expéditrice : DATA SEULES, sans bloc
+ * `notification`. Avec ce bloc, Android affiche lui-même la notification app
+ * fermée, sans jamais passer par l'app — impossible d'y mettre le logo en
+ * avatar. En data seules, l'app construit la notification (expo-notifications
+ * lit `title` / `message` / `channelId`, le module `notification-style`
+ * la met en conversation avec `sender*`).
+ *
+ * ⚠️ `android.priority: 'high'` obligatoire : un message data seul part en
+ * priorité normale par défaut, retardé tant que le téléphone dort (Doze).
+ * Une version de l'app sans le module affiche une notification classique
+ * (sans l'image, que seul le bloc `notification` portait).
+ */
+const conversationMessage = ({ token, title, body, data, imageUrl, sender }) => ({
+  token,
+  data: {
+    ...data,
+    title: title || '',
+    message: body || '',
+    channelId: ANDROID_CHANNEL,
+    senderId: sender.id,
+    senderName: sender.name,
+    senderImageUrl: sender.imageUrl,
+    ...(imageUrl ? { imageUrl } : {}),
+  },
+  android: { priority: 'high' },
+});
+
 /**
  * Envoi d'un token unique (FCM natif ou Expo Push). Garde la compatibilité
  * avec les anciens appels qui passent juste { token, title, body, data }.
  */
-const sendSingleToken = async ({ token, title, body, data = {}, imageUrl }) => {
+const sendSingleToken = async ({ token, title, body, data = {}, imageUrl, sender }) => {
   const shortToken = String(token).substring(0, 40) + '...';
 
   if (typeof token === 'string' && token.startsWith('ExponentPushToken[')) {
@@ -77,12 +110,12 @@ const sendSingleToken = async ({ token, title, body, data = {}, imageUrl }) => {
   console.log(`\nFCM NATIVE → ${shortToken}`);
   console.log(`   Title: "${title}" | Body: "${body}"`);
 
-  const message = {
+  const message = sender ? conversationMessage({ token, title, body, data, imageUrl, sender }) : {
     token,
     notification: imageUrl ? { title, body, imageUrl } : { title, body },
     android: {
       notification: {
-        channelId: 'high_priority_channel',
+        channelId: ANDROID_CHANNEL,
         // `notification_icon` (silhouette blanche generee par expo-notifications),
         // PAS `ic_launcher` : Android ne garde que l'alpha de l'icone de notif, et
         // ic_launcher etant opaque partout, elle s'affichait en rond gris uni des

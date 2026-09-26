@@ -55,7 +55,8 @@ services/notification/
 ├── APNS/
 │   └── sendApnsPush.service.js              # APNs direct (node-apn, clé .p8)
 ├── helpers/
-│   └── notifyOrderEvent.js                  # getUserTokens, cleanStaleTokens, notifyOrderEvent
+│   ├── notifyOrderEvent.js                  # getUserTokens, cleanStaleTokens, notifyOrderEvent
+│   └── shopSender.js                        # boutique expéditrice (logo en avatar)
 ├── socket/
 └── whatsapp/
 
@@ -89,7 +90,7 @@ Table `user_push_tokens` (`user_id`, `device_id`, `token`, `platform`).
 
 ## Dispatcher push
 
-**`sendPushNotification.service.js`** — `{ tokens, apnsTokens, title, body, data, imageUrl? }` :
+**`sendPushNotification.service.js`** — `{ tokens, apnsTokens, title, body, data, imageUrl?, sender? }` :
 
 - tokens APNs → `sendApnsPush` (node-apn) ;
 - autres tokens → `sendSingleToken` : `ExponentPushToken[` → Expo Push API,
@@ -108,6 +109,32 @@ APNs `Unregistered` uniquement.
   extension ou échec : texte seul. `mutable-content` n'est posé qu'avec une
   image : les autres notifications ne passent pas par l'extension.
 - **Expo Push** (Expo Go uniquement) : pas d'image.
+
+### Boutique expéditrice (`sender`) — logo en avatar
+
+`helpers/shopSender.js` : `shopSender(fastFood)` → `{ id, name, imageUrl }`
+(logo `fastfoods.image` réduit à 256 px par `avatarUrl`, `thumbnailUrl.js`),
+ou `null` sans logo HTTPS. L'app affiche alors la notification comme un
+message de la boutique : logo à gauche, icône de l'app en pastille.
+
+| Envoi | `sender` |
+|---|---|
+| `boutique_broadcast` (`broadcastFanout.js`) | la boutique |
+| transitions vers le **client** (`updateOrders.service.js`) | la boutique de la commande |
+| `order_rank_top` (`rankQueue.service.js`) | la boutique (lue seulement s'il y a un rang 1) |
+| notifications vers le **marchand** | aucun (icône de l'app) |
+
+- **iOS (APNs)** : `senderId` / `senderName` / `senderImageUrl` dans le
+  payload + `mutable-content: 1`. L'extension de l'app en fait une
+  notification de communication.
+- **Android (FCM)** : message en **données seules** (`conversationMessage`) :
+  `title`, `message`, `channelId` (lus par expo-notifications) + `sender*` +
+  `imageUrl`, et `android.priority: 'high'` (sans, un message data seul est
+  retardé en veille). Plus de bloc `notification` : sinon Android affiche
+  lui-même la notification app fermée, sans passer par l'app.
+  ⚠️ Une version de l'app sans le module `notification-style` affiche ces
+  push en notification classique, sans l'image.
+- Sans `sender` : envoi inchangé.
 
 ### Icône Android (`android.notification.icon`)
 
@@ -144,7 +171,7 @@ du payload — où le champ `icon` prime sur le défaut du manifeste.
 |---|---|
 | `getUserTokens(userId)` | `{ fcm, apns }` depuis `user_push_tokens` |
 | `cleanStaleTokens(userId, tokens[])` | supprime ces tokens de `user_push_tokens` |
-| `notifyOrderEvent({targetUserId, type, title, body, orderId, route})` | tokens + `postNotificationService` avec `extraFcmData: {type, route, orderId}` |
+| `notifyOrderEvent({targetUserId, type, title, body, orderId, route, sender?})` | tokens + `postNotificationService` avec `extraFcmData: {type, route, orderId}` ; `sender` transmis au dispatcher |
 
 ## Types de notifications
 

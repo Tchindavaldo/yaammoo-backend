@@ -15,7 +15,8 @@ const sendPushNotification = require('../FCM/sendPushNotification.service');
 
 exports.postNotificationService = async dataGet => {
   try {
-    const { data, userId, fastFoodId, token, tokens, apnsTokens, extraFcmData = {} } = dataGet;
+    // `sender` : boutique expéditrice (helpers/shopSender.js), logo en avatar.
+    const { data, userId, fastFoodId, token, tokens, apnsTokens, extraFcmData = {}, sender } = dataGet;
     const fcmTargets = Array.isArray(tokens) && tokens.length > 0 ? tokens : token ? [token] : [];
     const apnsTargets = Array.isArray(apnsTokens) ? apnsTokens.filter(Boolean) : [];
 
@@ -39,6 +40,7 @@ exports.postNotificationService = async dataGet => {
         title,
         body,
         data: pushData,
+        sender,
       });
       const tokensToDelete = result?.tokensToDelete || [];
       if (userId && tokensToDelete.length > 0) {

@@ -28,7 +28,11 @@ const cleanStaleTokens = async (userId, staleTokens) => {
   }
 };
 
-exports.notifyOrderEvent = async ({ targetUserId, type, title, body, orderId, route }) => {
+/**
+ * `sender` (optionnel, `shopSender(fastFood)`) : la boutique qui « parle » au
+ * client. Absent pour une notification destinée au marchand.
+ */
+exports.notifyOrderEvent = async ({ targetUserId, type, title, body, orderId, route, sender }) => {
   if (!targetUserId) return { success: false, message: 'targetUserId requis' };
   try {
     const { fcm, apns } = await getUserTokens(targetUserId);
@@ -43,6 +47,7 @@ exports.notifyOrderEvent = async ({ targetUserId, type, title, body, orderId, ro
       tokens: fcm,
       apnsTokens: apns,
       extraFcmData,
+      sender,
     });
 
     if (result?.tokensToDelete && result.tokensToDelete.length > 0) {

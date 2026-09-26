@@ -15,6 +15,7 @@
 const repos = require('../../../repositories');
 const { getIO } = require('../../../socket');
 const sendPushNotification = require('../FCM/sendPushNotification.service');
+const { shopSender } = require('../helpers/shopSender');
 
 const FEED_CONCURRENCY = 8;
 const TOKEN_LOOKUP_CHUNK = 200;
@@ -155,7 +156,14 @@ exports.fanOutBroadcast = async ({ item, fastFood }) => {
     // L'expéditeur et le propriétaire ne reçoivent pas leur propre annonce.
     const exclude = new Set([item.senderUid, fastFood.ownerUid].filter(Boolean));
     const notif = buildNotif(item, fastFood);
-    const message = { title: item.title, body: item.body || '', imageUrl: item.imageUrl, data: pushDataOf(notif) };
+    const message = {
+      title: item.title,
+      body: item.body || '',
+      imageUrl: item.imageUrl,
+      data: pushDataOf(notif),
+      // Logo de la boutique en avatar de la notification.
+      sender: shopSender(fastFood),
+    };
 
     let result;
     if (item.audience === 'all') {

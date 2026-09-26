@@ -67,8 +67,23 @@ function withFastfoodThumbnail(fastfood) {
   return { ...fastfood, image: optimizedUrl(fastfood.image) };
 }
 
+/**
+ * Logo réduit à 256 px pour l'avatar d'une notification push : le téléphone
+ * le télécharge avant d'afficher la notification, sur réseau mobile. Largeur
+ * ET hauteur imposées avec `resize=cover` : l'image est recadrée au carré, pas
+ * déformée (la déformation vient de `width` seul, voir plus haut).
+ */
+function avatarUrl(url) {
+  if (typeof url !== 'string' || !url) return url;
+  if (!url.includes(OBJECT_PATH)) return url;
+  if (!TRANSFORM_ENABLED_HOSTS.some(host => url.includes(host))) return url;
+
+  return `${url.replace(OBJECT_PATH, RENDER_PATH)}?width=256&height=256&resize=cover&quality=80`;
+}
+
 module.exports = {
   optimizedUrl,
+  avatarUrl,
   withFastfoodThumbnail,
   // Conservé sous son ancien nom : déjà appelé par getFastFoods et
   // enrichMenuForClient.

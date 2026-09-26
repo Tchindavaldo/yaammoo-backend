@@ -37,7 +37,7 @@ const getProvider = () => {
   return provider;
 };
 
-const sendApnsPush = async ({ tokens, title, body, data = {}, imageUrl }) => {
+const sendApnsPush = async ({ tokens, title, body, data = {}, imageUrl, sender }) => {
   const targets = (tokens || []).filter(t => t && typeof t === 'string');
   if (targets.length === 0) {
     return { success: false, message: 'No APNs tokens' };
@@ -49,11 +49,16 @@ const sendApnsPush = async ({ tokens, title, body, data = {}, imageUrl }) => {
   notification.alert = { title, body };
   notification.sound = 'default';
   notification.topic = bundleId;
-  notification.payload = imageUrl ? { ...data, imageUrl } : data;
+  notification.payload = {
+    ...data,
+    ...(imageUrl ? { imageUrl } : {}),
+    ...(sender ? { senderId: sender.id, senderName: sender.name, senderImageUrl: sender.imageUrl } : {}),
+  };
   notification.contentAvailable = true;
-  // Image : `mutable-content` laisse une Notification Service Extension de
-  // l'app la télécharger et l'attacher. Sans extension, iOS affiche le texte.
-  if (imageUrl) notification.mutableContent = true;
+  // Image ou boutique expéditrice : `mutable-content` laisse la Notification
+  // Service Extension de l'app télécharger l'image et le logo (avatar de la
+  // notification). Sans extension, iOS affiche le texte.
+  if (imageUrl || sender) notification.mutableContent = true;
 
   try {
     const apnProvider = getProvider();
