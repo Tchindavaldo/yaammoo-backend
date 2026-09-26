@@ -37,7 +37,7 @@ const getProvider = () => {
   return provider;
 };
 
-const sendApnsPush = async ({ tokens, title, body, data = {} }) => {
+const sendApnsPush = async ({ tokens, title, body, data = {}, imageUrl }) => {
   const targets = (tokens || []).filter(t => t && typeof t === 'string');
   if (targets.length === 0) {
     return { success: false, message: 'No APNs tokens' };
@@ -49,8 +49,11 @@ const sendApnsPush = async ({ tokens, title, body, data = {} }) => {
   notification.alert = { title, body };
   notification.sound = 'default';
   notification.topic = bundleId;
-  notification.payload = data;
+  notification.payload = imageUrl ? { ...data, imageUrl } : data;
   notification.contentAvailable = true;
+  // Image : `mutable-content` laisse une Notification Service Extension de
+  // l'app la télécharger et l'attacher. Sans extension, iOS affiche le texte.
+  if (imageUrl) notification.mutableContent = true;
 
   try {
     const apnProvider = getProvider();

@@ -110,6 +110,37 @@ exports.cleanStaleTokens = async (userId, staleTokens) => {
   await supabase.from(PUSH).delete().eq('user_id', userId).in('token', staleTokens);
 };
 
+// ===== Diffusion en masse (notifications boutique, migration 053) =====
+// Lignes brutes `{ user_id, token, platform }` : l'appelant groupe par
+// plateforme et rattache les tokens stales à leur user.
+
+/** Tokens d'un lot d'utilisateurs (lot borné par l'appelant, ~200 ids). */
+exports.getPushTokensForUsers = async userIds => {
+  if (!userIds || userIds.length === 0) return [];
+  const { data, error } = await supabase.from(PUSH).select('user_id, token, platform').in('user_id', userIds);
+  if (error) throw error;
+  return data || [];
+};
+
+/** Une page de TOUS les tokens, dans un ordre stable. */
+exports.pagePushTokens = async (from, size) => {
+  const { data, error } = await supabase
+    .from(PUSH)
+    .select('user_id, token, platform')
+    .order('user_id')
+    .order('device_id')
+    .range(from, from + size - 1);
+  if (error) throw error;
+  return data || [];
+};
+
+/** Nombre total d'utilisateurs. */
+exports.countUsers = async () => {
+  const { count, error } = await supabase.from(TABLE).select('id', { count: 'exact', head: true });
+  if (error) throw error;
+  return count || 0;
+};
+
 exports.getUserByEmail = async email => {
   const { data, error } = await supabase.from(TABLE).select('*').eq('email', email).limit(1).maybeSingle();
   if (error) throw error;

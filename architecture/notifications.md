@@ -1,16 +1,28 @@
 # Notifications — Backend
 
-Module gérant l'envoi de push notifications (FCM natif + Expo Push) et la persistance Firestore.
+Module gérant l'envoi de push notifications (FCM natif Android + APNs iOS + Expo
+Push) et la persistance des fils de notifications en **Supabase** (table
+`notifications`).
+
+> Notifications envoyées **par une boutique** à des clients (plan, quota,
+> audiences) : voir [notifications-broadcast.md](./notifications-broadcast.md).
 
 ## Routes (`/notification`)
 
-| Méthode | Path                         | Controller                         | Description                                          |
-| ------- | ---------------------------- | ---------------------------------- | ---------------------------------------------------- |
-| POST    | `/notification`              | `sendPushNotificationController`   | Envoi push direct (sans persistance)                 |
-| POST    | `/notification/add`          | `postNotificationController`       | **Crée** notif Firestore + envoie push + émet socket |
-| GET     | `/notification/get?id=`      | `getNotificationController`        | Récupère une notif par id                            |
-| GET     | `/notification/user?userId=` | `getNotificationsController`       | Liste notifs d'un user (flatten)                     |
-| PUT     | `/notification/markAsRead`   | `markNotificationAsReadController` | Marque une notif comme lue                           |
+| Méthode | Path                                | Garde                                             | Controller                         | Description                                          |
+| ------- | ----------------------------------- | ------------------------------------------------- | ---------------------------------- | ---------------------------------------------------- |
+| POST    | `/notification`                     | `firebaseAuth` + `adminGuard`                     | `sendPushNotificationController`   | Envoi push direct (sans persistance)                 |
+| POST    | `/notification/add`                 | `firebaseAuth` + `adminGuard`                     | `postNotificationController`       | **Crée** la notif + envoie push + émet socket        |
+| GET     | `/notification/get?id=`             | public                                            | `getNotificationController`        | Récupère une notif par id                            |
+| GET     | `/notification/user?userId=`        | public                                            | `getNotificationsController`       | Liste notifs d'un user (flatten)                     |
+| PUT     | `/notification/markAsRead`          | public                                            | `markNotificationAsReadController` | Marque une notif comme lue                           |
+| GET     | `/notification/broadcast/:fastFoodId` | `firebaseAuth` + `notifications.send`           | `getBroadcastStateController`      | Plan, villes, derniers envois d'une boutique         |
+| POST    | `/notification/broadcast/:fastFoodId` | `firebaseAuth` + `notifications.send`           | `sendBroadcastController`          | Envoi d'une boutique à une audience (sous quota)     |
+
+> ⚠️ `POST /notification` et `POST /notification/add` étaient **publiques** :
+> sans compte, on pouvait pousser n'importe quel texte à n'importe quel
+> utilisateur. Réservées aux admins depuis la migration 053. L'app n'y fait
+> aucun appel ; les services internes passent par `postNotificationService`.
 
 ---
 
@@ -23,6 +35,8 @@ controllers/notifications/
 │   ├── getNotification.controller.js        # GET  /notification/get
 │   ├── getNotifications.controller.js       # GET  /notification/user
 │   └── markNotificationAsRead.controller.js # PUT  /notification/markAsRead
+├── broadcast/
+│   └── broadcast.controller.js              # GET/POST /notification/broadcast/:fastFoodId
 ├── FCM/
 │   └── sendPushNotification.controller.js   # POST /notification
 └── whatsapp/
@@ -30,29 +44,68 @@ controllers/notifications/
 
 services/notification/
 ├── request/
-│   ├── postNotification.service.js          # Core : Firestore + push + socket
+│   ├── postNotification.service.js          # Core : fil Supabase + push + socket
 │   ├── getNotification.services.js
 │   ├── getNotifications.services.js
 │   └── markNotificationAsRead.services.js
+├── broadcast/                               # Envois des boutiques (notifications-broadcast.md)
 ├── FCM/
-│   ├── sendPushNotification.service.js      # Dispatcher Expo/FCM
+│   ├── sendPushNotification.service.js      # Orchestrateur : FCM (Android) + APNs (iOS) + Expo
 │   └── sendExpoPushNotification.service.js  # Expo Push API
+├── APNS/
+│   └── sendApnsPush.service.js              # APNs direct (node-apn, clé .p8)
 ├── helpers/
 │   └── notifyOrderEvent.js                  # getUserTokens, cleanStaleTokens, notifyOrderEvent
 ├── socket/
 └── whatsapp/
+
+repositories/supabase/notifications.repo.js  # groupes + RPC append_notification / mark_notification_read
 ```
 
 ---
 
-## Dispatcher hybride Expo ↔ FCM
+## Stockage (Supabase)
 
-**`sendPushNotification.service.js`** — inspecte le token :
+Table `notifications` : un **groupe** par destinataire, les notifications dans
+`all_notif` (JSONB, plus récente en tête).
 
-- Commence par `ExponentPushToken[` → délégué à `sendExpoPushNotification` (POST `https://exp.host/--/api/v2/push/send`).
-- Sinon → `admin.messaging().send(message)` (firebase-admin).
+| Groupe | Colonnes | Visible par |
+|---|---|---|
+| Personnel | `user_id` | ce user |
+| Boutique | `fastfood_id`, `target = 'all'` | **tous** les users (`getAllForTarget('all')`), sauf la boutique elle-même (filtre `fastFoodId` de `GET /notification/user`) |
 
-Retour unifié : `{ success: boolean, response?, error? }`.
+- `append_notification(p_group_id, p_user_id, p_fastfood_id, p_target, p_notif)` :
+  prepend atomique, crée le groupe s'il n'existe pas.
+- `mark_notification_read(p_group_id, p_notif_id, p_user_id)` : ajoute l'uid à
+  `isRead` (idempotent).
+
+## Tokens push
+
+Table `user_push_tokens` (`user_id`, `device_id`, `token`, `platform`).
+`repos.users.collectUserTokens(user)` sépare `platform = 'ios'` (APNs) et
+`'android'` (FCM, ou Expo si le token commence par `ExponentPushToken[`).
+
+---
+
+## Dispatcher push
+
+**`sendPushNotification.service.js`** — `{ tokens, apnsTokens, title, body, data, imageUrl? }` :
+
+- tokens APNs → `sendApnsPush` (node-apn) ;
+- autres tokens → `sendSingleToken` : `ExponentPushToken[` → Expo Push API,
+  sinon `admin.messaging().send(message)`.
+
+Retour : `{ success, fcm: { details[] }, apns: { sent, failed }, tokensToDelete[] }`.
+Stales : FCM `registration-token-not-registered` / `invalid-registration-token`,
+APNs `Unregistered` uniquement.
+
+### Image (`imageUrl`)
+
+- **Android (FCM)** : `notification.imageUrl`, affichée par le système.
+- **iOS (APNs)** : `mutable-content: 1` + `imageUrl` dans le payload. L'image
+  n'est affichée que si l'app embarque une **Notification Service Extension**
+  qui la télécharge ; sinon, texte seul.
+- **Expo Push** (Expo Go uniquement) : pas d'image.
 
 ### Icône Android (`android.notification.icon`)
 
@@ -72,36 +125,24 @@ du payload — où le champ `icon` prime sur le défaut du manifeste.
 
 ## postNotification.service.js (flux complet)
 
-**Entrée** : `{ data: {title, body, type, ...}, userId?, fastFoodId?, token?, tokens?[], extraFcmData? }`
+**Entrée** : `{ data: {title, body, type, ...}, userId?, fastFoodId?, tokens?[], apnsTokens?[], extraFcmData? }`
 
-1. `targetTokens = tokens?.length ? tokens : (token ? [token] : [])`
-2. `validateNotificationData(data)` → retourne `errors[]` si invalide (400).
-3. `getNotificationService(userId || fastFoodId)` → cherche le doc container existant.
-4. Crée `newNotif = { id, title, body, type, isRead: [], createdAt }`.
-5. **Branche nouveau user** : `db.collection('notification').add({ userId/fastFoodId, allNotif: [newNotif] })`.
-   **Branche existant** : `update({ allNotif: [newNotif, ...existing] })`.
-6. `sendPushToAll(...)` :
-   - `Promise.allSettled(targetTokens.map(t => sendPushNotification({token: t, ...})))`.
-   - Collecte les tokens stales (`registration-token-not-registered`, `DeviceNotRegistered`, `not a valid FCM registration token`).
-   - Appelle `cleanStaleTokens(userId, stale)` → `arrayRemove` dans `users/{uid}.fcmTokens`.
-7. `io.to(userId || fastFoodId).emit('newNotification', { notification })` — pour sync UI en temps réel (le client injecte via `addFromSocket` sans refetch).
-8. Retourne `{ success, data, message }`.
-
-## postNotification.controller.js
-
-- Reçoit `{ userId, fastFoodId, token }` dans `req.body`.
-- Si pas `userId` ni `fastFoodId` → `400 parametre manquant`.
-- Si `token` présent → `tokens = [token]`.
-- Sinon si `userId` → `tokens = await getUserTokens(userId)` (lit `users/{uid}.fcmTokens`).
-- Passe `{ data: req.body, userId, fastFoodId, tokens }` au service.
+1. `userId` ET `fastFoodId` → refus.
+2. `validateNotificationData(data)` (`interface/notificationFields.js`) → `errors[]`.
+3. Construit `newNotif = { id, title, body, type, isRead: [], createdAt }`.
+4. `repos.notifications.appendNotification(...)` → groupe du user, ou de la
+   boutique (`target = 'all'`).
+5. Push via le dispatcher ; tokens stales supprimés de `user_push_tokens`.
+6. `io.to(userId || fastFoodId).emit('newNotification', { notification })` — le
+   client injecte via `addFromSocket` sans refetch.
 
 ## helpers/notifyOrderEvent.js
 
-| Export                                                              | Rôle                                                                                                |
-| ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `getUserTokens(userId)`                                             | Lit `users/{uid}.fcmTokens[]` dans Firestore                                                        |
-| `cleanStaleTokens(userId, tokens[])`                                | `arrayRemove` sur `users/{uid}.fcmTokens`                                                           |
-| `notifyOrderEvent({targetUserId, type, title, body, orderId, ...})` | Central helper : fetch tokens + postNotificationService avec `extraFcmData: {type, route, orderId}` |
+| Export | Rôle |
+|---|---|
+| `getUserTokens(userId)` | `{ fcm, apns }` depuis `user_push_tokens` |
+| `cleanStaleTokens(userId, tokens[])` | supprime ces tokens de `user_push_tokens` |
+| `notifyOrderEvent({targetUserId, type, title, body, orderId, route})` | tokens + `postNotificationService` avec `extraFcmData: {type, route, orderId}` |
 
 ## Types de notifications
 
@@ -116,6 +157,7 @@ du payload — où le champ `icon` prime sur le défaut du manifeste.
 | `order_rank_top` (file pending)         | `rankQueue.service.js` (top 5)     | user        | `/(tabs)/cart?section=pending`  |
 | `order_rank_top` (file processing)      | `rankQueue.service.js` (top 5)     | user        | `/(tabs)/cart?section=active`   |
 | `bonus`                                 | _(à émettre par le service bonus)_ | user        | `/(tabs)/cart?section=bonus`    |
+| `boutique_broadcast`                    | `broadcastFanout.js`               | audience de la boutique | `/(tabs)?shop=<nom>` (le home ouvre sa recherche) |
 
 **Convention query param** : `route` précis calculé côté backend dans `buildTransitionNotif()` / `rankQueue`. Le frontend consomme via `useLocalSearchParams()` dans `app/(tabs)/cart.tsx` pour basculer sur la bonne section.
 
@@ -136,34 +178,21 @@ Filtre sur `rank <= 5` uniquement (anti-spam) :
 - Rank 1 : `"Vous êtes le prochain !"` / `"Votre commande va être traitée."`
 - Rank 2-5 : `"Votre commande avance"` / `"Position {rank} dans la file..."`
 
-## Test manuel (curl)
+## Format `isRead`
 
-```bash
-curl -X POST http://localhost:5000/notification/add \
-  -H "Content-Type: application/json" \
-  -d '{"userId":"<uid>","title":"Test","body":"Hello","type":"order_status"}'
-```
+`isRead` d'une notif est un **array de `userId`** (`string[]`) dans `all_notif`.
+Permet :
 
-→ Charge `fcmTokens` du user depuis Firestore, envoie à chaque token via dispatcher, persiste dans `notification/`, émet socket `newNotification` sur la room `userId`.
-
-## Validator
-
-**`utils/validator/validateNotificationData.js`** — retourne `errors[]`. Champs requis typiques : `title`, `body`.
-
-## Format `isRead` en Firestore
-
-Le champ `isRead` d'une notif est stocké comme **array de `userId`** (`string[]`) — pas un boolean. Permet :
-
-- notifs de groupe (fastFood avec `target: 'all'`) lues indépendamment par chaque marchand ;
-- MAJ atomique `arrayUnion(userId)` dans `markNotificationAsRead.services.js` ;
-- émission socket `isRead` vers la room du user pour sync multi-device.
+- les groupes partagés (`target: 'all'`), lus indépendamment par chaque user ;
+- la MAJ atomique via `mark_notification_read` ;
+- l'émission socket `isRead` vers la room du user pour la sync multi-device.
 
 Le frontend tolère encore boolean/string pour rétro-compat mais écrit toujours en array.
 
 ## Clés de design
 
-1. **Dual Channel** : FCM pour OS-level + Socket pour sync in-app temps réel.
-2. **Multi-device** : `fcmTokens` array + `arrayUnion` côté user service. `isRead` array permet à chaque device de sync son état via l'event socket `isRead`.
-3. **Stale cleanup** : détection automatique + `arrayRemove`.
+1. **Dual Channel** : push pour l'OS + socket pour la sync in-app temps réel.
+2. **Multi-device** : une ligne `user_push_tokens` par appareil ; `isRead` array.
+3. **Stale cleanup** : détection automatique + suppression du token.
 4. **Dispatcher hybride** : un seul code path Expo Go / Dev build / Prod.
 5. **Deep-link par type** : `extraFcmData.route` calculé côté backend, consommé par le hook `useNotificationSetup` côté client.

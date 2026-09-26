@@ -2,6 +2,7 @@
 const express = require('express');
 const { getUsers, getOneUserByIdController, createUser, updateUser, getUserByEmail, getUserByPhone, addPushToken, removePushToken, deleteOwnAccount } = require('../controllers/user/userController');
 const firebaseAuth = require('../middlewares/authMiddleware');
+const { recordUserLocationController } = require('../controllers/user/userLocation.controller');
 
 const router = express.Router();
 
@@ -254,6 +255,50 @@ router.post('/push-token/add', firebaseAuth, addPushToken);
  *         description: Non authentifié
  */
 router.post('/push-token/remove', firebaseAuth, removePushToken);
+
+/**
+ * @swagger
+ * /user/location:
+ *   post:
+ *     summary: Enregistrer la position de l'utilisateur connecté
+ *     description: >
+ *       Ajoute une capture à l'historique (`user_locations`) et recopie la
+ *       dernière position sur l'utilisateur (`users.location_*`). Les champs de
+ *       lieu viennent du géocodage inverse du téléphone ; absents, la dernière
+ *       ville connue est conservée. L'utilisateur est celui du Bearer.
+ *     tags:
+ *       - Users
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [latitude, longitude, source]
+ *             properties:
+ *               latitude: { type: number, minimum: -90, maximum: 90 }
+ *               longitude: { type: number, minimum: -180, maximum: 180 }
+ *               accuracy: { type: number, description: Rayon d'incertitude (m) }
+ *               city: { type: string }
+ *               subregion: { type: string, description: Département }
+ *               region: { type: string }
+ *               district: { type: string, description: Quartier / arrondissement }
+ *               street: { type: string }
+ *               postalCode: { type: string }
+ *               country: { type: string }
+ *               isoCountryCode: { type: string }
+ *               source: { type: string, enum: [login, app_open, foreground, background] }
+ *               platform: { type: string, enum: [ios, android, web] }
+ *               capturedAt: { type: string, format: date-time }
+ *     responses:
+ *       201: { description: Position enregistrée }
+ *       400: { description: Payload invalide }
+ *       401: { description: Non authentifié }
+ *       404: { description: Utilisateur non trouvé }
+ */
+router.post('/location', firebaseAuth, recordUserLocationController);
 
 /**
  * @swagger
