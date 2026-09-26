@@ -103,8 +103,10 @@ APNs `Unregistered` uniquement.
 
 - **Android (FCM)** : `notification.imageUrl`, affichée par le système.
 - **iOS (APNs)** : `mutable-content: 1` + `imageUrl` dans le payload. L'image
-  n'est affichée que si l'app embarque une **Notification Service Extension**
-  qui la télécharge ; sinon, texte seul.
+  est téléchargée par la **Notification Service Extension** de l'app (cible
+  `NotificationService`, lit `imageUrl` ou `fcm_options.image`) ; build sans
+  extension ou échec : texte seul. `mutable-content` n'est posé qu'avec une
+  image : les autres notifications ne passent pas par l'extension.
 - **Expo Push** (Expo Go uniquement) : pas d'image.
 
 ### Icône Android (`android.notification.icon`)

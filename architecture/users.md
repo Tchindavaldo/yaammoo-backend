@@ -41,9 +41,8 @@ User {
   statistique: number       // Score utilisateur
   cmd: string[]            // Array IDs commandes
   pushTokens: PushToken[]  // Multi-device tokens
-  // Colonnes users.location_* (migration 054), écrites par POST /user/location,
-  // non exposées par le mapper : lat, lng, city, subregion, region, district,
-  // country, updated_at. Historique : table user_locations.
+  // Aucune colonne de localisation : tout est dans la table user_locations
+  // (migration 054), voir user-location.md.
   createdAt: ISO8601
   updatedAt: ISO8601
 }

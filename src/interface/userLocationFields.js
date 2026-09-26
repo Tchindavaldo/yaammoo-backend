@@ -13,6 +13,10 @@ exports.userLocationFields = {
   latitude: { type: 'number', required: true, min: -90, max: 90 },
   longitude: { type: 'number', required: true, min: -180, max: 180 },
   accuracy: { type: 'number', required: false, min: 0 },
+  altitude: { type: 'number', required: false, min: -1000, max: 10000 },
+  // m/s ; une vitesse inconnue (-1 sur iOS) est envoyée absente par l'app.
+  speed: { type: 'number', required: false, min: 0 },
+  heading: { type: 'number', required: false, min: 0, max: 360 },
   city: text,
   // Département au Cameroun.
   subregion: text,
@@ -20,9 +24,16 @@ exports.userLocationFields = {
   // Quartier / arrondissement.
   district: text,
   street: text,
+  streetNumber: { type: 'string', required: false, maxLength: 20 },
+  // Nom du lieu (bâtiment, repère) donné par le géocodeur.
+  placeName: text,
+  // Adresse complète (Android uniquement).
+  formattedAddress: { type: 'string', required: false, maxLength: 300 },
   postalCode: text,
   country: text,
   isoCountryCode: { type: 'string', required: false, maxLength: 3 },
+  // Fuseau du lieu, ex. Africa/Douala (iOS uniquement).
+  timezone: { type: 'string', required: false, maxLength: 64 },
   source: { type: 'string', required: true, allowedValues: exports.USER_LOCATION_SOURCES },
   platform: { type: 'string', required: false, allowedValues: ['ios', 'android', 'web'] },
   // Heure de capture côté téléphone (ISO 8601). Absente = heure de réception.

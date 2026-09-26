@@ -262,10 +262,9 @@ router.post('/push-token/remove', firebaseAuth, removePushToken);
  *   post:
  *     summary: Enregistrer la position de l'utilisateur connecté
  *     description: >
- *       Ajoute une capture à l'historique (`user_locations`) et recopie la
- *       dernière position sur l'utilisateur (`users.location_*`). Les champs de
- *       lieu viennent du géocodage inverse du téléphone ; absents, la dernière
- *       ville connue est conservée. L'utilisateur est celui du Bearer.
+ *       Ajoute une capture à l'historique (`user_locations`), seule table de
+ *       localisation (rien n'est écrit sur `users`). Les champs de lieu viennent
+ *       du géocodage inverse du téléphone. L'utilisateur est celui du Bearer.
  *     tags:
  *       - Users
  *     security:
@@ -281,14 +280,21 @@ router.post('/push-token/remove', firebaseAuth, removePushToken);
  *               latitude: { type: number, minimum: -90, maximum: 90 }
  *               longitude: { type: number, minimum: -180, maximum: 180 }
  *               accuracy: { type: number, description: Rayon d'incertitude (m) }
+ *               altitude: { type: number, description: m }
+ *               speed: { type: number, description: m/s }
+ *               heading: { type: number, description: Degrés (0 = nord) }
  *               city: { type: string }
  *               subregion: { type: string, description: Département }
  *               region: { type: string }
  *               district: { type: string, description: Quartier / arrondissement }
  *               street: { type: string }
+ *               streetNumber: { type: string }
+ *               placeName: { type: string, description: Nom du lieu }
+ *               formattedAddress: { type: string, description: Adresse complète (Android) }
  *               postalCode: { type: string }
  *               country: { type: string }
  *               isoCountryCode: { type: string }
+ *               timezone: { type: string, description: Fuseau (iOS) }
  *               source: { type: string, enum: [login, app_open, foreground, background] }
  *               platform: { type: string, enum: [ios, android, web] }
  *               capturedAt: { type: string, format: date-time }

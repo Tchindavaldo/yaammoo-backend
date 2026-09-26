@@ -1,8 +1,9 @@
 // ============================================================================
 // userLocationService — Position de l'utilisateur (migration 054)
 // ============================================================================
-// Chaque capture est AJOUTÉE à l'historique (jamais dédoublonnée : la suite des
-// positions sert au suivi), et la dernière position est recopiée sur `users`.
+// Chaque capture est AJOUTÉE à l'historique `user_locations` (jamais
+// dédoublonnée : la suite des positions sert au suivi). Rien n'est écrit sur
+// `users`.
 // ============================================================================
 const repos = require('../../repositories');
 const { generateId } = require('../../repositories/idGen');

@@ -83,7 +83,7 @@ Réglage `broadcast_plans` (table `settings_notification`, modifiable à chaud) 
 | Audience | Destinataires | Fil de notifications |
 |---|---|---|
 | `customers` | `fastfood_customer_ids(id)` : commandes réelles dans la boutique (`pendingToBuy` exclu, annulations incluses) | fil personnel de chacun |
-| `city` | `city_user_ids(ville)` : dernière ville connue (`users.location_city`, casse ignorée) ; sans localisation, villes des boutiques où le user a commandé | fil personnel de chacun |
+| `city` | `city_user_ids(ville)` : dernière ville connue (capture `user_locations` la plus récente ayant une ville, casse ignorée) ; sans localisation, villes des boutiques où le user a commandé | fil personnel de chacun |
 | `all` | tous les users | **un** groupe `target='all'` au nom de la boutique, déjà servi à tout le monde |
 
 L'expéditeur et le propriétaire sont exclus. Listes lues par pages de 1000
@@ -129,7 +129,8 @@ src/routes/notificationRoutes.js
 
 ## Limites connues
 
-- iOS : image affichée seulement avec une Notification Service Extension dans
-  l'app (absente à ce jour).
+- iOS : image affichée par la Notification Service Extension de l'app (clé
+  `imageUrl`), à partir de la build native qui l'embarque ; les builds
+  antérieures affichent le texte seul.
 - Audience `all` : le groupe de la boutique est servi à tous par
   `GET /notification/user`, sans pagination ; le fil grossit avec les envois.
