@@ -57,7 +57,7 @@ Firebase Auth le détient. Email déjà pris par un autre compte → 409.
 | `orders.cancel` | `cancelByFastFood` |
 | `menus.manage` | `POST /menu`, `PUT /menu/:id`, `DELETE /menu/:id` |
 | `fastfood.update` | `POST /fastFood/:id` |
-| `notifications.send` | déclarée — **pas encore appliquée** (voir limites) |
+| `notifications.send` | `GET/POST /notification/broadcast/:fastFoodId` (notifications de la boutique) |
 | `support.reply` | `POST /support/threads/:id/messages` avec `author: 'support'` |
 | `staff.manage` | toutes les routes `/staff/:fastFoodId/*` |
 
@@ -115,9 +115,9 @@ Payloads : `interface/staffFields.js`. Codes : 400 payload, 403 permission,
 
 ## Limites connues
 
-- `notifications.send` : `POST /notification*` ne porte pas la boutique
-  émettrice (`fastFoodId` y désigne le destinataire) — rien pour appliquer la
-  permission sans risquer de bloquer un employé agissant comme client.
+- `notifications.send` ne s'applique qu'à `/notification/broadcast/:fastFoodId`
+  (boutique émettrice dans l'URL). `POST /notification` et `/notification/add`
+  sont réservées aux admins.
 - Un employé est aussi un user normal : il peut commander ailleurs, rien ne change pour lui côté client.
 
 ## Fichiers

@@ -42,6 +42,7 @@ src/
 │   ├── menu/
 │   ├── notifications/
 │   │   ├── request/           # postNotification, getNotifications, markAsRead…
+│   │   ├── broadcast/         # notifications envoyées par les boutiques
 │   │   ├── FCM/               # sendPushNotification.controller
 │   │   └── whatsapp/
 │   ├── order/
@@ -58,6 +59,7 @@ src/
 │   ├── menu/
 │   ├── notification/
 │   │   ├── request/           # postNotification.service, get, markAsRead
+│   │   ├── broadcast/         # plan + quota, envoi, diffusion (notifications-broadcast.md)
 │   │   ├── FCM/               # sendPushNotification (dispatcher), sendExpoPushNotification
 │   │   ├── helpers/           # notifyOrderEvent, cleanStaleTokens, getUserTokens
 │   │   ├── socket/            # helpers d'émission socket
@@ -65,7 +67,7 @@ src/
 │   ├── order/                 # createOrder, updateOrders, rankQueue…
 │   ├── support/               # fils + messages, emitSupportMessage, notifySupportMessage
 │   ├── transaction/
-│   └── user/                  # userService (fcmTokens arrayUnion)
+│   └── user/                  # userService (push tokens) + userLocation.service (user-location.md)
 │
 ├── interface/                 # Définitions champs Firestore (schemas logiques)
 │

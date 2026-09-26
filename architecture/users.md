@@ -18,6 +18,7 @@ Gestion des utilisateurs : enregistrement, authentification, récupération de p
 | DELETE  | `/user/delete-account`    | `deleteOwnAccount`         | Supprime le compte (RGPD)               |
 | POST    | `/user/push-token/add`    | `addPushToken`             | Enregistre un token push (multi-device) |
 | POST    | `/user/push-token/remove` | `removePushToken`          | Désenregistre un token push             |
+| POST    | `/user/location`          | `recordUserLocationController` | Position du user connecté (historique + dernière position) — voir [user-location.md](./user-location.md) |
 
 ---
 
@@ -40,6 +41,8 @@ User {
   statistique: number       // Score utilisateur
   cmd: string[]            // Array IDs commandes
   pushTokens: PushToken[]  // Multi-device tokens
+  // Aucune colonne de localisation : tout est dans la table user_locations
+  // (migration 054), voir user-location.md.
   createdAt: ISO8601
   updatedAt: ISO8601
 }

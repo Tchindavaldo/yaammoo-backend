@@ -41,6 +41,8 @@ const sb = {
   phoneOtp: require('./supabase/phoneOtp.repo'),
   birdCosts: require('./supabase/birdCosts.repo'),
   staff: require('./supabase/staff.repo'),
+  fastfoodBroadcasts: require('./supabase/fastfoodBroadcasts.repo'),
+  userLocations: require('./supabase/userLocations.repo'),
 };
 
 // ===========================================================================
@@ -88,5 +90,7 @@ module.exports = {
   phoneOtp: sb.phoneOtp,
   birdCosts: sb.birdCosts,
   staff: sb.staff,
+  fastfoodBroadcasts: sb.fastfoodBroadcasts,
+  userLocations: sb.userLocations,
   supabase: sb,
 };

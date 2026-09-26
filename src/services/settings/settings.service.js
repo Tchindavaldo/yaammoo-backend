@@ -7,7 +7,8 @@
 // sans redéployer (`flyctl secrets set` redémarre la machine et ne rebuild pas
 // le code — cf. CLAUDE.md).
 //
-// Cinq catégories : auth, pricing, delivery, withdrawal, deployment. Chaque clé
+// Six catégories : auth, pricing, delivery, withdrawal, deployment, notification
+// (migration 053). Chaque clé
 // appartient à UNE catégorie, déclarée dans `KEY_CATEGORY` ci-dessous — c'est
 // elle qui décide de la table écrite. Ajouter une clé à `KEYS` sans l'y ranger
 // est une erreur détectée au démarrage.
@@ -97,6 +98,10 @@ const KEYS = {
   TEST_FASTFOOD_VOLUME: 'test_fastfood_volume',
   // Migration 052 : gabarit d'URL (`{seed}`) des images du mode volume.
   TEST_VOLUME_IMAGE_URL: 'test_volume_image_url',
+  // Notifications boutique (migration 053) : plans (quotas + audiences) et
+  // fuseau des bornes de quota. Lus via `broadcastPlan.js`.
+  BROADCAST_PLANS: 'broadcast_plans',
+  BROADCAST_UTC_OFFSET_MINUTES: 'broadcast_utc_offset_minutes',
 };
 
 // ---------------------------------------------------------------------------
@@ -150,6 +155,10 @@ const KEY_CATEGORY = {
   [KEYS.TEST_APP_VERSION]: 'deployment',
   [KEYS.TEST_FASTFOOD_VOLUME]: 'deployment',
   [KEYS.TEST_VOLUME_IMAGE_URL]: 'deployment',
+
+  // notification — notifications envoyées par les boutiques
+  [KEYS.BROADCAST_PLANS]: 'notification',
+  [KEYS.BROADCAST_UTC_OFFSET_MINUTES]: 'notification',
 };
 
 // Garde-fou au chargement : une clé ajoutée à `KEYS` sans être rangée ici
@@ -226,6 +235,12 @@ const FALLBACKS = {
   [KEYS.TEST_FASTFOOD_VOLUME]: 500,
   // Vide = les clones gardent les images réelles.
   [KEYS.TEST_VOLUME_IMAGE_URL]: '',
+  // Plan gratuit de la migration 053 : une clé illisible ne coupe pas l'envoi
+  // et n'ouvre pas plus que le plan de base.
+  [KEYS.BROADCAST_PLANS]: {
+    free: { label: 'Gratuit', dayLimit: 3, weekLimit: 10, audiences: ['customers', 'city', 'all'] },
+  },
+  [KEYS.BROADCAST_UTC_OFFSET_MINUTES]: 60,
 };
 
 // Les réglages Apple Review n'ont VOLONTAIREMENT aucun repli : inventer une

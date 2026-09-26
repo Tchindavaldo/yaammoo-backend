@@ -10,6 +10,7 @@ const STORAGE_FOLDERS = [
   'banners', // carrousel pub du home
   'voiceNotes', // notes vocales de livraison (commandes)
   'bonusProofs', // videos de preuve des bonus
+  'broadcasts', // images des notifications envoyees par les boutiques
 ];
 
 module.exports = { STORAGE_FOLDERS };
