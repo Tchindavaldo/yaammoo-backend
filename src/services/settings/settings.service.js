@@ -95,6 +95,8 @@ const KEYS = {
   // comportements de test (ex. mode volume de `GET /fastFood/all`). Vide = aucune.
   TEST_APP_VERSION: 'test_app_version',
   TEST_FASTFOOD_VOLUME: 'test_fastfood_volume',
+  // Migration 052 : gabarit d'URL (`{seed}`) des images du mode volume.
+  TEST_VOLUME_IMAGE_URL: 'test_volume_image_url',
 };
 
 // ---------------------------------------------------------------------------
@@ -147,6 +149,7 @@ const KEY_CATEGORY = {
   [KEYS.FASTFOOD_PURGE_INTERVAL_MS]: 'deployment',
   [KEYS.TEST_APP_VERSION]: 'deployment',
   [KEYS.TEST_FASTFOOD_VOLUME]: 'deployment',
+  [KEYS.TEST_VOLUME_IMAGE_URL]: 'deployment',
 };
 
 // Garde-fou au chargement : une clé ajoutée à `KEYS` sans être rangée ici
@@ -221,6 +224,8 @@ const FALLBACKS = {
   // des données de test à une vraie app.
   [KEYS.TEST_APP_VERSION]: '',
   [KEYS.TEST_FASTFOOD_VOLUME]: 500,
+  // Vide = les clones gardent les images réelles.
+  [KEYS.TEST_VOLUME_IMAGE_URL]: '',
 };
 
 // Les réglages Apple Review n'ont VOLONTAIREMENT aucun repli : inventer une
@@ -385,6 +390,15 @@ async function getTestFastfoodVolume() {
 }
 
 /**
+ * Gabarit d'URL des images du mode volume (`{seed}` = id cloné). Chaîne vide =
+ * images réelles gardées. Ne lève jamais.
+ */
+async function getTestVolumeImageUrl() {
+  const s = await getSettings();
+  return String(s[KEYS.TEST_VOLUME_IMAGE_URL] || '').trim();
+}
+
+/**
  * État de version pour le client courant : faut-il bloquer (forceUpdate) ou
  * juste signaler qu'une nouvelle version existe (updateAvailable).
  * Ne lève jamais — clés absentes ou mal formées = repli "0.0.0", jamais bloquant.
@@ -423,6 +437,7 @@ module.exports = {
   isAppleReviewClient,
   isTestClient,
   getTestFastfoodVolume,
+  getTestVolumeImageUrl,
   getAppVersionGate,
   setSetting,
   invalidate,

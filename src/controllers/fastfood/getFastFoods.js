@@ -2,7 +2,7 @@ const { getFastFoodsService } = require('../../services/fastfood/getFastFoods');
 const { getActiveBanners } = require('../../services/banners/banners.service');
 const { withBannerThumbnail } = require('../../services/images/thumbnailUrl');
 const { formatFastfoodsForClient } = require('../../utils/deliveryHoursFormat');
-const { getAppleReviewMode, isTestClient, getTestFastfoodVolume } = require('../../services/settings/settings.service');
+const { getAppleReviewMode, isTestClient, getTestFastfoodVolume, getTestVolumeImageUrl } = require('../../services/settings/settings.service');
 const { getVolumeTestPage } = require('../../services/fastfood/volumeTestFastFoods');
 
 /** Borne la taille de page : un `?limit=5000` annulerait tout l'intérêt. */
@@ -28,7 +28,8 @@ exports.getfastfoodController = async (req, res) => {
     let result;
     if (volumeTest) {
       const volume = await getTestFastfoodVolume();
-      result = await getVolumeTestPage(req.user?.uid, { limit, cursor }, volume);
+      const imageUrl = await getTestVolumeImageUrl();
+      result = await getVolumeTestPage(req.user?.uid, { limit, cursor }, { volume, imageUrl });
     } else {
       result = await getFastFoodsService(req.user?.uid, limit ? { limit, cursor, q } : undefined);
     }

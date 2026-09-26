@@ -32,6 +32,8 @@ const VALUE_TYPES = {
   [KEYS.APPLE_VERSION_REVIEW_MODE]: 'text',
   // Même logique : chaîne vide = aucune build de test.
   [KEYS.TEST_APP_VERSION]: 'text',
+  // Chaîne vide = images réelles gardées par le mode volume.
+  [KEYS.TEST_VOLUME_IMAGE_URL]: 'text',
   [KEYS.OTP_DEFAULT_COUNTRY_CODE]: 'digits',
 };
 

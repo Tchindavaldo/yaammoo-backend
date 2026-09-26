@@ -115,6 +115,12 @@ des données réelles. Même route, même contrat de réponse.
 - **Identifiants** : `vt<rang>-<id réel>`, stables d'un appel à l'autre. Les
   plats clonés portent l'id de leur boutique clonée : une commande passée sur un
   clone échoue au lieu d'atterrir chez le vrai marchand.
+- **Images** : `test_volume_image_url` (migration 052), gabarit d'URL contenant
+  `{seed}`, remplacé par l'id cloné de la boutique (`image`) et de chaque plat
+  (`image`, `coverImage`, `images[]`). Chaque clone a donc sa propre image,
+  vraiment téléchargée : sinon les clones réutilisent les URLs réelles, déjà en
+  cache, et le test ne mesure aucun chargement. Défaut : Picsum
+  (`https://picsum.photos/seed/{seed}/600/400`). Vide = images réelles.
 - **Curseur** : le rang de la boutique suivante, en base64url (opaque aussi).
 - **Limites** : mode paginé uniquement (`limit` présent) et jamais sur une
   recherche `q`, servie par les données réelles.
@@ -124,6 +130,9 @@ Activer / couper, sans redéployer (cache `SETTINGS_CACHE_TTL_MS`) :
 ```sql
 UPDATE settings_deployment SET value = '"1.1.1"'::jsonb WHERE key = 'test_app_version';
 UPDATE settings_deployment SET value = '""'::jsonb      WHERE key = 'test_app_version';
+-- Images : Picsum, ou vide pour garder les images réelles
+UPDATE settings_deployment SET value = '"https://picsum.photos/seed/{seed}/600/400"'::jsonb WHERE key = 'test_volume_image_url';
+UPDATE settings_deployment SET value = '""'::jsonb WHERE key = 'test_volume_image_url';
 ```
 
 > ⚠️ Couper le mode (valeur vide) avant qu'une version publiée sur les stores
@@ -135,7 +144,7 @@ UPDATE settings_deployment SET value = '""'::jsonb      WHERE key = 'test_app_ve
 |---|---|
 | `repositories/supabase/fastfoods.repo.js` | `getPage()` — tri, curseur, jointure, dédup. `getAll()` intact. |
 | `services/fastfood/volumeTestFastFoods.js` | Mode volume : clones paginés des boutiques réelles. |
-| `services/settings/settings.service.js` | `isTestClient(req)`, `getTestFastfoodVolume()`. |
+| `services/settings/settings.service.js` | `isTestClient(req)`, `getTestFastfoodVolume()`, `getTestVolumeImageUrl()`. |
 | `services/fastfood/getFastFoods.js` | 2e argument optionnel ; renvoie `{items, nextCursor}` en paginé, un tableau sinon. |
 | `controllers/fastfood/getFastFoods.js` | Query params, plafond `MAX_LIMIT`, bannières page 1. |
 
