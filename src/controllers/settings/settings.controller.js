@@ -36,6 +36,8 @@ const VALUE_TYPES = {
   [KEYS.TEST_APP_VERSION]: 'versions',
   // Tableau d'uid de test (migration 057) : [] = aucun.
   [KEYS.TEST_USER_IDS]: 'ids',
+  // Versions tolérées sans jeton (migration 058) : [] = aucune.
+  [KEYS.TEST_NO_AUTH_VERSIONS]: 'versions',
   // Chaîne vide = images réelles gardées par le mode volume.
   [KEYS.TEST_VOLUME_IMAGE_URL]: 'text',
   [KEYS.OTP_DEFAULT_COUNTRY_CODE]: 'digits',

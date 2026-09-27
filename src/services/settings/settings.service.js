@@ -99,6 +99,8 @@ const KEYS = {
   // Migration 057 : uid des utilisateurs de test (tableau), traités comme une
   // build de test quelle que soit leur version. [] = aucun.
   TEST_USER_IDS: 'test_user_ids',
+  // Migration 058 : versions d'app tolérées SANS jeton (tableau). [] = aucune.
+  TEST_NO_AUTH_VERSIONS: 'test_no_auth_versions',
   TEST_FASTFOOD_VOLUME: 'test_fastfood_volume',
   // Migration 052 : gabarit d'URL (`{seed}`) des images du mode volume.
   TEST_VOLUME_IMAGE_URL: 'test_volume_image_url',
@@ -164,6 +166,7 @@ const KEY_CATEGORY = {
   // test — build de test (sorties de `deployment` par la migration 055)
   [KEYS.TEST_APP_VERSION]: 'test',
   [KEYS.TEST_USER_IDS]: 'test',
+  [KEYS.TEST_NO_AUTH_VERSIONS]: 'test',
   [KEYS.TEST_FASTFOOD_VOLUME]: 'test',
   [KEYS.TEST_VOLUME_IMAGE_URL]: 'test',
 
@@ -248,6 +251,8 @@ const FALLBACKS = {
   // des données de test à une vraie app.
   [KEYS.TEST_APP_VERSION]: [],
   [KEYS.TEST_USER_IDS]: [],
+  // Repli fermé : une clé absente ne tolère personne sans jeton.
+  [KEYS.TEST_NO_AUTH_VERSIONS]: [],
   [KEYS.TEST_FASTFOOD_VOLUME]: 500,
   // Vide = les clones gardent les images réelles.
   [KEYS.TEST_VOLUME_IMAGE_URL]: '',
@@ -424,6 +429,19 @@ async function isTestClient(req, userId) {
   return !!uid && toList(s[KEYS.TEST_USER_IDS]).includes(uid);
 }
 
+/**
+ * Vrai si la version du client (header `x-app-version` seul) figure dans
+ * `test_no_auth_versions` : tolérée sans jeton sur les routes protégées.
+ * Ne lève jamais : clé absente = personne.
+ */
+async function isNoAuthToleratedClient(req) {
+  const s = await getSettings();
+  const raw = s[KEYS.TEST_NO_AUTH_VERSIONS];
+  const versions = (Array.isArray(raw) ? raw : []).map(v => String(v ?? '').trim()).filter(Boolean);
+  const headerVersion = String(req?.headers?.['x-app-version'] || '').trim();
+  return !!headerVersion && versions.includes(headerVersion);
+}
+
 /** Boutiques servies en mode volume à la build de test. Ne lève jamais. */
 async function getTestFastfoodVolume() {
   const s = await getSettings();
@@ -494,6 +512,7 @@ module.exports = {
   getAppleReviewMode,
   isAppleReviewClient,
   isTestClient,
+  isNoAuthToleratedClient,
   getTestFastfoodVolume,
   getTestVolumeImageUrl,
   getClientSettings,

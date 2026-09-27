@@ -186,6 +186,7 @@ route.get('', firebaseAuth, getSettingsController);
  *             # test (settings_test)
  *             - test_app_version
  *             - test_user_ids
+ *             - test_no_auth_versions
  *             - test_fastfood_volume
  *             - test_volume_image_url
  *     requestBody:

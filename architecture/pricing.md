@@ -354,3 +354,4 @@ src/
 | `055_settings_client_and_test.sql`         | tables `settings_client` (affichage de l'app) et `settings_test` (clés `test_*` sorties de `settings_deployment`). À appliquer AVANT le déploiement du code |
 | `056_test_app_versions_array.sql`          | `test_app_version` devient un tableau de versions ; ces versions ont aussi le paiement gratuit. Ordre de déploiement indifférent |
 | `057_settings_test_user_ids.sql`           | `test_user_ids` (settings_test) : uid de test, mêmes comportements qu'une version de test quelle que soit la version. Ordre indifférent |
+| `058_settings_test_no_auth_versions.sql`   | `test_no_auth_versions` (settings_test) : versions tolérées sans jeton sur les routes protégées, défaut `["1.1.0","1.1.1"]`. Ordre indifférent |

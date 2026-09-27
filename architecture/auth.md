@@ -31,8 +31,9 @@ partout. Les résolveurs vivent dans `middlewares/staffPermissionMiddleware.js`.
 | `POST /transaction/webhook/mobilewallet` | Appel serveur MobileWallet ⚠️ non signé |
 | `GET /payment-page` | Page statique de la WebView (n'appelle aucune API) |
 
-**Builds de test tolérées** : une requête SANS jeton dont le header
-`x-app-version` figure dans `test_app_version` passe comme une ancienne app
+**Versions tolérées sans jeton** : une requête SANS jeton dont le header
+`x-app-version` figure dans `test_no_auth_versions` (settings_test, migration
+058, défaut `["1.1.0","1.1.1"]`) passe comme une ancienne app
 (`req.legacyNoAuth`, `authorize` ne contrôle rien). ⚠️ Le header se falsifie :
 garder ce tableau vide hors période de test. Les routes qui lisent l'uid du
 jeton (portefeuille, bonus…) ou réservées admin / boutique restent fermées.
