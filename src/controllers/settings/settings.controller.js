@@ -17,6 +17,8 @@ const EDITABLE_KEYS = new Set(Object.values(KEYS));
 // 'number'  : nombre fini >= 0 (montants, pourcentages, seuils, durées)
 // 'boolean' : booléen strict
 // 'version' : chaîne "x.y.z"
+// 'versions': tableau de chaînes "x.y.z", vide autorisé
+// 'ids'     : tableau de chaînes non vides (uid), vide autorisé
 // 'text'    : chaîne libre, vide autorisée (une version en review qu'on efface)
 // 'digits'  : chaîne de chiffres non vide (indicatif téléphonique)
 //
@@ -30,8 +32,10 @@ const VALUE_TYPES = {
   // Chaîne vide = aucune version en review : c'est la façon de désactiver le
   // bypass, elle doit rester acceptée.
   [KEYS.APPLE_VERSION_REVIEW_MODE]: 'text',
-  // Même logique : chaîne vide = aucune build de test.
-  [KEYS.TEST_APP_VERSION]: 'text',
+  // Tableau de versions de test (migration 056) : [] = aucune.
+  [KEYS.TEST_APP_VERSION]: 'versions',
+  // Tableau d'uid de test (migration 057) : [] = aucun.
+  [KEYS.TEST_USER_IDS]: 'ids',
   // Chaîne vide = images réelles gardées par le mode volume.
   [KEYS.TEST_VOLUME_IMAGE_URL]: 'text',
   [KEYS.OTP_DEFAULT_COUNTRY_CODE]: 'digits',
@@ -48,6 +52,16 @@ function validateSettingValue(key, value) {
 
     case 'version':
       return typeof value === 'string' && /^\d+\.\d+\.\d+$/.test(value) ? null : '`value` doit être une version au format "x.y.z".';
+
+    case 'versions':
+      return Array.isArray(value) && value.every(v => typeof v === 'string' && /^\d+\.\d+\.\d+$/.test(v))
+        ? null
+        : '`value` doit être un tableau de versions "x.y.z" (vide autorisé).';
+
+    case 'ids':
+      return Array.isArray(value) && value.every(v => typeof v === 'string' && v.trim() !== '')
+        ? null
+        : '`value` doit être un tableau d\'ID (chaînes non vides, vide autorisé).';
 
     case 'text':
       return typeof value === 'string' ? null : '`value` doit être une chaîne.';

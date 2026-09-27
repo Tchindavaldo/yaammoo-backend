@@ -92,10 +92,13 @@ const KEYS = {
   // à chaud, typiquement pour sauver une boutique dont les 30 jours expirent.
   FASTFOOD_DELETE_RETENTION_DAYS: 'fastfood_delete_retention_days',
   FASTFOOD_PURGE_INTERVAL_MS: 'fastfood_purge_interval_ms',
-  // Build de TEST (migration 051, table `settings_test` depuis la 055) : version
-  // d'app exacte qui reçoit les comportements de test (ex. mode volume de
-  // `GET /fastFood/all`). Vide = aucune.
+  // Builds de TEST (migration 051, table `settings_test` depuis la 055, tableau
+  // depuis la 056) : versions d'app exactes qui reçoivent les comportements de
+  // test (mode volume de `GET /fastFood/all`, paiement gratuit). [] = aucune.
   TEST_APP_VERSION: 'test_app_version',
+  // Migration 057 : uid des utilisateurs de test (tableau), traités comme une
+  // build de test quelle que soit leur version. [] = aucun.
+  TEST_USER_IDS: 'test_user_ids',
   TEST_FASTFOOD_VOLUME: 'test_fastfood_volume',
   // Migration 052 : gabarit d'URL (`{seed}`) des images du mode volume.
   TEST_VOLUME_IMAGE_URL: 'test_volume_image_url',
@@ -160,6 +163,7 @@ const KEY_CATEGORY = {
 
   // test — build de test (sorties de `deployment` par la migration 055)
   [KEYS.TEST_APP_VERSION]: 'test',
+  [KEYS.TEST_USER_IDS]: 'test',
   [KEYS.TEST_FASTFOOD_VOLUME]: 'test',
   [KEYS.TEST_VOLUME_IMAGE_URL]: 'test',
 
@@ -242,7 +246,8 @@ const FALLBACKS = {
   [KEYS.FASTFOOD_PURGE_INTERVAL_MS]: 86400000,
   // Build de test : repli à « aucune ». Une clé absente ne doit JAMAIS servir
   // des données de test à une vraie app.
-  [KEYS.TEST_APP_VERSION]: '',
+  [KEYS.TEST_APP_VERSION]: [],
+  [KEYS.TEST_USER_IDS]: [],
   [KEYS.TEST_FASTFOOD_VOLUME]: 500,
   // Vide = les clones gardent les images réelles.
   [KEYS.TEST_VOLUME_IMAGE_URL]: '',
@@ -393,19 +398,30 @@ async function isAppleReviewClient(req) {
 }
 
 /**
- * Vrai si le client est la build de TEST (`test_app_version`). Générique : tout
- * comportement réservé à la build de test s'appuie sur cette seule fonction.
+ * Vrai si le client est une build de TEST : sa version figure dans
+ * `test_app_version` (tableau depuis la migration 056). Générique : tout
+ * comportement réservé aux builds de test (mode volume, paiement gratuit)
+ * s'appuie sur cette seule fonction.
  *
  * Égalité stricte sur le header `x-app-version` UNIQUEMENT, sans le repli
  * `FRONTEND_APP_VERSION` de `resolveClientVersion` : un client sans header
- * (ancienne app, curl) ne doit jamais être pris pour la build de test.
- * Ne lève jamais : clé absente = aucune build de test.
+ * (ancienne app, curl) ne doit jamais être pris pour une build de test.
+ * Ancienne forme chaîne acceptée (migration 056 pas encore appliquée).
+ *
+ * OU l'utilisateur figure dans `test_user_ids` (migration 057), quelle que
+ * soit sa version : `userId` explicite (corps de `POST /transaction`), sinon
+ * l'uid du token (`req.user`, route à auth optionnelle).
+ * Ne lève jamais : clés absentes = aucune build de test.
  */
-async function isTestClient(req) {
+async function isTestClient(req, userId) {
   const s = await getSettings();
-  const testVersion = String(s[KEYS.TEST_APP_VERSION] || '').trim();
+  const toList = raw => (Array.isArray(raw) ? raw : [raw])
+    .map(v => String(v ?? '').trim())
+    .filter(Boolean);
   const headerVersion = String(req?.headers?.['x-app-version'] || '').trim();
-  return !!testVersion && headerVersion === testVersion;
+  if (headerVersion && toList(s[KEYS.TEST_APP_VERSION]).includes(headerVersion)) return true;
+  const uid = String(userId || req?.user?.uid || '').trim();
+  return !!uid && toList(s[KEYS.TEST_USER_IDS]).includes(uid);
 }
 
 /** Boutiques servies en mode volume à la build de test. Ne lève jamais. */

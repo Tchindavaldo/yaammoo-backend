@@ -46,7 +46,7 @@ Documentation d'architecture du backend Node.js / Express / Supabase / Socket.io
 | [socket-events.md](./socket-events.md)                   | Événements Socket.io — émetteurs, destinataires, rooms                                                                                                      | ✅     |
 | [auth.md](./auth.md)                                     | Authentification — middleware Bearer, routes `/auth`, Firebase tokens                                                                                       | ✅     |
 | [banners.md](./banners.md)                                 | **Banners** — carrousel pub du home, table `banners`, CRUD admin, `/banner`, injection dans `/fastfood/all`, réordonnancement auto                       | ✅     |
-| [fastfood-pagination.md](./fastfood-pagination.md)         | **`GET /fastfood/all` paginé** — curseur `(created_at, id)`, recherche `?q=`, jointure anti-boutique-vide, rétrocompatibilité, réglages d'affichage `clientSettings` (`settings_client`), **mode volume de la build de test** (`test_app_version`)                            | ✅     |
+| [fastfood-pagination.md](./fastfood-pagination.md)         | **`GET /fastfood/all` paginé** — curseur `(created_at, id)`, recherche `?q=`, jointure anti-boutique-vide, rétrocompatibilité, réglages d'affichage `clientSettings` (`settings_client`), **mode volume des builds de test** (tableau `test_app_version`)                            | ✅     |
 
 ### Infrastructure (Patterns & Configuration)
 

@@ -12,7 +12,10 @@ via `PATCH /settings/:key` — plus aucune variable d'env :
 
 Le bypass de `POST /transaction` (`payBy=mobilemoney`) se déclenche sur **égalité stricte**
 entre le header `x-app-version` du client et `apple_version_review_mode` : la build soumise
-à Apple ne paie pas, toutes les autres versions paient normalement. Il **bypasse entièrement
+à Apple ne paie pas. Même bypass pour toute version listée dans `test_app_version`
+(`settings_test`, tableau depuis la migration 056, ex. `["1.1.0","1.1.1"]`) : les builds
+de test ne paient pas. Idem pour un `userId` listé dans `test_user_ids` (migration 057),
+quelle que soit sa version. Toutes les autres versions paient normalement. Il **bypasse entièrement
 MobileWallet** :
 
 1. Validation normale (`items`, `phone`, etc.) — le frontend envoie exactement la même requête

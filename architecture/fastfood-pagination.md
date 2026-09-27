@@ -133,10 +133,12 @@ reçoit un catalogue de `test_fastfood_volume` boutiques (500 par défaut) au li
 des données réelles. Même route, même contrat de réponse.
 
 - **Déclencheur** : `test_app_version` (`settings_test` : migration 051, sortie
-  de `settings_deployment` par la 055)
-  égal au header `x-app-version` du client. Égalité stricte sur le header
-  seulement : un client sans header n'est jamais la build de test. Vide = mode
-  coupé pour tout le monde. Réglage générique, réutilisable par tout futur
+  de `settings_deployment` par la 055, **tableau** depuis la 056) contenant le
+  header `x-app-version` du client. Égalité stricte sur le header seulement :
+  un client sans header n'est jamais une build de test. `[]` = mode coupé pour
+  tout le monde. Ces versions ont aussi le **paiement gratuit** (voir
+  [payment.md](./payment.md)). Un user **connecté** listé dans `test_user_ids`
+  (migration 057) est traité pareil, quelle que soit sa version. Réglage générique, réutilisable par tout futur
   comportement réservé à la build de test (`isTestClient(req)`).
 - **Données** : clones des boutiques réelles telles que les renvoie
   `getFastFoodsService` (prix, vignettes, notes déjà calculés), servis en
@@ -157,8 +159,9 @@ des données réelles. Même route, même contrat de réponse.
 Activer / couper, sans redéployer (cache `SETTINGS_CACHE_TTL_MS`) :
 
 ```sql
-UPDATE settings_test SET value = '"1.1.1"'::jsonb WHERE key = 'test_app_version';
-UPDATE settings_test SET value = '""'::jsonb      WHERE key = 'test_app_version';
+UPDATE settings_test SET value = '["1.1.0","1.1.1"]'::jsonb WHERE key = 'test_app_version';
+UPDATE settings_test SET value = '[]'::jsonb                WHERE key = 'test_app_version';
+UPDATE settings_test SET value = '["<uid>"]'::jsonb         WHERE key = 'test_user_ids';
 -- Images : Picsum, ou vide pour garder les images réelles
 UPDATE settings_test SET value = '"https://picsum.photos/seed/{seed}/600/400"'::jsonb WHERE key = 'test_volume_image_url';
 UPDATE settings_test SET value = '""'::jsonb WHERE key = 'test_volume_image_url';

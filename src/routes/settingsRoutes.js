@@ -185,6 +185,7 @@ route.get('', firebaseAuth, getSettingsController);
  *             - home_prefetch_distance
  *             # test (settings_test)
  *             - test_app_version
+ *             - test_user_ids
  *             - test_fastfood_volume
  *             - test_volume_image_url
  *     requestBody:
@@ -200,8 +201,10 @@ route.get('', firebaseAuth, getSettingsController);
  *                   Type attendu selon la clé. Booléen pour `delivery_free_mode`
  *                   et `apple_review_mode` ; version `"x.y.z"` pour
  *                   `platform_min_app_version` et `platform_latest_app_version` ;
- *                   chaîne libre (vide autorisée) pour `apple_version_review_mode`,
- *                   `test_app_version` et `test_volume_image_url` ;
+ *                   chaîne libre (vide autorisée) pour `apple_version_review_mode`
+ *                   et `test_volume_image_url` ; tableau de versions `"x.y.z"`
+ *                   (vide autorisé) pour `test_app_version` ; tableau d'uid
+ *                   (vide autorisé) pour `test_user_ids` ;
  *                   chaîne de chiffres pour `otp_default_country_code` (ex. `"237"`) ;
  *                   nombre positif pour toutes les autres. Un mauvais type
  *                   fausserait silencieusement les calculs de prix, il est donc refusé.

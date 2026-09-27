@@ -20,7 +20,7 @@ exports.getfastfoodController = async (req, res) => {
 
     // Auth facultative : sans token la route reste servie, simplement sans
     // `deliveryOffer` (on ne sait pas de quel user il s'agit).
-    // Mode VOLUME : la build de test (`test_app_version`) reçoit un catalogue de
+    // Mode VOLUME : les builds de test (versions listées dans `test_app_version`) reçoivent un catalogue de
     // `test_fastfood_volume` clones des boutiques réelles, pour éprouver la
     // fluidité du home. Paginé seulement, et jamais sur une recherche (`q`) :
     // elle reste servie par les données réelles.

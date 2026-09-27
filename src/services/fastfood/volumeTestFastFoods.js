@@ -1,7 +1,7 @@
 // ============================================================================
 // volumeTestFastFoods — Catalogue VOLUMINEUX pour la build de test
 // ============================================================================
-// Sert à la build de test (`test_app_version`, cf. settings.service) un home de
+// Sert aux builds de test (tableau `test_app_version`, cf. settings.service) un home de
 // `test_fastfood_volume` boutiques pour éprouver la fluidité de la liste sur un
 // vrai volume. Les boutiques sont des CLONES des boutiques réelles, telles que
 // `getFastFoodsService` les renvoie (prix, vignettes, notes déjà calculés) :

@@ -11,7 +11,7 @@ const { generateId } = require('../../repositories/idGen');
 const { createOrderService } = require('../order/createOrder');
 const { updateOrders } = require('../order/updateOrders.service');
 const { creditMerchantForItem } = require('./creditMerchant.service');
-const { isAppleReviewClient } = require('../settings/settings.service');
+const { isAppleReviewClient, isTestClient } = require('../settings/settings.service');
 
 const log = console;
 
@@ -72,10 +72,17 @@ exports.postTransactionService = async (data, req) => {
     // =========================================================================
     // Apple Review Mode : bypass total MobileWallet → createOrder direct.
     // Déclenché par ÉGALITÉ STRICTE entre le header `x-app-version` du client et
-    // le réglage `apple_version_review_mode` — les autres versions paient.
+    // le réglage `apple_version_review_mode`, OU par une version listée dans
+    // `test_app_version` (builds de test, migration 056), OU un user listé dans
+    // `test_user_ids` (migration 057) — les autres paient.
+    // Même réponse (`appleReviewMode: true`) : l'app saute alors l'écran USSD.
     // =========================================================================
-    if (payBy === 'mobilemoney' && (await isAppleReviewClient(req))) {
-      log.info(`${logPrefix} apple_version_review_mode → createOrder direct sans paiement`);
+    const freeReason = payBy !== 'mobilemoney' ? null
+      : (await isAppleReviewClient(req)) ? 'apple_version_review_mode'
+      : (await isTestClient(req, userId)) ? 'test_app_version/test_user_ids'
+      : null;
+    if (freeReason) {
+      log.info(`${logPrefix} ${freeReason} → createOrder direct sans paiement`);
       const orders = Array.isArray(items) ? items : [];
       const toUpdate = orders.filter(o => o && o.id);
       const toCreate = orders.filter(o => o && !o.id);
@@ -125,7 +132,7 @@ exports.postTransactionService = async (data, req) => {
         payBy: network || 'mobilemoney',
       });
 
-      log.info(`${logPrefix} ✓ Apple Review : commandes créées, transaction enregistrée`);
+      log.info(`${logPrefix} ✓ Sans paiement (${freeReason}) : commandes créées, transaction enregistrée`);
       return { success: true, appleReviewMode: true };
     }
 
