@@ -48,7 +48,8 @@ APP_DELIVERY_NEW_MIN_VERSION=1.0.1
 # ⚠️ Les réglages EUX-MÊMES (marge, frais, campagne) sont en BASE, pas ici :
 #    ce sont des décisions commerciales à basculer sans redéploiement.
 #    Répartis par catégorie depuis la migration 046 (settings_pricing,
-#    settings_delivery, settings_withdrawal, settings_deployment, settings_auth).
+#    settings_delivery, settings_withdrawal, settings_deployment, settings_auth,
+#    puis settings_notification, settings_client, settings_test).
 SETTINGS_CACHE_TTL_MS=30000
 
 # Bird — auth par numéro de téléphone (OTP WhatsApp/SMS)

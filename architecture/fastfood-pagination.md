@@ -26,7 +26,11 @@ Réponse en mode paginé :
   "data": [ /* boutiques */ ],
   "banners": [],           // vides dès qu'un `cursor` est fourni
   "appleReviewMode": false,
-  "nextCursor": "MjAyNi0w…"  // null = fin de liste
+  "nextCursor": "MjAyNi0w…",  // null = fin de liste
+  "clientSettings": {         // absent dès qu'un `cursor` est fourni
+    "homePageSize": 10,
+    "homePrefetchDistance": 1200
+  }
 }
 ```
 
@@ -98,13 +102,38 @@ Voir [merchants.md](./merchants.md#jours-douverture--disponibilité-migration-04
 Servies **uniquement** quand `cursor` est absent. Les renvoyer à chaque
 `loadMore` serait du poids pur : le carrousel ne se recharge pas au scroll.
 
+## Réglages d'affichage (`clientSettings`)
+
+Table `settings_client` (migration 055), servie comme les bannières : première
+page seulement (`cursor` absent), mode paginé ou non. Champ ajouté, ignoré par
+les anciennes apps.
+
+| Clé | Champ | Rôle |
+|---|---|---|
+| `home_page_size` | `homePageSize` | Boutiques par page (`limit`). Plafonné à 50 par le serveur. |
+| `home_prefetch_distance` | `homePrefetchDistance` | Distance (points) du bas de la liste native du home (iOS) à laquelle la page suivante est demandée. |
+
+- **Côté app** : la première page part avec la valeur gardée au lancement
+  précédent ; la réponse fixe celle des pages suivantes et est gardée pour le
+  lancement d'après. La valeur écrite dans le code de l'app reste la valeur de
+  secours.
+- **Clé absente ou mal typée** : envoyée à `null`, l'app garde sa valeur de
+  secours. Aucun repli côté serveur (`getClientSettings()`), pour ne pas tenir
+  deux valeurs de secours alignées.
+
+```sql
+UPDATE settings_client SET value = '15'::jsonb   WHERE key = 'home_page_size';
+UPDATE settings_client SET value = '1600'::jsonb WHERE key = 'home_prefetch_distance';
+```
+
 ## Mode volume (build de test)
 
 Pour éprouver la fluidité du home sur un vrai volume, la **build de test**
 reçoit un catalogue de `test_fastfood_volume` boutiques (500 par défaut) au lieu
 des données réelles. Même route, même contrat de réponse.
 
-- **Déclencheur** : `test_app_version` (`settings_deployment`, migration 051)
+- **Déclencheur** : `test_app_version` (`settings_test` : migration 051, sortie
+  de `settings_deployment` par la 055)
   égal au header `x-app-version` du client. Égalité stricte sur le header
   seulement : un client sans header n'est jamais la build de test. Vide = mode
   coupé pour tout le monde. Réglage générique, réutilisable par tout futur
@@ -128,11 +157,11 @@ des données réelles. Même route, même contrat de réponse.
 Activer / couper, sans redéployer (cache `SETTINGS_CACHE_TTL_MS`) :
 
 ```sql
-UPDATE settings_deployment SET value = '"1.1.1"'::jsonb WHERE key = 'test_app_version';
-UPDATE settings_deployment SET value = '""'::jsonb      WHERE key = 'test_app_version';
+UPDATE settings_test SET value = '"1.1.1"'::jsonb WHERE key = 'test_app_version';
+UPDATE settings_test SET value = '""'::jsonb      WHERE key = 'test_app_version';
 -- Images : Picsum, ou vide pour garder les images réelles
-UPDATE settings_deployment SET value = '"https://picsum.photos/seed/{seed}/600/400"'::jsonb WHERE key = 'test_volume_image_url';
-UPDATE settings_deployment SET value = '""'::jsonb WHERE key = 'test_volume_image_url';
+UPDATE settings_test SET value = '"https://picsum.photos/seed/{seed}/600/400"'::jsonb WHERE key = 'test_volume_image_url';
+UPDATE settings_test SET value = '""'::jsonb WHERE key = 'test_volume_image_url';
 ```
 
 > ⚠️ Couper le mode (valeur vide) avant qu'une version publiée sur les stores
@@ -144,9 +173,9 @@ UPDATE settings_deployment SET value = '""'::jsonb WHERE key = 'test_volume_imag
 |---|---|
 | `repositories/supabase/fastfoods.repo.js` | `getPage()` — tri, curseur, jointure, dédup. `getAll()` intact. |
 | `services/fastfood/volumeTestFastFoods.js` | Mode volume : clones paginés des boutiques réelles. |
-| `services/settings/settings.service.js` | `isTestClient(req)`, `getTestFastfoodVolume()`, `getTestVolumeImageUrl()`. |
+| `services/settings/settings.service.js` | `isTestClient(req)`, `getTestFastfoodVolume()`, `getTestVolumeImageUrl()`, `getClientSettings()`. |
 | `services/fastfood/getFastFoods.js` | 2e argument optionnel ; renvoie `{items, nextCursor}` en paginé, un tableau sinon. |
-| `controllers/fastfood/getFastFoods.js` | Query params, plafond `MAX_LIMIT`, bannières page 1. |
+| `controllers/fastfood/getFastFoods.js` | Query params, plafond `MAX_LIMIT`, bannières et `clientSettings` page 1. |
 
 ## Dette assumée
 

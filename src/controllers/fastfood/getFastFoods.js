@@ -2,7 +2,7 @@ const { getFastFoodsService } = require('../../services/fastfood/getFastFoods');
 const { getActiveBanners } = require('../../services/banners/banners.service');
 const { withBannerThumbnail } = require('../../services/images/thumbnailUrl');
 const { formatFastfoodsForClient } = require('../../utils/deliveryHoursFormat');
-const { getAppleReviewMode, isTestClient, getTestFastfoodVolume, getTestVolumeImageUrl } = require('../../services/settings/settings.service');
+const { getAppleReviewMode, isTestClient, getTestFastfoodVolume, getTestVolumeImageUrl, getClientSettings } = require('../../services/settings/settings.service');
 const { getVolumeTestPage } = require('../../services/fastfood/volumeTestFastFoods');
 
 /** Borne la taille de page : un `?limit=5000` annulerait tout l'intérêt. */
@@ -50,12 +50,19 @@ exports.getfastfoodController = async (req, res) => {
           })
         ).map(withBannerThumbnail); // WebP : ~600 Ko -> ~90 Ko par bannière
 
+    // Réglages d'affichage de l'app (`settings_client`) : première page
+    // seulement, comme les bannières. L'app s'en sert pour ses pages suivantes
+    // et les garde pour le lancement d'après. Champ ajouté : les anciennes apps
+    // l'ignorent.
+    const clientSettings = cursor ? null : await getClientSettings();
+
     return res.status(200).json({
       success: true,
       message: 'fastfoods récupérées avec succès.',
       data,
       banners,
       appleReviewMode,
+      ...(clientSettings ? { clientSettings } : {}),
       // Présent uniquement en mode paginé : null signifie « fin de liste ».
       ...(paginated ? { nextCursor: result.nextCursor } : {}),
     });
