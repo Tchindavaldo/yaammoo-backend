@@ -7,8 +7,8 @@
 // sans redéployer (`flyctl secrets set` redémarre la machine et ne rebuild pas
 // le code — cf. CLAUDE.md).
 //
-// Six catégories : auth, pricing, delivery, withdrawal, deployment, notification
-// (migration 053). Chaque clé
+// Huit catégories : auth, pricing, delivery, withdrawal, deployment, notification
+// (migration 053), client et test (migration 055). Chaque clé
 // appartient à UNE catégorie, déclarée dans `KEY_CATEGORY` ci-dessous — c'est
 // elle qui décide de la table écrite. Ajouter une clé à `KEYS` sans l'y ranger
 // est une erreur détectée au démarrage.
@@ -92,8 +92,9 @@ const KEYS = {
   // à chaud, typiquement pour sauver une boutique dont les 30 jours expirent.
   FASTFOOD_DELETE_RETENTION_DAYS: 'fastfood_delete_retention_days',
   FASTFOOD_PURGE_INTERVAL_MS: 'fastfood_purge_interval_ms',
-  // Build de TEST (migration 051) : version d'app exacte qui reçoit les
-  // comportements de test (ex. mode volume de `GET /fastFood/all`). Vide = aucune.
+  // Build de TEST (migration 051, table `settings_test` depuis la 055) : version
+  // d'app exacte qui reçoit les comportements de test (ex. mode volume de
+  // `GET /fastFood/all`). Vide = aucune.
   TEST_APP_VERSION: 'test_app_version',
   TEST_FASTFOOD_VOLUME: 'test_fastfood_volume',
   // Migration 052 : gabarit d'URL (`{seed}`) des images du mode volume.
@@ -102,6 +103,10 @@ const KEYS = {
   // fuseau des bornes de quota. Lus via `broadcastPlan.js`.
   BROADCAST_PLANS: 'broadcast_plans',
   BROADCAST_UTC_OFFSET_MINUTES: 'broadcast_utc_offset_minutes',
+  // Affichage de l'app (migration 055), renvoyé par la première page de
+  // `GET /fastFood/all`. Lus via `getClientSettings()`.
+  HOME_PAGE_SIZE: 'home_page_size',
+  HOME_PREFETCH_DISTANCE: 'home_prefetch_distance',
 };
 
 // ---------------------------------------------------------------------------
@@ -152,13 +157,19 @@ const KEY_CATEGORY = {
   // Suppression de boutiques : exploitation, pas tarification ni livraison.
   [KEYS.FASTFOOD_DELETE_RETENTION_DAYS]: 'deployment',
   [KEYS.FASTFOOD_PURGE_INTERVAL_MS]: 'deployment',
-  [KEYS.TEST_APP_VERSION]: 'deployment',
-  [KEYS.TEST_FASTFOOD_VOLUME]: 'deployment',
-  [KEYS.TEST_VOLUME_IMAGE_URL]: 'deployment',
+
+  // test — build de test (sorties de `deployment` par la migration 055)
+  [KEYS.TEST_APP_VERSION]: 'test',
+  [KEYS.TEST_FASTFOOD_VOLUME]: 'test',
+  [KEYS.TEST_VOLUME_IMAGE_URL]: 'test',
 
   // notification — notifications envoyées par les boutiques
   [KEYS.BROADCAST_PLANS]: 'notification',
   [KEYS.BROADCAST_UTC_OFFSET_MINUTES]: 'notification',
+
+  // client — affichage de l'app, renvoyé au client
+  [KEYS.HOME_PAGE_SIZE]: 'client',
+  [KEYS.HOME_PREFETCH_DISTANCE]: 'client',
 };
 
 // Garde-fou au chargement : une clé ajoutée à `KEYS` sans être rangée ici
@@ -414,6 +425,22 @@ async function getTestVolumeImageUrl() {
 }
 
 /**
+ * Réglages d'affichage renvoyés à l'app (`settings_client`, migration 055) par
+ * la première page de `GET /fastFood/all`. Clé absente ou mal typée = `null` :
+ * l'app garde sa valeur de secours, écrite dans son code. Pas de repli ici,
+ * pour ne pas tenir deux valeurs de secours alignées. Ne lève jamais.
+ */
+async function getClientSettings() {
+  const s = await getSettings();
+  const pageSize = s[KEYS.HOME_PAGE_SIZE];
+  const prefetch = s[KEYS.HOME_PREFETCH_DISTANCE];
+  return {
+    homePageSize: Number.isInteger(pageSize) && pageSize > 0 ? pageSize : null,
+    homePrefetchDistance: Number.isFinite(prefetch) && prefetch >= 0 ? prefetch : null,
+  };
+}
+
+/**
  * État de version pour le client courant : faut-il bloquer (forceUpdate) ou
  * juste signaler qu'une nouvelle version existe (updateAvailable).
  * Ne lève jamais — clés absentes ou mal formées = repli "0.0.0", jamais bloquant.
@@ -453,6 +480,7 @@ module.exports = {
   isTestClient,
   getTestFastfoodVolume,
   getTestVolumeImageUrl,
+  getClientSettings,
   getAppVersionGate,
   setSetting,
   invalidate,

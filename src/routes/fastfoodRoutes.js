@@ -127,6 +127,9 @@ route.post('', createFastfoodController);
  *       ici (bonus de la boutique, ou bonus plateforme valable partout).
  *
  *       Seules les boutiques ayant au moins un menu sont renvoyées.
+ *
+ *       Pagination OPT-IN par `?limit` (plafonné à 50), `?cursor`, `?q` : voir
+ *       `architecture/fastfood-pagination.md`. Sans `limit`, forme historique.
  *     tags:
  *       - FastFood
  *     security:
@@ -146,6 +149,14 @@ route.post('', createFastfoodController);
  *                   type: string
  *                 appleReviewMode:
  *                   type: boolean
+ *                 banners: { type: array, items: { type: object }, description: Vide dès qu'un `cursor` est fourni. }
+ *                 nextCursor: { type: string, nullable: true, description: Mode paginé seulement. `null` = fin de liste. }
+ *                 clientSettings:
+ *                   type: object
+ *                   description: Première page seulement (`settings_client`). `null` sur une clé = valeur de secours de l'app.
+ *                   properties:
+ *                     homePageSize: { type: integer, nullable: true }
+ *                     homePrefetchDistance: { type: number, nullable: true }
  *                 data:
  *                   type: array
  *                   items:

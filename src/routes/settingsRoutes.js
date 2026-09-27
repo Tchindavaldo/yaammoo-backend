@@ -79,9 +79,10 @@ route.get('/app-version', getAppVersionGateController);
  *     description: >-
  *       Réglages modifiables **à chaud**, stockés en base et non dans `.env` :
  *       ce sont des décisions commerciales qu'on doit pouvoir basculer sans
- *       redéployer. Depuis la migration 046 ils sont répartis en cinq tables
- *       `settings_<categorie>` — `auth`, `pricing`, `delivery`, `withdrawal`,
- *       `deployment` — et la réponse est groupée par catégorie.
+ *       redéployer. Ils sont répartis en tables `settings_<categorie>` — `auth`,
+ *       `pricing`, `delivery`, `withdrawal`, `deployment` (migration 046),
+ *       `notification` (053), `client` et `test` (055) — et la réponse est
+ *       groupée par catégorie.
  *       Les SECRETS n'y figurent pas (la clé d'API Bird reste en variable
  *       d'environnement).
  *     tags:
@@ -100,7 +101,7 @@ route.get('/app-version', getAppVersionGateController);
  *                 message: { type: string }
  *                 data:
  *                   type: object
- *                   description: Une entrée par catégorie (auth, pricing, delivery, withdrawal, deployment).
+ *                   description: Une entrée par catégorie (auth, pricing, delivery, withdrawal, deployment, notification, client, test).
  *                   additionalProperties:
  *                     type: array
  *                     items:
@@ -175,6 +176,17 @@ route.get('', firebaseAuth, getSettingsController);
  *             - platform_latest_app_version
  *             - apple_review_mode
  *             - apple_version_review_mode
+ *             - fastfood_delete_retention_days
+ *             - fastfood_purge_interval_ms
+ *             # notification (settings_notification)
+ *             - broadcast_utc_offset_minutes
+ *             # client (settings_client)
+ *             - home_page_size
+ *             - home_prefetch_distance
+ *             # test (settings_test)
+ *             - test_app_version
+ *             - test_fastfood_volume
+ *             - test_volume_image_url
  *     requestBody:
  *       required: true
  *       content:
@@ -188,7 +200,8 @@ route.get('', firebaseAuth, getSettingsController);
  *                   Type attendu selon la clé. Booléen pour `delivery_free_mode`
  *                   et `apple_review_mode` ; version `"x.y.z"` pour
  *                   `platform_min_app_version` et `platform_latest_app_version` ;
- *                   chaîne libre (vide autorisée) pour `apple_version_review_mode` ;
+ *                   chaîne libre (vide autorisée) pour `apple_version_review_mode`,
+ *                   `test_app_version` et `test_volume_image_url` ;
  *                   chaîne de chiffres pour `otp_default_country_code` (ex. `"237"`) ;
  *                   nombre positif pour toutes les autres. Un mauvais type
  *                   fausserait silencieusement les calculs de prix, il est donc refusé.

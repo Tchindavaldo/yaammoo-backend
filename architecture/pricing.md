@@ -225,7 +225,7 @@ base, et le réel comme le facturé sont stockés côte à côte
 Tables clé/valeur, lues via `services/settings/settings.service`.
 
 Depuis la **migration 046**, l'ancienne table `settings` unique est éclatée en
-**cinq tables par catégorie** — elle mélangeait des réglages qui n'ont ni le même
+**tables par catégorie** (cinq, puis huit avec les migrations 053 et 055) — elle mélangeait des réglages qui n'ont ni le même
 public, ni la même criticité, ni le même rythme de changement :
 
 | Table                 | Contenu                                            |
@@ -233,8 +233,11 @@ public, ni la même criticité, ni le même rythme de changement :
 | `settings_pricing`    | Marges, frais de paiement, arrondis, amortissement |
 | `settings_delivery`   | Livraison offerte et ses seuils                    |
 | `settings_withdrawal` | Barèmes de frais de retrait, par opérateur         |
-| `settings_deployment` | Versions d'app et Apple Review                     |
+| `settings_deployment` | Versions d'app, Apple Review, purge des boutiques  |
 | `settings_auth`       | OTP Bird — voir [auth-phone.md](./auth-phone.md)   |
+| `settings_notification` | Plans des notifications boutique (migration 053) — voir [notifications-broadcast.md](./notifications-broadcast.md) |
+| `settings_client`     | Affichage de l'app : taille de page et préchargement du home (migration 055) — voir [fastfood-pagination.md](./fastfood-pagination.md#réglages-daffichage-clientsettings) |
+| `settings_test`       | Build de test : `test_*`, sorties de `settings_deployment` (migration 055) — voir [fastfood-pagination.md](./fastfood-pagination.md#mode-volume-build-de-test) |
 
 La catégorie d'une clé est **déclarée** dans `KEY_CATEGORY`
 (`settings.service.js`), jamais déduite de son préfixe : `platform_margin` est un
@@ -348,3 +351,4 @@ src/
 | `041_platform_free_delivery_min_items.sql` | plats minimum pour une gratuité en régime plateforme — deux clés (bonus / campagne)                                                       |
 | `045_phone_auth_bird.sql`                  | tables `phone_otp` et `bird_costs` — auth par téléphone (cf. [auth-phone.md](./auth-phone.md))                                            |
 | `046_settings_split_by_category.sql`       | éclate `settings` en cinq tables `settings_<categorie>`, reprend les valeurs de prod, puis `DROP TABLE settings`                          |
+| `055_settings_client_and_test.sql`         | tables `settings_client` (affichage de l'app) et `settings_test` (clés `test_*` sorties de `settings_deployment`). À appliquer AVANT le déploiement du code |
