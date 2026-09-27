@@ -2,6 +2,8 @@
 const express = require('express');
 const { postBonusRequestController } = require('../controllers/bonusRequest/postBonusRequest.controller');
 const { getBonusRequestStatusController } = require('../controllers/bonusRequest/getBonusRequestStatus.controller');
+const firebaseAuth = require('../middlewares/authMiddleware');
+const { authorize, selfFromBody, bonusRequestFromParam } = require('../middlewares/staffPermissionMiddleware');
 
 const route = express.Router();
 
@@ -45,7 +47,7 @@ const route = express.Router();
  *       400:
  *         description: Invalid input
  */
-route.post('/:totalBonus', postBonusRequestController);
+route.post('/:totalBonus', firebaseAuth, authorize(selfFromBody('userId')), postBonusRequestController);
 
 /**
  * @swagger
@@ -78,6 +80,6 @@ route.post('/:totalBonus', postBonusRequestController);
  *       404:
  *         description: Bonus request not found
  */
-route.get('/status/:id', getBonusRequestStatusController);
+route.get('/status/:id', firebaseAuth, authorize(bonusRequestFromParam), getBonusRequestStatusController);
 
 module.exports = route;

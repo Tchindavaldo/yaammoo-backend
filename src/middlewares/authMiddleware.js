@@ -1,6 +1,7 @@
 // src/middlewares/firebaseAuth.js
 const { admin } = require('../config/firebase');
 const { compareVersions, resolveClientVersion } = require('../utils/appVersion');
+const { isTestClient } = require('../services/settings/settings.service');
 
 /**
  * Compatibilite R11 : `/order`, `/menu` et `/support` etaient publiques avant la
@@ -20,6 +21,14 @@ module.exports = async (req, res, next) => {
     LEGACY_OPEN_ROUTES.includes(req.baseUrl) &&
     compareVersions(resolveClientVersion(req), LEGACY_NO_AUTH_MAX_VERSION) <= 0
   ) {
+    req.legacyNoAuth = true;
+    return next();
+  }
+
+  // Builds de TEST (versions listées dans `test_app_version`) : tolérées sans
+  // jeton, comme les anciennes apps ci-dessus (`authorize` ne contrôle rien).
+  // ⚠️ Le header se falsifie : garder ce tableau vide hors période de test.
+  if (!authHeader && (await isTestClient(req))) {
     req.legacyNoAuth = true;
     return next();
   }

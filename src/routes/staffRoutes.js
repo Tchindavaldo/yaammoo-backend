@@ -129,7 +129,7 @@ const canManage = [firebaseAuth, requireFastfoodPermission('staff.manage')];
  *       200: { description: OK }
  *       409: { description: Rôle encore attribué }
  */
-router.get('/permissions', c.listPermissions);
+router.get('/permissions', firebaseAuth, c.listPermissions);
 router.get('/me', firebaseAuth, c.getMyMemberships);
 
 router.get('/:fastFoodId/members', ...canManage, c.listMembers);

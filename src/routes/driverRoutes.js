@@ -1,6 +1,7 @@
 const express = require('express');
 const { apply, getApplicationsController, getDriversController, getStoresController, getMyApplicationsController, removeDriverController, decide, getDriverProfileController } = require('../controllers/driver/driverController');
 const firebaseAuth = require('../middlewares/authMiddleware');
+const { authorize, selfFromBody, selfFromParam, fastfoodFromParam, driverApplicationFromParam, driverRemove } = require('../middlewares/staffPermissionMiddleware');
 const { rateDriverController, getDriverRatingsController } = require('../controllers/rating/rateDriver.controller');
 
 const router = express.Router();
@@ -46,7 +47,7 @@ const router = express.Router();
  *       409:
  *         description: Aucune nouvelle demande (déjà en attente/livreur)
  */
-router.post('/apply', apply);
+router.post('/apply', firebaseAuth, authorize(selfFromBody('userId')), apply);
 
 /**
  * @swagger
@@ -65,7 +66,7 @@ router.post('/apply', apply);
  *       200:
  *         description: Liste des candidatures (avec infos candidat)
  */
-router.get('/applications/:fastFoodId', getApplicationsController);
+router.get('/applications/:fastFoodId', firebaseAuth, authorize(fastfoodFromParam), getApplicationsController);
 
 /**
  * @swagger
@@ -84,7 +85,7 @@ router.get('/applications/:fastFoodId', getApplicationsController);
  *       200:
  *         description: Liste des livreurs (DriverInfo[])
  */
-router.get('/list/:fastFoodId', getDriversController);
+router.get('/list/:fastFoodId', firebaseAuth, authorize(fastfoodFromParam), getDriversController);
 
 /**
  * @swagger
@@ -104,7 +105,7 @@ router.get('/list/:fastFoodId', getDriversController);
  *       200:
  *         description: Liste de StoreOption { id, nom }
  */
-router.get('/stores/:driverId', getStoresController);
+router.get('/stores/:driverId', firebaseAuth, authorize(selfFromParam('driverId')), getStoresController);
 
 /**
  * @swagger
@@ -123,7 +124,7 @@ router.get('/stores/:driverId', getStoresController);
  *       200:
  *         description: DriverApplication[] avec fastFoodName + status
  */
-router.get('/my-applications/:userId', getMyApplicationsController);
+router.get('/my-applications/:userId', firebaseAuth, authorize(selfFromParam('userId')), getMyApplicationsController);
 
 /**
  * @swagger
@@ -160,7 +161,7 @@ router.get('/my-applications/:userId', getMyApplicationsController);
  *       409:
  *         description: Demande déjà traitée
  */
-router.put('/applications/:applicationId', decide);
+router.put('/applications/:applicationId', firebaseAuth, authorize(driverApplicationFromParam), decide);
 
 /**
  * @swagger
@@ -188,7 +189,7 @@ router.put('/applications/:applicationId', decide);
  *       400:
  *         description: driverId ou fastFoodId manquant
  */
-router.delete('/:driverId', removeDriverController);
+router.delete('/:driverId', firebaseAuth, authorize(driverRemove), removeDriverController);
 
 /**
  * @swagger
@@ -237,7 +238,7 @@ router.post('/:driverId/rating', firebaseAuth, rateDriverController);
  *     responses:
  *       200: { description: Liste des avis du livreur }
  */
-router.get('/:driverId/ratings', getDriverRatingsController);
+router.get('/:driverId/ratings', firebaseAuth, getDriverRatingsController);
 
 /**
  * @swagger

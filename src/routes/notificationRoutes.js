@@ -7,7 +7,7 @@ const { markNotificationAsReadController } = require('../controllers/notificatio
 const { getBroadcastStateController, sendBroadcastController } = require('../controllers/notifications/broadcast/broadcast.controller');
 const firebaseAuth = require('../middlewares/authMiddleware');
 const adminGuard = require('../middlewares/adminMiddleware');
-const { requireFastfoodPermission } = require('../middlewares/staffPermissionMiddleware');
+const { requireFastfoodPermission, authorize, selfFromBody, notificationsQuery } = require('../middlewares/staffPermissionMiddleware');
 
 const router = express.Router();
 
@@ -213,7 +213,7 @@ router.post('/broadcast/:fastFoodId', ...canBroadcast, sendBroadcastController);
  *                 data:
  *                   $ref: '#/components/schemas/Notification'
  */
-router.get('/get', getNotificationController);
+router.get('/get', firebaseAuth, authorize(notificationsQuery), getNotificationController);
 
 /**
  * @swagger
@@ -245,7 +245,7 @@ router.get('/get', getNotificationController);
  *                   items:
  *                     $ref: '#/components/schemas/Notification'
  */
-router.get('/user', getNotificationsController);
+router.get('/user', firebaseAuth, authorize(notificationsQuery), getNotificationsController);
 
 /**
  * @swagger
@@ -278,6 +278,6 @@ router.get('/user', getNotificationsController);
  *                 message:
  *                   type: string
  */
-router.put('/markAsRead', markNotificationAsReadController);
+router.put('/markAsRead', firebaseAuth, authorize(selfFromBody('userId')), markNotificationAsReadController);
 
 module.exports = router;

@@ -5,6 +5,8 @@ const { getTransactions, getTransactionById } = require('../controllers/transact
 const { postTransactionController } = require('../controllers/transaction/postTransaction.controller');
 const { updateTransactionController } = require('../controllers/transaction/updateTransaction.controller');
 const { webhookMobilewalletController } = require('../controllers/transaction/webhookMobilewallet.controller');
+const firebaseAuth = require('../middlewares/authMiddleware');
+const { authorize, selfFromParam, transactionCreate, adminOnly } = require('../middlewares/staffPermissionMiddleware');
 
 /**
  * @swagger
@@ -97,7 +99,7 @@ const { webhookMobilewalletController } = require('../controllers/transaction/we
  *       502:
  *         description: Erreur serveur MobileWallet
  */
-router.post('', postTransactionController);
+router.post('', firebaseAuth, authorize(transactionCreate), postTransactionController);
 
 /**
  * @swagger
@@ -130,7 +132,7 @@ router.post('', postTransactionController);
  *                   items:
  *                     $ref: '#/components/schemas/Transaction'
  */
-router.get('/:userId', getTransactions);
+router.get('/:userId', firebaseAuth, authorize(selfFromParam('userId')), getTransactions);
 
 /**
  * @swagger
@@ -163,7 +165,8 @@ router.get('/:userId', getTransactions);
  *       404:
  *         description: Transaction not found
  */
-router.get('/:id', getTransactionById);
+// ⚠️ Masquée par `/:userId` ci-dessus (même motif) : jamais atteinte. Admin.
+router.get('/:id', firebaseAuth, authorize(adminOnly), getTransactionById);
 
 /**
  * @swagger
@@ -208,7 +211,8 @@ router.get('/:id', getTransactionById);
  *       404:
  *         description: Transaction not found
  */
-router.put('/:id', updateTransactionController);
+// Réécriture libre d'une transaction : admin seulement (l'app ne l'appelle pas).
+router.put('/:id', firebaseAuth, authorize(adminOnly), updateTransactionController);
 
 /**
  * @swagger
@@ -222,6 +226,7 @@ router.put('/:id', updateTransactionController);
  *       200:
  *         description: Toujours 200 (même en cas d'erreur interne)
  */
+// Appel serveur MobileWallet (pas d'utilisateur) : reste sans jeton.
 router.post('/webhook/mobilewallet', webhookMobilewalletController);
 
 module.exports = router;

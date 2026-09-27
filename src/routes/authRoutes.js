@@ -1,6 +1,8 @@
 const express = require('express');
 const { signUpController } = require('../controllers/auth/register.controller');
 const { requestPhoneAuthController, verifyPhoneAuthController, getOtpCostSummaryController, getVerificationDetailsController } = require('../controllers/auth/phoneAuth.controller');
+const firebaseAuth = require('../middlewares/authMiddleware');
+const adminGuard = require('../middlewares/adminMiddleware');
 
 const router = express.Router();
 
@@ -235,7 +237,7 @@ router.post('/phone/verify', verifyPhoneAuthController);
  *                     currencyCode: { type: 'string' }
  *                     byChannel: { type: 'object', description: 'Coût et volume par canal' }
  */
-router.get('/phone/costs/summary', getOtpCostSummaryController);
+router.get('/phone/costs/summary', firebaseAuth, adminGuard, getOtpCostSummaryController);
 
 /**
  * @swagger
@@ -286,6 +288,6 @@ router.get('/phone/costs/summary', getOtpCostSummaryController);
  *       400:
  *         description: Identifiant de vérification inconnu
  */
-router.get('/phone/verification/:id', getVerificationDetailsController);
+router.get('/phone/verification/:id', firebaseAuth, adminGuard, getVerificationDetailsController);
 
 module.exports = router;

@@ -2,6 +2,7 @@
 const express = require('express');
 const { getUsers, getOneUserByIdController, createUser, updateUser, getUserByEmail, getUserByPhone, addPushToken, removePushToken, deleteOwnAccount } = require('../controllers/user/userController');
 const firebaseAuth = require('../middlewares/authMiddleware');
+const { authorize, selfFromParam, adminOnly } = require('../middlewares/staffPermissionMiddleware');
 const { recordUserLocationController } = require('../controllers/user/userLocation.controller');
 
 const router = express.Router();
@@ -49,7 +50,7 @@ router.delete('/delete-account', firebaseAuth, deleteOwnAccount);
  *       400:
  *         description: Error retrieving users
  */
-router.get('', getUsers);
+router.get('', firebaseAuth, authorize(adminOnly), getUsers);
 
 /**
  * @swagger
@@ -82,7 +83,7 @@ router.get('', getUsers);
  *       404:
  *         description: User not found
  */
-router.get('/:id', getOneUserByIdController);
+router.get('/:id', firebaseAuth, authorize(selfFromParam('id')), getOneUserByIdController);
 
 /**
  * @swagger
@@ -190,7 +191,7 @@ router.post('', firebaseAuth, createUser);
  *       400:
  *         description: Invalid input
  */
-router.put('/:id', updateUser);
+router.put('/:id', firebaseAuth, authorize(selfFromParam('id')), updateUser);
 
 /**
  * @swagger
@@ -330,7 +331,7 @@ router.post('/location', firebaseAuth, recordUserLocationController);
  *       404:
  *         description: Utilisateur non trouvé
  */
-router.get('/email/:email', getUserByEmail);
+router.get('/email/:email', firebaseAuth, authorize(adminOnly), getUserByEmail);
 
 /**
  * @swagger
@@ -355,6 +356,6 @@ router.get('/email/:email', getUserByEmail);
  *       404:
  *         description: Utilisateur non trouvé
  */
-router.get('/phone/:phone', getUserByPhone);
+router.get('/phone/:phone', firebaseAuth, authorize(adminOnly), getUserByPhone);
 
 module.exports = router;

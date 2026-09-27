@@ -10,7 +10,7 @@ const { patchFastFoodDeliveryController, patchAllFastFoodsDeliveryController } =
 const { deleteFastfoodsController, restoreFastfoodController, listDeletedFastfoodsController, purgeDeletedFastfoodsController } = require('../controllers/fastfood/deleteFastfood.controller');
 const firebaseAuth = require('../middlewares/authMiddleware');
 const adminGuard = require('../middlewares/adminMiddleware');
-const { requireFastfoodPermission } = require('../middlewares/staffPermissionMiddleware');
+const { requireFastfoodPermission, authorize, selfFromBody } = require('../middlewares/staffPermissionMiddleware');
 const optionalFirebaseAuth = require('../middlewares/optionalAuthMiddleware');
 
 const route = express.Router();
@@ -113,7 +113,7 @@ const route = express.Router();
  *       400:
  *         description: Invalid input
  */
-route.post('', createFastfoodController);
+route.post('', firebaseAuth, authorize(selfFromBody('userId')), createFastfoodController);
 
 /**
  * @swagger
@@ -316,7 +316,8 @@ route.get('/all', optionalFirebaseAuth, getfastfoodController);
  *                       nom:
  *                         type: string
  */
-route.get('/search', searchFastfoodController);
+// Catalogue public (visiteur non connecté), comme `/all`.
+route.get('/search', optionalFirebaseAuth, searchFastfoodController);
 
 /**
  * @swagger
@@ -530,7 +531,8 @@ route.post('/admin/purge', firebaseAuth, adminGuard, purgeDeletedFastfoodsContro
  */
 route.post('/admin/:fastFoodId/restore', firebaseAuth, adminGuard, restoreFastfoodController);
 
-route.get('/:fastFoodId', getfastfood);
+// Catalogue public (page boutique d'un visiteur non connecté).
+route.get('/:fastFoodId', optionalFirebaseAuth, getfastfood);
 
 // ⚠️ Cette route était PUBLIQUE : n'importe qui, sans être connecté, pouvait
 // renommer une boutique ou changer son numéro Mobile Money. Désormais réservée

@@ -1,5 +1,16 @@
 // src/controllers/userController.js
 const userService = require('../../services/user/userService');
+const repos = require('../../repositories');
+
+// `isAdmin` ne s'écrit jamais depuis l'app : un user ne se nomme pas admin
+// lui-même. Seul un admin peut le poser (back-office).
+const stripPrivileges = async (req, body) => {
+  if (!body || typeof body !== 'object' || !('isAdmin' in body)) return body;
+  const viewer = await repos.users.getUserByIdSafe(req.user?.uid);
+  if (viewer?.isAdmin) return body;
+  const { isAdmin, ...rest } = body;
+  return rest;
+};
 
 exports.getUsers = async (req, res) => {
   try {
@@ -14,7 +25,7 @@ exports.getUsers = async (req, res) => {
 
 exports.createUser = async (req, res) => {
   try {
-    const id = await userService.createUser(req.body);
+    const id = await userService.createUser(await stripPrivileges(req, req.body));
     res.status(201).json({
       id,
       message: 'Utilisateur créé avec succès.',
@@ -28,7 +39,7 @@ exports.createUser = async (req, res) => {
 
 exports.updateUser = async (req, res) => {
   try {
-    await userService.updateUser(req.params.id, req.body);
+    await userService.updateUser(req.params.id, await stripPrivileges(req, req.body));
     res.status(200).json({
       message: 'Utilisateur mis à jour avec succès.',
     });

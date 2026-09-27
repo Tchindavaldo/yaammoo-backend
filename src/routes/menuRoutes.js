@@ -112,6 +112,7 @@ router.post('', firebaseAuth, authorize(menuFromBody), postMenuController);
  *       404:
  *         description: FastFood not found
  */
+// Catalogue public (visiteur non connecté).
 router.get('/:fastFoodId', getMenuController);
 
 /**
@@ -262,6 +263,7 @@ router.post('/:menuId/rating', firebaseAuth, rateMenuController);
  *     responses:
  *       200: { description: Liste des avis (value, comment, userId, createdAt) }
  */
+// Avis d'un plat : catalogue public, comme le menu lui-même.
 router.get('/:menuId/ratings', getMenuRatingsController);
 
 /**

@@ -621,7 +621,7 @@ route.post('/request/:id/reward-credentials', firebaseAuth, rewardCredentialsBon
  *       400:
  *         description: Code manquant
  */
-route.post('/verify', verifyBonusCodeController);
+route.post('/verify', firebaseAuth, verifyBonusCodeController);
 
 /**
  * @swagger

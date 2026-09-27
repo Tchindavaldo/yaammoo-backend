@@ -12,6 +12,35 @@ Auth basée sur Firebase Auth : le client s'authentifie côté Firebase SDK (ema
 - `admin.auth().verifyIdToken(token)` → attache `req.user = decodedToken`.
 - 401 si absent/invalide.
 
+## Carte des accès (toutes les routes)
+
+**Règle** : toute route exige le jeton, ET l'identité est vérifiée — un
+`userId` du corps / de l'URL doit être l'appelant (`authorize(selfFromBody|
+selfFromParam)`), une ressource de boutique exige un accès à cette boutique
+(`fastfoodFromParam`, `requireFastfoodPermission`). L'admin plateforme passe
+partout. Les résolveurs vivent dans `middlewares/staffPermissionMiddleware.js`.
+
+**Seules exceptions, sans jeton** :
+
+| Route | Pourquoi |
+| --- | --- |
+| `GET /fastFood/all`, `GET /fastFood/search`, `GET /fastFood/:id` | Catalogue du visiteur non connecté (auth optionnelle) |
+| `GET /menu/:fastFoodId`, `GET /menu/:menuId/ratings`, `GET /banner` | Catalogue public (page boutique, bannière du home) |
+| `GET /settings/app-version`, `GET /settings/pricing` | Lus avant la connexion (mise à jour forcée, frais) |
+| `POST /auth/signUp`, `POST /auth/phone/request`, `POST /auth/phone/verify` | Connexion elle-même |
+| `POST /transaction/webhook/mobilewallet` | Appel serveur MobileWallet ⚠️ non signé |
+| `GET /payment-page` | Page statique de la WebView (n'appelle aucune API) |
+
+**Builds de test tolérées** : une requête SANS jeton dont le header
+`x-app-version` figure dans `test_app_version` passe comme une ancienne app
+(`req.legacyNoAuth`, `authorize` ne contrôle rien). ⚠️ Le header se falsifie :
+garder ce tableau vide hors période de test. Les routes qui lisent l'uid du
+jeton (portefeuille, bonus…) ou réservées admin / boutique restent fermées.
+
+Réservées à l'admin : `GET /user`, `/user/email/:email`, `/user/phone/:phone`,
+`PUT /transaction/:id`, `POST /sms/whatsapp`, coûts / détails OTP.
+`isAdmin` est retiré du corps de `POST /user` et `PUT /user/:id` sauf pour un admin.
+
 ## Routes principales liées à l'utilisateur
 
 | Méthode | Path             | Controller                      | Description                               |

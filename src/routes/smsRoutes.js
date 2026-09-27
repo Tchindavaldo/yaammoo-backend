@@ -1,6 +1,8 @@
 const express = require('express');
 const { postWhatsappMessageController } = require('../controllers/notifications/whatsapp/whatsapp-message.controller');
 const { updateOrder } = require('../controllers/order/updateOrder');
+const firebaseAuth = require('../middlewares/authMiddleware');
+const adminGuard = require('../middlewares/adminMiddleware');
 
 const router = express.Router();
 
@@ -40,6 +42,7 @@ const router = express.Router();
  *       400:
  *         description: Invalid input or sending error
  */
-router.post('/whatsapp', postWhatsappMessageController);
+// Envoi WhatsApp arbitraire : réservé aux admins (l'app ne l'appelle pas).
+router.post('/whatsapp', firebaseAuth, adminGuard, postWhatsappMessageController);
 
 module.exports = router;

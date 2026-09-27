@@ -2,6 +2,7 @@
 const express = require('express');
 
 const upload = require('../config/multer');
+const firebaseAuth = require('../middlewares/authMiddleware');
 const { handleUpload, handleDelete } = require('../controllers/images/uploadImage-controler');
 
 const router = express.Router();
@@ -45,8 +46,9 @@ const router = express.Router();
  *       400:
  *         description: Invalid image or upload error
  */
-router.post('/upload', upload.single('image'), handleUpload);
+// Jeton AVANT multer : un inconnu ne fait même pas téléverser son fichier.
+router.post('/upload', firebaseAuth, upload.single('image'), handleUpload);
 
-router.delete('/', handleDelete);
+router.delete('/', firebaseAuth, handleDelete);
 
 module.exports = router;

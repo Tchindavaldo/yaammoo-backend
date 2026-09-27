@@ -141,6 +141,51 @@ exports.fastfoodFromParam = async req => [{ fastFoodId: req.params.fastFoodId, p
 /** Ressource personnelle (`:userId` / `:driverId` dans l'URL). */
 exports.selfFromParam = param => async req => [{ selfUids: [req.params[param]] }];
 
+/** On n'agit qu'en son nom : `req.body[field]` doit être l'appelant. */
+exports.selfFromBody = field => async req => [{ selfUids: [req.body?.[field]] }];
+
+/** Réservé aux admins plateforme (routes de back-office). */
+exports.adminOnly = async () => ADMIN_ONLY;
+
+// ---------- Livreurs ----------
+
+/** PUT /driver/applications/:applicationId : la boutique visée décide. */
+exports.driverApplicationFromParam = async req => {
+  const app = await repos.driverApplications.getById(req.params.applicationId);
+  return app ? [{ fastFoodId: app.fastFoodId, permission: 'orders.deliver' }] : null;
+};
+
+/** DELETE /driver/:driverId?fastFoodId= : la boutique, ou le livreur qui part. */
+exports.driverRemove = async req => [{ fastFoodId: req.query?.fastFoodId, permission: 'orders.deliver', selfUids: [req.params.driverId] }];
+
+// ---------- Notifications / bonus / transactions ----------
+
+/** GET /notification/get|user?userId=&fastFoodId= : soi-même, et la boutique si demandée. */
+exports.notificationsQuery = async req => {
+  const { userId, fastFoodId } = req.query;
+  const checks = [{ selfUids: [userId] }];
+  if (fastFoodId) checks.push({ fastFoodId, permission: '*' });
+  return checks;
+};
+
+/**
+ * POST /transaction : on ne paie qu'en son nom, et seulement ses propres
+ * commandes existantes (items portant un `id`, venus du panier).
+ */
+exports.transactionCreate = async req => {
+  const items = Array.isArray(req.body?.items) ? req.body.items : [];
+  const ids = items.map(o => o?.id).filter(Boolean);
+  const orders = await Promise.all(ids.map(id => repos.orders.getById(id)));
+  if (orders.some(o => !o)) return null;
+  return [{ selfUids: [req.body?.userId] }, ...orders.map(o => ({ selfUids: [o.userId] }))];
+};
+
+/** GET /bonusRequest/status/:id : le demandeur. */
+exports.bonusRequestFromParam = async req => {
+  const request = await repos.bonusRequests.getById(req.params.id);
+  return request ? [{ selfUids: [request.userId] }] : null;
+};
+
 // ---------- Support ----------
 
 /** GET /support/threads?userId|fastFoodId|scope=platform */
