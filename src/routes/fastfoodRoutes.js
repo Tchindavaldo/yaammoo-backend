@@ -130,11 +130,25 @@ route.post('', firebaseAuth, authorize(selfFromBody('userId')), createFastfoodCo
  *
  *       Pagination OPT-IN par `?limit` (plafonné à 50), `?cursor`, `?q` : voir
  *       `architecture/fastfood-pagination.md`. Sans `limit`, forme historique.
+ *
+ *       Chaque boutique porte `distanceKm` (1 décimale) : distance à vol
+ *       d'oiseau entre l'utilisateur (`?lat`/`?lng`, sinon sa dernière position
+ *       connue) et la position de la boutique. `null` si l'une manque. Voir
+ *       `architecture/geolocation.md`.
  *     tags:
  *       - FastFood
  *     security:
  *       - bearerAuth: []
  *       - {}
+ *     parameters:
+ *       - in: query
+ *         name: lat
+ *         schema: { type: number }
+ *         description: Latitude de l'utilisateur (avec `lng`). Prioritaire sur sa dernière position connue.
+ *       - in: query
+ *         name: lng
+ *         schema: { type: number }
+ *         description: Longitude de l'utilisateur (avec `lat`).
  *     responses:
  *       200:
  *         description: Liste des boutiques
@@ -170,118 +184,14 @@ route.post('', firebaseAuth, authorize(selfFromBody('userId')), createFastfoodCo
  *                               $ref: '#/components/schemas/Menu'
  *                           deliveryOffer:
  *                             $ref: '#/components/schemas/DeliveryOffer'
+ *                           latitude: { type: number, nullable: true, description: Position de la boutique (posée par le marchand). }
+ *                           longitude: { type: number, nullable: true }
+ *                           distanceKm: { type: number, nullable: true, description: "Distance utilisateur → boutique (km). null = position inconnue." }
  */
 route.get('/all', optionalFirebaseAuth, getfastfoodController);
 
-/**
- * @swagger
- * /fastFood/{fastFoodId}:
- *   get:
- *     summary: Get a specific fastfood restaurant by ID
- *     tags:
- *       - FastFood
- *     parameters:
- *       - in: path
- *         name: fastFoodId
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: FastFood details
- *   post:
- *     summary: Update a fastfood restaurant (propriétaire ou admin)
- *     description: >-
- *       Réservé au **propriétaire** de la boutique, ou à un **admin plateforme**
- *       (qui peut modifier n'importe quelle boutique). Auparavant publique.
- *     tags:
- *       - FastFood
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: fastFoodId
- *         required: true
- *         schema:
- *           type: string
- *     requestBody:
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               name:
- *                 type: string
- *               number:
- *                 type: string
- *               momoNumber:
- *                 type: string
- *               whatsappNumber:
- *                 type: string
- *               openTime:
- *                 type: string
- *               closeTime:
- *                 type: string
- *               image:
- *                 type: string
- *               orderLeadTime:
- *                 type: number
- *               advanceDays:
- *                 type: number
- *               pickupAllowed:
- *                 type: boolean
- *               openDays:
- *                 type: array
- *                 description: Jours d'ouverture, 0 (dimanche) à 6 (samedi). [] = indisponible.
- *                 items:
- *                   type: integer
- *                 example: [1, 2, 3, 4, 5, 6]
- *               isAvailable:
- *                 type: boolean
- *                 description: Coupure manuelle (false = indisponible, openDays conservé).
- *               cities:
- *                 type: array
- *                 items:
- *                   type: string
- *               deliveryHours:
- *                 type: array
- *                 items:
- *                   type: object
- *                   properties:
- *                     hour:
- *                       type: string
- *                     periodic:
- *                       type: boolean
- *                     periodicZones:
- *                       type: array
- *                       items:
- *                         type: object
- *                         properties:
- *                           lieu:
- *                             type: string
- *                           prix:
- *                             type: string
- *                     express:
- *                       type: boolean
- *                     expressZones:
- *                       type: array
- *                       items:
- *                         type: object
- *                         properties:
- *                           lieu:
- *                             type: string
- *                           prix:
- *                             type: string
- *     responses:
- *       200:
- *         description: FastFood successfully updated
- *       401:
- *         description: Non authentifié
- *       403:
- *         description: Cette boutique ne vous appartient pas
- *       404:
- *         description: Boutique introuvable
- */
+// Doc Swagger de GET / POST `/fastFood/{fastFoodId}` : routes/docs/fastfoodRoutes.docs.js.
+
 /**
  * @swagger
  * /fastFood/search:

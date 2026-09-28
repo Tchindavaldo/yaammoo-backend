@@ -3,6 +3,7 @@ const { apply, getApplicationsController, getDriversController, getStoresControl
 const firebaseAuth = require('../middlewares/authMiddleware');
 const { authorize, selfFromBody, selfFromParam, fastfoodFromParam, driverApplicationFromParam, driverRemove } = require('../middlewares/staffPermissionMiddleware');
 const { rateDriverController, getDriverRatingsController } = require('../controllers/rating/rateDriver.controller');
+const { recordDriverLocationController, getOrderTrackingController } = require('../controllers/driver/driverLocation.controller');
 
 const router = express.Router();
 
@@ -48,6 +49,79 @@ const router = express.Router();
  *         description: Aucune nouvelle demande (déjà en attente/livreur)
  */
 router.post('/apply', firebaseAuth, authorize(selfFromBody('userId')), apply);
+
+/**
+ * @swagger
+ * /driver/location:
+ *   post:
+ *     summary: Position du livreur en course (suivi temps réel)
+ *     description: |
+ *       Envoyée toutes les ~10 s par l'app du livreur tant qu'il a une commande
+ *       `delivering`. Le livreur est celui du Bearer. La position écrase la
+ *       précédente (`driver_positions`) et part à chaque client concerné par
+ *       socket `driverLocationUpdated` `{ data: { driverId, latitude, longitude,
+ *       accuracy, speed, heading, capturedAt, orderIds[] } }`. Sans course en
+ *       cours, rien n'est stocké et `activeDeliveries` vaut 0.
+ *     tags:
+ *       - Drivers
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [latitude, longitude]
+ *             properties:
+ *               latitude: { type: number, minimum: -90, maximum: 90 }
+ *               longitude: { type: number, minimum: -180, maximum: 180 }
+ *               accuracy: { type: number, minimum: 0, description: m }
+ *               speed: { type: number, minimum: 0, description: m/s }
+ *               heading: { type: number, minimum: 0, maximum: 360, description: degrés, 0 = nord }
+ *               capturedAt: { type: string, format: date-time }
+ *     responses:
+ *       200:
+ *         description: "data = { activeDeliveries: number }"
+ *       400:
+ *         description: Payload invalide
+ *       401:
+ *         description: Token manquant ou invalide
+ */
+router.post('/location', firebaseAuth, recordDriverLocationController);
+
+/**
+ * @swagger
+ * /driver/tracking/{orderId}:
+ *   get:
+ *     summary: État de suivi d'une commande (onglet « Suivi » du client)
+ *     description: |
+ *       Réservé au client de la commande, à son livreur et au propriétaire de
+ *       la boutique. `driver` et `destination` ne sont renseignés que pour une
+ *       commande `delivering` assignée à un livreur. `destination` = dernière
+ *       position connue du client.
+ *     tags:
+ *       - Drivers
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: orderId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: |
+ *           data = { orderId, status, driverId, driver: { driverId, latitude,
+ *           longitude, accuracy, speed, heading, capturedAt } | null,
+ *           destination: { latitude, longitude, capturedAt } | null }
+ *       403:
+ *         description: Ni client, ni livreur, ni boutique de la commande
+ *       404:
+ *         description: Commande introuvable
+ */
+router.get('/tracking/:orderId', firebaseAuth, getOrderTrackingController);
 
 /**
  * @swagger

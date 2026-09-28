@@ -37,6 +37,10 @@ Réponse en mode paginé :
 Chaque boutique porte `stats: { rating, count }` — note synthétisée depuis ses
 plats, plancher à 3. Voir `architecture/ratings.md`.
 
+Chaque boutique porte aussi `distanceKm` (utilisateur → boutique, `null` si
+une position manque) ; `?lat=&lng=` (facultatifs) priment sur la dernière
+position connue du user. Paginé ou non. Voir [geolocation.md](./geolocation.md).
+
 > ⚠️ **La rétrocompatibilité n'est pas optionnelle.** Les versions de l'app déjà
 > installées appellent cette route sans paramètre et attendent un **tableau**.
 > Sans `limit`, le service renvoie donc exactement l'ancienne forme — pas un

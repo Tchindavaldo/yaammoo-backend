@@ -51,6 +51,11 @@ Données personnelles : supprimées avec le compte (`ON DELETE CASCADE`).
 
 - Audience « ville » des notifications boutique : `city_user_ids(ville)`
   (voir [notifications-broadcast.md](./notifications-broadcast.md)).
+- Distance des boutiques du home (`distanceKm`, `getLatest`) et destination du
+  suivi livreur : voir [geolocation.md](./geolocation.md). La position du
+  livreur en course, elle, va dans `driver_positions`, pas ici.
+- Validation : `validateUserLocation` s'appuie sur la validation générique
+  `validateFieldRules` (partagée avec `POST /driver/location`).
 - Marketing / analyse : historique `user_locations` (index `user_id,
   captured_at` et `lower(city)`).
 

@@ -44,6 +44,17 @@ exports.getByDriver = async driverId => {
 };
 
 /**
+ * Commandes d'un livreur à un statut donné, en version légère (`{ id, userId }`).
+ * Appelé à chaque position du livreur en course (~10 s) : ne lit que deux
+ * colonnes, par l'index `idx_orders_driver_status` (migration 060).
+ */
+exports.getLightByDriverAndStatus = async (driverId, status) => {
+  const { data, error } = await alive(supabase.from(TABLE).select('id, user_id').eq('driver_id', driverId).eq('status', status));
+  if (error) throw error;
+  return (data || []).map(r => ({ id: r.id, userId: r.user_id }));
+};
+
+/**
  * Query flexible (équivalent du repo Firestore).
  */
 exports.query = async ({ fastFoodId, userId, status, orderByCreated = 'desc' } = {}) => {

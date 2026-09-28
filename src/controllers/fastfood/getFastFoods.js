@@ -4,6 +4,7 @@ const { withBannerThumbnail } = require('../../services/images/thumbnailUrl');
 const { formatFastfoodsForClient } = require('../../utils/deliveryHoursFormat');
 const { getAppleReviewMode, isTestClient, getTestFastfoodVolume, getTestVolumeImageUrl, getClientSettings } = require('../../services/settings/settings.service');
 const { getVolumeTestPage } = require('../../services/fastfood/volumeTestFastFoods');
+const { withDistances } = require('../../services/fastfood/fastfoodDistance');
 
 /** Borne la taille de page : un `?limit=5000` annulerait tout l'intérêt. */
 const MAX_LIMIT = 50;
@@ -34,7 +35,9 @@ exports.getfastfoodController = async (req, res) => {
       result = await getFastFoodsService(req.user?.uid, limit ? { limit, cursor, q } : undefined);
     }
     const paginated = limit !== null;
-    const fastfoods = paginated ? result.items : result;
+    // `distanceKm` : user (query `lat`/`lng`, sinon dernière position connue)
+    // → position de la boutique. Voir services/fastfood/fastfoodDistance.js.
+    const fastfoods = await withDistances(paginated ? result.items : result, { userId: req.user?.uid, query: req.query });
     const data = formatFastfoodsForClient(fastfoods, req);
     const appleReviewMode = await getAppleReviewMode();
 

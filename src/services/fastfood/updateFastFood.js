@@ -35,6 +35,16 @@ exports.updateFastFoodService = async (fastFoodId, data) => {
     if (typeof data.isAvailable !== 'boolean') throw badRequest('isAvailable doit être un booléen.');
     updateData.isAvailable = data.isAvailable;
   }
+  // Position de la boutique (migration 060) : les deux ensemble, ou `null`
+  // pour l'effacer. Sert au calcul de distance du home.
+  if (data.latitude !== undefined || data.longitude !== undefined) {
+    const clear = data.latitude === null && data.longitude === null;
+    const valid =
+      Number.isFinite(data.latitude) && Math.abs(data.latitude) <= 90 && Number.isFinite(data.longitude) && Math.abs(data.longitude) <= 180;
+    if (!clear && !valid) throw badRequest('latitude (±90) et longitude (±180) doivent être fournies ensemble.');
+    updateData.latitude = clear ? null : data.latitude;
+    updateData.longitude = clear ? null : data.longitude;
+  }
   if (data.openDays !== undefined) {
     const valid = Array.isArray(data.openDays) && data.openDays.every(d => Number.isInteger(d) && d >= 0 && d <= 6);
     if (!valid) throw badRequest('openDays doit être un tableau d\'entiers 0 (dimanche) à 6 (samedi).');
