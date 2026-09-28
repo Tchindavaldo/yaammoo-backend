@@ -43,6 +43,7 @@ const sb = {
   staff: require('./supabase/staff.repo'),
   fastfoodBroadcasts: require('./supabase/fastfoodBroadcasts.repo'),
   userLocations: require('./supabase/userLocations.repo'),
+  driverPositions: require('./supabase/driverPositions.repo'),
 };
 
 // ===========================================================================
@@ -92,5 +93,6 @@ module.exports = {
   staff: sb.staff,
   fastfoodBroadcasts: sb.fastfoodBroadcasts,
   userLocations: sb.userLocations,
+  driverPositions: sb.driverPositions,
   supabase: sb,
 };

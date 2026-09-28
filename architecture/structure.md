@@ -31,7 +31,9 @@ src/
 │   ├── smsRoutes.js           → /sms (WhatsApp)
 │   ├── supportRoutes.js       → /support (chat support client/marchand)
 │   ├── bannersRoutes.js        → /banner (publicité carrousel home)
-│   └── paymentPageRoutes.js   → /payment-page (page HTML paiement, WebView app)
+│   ├── paymentPageRoutes.js   → /payment-page (page HTML paiement, WebView app)
+│   └── docs/                  # Blocs Swagger sortis d'un fichier de routes trop long
+│                              #   (ex. fastfoodRoutes.docs.js), listés dans config/swagger.js
 │
 ├── controllers/               # HTTP → service
 │   ├── auth/
@@ -74,7 +76,9 @@ src/
 │   (hors src/) public/payment/index.html  # Page servie par /payment-page
 │
 └── utils/
+    ├── geo.js                 # haversineKm, isValidPoint (geolocation.md)
     ├── validator/             # validateOrder, validateNotificationData, validateUser…
+    │                          #   + validateFieldRules (générique, positions user / livreur)
     ├── flattenNotifications.js
     └── supabaseKeepAlive.js
 ```

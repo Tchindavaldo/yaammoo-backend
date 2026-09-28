@@ -47,3 +47,20 @@ exports.record = async ({ id, userId, location, capturedAt }) => {
   if (error) throw error;
   return true;
 };
+
+/**
+ * Dernière position connue d'un user (capture la plus récente), ou null.
+ * Lecture de l'index `idx_user_locations_user`.
+ * @returns {Promise<{latitude:number, longitude:number, capturedAt:string}|null>}
+ */
+exports.getLatest = async userId => {
+  const { data, error } = await supabase
+    .from('user_locations')
+    .select('latitude, longitude, captured_at')
+    .eq('user_id', userId)
+    .order('captured_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? { latitude: data.latitude, longitude: data.longitude, capturedAt: data.captured_at } : null;
+};

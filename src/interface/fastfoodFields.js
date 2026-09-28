@@ -19,6 +19,10 @@ exports.FastfoodFields = {
   openDays: { type: 'array', required: false },
   // Coupure manuelle par le marchand. false = indisponible, `openDays` conservé.
   isAvailable: { type: 'bool', required: false },
+  // Position de la boutique (migration 060) : envoyées ensemble, `null` efface.
+  // Sert à la distance renvoyée par `GET /fastfood/all` (`distanceKm`).
+  latitude: { type: 'number', required: false },
+  longitude: { type: 'number', required: false },
   // Créneaux de livraison. Deux formats coexistent en base :
   //   - legacy (app < APP_DELIVERY_NEW_MIN_VERSION) : ["10:00", "14:00"]
   //   - actuel : objets enrichis décrits par `deliveryHourItem` ci-dessous.

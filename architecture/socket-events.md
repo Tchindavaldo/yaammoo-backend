@@ -111,6 +111,17 @@ Le même pattern (`ack?.()` + dédoublonnage `__eventId`) s'applique à tous les
 > `driverApplicationCreated`/`Decided` déclenchent aussi **push + notif BD** (`newNotification`)
 > via `notifyOrderEvent` → `postNotificationService`.
 
+### Suivi du livreur (position en course)
+
+Émis par `services/driver/driverLocation.service.js` à chaque `POST /driver/location`
+(~10 s pendant une course). **Fire-and-forget** : une position périmée n'a pas de
+valeur, le client relit l'état par `GET /driver/tracking/:orderId`. Détail :
+[geolocation.md](./geolocation.md).
+
+| Event                   | Destination                                                  | Payload                                                                                         |
+| ----------------------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| `driverLocationUpdated` | `userId` de chaque client ayant une commande `delivering` du livreur | `{ data: { driverId, latitude, longitude, accuracy, speed, heading, capturedAt, orderIds[] } }` |
+
 ### Notes / Avis (ratings)
 
 Émis depuis `services/rating/*` (reliableEmit). La moyenne va au store du front sans refetch.

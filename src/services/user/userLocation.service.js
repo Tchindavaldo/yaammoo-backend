@@ -20,6 +20,8 @@ const resolveCapturedAt = raw => {
   }
   return new Date(now).toISOString();
 };
+// Partagé avec la position du livreur (driverLocation.service).
+exports.resolveCapturedAt = resolveCapturedAt;
 
 /**
  * @param {string} userId  uid du Bearer

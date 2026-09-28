@@ -1,5 +1,12 @@
 # Feature — Deliveries (Suivi Livraison)
 
+> ⚠️ **Doc de conception, jamais implémentée.** Aucune route `/delivery`, aucun
+> `deliveryService` ni `repos.deliveries` n'existe dans `src/`. Le suivi réel
+> du livreur (position, carte client, ETA) passe par `POST /driver/location` et
+> `GET /driver/tracking/:orderId` : voir [geolocation.md](./geolocation.md).
+> Les statuts de livraison vivent sur la commande (`orders.status`), voir
+> [orders.md](./orders.md).
+
 ## Rôle
 
 Suivi des livraisons : assignation livreur, tracking progression, notifications client/marchand.

@@ -413,6 +413,7 @@ const options = {
     './src/routes/menuRoutes.js',
     './src/routes/orderRoutes.js',
     './src/routes/fastfoodRoutes.js',
+    './src/routes/docs/fastfoodRoutes.docs.js',
     './src/routes/imageRoutes.js',
     './src/routes/bonusRoute.js',
     './src/routes/bonusRequestRoute.js',

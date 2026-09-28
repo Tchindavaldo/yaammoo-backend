@@ -21,7 +21,8 @@ Documentation d'architecture du backend Node.js / Express / Supabase / Socket.io
 | [orders.md](./orders.md)                                 | Commandes — routes `/order`, rank queue, stock, transitions statut, **délégation livreur**                                                                  | ✅     |
 | [staff.md](./staff.md)                                   | **Employés** — création par numéro, rôle créé avec l'employé, permissions par boutique, gardes `staffGuard` / `requireFastfoodPermission` | ✅     |
 | [drivers.md](./drivers.md)                               | Livreurs — candidatures `/driver`, `user.driverId` vs `order.driverId`, listes                                                                              | ✅     |
-| [deliveries.md](./deliveries.md)                         | Livraisons — tracking, livreur assignation, GPS, statuts                                                                                                    | ✅     |
+| [deliveries.md](./deliveries.md)                         | ⚠️ Conception jamais implémentée (routes `/delivery` absentes) — le suivi réel est dans geolocation.md                                                      | ❌     |
+| [geolocation.md](./geolocation.md)                       | **Géolocalisation** — `distanceKm` des boutiques (`/fastfood/all`), position boutique, **suivi livreur** (`POST /driver/location`, `GET /driver/tracking/:orderId`, socket `driverLocationUpdated`, `driver_positions`) | ✅     |
 | [pricing.md](./pricing.md)                               | **Tarification (hub)** — composition du prix affiché, **marge par palier**, **la course n'est jamais dans le prix du plat**, `settings` modifiables à chaud | ✅     |
 | [pricing-delivery-modes.md](./pricing-delivery-modes.md) | Qui livre (`deliveryBy`), **arrondi au pas dans les deux régimes**, grilles, cascade                                                                        | ✅     |
 | [pricing-fees.md](./pricing-fees.md)                     | Les deux frais : commission **agrégateur** (5 %) vs frais de **retrait** MTN/Orange, une ponction par boutique                                              | ✅     |
@@ -91,7 +92,12 @@ BACKEND/
 │   │   ├── supabase/                   # Impl. Supabase (seule impl.) — dont settings,
 │   │   │                               #   orderSettlements, orderDeliveries
 │   │   ├── index.js                    # Point d'entrée stable repos.*
-│   │   └── mappers.js                  # Conversions camelCase ↔ snake_case
+│   │   ├── mappers.js                  # Conversions camelCase ↔ snake_case (users, fastfoods, menus,
+│   │   │                               #   orders, transactions, withdrawals) + réexport des suivants
+│   │   ├── mapperUtils.js              # toIso / toDate
+│   │   ├── bonusMappers.js             # bonus, bonusRequest
+│   │   ├── contentMappers.js           # notification, driverApplication, banner, supportThread/Message
+│   │   └── staffMappers.js             # staffRole, staffMember
 │   ├── interface/                      # Définitions champs/schémas
 │   └── utils/                          # validator/, helpers, supabaseKeepAlive
 └── scripts/                            # Migration, cleanup, etc.

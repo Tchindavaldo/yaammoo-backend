@@ -42,6 +42,8 @@ en status `accepted`.
 | POST    | `/driver/:driverId/rating`            | `rateDriverController`        | Noter un livreur (client livré) — voir [ratings.md](./ratings.md)                             |
 | GET     | `/driver/:driverId/ratings`           | `getDriverRatingsController`  | Liste des avis d'un livreur                                                                   |
 | GET     | `/driver/:driverId`                   | `getDriverProfileController`  | **Infos livreur, contenu adapté au demandeur** (protégé `firebaseAuth`)                       |
+| POST    | `/driver/location`                    | `recordDriverLocationController` | Position du livreur en course → `driver_positions` + socket `driverLocationUpdated` aux clients. Voir [geolocation.md](./geolocation.md) |
+| GET     | `/driver/tracking/:orderId`           | `getOrderTrackingController`  | État de suivi d'une commande (client, livreur, boutique). Voir [geolocation.md](./geolocation.md) |
 
 ### `GET /driver/:driverId` — profil adapté au demandeur
 

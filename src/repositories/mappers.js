@@ -9,22 +9,7 @@
 // compatible avec l'app mobile (Firestore-like) quel que soit le backend.
 // ============================================================================
 
-const toIso = v => {
-  if (!v) return null;
-  if (typeof v === 'string') return v;
-  if (v instanceof Date) return v.toISOString();
-  return null;
-};
-
-const toDate = v => {
-  if (!v) return null;
-  if (typeof v === 'string') {
-    // 'YYYY-MM-DD' ou ISO complet
-    return v.length >= 10 ? v.substring(0, 10) : null;
-  }
-  if (v instanceof Date) return v.toISOString().substring(0, 10);
-  return null;
-};
+const { toIso, toDate } = require('./mapperUtils');
 
 // ---------------------------------------------------------------------------
 // USERS
@@ -94,7 +79,7 @@ const userFromSupabase = (row, pushTokens = []) => {
 // ---------------------------------------------------------------------------
 const fastfoodToSupabase = data => {
   const { createdAt, updatedAt, ...rest } = data;
-  const known = ['id', 'userId', 'name', 'number', 'momoNumber', 'whatsappNumber', 'openTime', 'closeTime', 'image', 'orderLeadTime', 'advanceDays', 'pickupAllowed', 'cities', 'deliveryHours', 'platformDeliveryZones', 'deliveryBy', 'driverRatingAvg', 'driverRatingCount', 'openDays', 'isAvailable', 'available'];
+  const known = ['id', 'userId', 'name', 'number', 'momoNumber', 'whatsappNumber', 'openTime', 'closeTime', 'image', 'orderLeadTime', 'advanceDays', 'pickupAllowed', 'cities', 'deliveryHours', 'platformDeliveryZones', 'deliveryBy', 'driverRatingAvg', 'driverRatingCount', 'openDays', 'isAvailable', 'available', 'latitude', 'longitude'];
   const extra = {};
   for (const k of Object.keys(rest)) {
     if (!known.includes(k)) extra[k] = rest[k];
@@ -122,6 +107,9 @@ const fastfoodToSupabase = data => {
     // Décidé par l'admin — jamais par la boutique elle-même.
     delivery_by: data.deliveryBy ?? 'fastfood',
     platform_delivery_zones: data.platformDeliveryZones ?? [],
+    // Position de la boutique (migration 060), posée par le marchand.
+    latitude: Number.isFinite(data.latitude) ? data.latitude : null,
+    longitude: Number.isFinite(data.longitude) ? data.longitude : null,
     extra_data: extra,
     created_at: toIso(createdAt),
     updated_at: toIso(updatedAt) || toIso(createdAt),
@@ -149,6 +137,8 @@ const fastfoodFromSupabase = row => {
     platformDeliveryZones: row.platform_delivery_zones || [],
     driverRatingAvg: row.driver_rating_avg != null ? Number(row.driver_rating_avg) : 0,
     driverRatingCount: row.driver_rating_count ?? 0,
+    latitude: row.latitude ?? null,
+    longitude: row.longitude ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     ...(row.extra_data || {}),
@@ -385,267 +375,6 @@ const withdrawalFromSupabase = row => {
   };
 };
 
-// ---------------------------------------------------------------------------
-// BONUS
-// ---------------------------------------------------------------------------
-// Colonnes réelles depuis la migration 014 (avant : tout en `data` JSONB).
-// `criteria` reste JSONB : sous-objet {kind, target, period} lu d'un bloc.
-const bonusToSupabase = data => {
-  const { id, createdAt, type, name, description, criteria, fastFoodId, fastFoodName, active, requiresRewardCredentials, requiresProfile, claimDuration, claimDelayHours, flyerUrl, usageLimit, createdBy, ...rest } = data;
-
-  return {
-    id,
-    type: type ?? null,
-    name: name ?? null,
-    description: description ?? null,
-    criteria: criteria ?? {},
-    fastfood_id: fastFoodId ?? null,
-    fastfood_name: fastFoodName ?? null,
-    active: active ?? true,
-    requires_reward_credentials: requiresRewardCredentials ?? false,
-    requires_profile: requiresProfile ?? false,
-    claim_duration: claimDuration ?? null,
-    // Délai d'attente avant claim (heures) : 0 = instantané pour tous les bonus
-    // sans preuve à constituer (migration 031).
-    claim_delay_hours: claimDelayHours ?? 0,
-    flyer_url: flyerUrl ?? null,
-    usage_limit: usageLimit ?? null,
-    created_by: createdBy ?? null,
-    extra_data: rest,
-    created_at: toIso(createdAt),
-  };
-};
-
-const bonusFromSupabase = row => {
-  if (!row) return null;
-  return {
-    id: row.id,
-    type: row.type,
-    name: row.name,
-    description: row.description,
-    criteria: row.criteria || {},
-    fastFoodId: row.fastfood_id,
-    fastFoodName: row.fastfood_name,
-    active: row.active ?? true,
-    requiresRewardCredentials: row.requires_reward_credentials ?? false,
-    requiresProfile: row.requires_profile ?? false,
-    claimDuration: row.claim_duration,
-    claimDelayHours: row.claim_delay_hours ?? 0,
-    flyerUrl: row.flyer_url ?? null,
-    usageLimit: row.usage_limit,
-    createdBy: row.created_by,
-    createdAt: row.created_at,
-    ...(row.extra_data || {}),
-  };
-};
-
-// ---------------------------------------------------------------------------
-// BONUS REQUESTS
-// ---------------------------------------------------------------------------
-// code / usageCount / redeemed sont des colonnes réelles depuis la migration 014
-// (avant : dans extra_data, d'où un findByCode non indexé qui scannait la table).
-const bonusRequestToSupabase = data => {
-  const { createdAt, updatedAt, ...rest } = data;
-  const known = ['id', 'userId', 'bonusId', 'status', 'code', 'usageCount', 'redeemed', 'armed', 'isCurrent'];
-  const extra_data = {};
-  for (const k of Object.keys(rest)) {
-    if (!known.includes(k)) extra_data[k] = rest[k];
-  }
-  return {
-    id: data.id,
-    user_id: data.userId,
-    bonus_id: data.bonusId,
-    status: data.status ?? [],
-    code: data.code ?? null,
-    usage_count: data.usageCount ?? 0,
-    redeemed: data.redeemed ?? false,
-    armed: data.armed ?? false,
-    // Réclamation courante de ce (user, bonus). Une nouvelle l'est par défaut.
-    is_current: data.isCurrent ?? true,
-    extra_data,
-    created_at: toIso(createdAt),
-    updated_at: toIso(updatedAt) || toIso(createdAt),
-  };
-};
-
-const bonusRequestFromSupabase = row => {
-  if (!row) return null;
-  return {
-    id: row.id,
-    userId: row.user_id,
-    bonusId: row.bonus_id,
-    status: row.status || [],
-    code: row.code ?? null,
-    usageCount: row.usage_count ?? 0,
-    redeemed: row.redeemed ?? false,
-    armed: row.armed ?? false,
-    isCurrent: row.is_current ?? true,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-    ...(row.extra_data || {}),
-  };
-};
-
-// ---------------------------------------------------------------------------
-// NOTIFICATIONS
-// ---------------------------------------------------------------------------
-const notificationToSupabase = data => {
-  return {
-    id: data.id,
-    user_id: data.userId ?? null,
-    fastfood_id: data.fastFoodId ?? null,
-    target: data.target ?? null,
-    all_notif: data.allNotif ?? [],
-    created_at: toIso(data.createdAt),
-    updated_at: toIso(data.updatedAt) || toIso(data.createdAt),
-  };
-};
-
-const notificationFromSupabase = row => {
-  if (!row) return null;
-  return {
-    id: row.id,
-    userId: row.user_id,
-    fastFoodId: row.fastfood_id,
-    target: row.target,
-    allNotif: row.all_notif || [],
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
-};
-
-// ---------------------------------------------------------------------------
-// DRIVER APPLICATIONS (candidatures livreur)
-// ---------------------------------------------------------------------------
-const driverApplicationToSupabase = data => {
-  const { createdAt, updatedAt, ...rest } = data;
-  const known = ['id', 'userId', 'fastFoodId', 'status'];
-  const extra_data = {};
-  for (const k of Object.keys(rest)) {
-    if (!known.includes(k)) extra_data[k] = rest[k];
-  }
-  return {
-    id: data.id,
-    user_id: data.userId,
-    fastfood_id: data.fastFoodId,
-    status: data.status ?? 'pending',
-    extra_data,
-    created_at: toIso(createdAt),
-    updated_at: toIso(updatedAt) || toIso(createdAt),
-  };
-};
-
-const driverApplicationFromSupabase = row => {
-  if (!row) return null;
-  return {
-    id: row.id,
-    userId: row.user_id,
-    fastFoodId: row.fastfood_id,
-    status: row.status,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-    ...(row.extra_data || {}),
-  };
-};
-
-
-
-// ---------------------------------------------------------------------------
-// BANNERS (publicité carrousel home)
-// ---------------------------------------------------------------------------
-const bannerToSupabase = data => {
-  return {
-    ...(data.id !== undefined ? { id: data.id } : {}),
-    title: data.title ?? null,
-    image_url: data.imageUrl,
-    type: data.type ?? 'none',
-    target_id: data.targetId ?? null,
-    active: data.active ?? true,
-    sort_order: data.sortOrder ?? 0,
-    created_at: toIso(data.createdAt),
-    updated_at: toIso(data.updatedAt),
-  };
-};
-
-const bannerFromSupabase = row => {
-  if (!row) return null;
-  return {
-    id: row.id,
-    title: row.title ?? '',
-    imageUrl: row.image_url,
-    type: row.type,
-    targetId: row.target_id ?? null,
-    active: row.active,
-    sortOrder: row.sort_order,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
-};
-
-// ---------------------------------------------------------------------------
-// SUPPORT (chat client <-> support yaammoo)
-// ---------------------------------------------------------------------------
-// fastFoodId null = demande adressee a la plateforme yaammoo (pas de boutique).
-const supportThreadToSupabase = data => {
-  const out = {};
-  if (data.id !== undefined) out.id = data.id;
-  if (data.userId !== undefined) out.user_id = data.userId;
-  if (data.fastFoodId !== undefined) out.fastfood_id = data.fastFoodId || null;
-  if (data.topic !== undefined) out.topic = data.topic;
-  if (data.title !== undefined) out.title = data.title;
-  if (data.status !== undefined) out.status = data.status;
-  if (data.unreadCount !== undefined) out.unread_count = data.unreadCount;
-  if (data.supportUnreadCount !== undefined) out.support_unread_count = data.supportUnreadCount;
-  if (data.lastMessage !== undefined) out.last_message = data.lastMessage;
-  if (data.createdAt !== undefined) out.created_at = toDate(data.createdAt);
-  if (data.updatedAt !== undefined) out.updated_at = toDate(data.updatedAt);
-  return out;
-};
-
-const supportThreadFromSupabase = row => {
-  if (!row) return null;
-  // La boutique est jointe quand elle existe ; sinon le fil vise yaammoo.
-  const ff = row.fastfoods || row.fastfood || null;
-  // Client a l'origine du fil : affiche en titre cote marchand.
-  const u = row.users || row.user || null;
-  const clientName = u ? [u.prenom, u.nom].filter(Boolean).join(' ').trim() : '';
-  return {
-    id: row.id,
-    userId: row.user_id,
-    client: { id: row.user_id, nom: clientName || 'Client' },
-    fastFood: row.fastfood_id ? { id: row.fastfood_id, nom: ff ? ff.name || ff.nom || null : null } : null,
-    topic: row.topic,
-    title: row.title || '',
-    status: row.status,
-    unreadCount: row.unread_count || 0,
-    supportUnreadCount: row.support_unread_count || 0,
-    lastMessage: row.last_message || '',
-    createdAt: toIso(row.created_at),
-    updatedAt: toIso(row.updated_at),
-  };
-};
-
-const supportMessageToSupabase = data => {
-  const out = {};
-  if (data.id !== undefined) out.id = data.id;
-  if (data.threadId !== undefined) out.thread_id = data.threadId;
-  if (data.author !== undefined) out.author = data.author;
-  if (data.text !== undefined) out.text = data.text;
-  if (data.createdAt !== undefined) out.created_at = toDate(data.createdAt);
-  return out;
-};
-
-const supportMessageFromSupabase = row => {
-  if (!row) return null;
-  return {
-    id: row.id,
-    threadId: row.thread_id,
-    author: row.author,
-    text: row.text,
-    createdAt: toIso(row.created_at),
-  };
-};
-
 module.exports = {
   toIso,
   toDate,
@@ -656,13 +385,10 @@ module.exports = {
   order: { toSupabase: orderToSupabase, fromSupabase: orderFromSupabase },
   transaction: { toSupabase: transactionToSupabase, fromSupabase: transactionFromSupabase },
   withdrawal: { toSupabase: withdrawalToSupabase, fromSupabase: withdrawalFromSupabase },
-  bonus: { toSupabase: bonusToSupabase, fromSupabase: bonusFromSupabase },
-  bonusRequest: { toSupabase: bonusRequestToSupabase, fromSupabase: bonusRequestFromSupabase },
-  notification: { toSupabase: notificationToSupabase, fromSupabase: notificationFromSupabase },
-  driverApplication: { toSupabase: driverApplicationToSupabase, fromSupabase: driverApplicationFromSupabase },
-  supportThread: { toSupabase: supportThreadToSupabase, fromSupabase: supportThreadFromSupabase },
-  supportMessage: { toSupabase: supportMessageToSupabase, fromSupabase: supportMessageFromSupabase },
-  banner: { toSupabase: bannerToSupabase, fromSupabase: bannerFromSupabase },
-  // Employés (migration 050) — fichier dédié, ce fichier dépassant le plafond R3.
+  // Fichiers dédiés, ce fichier dépassant le plafond R3 :
+  // bonus + bonusRequest, puis notification / driverApplication / banner /
+  // supportThread / supportMessage, puis employés (migration 050).
+  ...require('./bonusMappers'),
+  ...require('./contentMappers'),
   ...require('./staffMappers'),
 };
