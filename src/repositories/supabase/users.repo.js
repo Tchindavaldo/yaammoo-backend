@@ -122,6 +122,14 @@ exports.getPushTokensForUsers = async userIds => {
   return data || [];
 };
 
+/** Identité courte (nom, prénom, email, numéro) d'une liste d'utilisateurs. */
+exports.getUserIdentities = async userIds => {
+  if (!userIds || userIds.length === 0) return [];
+  const { data, error } = await supabase.from(TABLE).select('id, nom, prenom, email, numero').in('id', userIds);
+  if (error) throw error;
+  return data || [];
+};
+
 /** Une page de TOUS les tokens, dans un ordre stable. */
 exports.pagePushTokens = async (from, size) => {
   const { data, error } = await supabase

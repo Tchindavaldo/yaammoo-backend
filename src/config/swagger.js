@@ -408,6 +408,7 @@ const options = {
     },
   },
   apis: [
+    './src/routes/analyticsRoutes.js',
     './src/routes/authRoutes.js',
     './src/routes/userRoutes.js',
     './src/routes/menuRoutes.js',

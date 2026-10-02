@@ -1,6 +1,7 @@
 const notificationHandler = require('./services/notification/socket/notificationHandler');
 const { replayUndelivered } = require('./utils/reliableEmit');
 const repos = require('./repositories');
+const presence = require('./services/analytics/presence.service');
 
 // src/socket.js
 let io;
@@ -20,13 +21,19 @@ module.exports = {
       },
     });
 
+    presence.closeOrphanConnections();
+
     io.on('connection', socket => {
       socket.on('join_user', userId => {
         if (!userId) return;
         socket.join(userId);
+        // Statistiques : qui est connecté, quand, combien de fois.
+        presence.onJoinUser(socket, userId);
         // Reprise : rejouer les events fiables manqués pendant la déconnexion.
         replayUndelivered(io, userId).catch(e => console.warn('[socket] replay error:', e.message));
       });
+
+      socket.on('disconnect', () => presence.onDisconnect(socket));
 
       notificationHandler(socket, io);
     });
