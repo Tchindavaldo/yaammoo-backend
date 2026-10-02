@@ -5,6 +5,7 @@
 - **Serveur** : `BACKEND/src/socket.js` — singleton `getIO()` retourne l'instance Socket.io
 - **Init** : `BACKEND/src/server.js` crée le `http.Server` et wrappe Socket.io dessus
 - **Rooms** : chaque utilisateur (client, marchand **ou livreur**) rejoint sa propre room via `socket.on('join_user', userId => socket.join(userId))`. Le marchand utilise le même `userId` que son compte user (stocké dans `fastfoods.userId`), et le livreur sa room `uid` (= `driverId`) — **pas de room dédiée ni de `join_driver`**. Les events de délégation (`driverOrderAssigned`, `driverOrderUpdated`) sont émis vers `io.to(driverId)`.
+- **Présence** : `join_user` ouvre aussi une ligne `analytics_connections`, fermée au `disconnect` (statistiques admin, voir [analytics.md](./analytics.md)).
 
 ---
 
