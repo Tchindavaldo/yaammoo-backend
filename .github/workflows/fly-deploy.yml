@@ -1,0 +1,43 @@
+# Déploiement Fly.io manuel (Actions → "Deploy Fly" → Run workflow).
+# Secret requis : FLY_API_TOKEN (flyctl tokens create deploy -a yaammoo-backend).
+name: Deploy Fly
+
+on:
+  workflow_dispatch:
+    inputs:
+      machine_mode:
+        description: "Mode de la machine"
+        type: choice
+        default: always-on
+        options:
+          - always-on # toujours allumée (comportement actuel)
+          - auto-stop # s'éteint si inutilisée, redémarre à la 1re requête
+
+concurrency:
+  group: fly-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      # Le mode est appliqué au fly.toml du runner uniquement (pas de commit).
+      - name: Appliquer le mode machine
+        run: |
+          if [ "${{ inputs.machine_mode }}" = "auto-stop" ]; then
+            sed -i "s/auto_stop_machines = .*/auto_stop_machines = 'stop'/" fly.toml
+            sed -i "s/min_machines_running = .*/min_machines_running = 0/" fly.toml
+          else
+            sed -i "s/auto_stop_machines = .*/auto_stop_machines = 'off'/" fly.toml
+            sed -i "s/min_machines_running = .*/min_machines_running = 1/" fly.toml
+          fi
+          grep -E "auto_stop_machines|auto_start_machines|min_machines_running" fly.toml
+
+      - name: Deploy
+        run: flyctl deploy --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

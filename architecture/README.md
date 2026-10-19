@@ -71,7 +71,7 @@ Documentation d'architecture du backend Node.js / Express / Supabase / Socket.io
 - **Realtime** : Socket.io (rooms par `userId` et `fastFoodId`)
 - **Storage** : Firebase Storage (bucket) + Supabase (images via Multer)
 - **Doc API** : Swagger (`/api-docs`)
-- **Deploy** : Docker + Fly.io
+- **Deploy** : Docker + Fly.io — GitHub Action manuelle `.github/workflows/fly-deploy.yml` (choix `always-on` / `auto-stop`, secret `FLY_API_TOKEN`)
 
 ## Structure racine
 
