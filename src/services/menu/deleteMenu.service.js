@@ -8,6 +8,7 @@ const { getMenuService } = require('./getMenu.services');
 const { reliableEmit } = require('../../utils/reliableEmit');
 const { getPricingSettings } = require('../settings/settings.service');
 const { applyDisplayPricing } = require('../pricing/deliveryPricing');
+const { withShopDrinks } = require('./shopDrinks');
 const { purgeUnusedImages } = require('../images/uploadImage.service');
 
 exports.deleteMenuService = async menuId => {
@@ -29,7 +30,11 @@ exports.deleteMenuService = async menuId => {
     // Broadcast catalogue public (CLIENT) : prix AFFICHÉ. On enrichit la boutique
     // avec ses menus restants (en tableau) — livraison + marge + frais inclus.
     const pricing = await getPricingSettings();
-    const clientData = applyDisplayPricing({ ...fastFood, menus: Array.isArray(updatedMenus) ? updatedMenus : Object.values(updatedMenus) }, pricing, false);
+    const clientData = applyDisplayPricing(
+      withShopDrinks({ ...fastFood, menus: Array.isArray(updatedMenus) ? updatedMenus : Object.values(updatedMenus) }),
+      pricing,
+      false,
+    );
     io.emit('globalMenuDeleted', { message: 'Menu supprimé', fastFood: clientData, menuId });
     // Ciblé marchand propriétaire : prix BRUT (il gère son catalogue). Fiable.
     if (fastFood?.userId) {

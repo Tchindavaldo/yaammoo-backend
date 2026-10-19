@@ -21,6 +21,23 @@ exports.FastfoodFields = {
   isAvailable: { type: 'bool', required: false },
   // Position de la boutique (migration 060) : envoyées ensemble, `null` efface.
   // Sert à la distance renvoyée par `GET /fastfood/all` (`distanceKm`).
+  // Boissons de la BOUTIQUE (migration 062), envoyées en liste complète via
+  // POST /fastfood/:id. Reconstruites dans `menu.drink` à la lecture
+  // (services/menu/shopDrinks.js). Validées par `sanitizeShopDrinks`.
+  drinks: {
+    type: 'array',
+    required: false,
+    items: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', required: false }, // généré si absent
+        name: { type: 'string', required: true },
+        prix: { type: 'number', required: true },
+        status: { type: 'bool', required: false }, // false = en rupture
+        menuIds: { type: 'array', required: false }, // null = tous les plats
+      },
+    },
+  },
   latitude: { type: 'number', required: false },
   longitude: { type: 'number', required: false },
   // Créneaux de livraison. Deux formats coexistent en base :

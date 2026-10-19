@@ -60,7 +60,8 @@ Menu {
 
   // Suppléments & boissons
   extra: MenuItem[]             // Suppléments (sauce, épices, taille)
-  drink: MenuItem[]             // Boissons associées
+  drink: MenuItem[]             // Boissons — RECONSTRUIT à la lecture depuis
+                                // `fastfood.drinks` (voir § Boissons de la boutique)
 
   // Métadonnées
   createdBy: string             // UID marchand propriétaire
@@ -77,6 +78,39 @@ MenuItem {
 ```
 
 ---
+
+## Nombre de prix
+
+`prices[]` n'a **pas de taille fixe** : N lignes `{price, description}` (N ≥ 1).
+Les apps < 1.1.5 n'affichent que les 3 premières (`prix1..3` aplatis côté front) :
+aucune adaptation serveur n'est nécessaire (le format ne change pas, R11 non déclenchée).
+
+## Boissons de la boutique (migration 062)
+
+Les boissons appartiennent à la **boutique**, plus au plat : colonne
+`fastfoods.drinks` (JSONB).
+
+```typescript
+ShopDrink {
+  id: string          // généré par le serveur si absent
+  name: string
+  prix: number        // prix brut fastfood
+  status: boolean     // false = en rupture
+  menuIds: string[] | null   // null = proposée avec TOUS les plats (défaut)
+}
+```
+
+- **Écriture** : `POST /fastfood/:fastFoodId` avec `drinks` = liste **complète**
+  (remplace l'ancienne), validée par `sanitizeShopDrinks` (`services/menu/shopDrinks.js`).
+- **Lecture client** : `withShopDrinks(fastfood)` reconstruit `menu.drink` de chaque plat
+  (format historique `{id, name, prix, status, quantite: 1}`) AVANT `applyDisplayPricing`,
+  dans `getFastFoods`, `enrichMenuForClient` et `deleteMenu`. Commande, contrôle du montant
+  et tarification lisent toujours `menu.drink` / `order.drink` : rien ne change pour eux.
+- **Compatibilité** : boutique sans boisson → l'ancien `menus.drink` reste servi. Les
+  apps < 1.1.5 reçoivent le même format qu'avant. Un ancien app marchand qui écrit
+  `menu.drink` n'a plus d'effet dès que la boutique a au moins une boisson.
+- `GET /menu/:fastFoodId` (vue marchand) renvoie le `menus.drink` brut (legacy) ;
+  l'app marchand ≥ 1.1.5 gère les boissons via `fastfood.drinks`.
 
 ## Flux clés
 

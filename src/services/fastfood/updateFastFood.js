@@ -7,6 +7,7 @@ const { sanitizeDeliveryHours } = require('../../utils/deliveryHoursSanitize');
 const { validateDeliveryZones } = require('../pricing/menuPriceGuard');
 const { getPricingSettings } = require('../settings/settings.service');
 const { purgeUnusedImages } = require('../images/uploadImage.service');
+const { sanitizeShopDrinks } = require('../menu/shopDrinks');
 
 const badRequest = message => Object.assign(new Error(message), { code: 400 });
 
@@ -45,6 +46,8 @@ exports.updateFastFoodService = async (fastFoodId, data) => {
     updateData.latitude = clear ? null : data.latitude;
     updateData.longitude = clear ? null : data.longitude;
   }
+  // Boissons de la boutique (migration 062) : liste COMPLÈTE, remplace l'ancienne.
+  if (data.drinks !== undefined) updateData.drinks = sanitizeShopDrinks(data.drinks);
   if (data.openDays !== undefined) {
     const valid = Array.isArray(data.openDays) && data.openDays.every(d => Number.isInteger(d) && d >= 0 && d <= 6);
     if (!valid) throw badRequest('openDays doit être un tableau d\'entiers 0 (dimanche) à 6 (samedi).');

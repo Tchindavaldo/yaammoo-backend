@@ -18,6 +18,7 @@
 const repos = require('../../repositories');
 const { getPricingSettings } = require('../settings/settings.service');
 const { applyDisplayPricing } = require('../pricing/deliveryPricing');
+const { withShopDrinks } = require('./shopDrinks');
 const { withMenuThumbnails } = require('../images/thumbnailUrl');
 
 /**
@@ -31,7 +32,7 @@ async function enrichMenuForClient(menu) {
     if (!fastfood) return menu;
 
     // Enrichit la boutique avec ce seul menu, puis récupère le menu prixé.
-    const priced = applyDisplayPricing({ ...fastfood, menus: [menu] }, pricing, false);
+    const priced = applyDisplayPricing(withShopDrinks({ ...fastfood, menus: [menu] }), pricing, false);
     const out = Array.isArray(priced?.menus) ? priced.menus[0] : menu;
     // Mêmes vignettes que `/fastfood/all` : un menu reçu par socket doit être
     // interchangeable avec celui du catalogue, sinon la carte rechargerait

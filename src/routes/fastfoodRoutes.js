@@ -449,6 +449,44 @@ route.get('/:fastFoodId', optionalFirebaseAuth, getfastfood);
 // au propriétaire — ou à un admin plateforme, qui doit pouvoir corriger
 // n'importe quelle boutique.
 // Propriétaire, admin, ou employé ayant `fastfood.update` (cf. staff.md).
+/**
+ * @swagger
+ * /fastFood/{fastFoodId}:
+ *   post:
+ *     tags: [FastFood]
+ *     summary: Met à jour une boutique (champs partiels)
+ *     description: >-
+ *       Champs whitelistés (name, number, image, openDays, deliveryHours, ...).
+ *       `drinks` = liste COMPLÈTE des boissons de la boutique (remplace
+ *       l'ancienne). `menuIds: null` = boisson proposée avec tous les plats.
+ *       Voir architecture/menus-detailed.md.
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: fastFoodId
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               drinks:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   required: [name, prix]
+ *                   properties:
+ *                     id: { type: string }
+ *                     name: { type: string }
+ *                     prix: { type: number }
+ *                     status: { type: boolean }
+ *                     menuIds: { type: array, nullable: true, items: { type: string } }
+ *     responses:
+ *       200: { description: Boutique mise à jour }
+ *       400: { description: Donnée invalide }
+ */
 route.post('/:fastFoodId', firebaseAuth, requireFastfoodPermission('fastfood.update'), updateFastfoodController);
 
 module.exports = route;

@@ -15,6 +15,7 @@ const { getMenuService } = require('../menu/getMenu.services');
 const { getArmedDeliveryOffers, pickOfferForFastFood } = require('../bonus/armBonus.service');
 const { getPricingSettings } = require('../settings/settings.service');
 const { applyDisplayPricing, isPlatformDelivered } = require('../pricing/deliveryPricing');
+const { withShopDrinks } = require('../menu/shopDrinks');
 const { withMenuThumbnails, withFastfoodThumbnail } = require('../images/thumbnailUrl');
 const { buildCampaignOffer } = require('../pricing/deliveryOfferResolver');
 const { platformMinItems } = require('../bonus/deliveryOfferAffordability');
@@ -82,7 +83,7 @@ exports.getFastFoodsService = async (userId, page) => {
         // ses prix réels afficherait un prix qu'il ne paierait pas.
         // Sa gestion de catalogue passe par `GET /menu/:fastFoodId`, qui sert
         // les prix bruts.
-        const priced = applyDisplayPricing({ ...fastfood, menus }, pricing, false);
+        const priced = applyDisplayPricing(withShopDrinks({ ...fastfood, menus }), pricing, false);
         // Vignettes : le home affiche ces menus dans des cartes de 130 à 260 px,
         // les originaux pèsent 300 Ko à 1,1 Mo. Servi ici et non côté app pour
         // que tous les clients en profitent sans rebuild.

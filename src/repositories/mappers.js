@@ -79,7 +79,7 @@ const userFromSupabase = (row, pushTokens = []) => {
 // ---------------------------------------------------------------------------
 const fastfoodToSupabase = data => {
   const { createdAt, updatedAt, ...rest } = data;
-  const known = ['id', 'userId', 'name', 'number', 'momoNumber', 'whatsappNumber', 'openTime', 'closeTime', 'image', 'orderLeadTime', 'advanceDays', 'pickupAllowed', 'cities', 'deliveryHours', 'platformDeliveryZones', 'deliveryBy', 'driverRatingAvg', 'driverRatingCount', 'openDays', 'isAvailable', 'available', 'latitude', 'longitude'];
+  const known = ['id', 'userId', 'name', 'number', 'momoNumber', 'whatsappNumber', 'openTime', 'closeTime', 'image', 'orderLeadTime', 'advanceDays', 'pickupAllowed', 'cities', 'deliveryHours', 'platformDeliveryZones', 'deliveryBy', 'driverRatingAvg', 'driverRatingCount', 'openDays', 'isAvailable', 'available', 'latitude', 'longitude', 'drinks'];
   const extra = {};
   for (const k of Object.keys(rest)) {
     if (!known.includes(k)) extra[k] = rest[k];
@@ -107,6 +107,8 @@ const fastfoodToSupabase = data => {
     // Décidé par l'admin — jamais par la boutique elle-même.
     delivery_by: data.deliveryBy ?? 'fastfood',
     platform_delivery_zones: data.platformDeliveryZones ?? [],
+    // Boissons de la boutique (migration 062). Voir services/menu/shopDrinks.js.
+    drinks: data.drinks ?? [],
     // Position de la boutique (migration 060), posée par le marchand.
     latitude: Number.isFinite(data.latitude) ? data.latitude : null,
     longitude: Number.isFinite(data.longitude) ? data.longitude : null,
@@ -135,6 +137,7 @@ const fastfoodFromSupabase = row => {
     deliveryHours: row.delivery_hours || [],
     deliveryBy: row.delivery_by || 'fastfood',
     platformDeliveryZones: row.platform_delivery_zones || [],
+    drinks: row.drinks || [],
     driverRatingAvg: row.driver_rating_avg != null ? Number(row.driver_rating_avg) : 0,
     driverRatingCount: row.driver_rating_count ?? 0,
     latitude: row.latitude ?? null,
