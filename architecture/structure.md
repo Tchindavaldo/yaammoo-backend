@@ -58,7 +58,7 @@ src/
 │   ├── bonus/ bonusRequest/
 │   ├── fastfood/
 │   ├── images/                # upload + delete Supabase
-│   ├── menu/
+│   ├── menu/                  # dont shopDrinks.js : boissons de la boutique → menu.drink
 │   ├── notification/
 │   │   ├── request/           # postNotification.service, get, markAsRead
 │   │   ├── broadcast/         # plan + quota, envoi, diffusion (notifications-broadcast.md)
