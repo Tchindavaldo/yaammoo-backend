@@ -183,10 +183,14 @@ async function getFastfoodDeletionSettings() {
   };
 }
 
-/** Mode Apple Review global, tel qu'exposé au frontend. Lève si la clé manque. */
-async function getAppleReviewMode() {
-  const s = await getSettings();
-  return requireSetting(s, KEYS.APPLE_REVIEW_MODE) === true;
+/**
+ * Mode Apple Review vu par CE client : vrai seulement si `apple_review_mode`
+ * est à true ET que le client est la build en review
+ * (`apple_version_review_mode`). Les autres versions (celles des utilisateurs)
+ * restent en mode normal pendant la review. Lève si une clé manque.
+ */
+async function getAppleReviewMode(req) {
+  return isAppleReviewClient(req);
 }
 
 /**
@@ -197,6 +201,9 @@ async function getAppleReviewMode() {
  */
 async function isAppleReviewClient(req) {
   const s = await getSettings();
+  // Review terminée (`apple_review_mode` = false) : paiements réels pour
+  // TOUTES les versions, y compris celle qui était en review.
+  if (requireSetting(s, KEYS.APPLE_REVIEW_MODE) !== true) return false;
   const reviewVersion = String(requireSetting(s, KEYS.APPLE_VERSION_REVIEW_MODE) || '').trim();
   if (!reviewVersion) return false;
   return resolveClientVersion(req) === reviewVersion;

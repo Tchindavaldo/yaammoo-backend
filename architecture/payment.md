@@ -7,8 +7,8 @@ via `PATCH /settings/:key` — plus aucune variable d'env :
 
 | Clé                         | Type    | Rôle                                                                                                        |
 | --------------------------- | ------- | ----------------------------------------------------------------------------------------------------------- |
-| `apple_review_mode`         | booléen | Exposé au frontend dans `GET /fastFood/all` (champ `appleReviewMode`). N'a **aucun** effet sur le paiement. |
-| `apple_version_review_mode` | string  | Version d'app exacte en review (ex. `"1.4.2"`). Vide = aucune. Seule clé qui déclenche le bypass paiement.  |
+| `apple_review_mode`         | booléen | Interrupteur de la review. `false` = review finie : paiements réels pour TOUTES les versions. |
+| `apple_version_review_mode` | string  | Version d'app exacte en review (ex. `"1.1.5"`). Bypass paiement + `appleReviewMode: true` (`GET /fastFood/all`) UNIQUEMENT si `apple_review_mode` = true ET client = cette version. |
 
 Le bypass de `POST /transaction` (`payBy=mobilemoney`) se déclenche sur **égalité stricte**
 entre le header `x-app-version` du client et `apple_version_review_mode` : la build soumise

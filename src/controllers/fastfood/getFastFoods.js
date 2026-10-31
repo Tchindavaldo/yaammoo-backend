@@ -38,7 +38,7 @@ exports.getfastfoodController = async (req, res) => {
     // → position de la boutique. Voir services/fastfood/fastfoodDistance.js.
     const fastfoods = await withDistances(paginated ? result.items : result, { userId: req.user?.uid, query: req.query });
     const data = fastfoods;
-    const appleReviewMode = await getAppleReviewMode();
+    const appleReviewMode = await getAppleReviewMode(req);
 
     // Bannières : uniquement sur la PREMIÈRE page. Les renvoyer à chaque
     // `loadMore` serait du poids pur — le carrousel ne se recharge pas au
