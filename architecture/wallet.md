@@ -141,17 +141,10 @@ Payloads déclarés dans [walletFields.js](../src/interface/walletFields.js).
 
 Une app antérieure aux deux soldes n'envoie pas `sourceNetwork` : son retrait
 ne peut pas être exécuté, et on ne devine pas le solde à sa place. Référence :
-la **version actuelle** de l'app, `FRONTEND_APP_VERSION` (aucun seuil dédié ;
-header `x-app-version`, via [walletAppVersion.js](../src/utils/walletAppVersion.js)
-→ `appVersion.js`). La version actuelle reçoit le nouveau retrait par OTA. En dessous, `POST /wallet/withdraw` répond **426** :
-
-| Cas | `code` | `message` |
-| --- | --- | --- |
-| version compatible publiée (`platform_latest_app_version` >= actuelle) | `app_update_required` | « Mettez à jour l'application pour effectuer un retrait. » |
-| pas encore publiée | `app_update_coming` | « Le retrait sera disponible avec la prochaine mise à jour de l'application. » |
-
-L'ancienne app affiche `message` tel quel (toast). À la publication de l'OTA :
-`PATCH /settings/platform_latest_app_version` à la nouvelle version.
+la version actuelle **déjà en base**, `platform_latest_app_version` (via
+`settings.getAppVersionGate`, header `x-app-version`) — aucun réglage ajouté.
+App en dessous → `POST /wallet/withdraw` répond **426** `app_update_required`,
+« Mettez à jour l'application pour effectuer un retrait. » (toast).
 
 ### `GET /wallet/balance` — compatibilité (R11)
 

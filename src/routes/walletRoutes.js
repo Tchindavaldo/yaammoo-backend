@@ -163,7 +163,7 @@ router.get('/stats', firebaseAuth, getStatsController);
  *       422:
  *         description: Refus MobileWallet propagé tel quel (le front affiche `message`)
  *       426:
- *         description: "App antérieure aux deux soldes (header x-app-version < version actuelle FRONTEND_APP_VERSION) : `app_update_required` (version publiée) ou `app_update_coming` (pas encore publiée)"
+ *         description: "App antérieure à la version actuelle (header x-app-version < platform_latest_app_version) : `app_update_required`"
  *       429:
  *         description: Cooldown entre deux retraits non écoulé (cooldown)
  *       502:

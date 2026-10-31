@@ -11,7 +11,7 @@ const { quoteWithdrawal } = require('../../services/wallet/withdrawQuote.service
 const { predictOperator } = require('../../services/transaction/mobilewalletService');
 const { validateWithdrawalQuote } = require('../../utils/validator/validateWithdrawal');
 const { resolvePeriod } = require('../../utils/period');
-const { clientSupportsWalletNetworks, outdatedWithdrawResponse } = require('../../utils/walletAppVersion');
+const { OUTDATED_WITHDRAW_RESPONSE } = require('../../utils/walletAppVersion');
 const { getAppVersionGate } = require('../../services/settings/settings.service');
 
 /** GET /wallet/balance — solde du marchand authentifié. */
@@ -95,11 +95,11 @@ exports.withdrawController = async (req, res) => {
     console.info(`[Wallet] POST /withdraw → userId=${userId}, amount=${amount}, source=${sourceNetwork}, network=${network}, phone=${phone}`);
 
     // R11 : une app antérieure aux deux soldes n'envoie pas `sourceNetwork`.
-    // Pas de solde deviné : message de mise à jour (publiée ou à venir).
-    if (!clientSupportsWalletNetworks(req)) {
-      const { clientVersion, latestVersion } = await getAppVersionGate(req);
-      const outdated = outdatedWithdrawResponse(latestVersion);
-      console.warn(`[Wallet] POST /withdraw ✗ userId=${userId} → app ${clientVersion} trop ancienne (${outdated.code})`);
+    // Pas de solde deviné : app < version actuelle en base → mise à jour.
+    const { clientVersion, latestVersion, updateAvailable } = await getAppVersionGate(req);
+    if (updateAvailable) {
+      const outdated = OUTDATED_WITHDRAW_RESPONSE;
+      console.warn(`[Wallet] POST /withdraw ✗ userId=${userId} → app ${clientVersion} < ${latestVersion} (${outdated.code})`);
       return res.status(outdated.httpStatus).json(outdated);
     }
 

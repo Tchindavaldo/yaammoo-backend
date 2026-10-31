@@ -39,9 +39,8 @@ SUPABASE_ANON_KEY=eyJxxx...
 SUPABASE_SERVICE_KEY=eyJxxx...
 
 # Versioning par version d'app (cf. CLAUDE.md)
-# Version ACTUELLE de l'app. Repli quand la requête n'envoie pas le header
-# `x-app-version` ; sert aussi de référence au retrait (en dessous : 426).
-FRONTEND_APP_VERSION=1.1.5
+# Repli quand la requête n'envoie pas le header `x-app-version`
+FRONTEND_APP_VERSION=1.0.0
 # Seuil : version minimale comprenant le format deliveryHours enrichi
 APP_DELIVERY_NEW_MIN_VERSION=1.0.1
 
