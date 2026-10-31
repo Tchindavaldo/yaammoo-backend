@@ -778,6 +778,10 @@ INSERT INTO settings_withdrawal (key, value, description) VALUES
 ON CONFLICT (key) DO NOTHING;
 
 INSERT INTO settings_deployment (key, value, description) VALUES
+  ('payment_aggregator', '"pawapay"'::jsonb, 'Agregateur envoye a MobileWallet sur /pay et /payout, et bareme de frais du prix affiche. Valeurs : pawapay | digikuntz.')
+ON CONFLICT (key) DO NOTHING;
+
+INSERT INTO settings_deployment (key, value, description) VALUES
   ('platform_min_app_version',    '"1.0.0"'::jsonb, 'Version minimale requise. En dessous : ecran de mise a jour forcee, non fermable.'),
   ('platform_latest_app_version', '"1.0.0"'::jsonb, 'Derniere version publiee sur les stores. Mise a jour non bloquante.'),
   ('apple_review_mode',           'false'::jsonb,   'Mode Apple Review global. Expose au frontend par GET /fastFood/all (appleReviewMode).'),

@@ -11,8 +11,7 @@ const { generateId } = require('../../repositories/idGen');
 const { createOrderService } = require('../order/createOrder');
 const { updateOrders } = require('../order/updateOrders.service');
 const { creditMerchantForItem } = require('./creditMerchant.service');
-const { isAppleReviewClient, isTestClient } = require('../settings/settings.service');
-const { resolvePaymentAggregator } = require('../../utils/paymentAggregator');
+const { isAppleReviewClient, isTestClient, getPaymentAggregator } = require('../settings/settings.service');
 
 const log = console;
 
@@ -190,8 +189,8 @@ exports.postTransactionService = async (data, req) => {
       // soit le tx_id que MobileWallet attribue. Une transaction = un paymentRef.
       const paymentRef = generateId();
       // Agrégateur figé pour CE paiement : le verdict, le règlement et le crédit
-      // marchand liront celui-ci, même si l'env change entre-temps.
-      const aggregator = resolvePaymentAggregator();
+      // marchand liront celui-ci, même si la base change entre-temps.
+      const aggregator = await getPaymentAggregator();
 
       // Persister le contexte AVANT l'appel MobileWallet : si /pay timeout mais
       // que MobileWallet traite quand même, le webhook retrouvera le contexte.

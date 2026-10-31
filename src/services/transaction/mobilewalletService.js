@@ -4,8 +4,8 @@
 // La clé API (`MOBILEWALLET_YAAMMOO_KEY`) ne quitte jamais le serveur : le
 // front passe toujours par le backend yaammoo.
 //
-// Agrégateur : chaque appel nomme l'agrégateur ACTIF (env `PAYMENT_AGGREGATOR`,
-// cf. utils/paymentAggregator.js). Sans ce champ, MobileWallet retombe sur
+// Agrégateur : chaque appel nomme l'agrégateur ACTIF (`payment_aggregator` en base,
+// settings_deployment). Sans ce champ, MobileWallet retombe sur
 // DigiKUNTZ.
 //
 // Erreurs : le VRAI code HTTP de MobileWallet est propagé pour ses refus
@@ -15,7 +15,7 @@
 // une session expirée). 503 (opérateur indisponible) reste 503.
 // ============================================================================
 const axios = require('axios');
-const { resolvePaymentAggregator } = require('../../utils/paymentAggregator');
+const { getPaymentAggregator } = require('../settings/settings.service');
 const { toCanonicalNetwork, toPayNetwork } = require('../../utils/mobileNetwork');
 
 const log = console;
@@ -88,7 +88,7 @@ function toMwError(error, { logPrefix, defaultMessage }) {
  * @returns {Promise<{success, status, transaction_id, message, code, ussd_code, aggregator}>}
  */
 exports.pay = async ({ amount, phone, network, email, mode, userId, paymentRef, aggregator }) => {
-  const agg = aggregator || resolvePaymentAggregator();
+  const agg = aggregator || (await getPaymentAggregator());
   const payNetwork = toPayNetwork(network) || network;
   const logPrefix = `[MobileWallet API] ${agg} ${payNetwork} amount=${amount}`;
 
@@ -133,7 +133,7 @@ exports.pay = async ({ amount, phone, network, email, mode, userId, paymentRef, 
  * @returns {Promise<{success, status, transaction_id, message, code, fee, total_debited, httpStatus?}>}
  */
 exports.payout = async ({ amount, network, sourceNetwork, phone, receiverName, narration, withdrawalId, aggregator }) => {
-  const agg = aggregator || resolvePaymentAggregator();
+  const agg = aggregator || (await getPaymentAggregator());
   // Normaliser : strip tout préfixe (+237, 00237) puis préfixer 237
   const normalizedPhone = `237${String(phone).replace(/^\+?(00)?237/, '')}`;
   const logPrefix = `[MobileWallet API] payout ${agg} ${sourceNetwork}→${network} amount=${amount}`;
@@ -173,7 +173,7 @@ exports.payout = async ({ amount, network, sourceNetwork, phone, receiverName, n
  * @returns {Promise<{success:true, fee:number} | {success:false, httpStatus, code, message}>}
  */
 exports.payoutQuote = async ({ amount, network, sourceNetwork, aggregator }) => {
-  const agg = aggregator || resolvePaymentAggregator();
+  const agg = aggregator || (await getPaymentAggregator());
   const logPrefix = `[MobileWallet API] quote ${agg} ${sourceNetwork}→${network} amount=${amount}`;
   try {
     const response = await mobilewalletClient.get('/payout/quote', {
@@ -196,7 +196,7 @@ exports.payoutQuote = async ({ amount, network, sourceNetwork, aggregator }) => 
  * @returns {Promise<{success:true, phone:string, network:'MTN'|'ORANGEMONEY'|null} | {success:false, httpStatus, code, message}>}
  */
 exports.predictOperator = async ({ phone, aggregator }) => {
-  const agg = aggregator || resolvePaymentAggregator();
+  const agg = aggregator || (await getPaymentAggregator());
   const logPrefix = `[MobileWallet API] predict ${agg}`;
   try {
     const response = await mobilewalletClient.post('/operators/predict', { phone, aggregator: agg }, { timeout: 15000 });

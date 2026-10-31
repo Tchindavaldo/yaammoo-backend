@@ -19,7 +19,7 @@
 const repos = require('../../repositories');
 const mobilewallet = require('../transaction/mobilewalletService');
 const { getPricingSettings } = require('../settings/settings.service');
-const { resolvePaymentAggregator } = require('../../utils/paymentAggregator');
+const { getPaymentAggregator } = require('../settings/settings.service');
 const { toBalanceKey } = require('../../utils/mobileNetwork');
 
 /** Taux interréseau (%) vers un réseau, depuis les réglages pawaPay. */
@@ -58,7 +58,7 @@ exports.quoteWithdrawal = async ({ userId, amount, network, sourceNetwork }) => 
 
   let fee = 0;
   if (!sameNetwork) {
-    const quote = await mobilewallet.payoutQuote({ amount: amt, network, sourceNetwork, aggregator: resolvePaymentAggregator() });
+    const quote = await mobilewallet.payoutQuote({ amount: amt, network, sourceNetwork, aggregator: await getPaymentAggregator() });
     if (!quote.success) return quote;
     fee = quote.fee;
   }

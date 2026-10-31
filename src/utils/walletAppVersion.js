@@ -6,20 +6,21 @@
 // ne peut pas exécuter leur retrait, et on ne devine pas le solde à leur place
 // (aucun repli automatique). On leur répond un message clair :
 //
-//   - une version compatible est publiée (`platform_latest_app_version` >= seuil)
+//   - la version actuelle est publiée (`platform_latest_app_version` >= actuelle)
 //       → « mettez à jour l'application » ;
 //   - pas encore publiée
 //       → « le retrait arrive avec la prochaine mise à jour ».
 //
-// Seuil : env `APP_WALLET_NETWORK_MIN_VERSION` (version d'app minimale qui gère
-// les deux soldes). Détection déléguée à `appVersion.js` (logique générique).
+// Référence : la version ACTUELLE de l'app (`FRONTEND_APP_VERSION`, la même
+// variable générique que appVersion.js), aucun seuil dédié. Elle reçoit le
+// nouveau retrait par OTA ; toute version antérieure reçoit le message.
 // ============================================================================
 const { clientVersionAtLeast, compareVersions } = require('./appVersion');
 
-const MIN_VERSION = String(process.env.APP_WALLET_NETWORK_MIN_VERSION || '').trim();
+const MIN_VERSION = String(process.env.FRONTEND_APP_VERSION || '').trim();
 
 if (!MIN_VERSION) {
-  console.error('[walletAppVersion] ⚠️ APP_WALLET_NETWORK_MIN_VERSION non configurée → aucune ancienne app détectée sur le retrait');
+  console.error('[walletAppVersion] ⚠️ FRONTEND_APP_VERSION non configurée → aucune ancienne app détectée sur le retrait');
 }
 
 /** Vrai si le client gère les deux soldes (retrait avec `sourceNetwork`). */
@@ -39,4 +40,4 @@ const outdatedWithdrawResponse = latestVersion => {
   };
 };
 
-module.exports = { clientSupportsWalletNetworks, outdatedWithdrawResponse, WALLET_NETWORK_MIN_VERSION: MIN_VERSION };
+module.exports = { clientSupportsWalletNetworks, outdatedWithdrawResponse, WALLET_CURRENT_APP_VERSION: MIN_VERSION };

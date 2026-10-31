@@ -139,10 +139,11 @@ Réponse (200) si initiation OK :
 > il est remplacé par `ussd_code` (code à composer si la demande de PIN n'arrive
 > pas ; `null` sinon).
 
-### Agrégateur (env `PAYMENT_AGGREGATOR`)
+### Agrégateur (base : `settings_deployment.payment_aggregator`)
 
-Chaque `/pay` et `/payout` nomme l'agrégateur actif (`pawapay` | `digikuntz`,
-[paymentAggregator.js](../src/utils/paymentAggregator.js)). Sans ce champ,
+Chaque `/pay` et `/payout` nomme l'agrégateur actif (`pawapay` | `digikuntz`),
+lu en base (migration 065, `settings.service.getPaymentAggregator()`,
+modifiable à chaud via `PATCH /settings/payment_aggregator`). Sans ce champ,
 MobileWallet retombe sur DigiKUNTZ — c'est pourquoi les retraits étaient refusés
 (`422 source_network_required`) et les paiements partaient chez DigiKUNTZ.
 L'agrégateur est **figé à l'initiation** dans `pending_payments.aggregator` :

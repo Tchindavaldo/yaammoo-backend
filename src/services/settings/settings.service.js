@@ -28,7 +28,7 @@
 // ============================================================================
 const repos = require('../../repositories');
 const { resolveClientVersion, compareVersions } = require('../../utils/appVersion');
-const { resolvePaymentAggregator } = require('../../utils/paymentAggregator');
+const { normalizeAggregator } = require('../../utils/paymentAggregator');
 
 const CACHE_TTL_MS = Number(process.env.SETTINGS_CACHE_TTL_MS);
 
@@ -75,16 +75,22 @@ async function getSettings() {
   return cache;
 }
 
+/** Agrégateur de paiement actif (`settings_deployment.payment_aggregator`). */
+async function getPaymentAggregator() {
+  const s = await getSettings();
+  return normalizeAggregator(s[KEYS.PAYMENT_AGGREGATOR]);
+}
+
 /** Vue typée, pour que les appelants n'aient pas à connaître les clés brutes. */
 async function getPricingSettings() {
   const s = await getSettings();
   return {
     platformMargin: Number(s[KEYS.PLATFORM_MARGIN]) || 0,
     paymentFeePercent: Number(s[KEYS.PAYMENT_FEE_PERCENT]) || 0,
-    // Barème de l'agrégateur ACTIF (env `PAYMENT_AGGREGATOR`), lu par
+    // Barème de l'agrégateur ACTIF (`payment_aggregator` en base), lu par
     // `pricing/paymentFees.js`. Chaque agrégateur garde ses propres clés.
     paymentFees: {
-      aggregator: resolvePaymentAggregator(),
+      aggregator: normalizeAggregator(s[KEYS.PAYMENT_AGGREGATOR]),
       digikuntz: { percent: Number(s[KEYS.PAYMENT_FEE_PERCENT]) || 0 },
       pawapay: {
         deposit: {
@@ -292,6 +298,7 @@ module.exports = {
   categoryOf,
   getSettings,
   getPricingSettings,
+  getPaymentAggregator,
   getOtpSettings,
   getFastfoodDeletionSettings,
   getAppleReviewMode,

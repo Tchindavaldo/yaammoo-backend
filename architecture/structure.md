@@ -85,7 +85,7 @@ src/
     ├── validator/             # validateOrder, validateNotificationData, validateUser…
     │                          #   + validateFieldRules (générique, positions user / livreur)
     ├── flattenNotifications.js
-    ├── paymentAggregator.js   # agrégateur actif (PAYMENT_AGGREGATOR), agrégateurs du wallet
+    ├── paymentAggregator.js   # agrégateurs connus (actif en base), agrégateurs du wallet
     ├── mobileNetwork.js       # normalisation MTN / ORANGEMONEY (payment.md, wallet.md)
     └── supabaseKeepAlive.js   # multi-projets : KEEPALIVE_<NOM>_SUPABASE_URL/KEY
 ```

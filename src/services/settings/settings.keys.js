@@ -63,6 +63,8 @@ const KEYS = {
   // Gate de version d'app (migration 042) — écran de mise à jour forcée.
   MIN_APP_VERSION: 'platform_min_app_version',
   LATEST_APP_VERSION: 'platform_latest_app_version',
+  // Agrégateur de paiement actif (migration 065) : pawapay | digikuntz.
+  PAYMENT_AGGREGATOR: 'payment_aggregator',
   // Auth par numéro de téléphone / OTP Bird (migration 046). Une clé par
   // réglage : le cooldown est le levier direct sur la facture Bird (chaque
   // envoi est payant) et doit pouvoir se durcir sans toucher aux autres.
@@ -146,6 +148,7 @@ const KEY_CATEGORY = {
   // deployment — versions d'app et Apple Review
   [KEYS.MIN_APP_VERSION]: 'deployment',
   [KEYS.LATEST_APP_VERSION]: 'deployment',
+  [KEYS.PAYMENT_AGGREGATOR]: 'deployment',
   [KEYS.APPLE_REVIEW_MODE]: 'deployment',
   [KEYS.APPLE_VERSION_REVIEW_MODE]: 'deployment',
   // Suppression de boutiques : exploitation, pas tarification ni livraison.

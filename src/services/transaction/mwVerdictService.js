@@ -135,10 +135,6 @@ exports.mwVerdictService = async (payload, source = 'webhook') => {
 
       // 2) Commandes nouvelles (achat direct) → création.
       // Échec partiel toléré : on crée tout ce qui peut l'être, on logue les échecs.
-      // L'id de la commande CRÉÉE est retenu pour `relatedOrderId` seulement
-      // (lien vers le réseau du paiement, lu par la course livreur). Le montant
-      // crédité, lui, est calculé sur l'item tel qu'avant.
-      const createdIdByOrder = new Map();
       for (const [i, order] of toCreate.entries()) {
         const label = `nouvelle commande ${i + 1}/${toCreate.length} (fastFoodId=${order?.fastFoodId})`;
         try {
@@ -147,7 +143,6 @@ exports.mwVerdictService = async (payload, source = 'webhook') => {
             log.error(`${logPrefix} ❌ ${label} échouée: ${created.error}`);
           } else {
             log.info(`${logPrefix} ✓ ${label} confirmée (id=${created?.id || order.id})`);
-            if (created?.id) createdIdByOrder.set(order, created.id);
           }
         } catch (e) {
           log.error(`${logPrefix} ❌ ${label} exception: ${e.message}`);
@@ -158,7 +153,7 @@ exports.mwVerdictService = async (payload, source = 'webhook') => {
       // qui a encaissé.
       for (const item of orders) {
         try {
-          await creditMerchantForItem({ item, clientUserId: userId, payment, createdOrderId: createdIdByOrder.get(item) || null });
+          await creditMerchantForItem({ item, clientUserId: userId, payment });
         } catch (e) {
           log.error(`${logPrefix} ❌ Crédit marchand (fastFoodId=${item?.fastFoodId}) échoué: ${e.message}`);
         }

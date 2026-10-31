@@ -1,12 +1,14 @@
 // ============================================================================
-// paymentAggregator — Agrégateur de paiement ACTIF (env `PAYMENT_AGGREGATOR`)
+// paymentAggregator — Agrégateurs de paiement connus (choix actif en BASE)
 // ============================================================================
 // MobileWallet route chaque /pay et /payout vers l'agrégateur qu'on lui nomme
 // (`aggregator`). Sans ce champ, il retombe sur DigiKUNTZ. L'agrégateur actif
 // décide aussi du barème de frais qui compose le prix affiché
 // (`pricing/paymentFees.js`).
 //
-// Valeurs connues : `pawapay`, `digikuntz`. Variable absente ou inconnue :
+// Le choix actif vit en base : `settings_deployment.payment_aggregator`
+// (migration 065), lu par `settings.service.getPaymentAggregator()`.
+// Valeurs connues : `pawapay`, `digikuntz`. Valeur absente ou inconnue :
 // erreur journalisée et retour au fonctionnement HISTORIQUE (`digikuntz`,
 // le défaut de MobileWallet lui-même) — jamais un agrégateur deviné.
 // ============================================================================
@@ -20,14 +22,14 @@ const WALLET_AGGREGATORS = Object.freeze([AGGREGATORS.PAWAPAY]);
 
 let warned = false;
 
-/** Agrégateur actif, normalisé. */
-function resolvePaymentAggregator() {
-  const raw = String(process.env.PAYMENT_AGGREGATOR || '')
+/** Normalise la valeur stockée en base ; inconnue → digikuntz (historique). */
+function normalizeAggregator(value) {
+  const raw = String(value || '')
     .trim()
     .toLowerCase();
   if (KNOWN.includes(raw)) return raw;
   if (!warned) {
-    console.error(`[paymentAggregator] ⚠️ PAYMENT_AGGREGATOR absent ou inconnu ("${raw}") → fonctionnement historique (${AGGREGATORS.DIGIKUNTZ})`);
+    console.error(`[paymentAggregator] ⚠️ payment_aggregator absent ou inconnu ("${raw}") → fonctionnement historique (${AGGREGATORS.DIGIKUNTZ})`);
     warned = true;
   }
   return AGGREGATORS.DIGIKUNTZ;
@@ -36,4 +38,4 @@ function resolvePaymentAggregator() {
 /** Vrai si les montants de cet agrégateur comptent dans le portefeuille. */
 const countsInWallet = aggregator => WALLET_AGGREGATORS.includes(String(aggregator || '').toLowerCase());
 
-module.exports = { AGGREGATORS, WALLET_AGGREGATORS, resolvePaymentAggregator, countsInWallet };
+module.exports = { AGGREGATORS, WALLET_AGGREGATORS, normalizeAggregator, countsInWallet };

@@ -4,7 +4,7 @@
 // Tout calcul de prix ou de règlement qui a besoin des frais de paiement passe
 // par ici : composer le prix affiché (home), extraire les frais d'un montant
 // encaissé (règlement), estimer la couverture d'un surplus d'arrondi.
-// Changer d'agrégateur (env `PAYMENT_AGGREGATOR`) bascule le barème sans
+// Changer d'agrégateur (`payment_aggregator` en base) bascule le barème sans
 // toucher au calcul des prix.
 //
 // Barèmes (réglages `settings_pricing`, pilotables à chaud) :
@@ -30,7 +30,7 @@
 // soit l'agrégateur, et s'ajoutent à la base AVANT ces frais.
 // ============================================================================
 
-const { AGGREGATORS, resolvePaymentAggregator } = require('../../utils/paymentAggregator');
+const { AGGREGATORS } = require('../../utils/paymentAggregator');
 const { toBalanceKey } = require('../../utils/mobileNetwork');
 
 const num = v => {
@@ -46,7 +46,7 @@ const ceilPercent = (amount, percent) => (percent > 0 ? Math.ceil((amount * perc
 function scheduleOf(pricing) {
   const pf = pricing?.paymentFees;
   if (!pf) return { aggregator: AGGREGATORS.DIGIKUNTZ, digikuntz: { percent: num(pricing?.paymentFeePercent) } };
-  return { ...pf, aggregator: pf.aggregator || resolvePaymentAggregator() };
+  return { ...pf, aggregator: pf.aggregator || AGGREGATORS.DIGIKUNTZ };
 }
 
 /** Taux pawaPay d'un réseau ('mtn' | 'orange'), en %. */

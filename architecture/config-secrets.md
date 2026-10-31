@@ -39,8 +39,9 @@ SUPABASE_ANON_KEY=eyJxxx...
 SUPABASE_SERVICE_KEY=eyJxxx...
 
 # Versioning par version d'app (cf. CLAUDE.md)
-# Repli quand la requête n'envoie pas le header `x-app-version`
-FRONTEND_APP_VERSION=1.0.0
+# Version ACTUELLE de l'app. Repli quand la requête n'envoie pas le header
+# `x-app-version` ; sert aussi de référence au retrait (en dessous : 426).
+FRONTEND_APP_VERSION=1.1.5
 # Seuil : version minimale comprenant le format deliveryHours enrichi
 APP_DELIVERY_NEW_MIN_VERSION=1.0.1
 
@@ -64,13 +65,8 @@ BIRD_API_KEY=bk_us1_xxxx...              # région et URL déduites de la clé
 # Payments
 MOBILEWALLET_URL=https://api.mobilewallet.com
 MOBILEWALLET_YAAMMOO_KEY=sk_live_xxxx...      # clé API de l'app Yaammoo (HTTP + socket)
-# Agrégateur envoyé à MobileWallet sur /pay et /payout, et barème de frais du
-# prix affiché (cf. architecture/payment.md). Valeurs : pawapay | digikuntz.
-# Absent ou inconnu → erreur journalisée + fonctionnement historique (digikuntz).
-PAYMENT_AGGREGATOR=pawapay
-# Version d'app minimale qui gère les deux soldes MTN / Orange (retrait avec
-# sourceNetwork). En dessous : 426 + message de mise à jour (architecture/wallet.md).
-APP_WALLET_NETWORK_MIN_VERSION=1.1.5
+# L'agrégateur actif n'est PAS ici : settings_deployment.payment_aggregator
+# (migration 065, pawapay | digikuntz), modifiable à chaud.
 # Délai artificiel avant de servir GET /payment-page (test du squelette côté app)
 # Absent ou 0 = aucun délai
 PAYMENT_PAGE_DELAY_MS=0

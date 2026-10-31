@@ -15,7 +15,7 @@ la moitié du travail :
 ## Frais de paiement — un barème PAR agrégateur
 
 Source unique : [paymentFees.js](../src/services/pricing/paymentFees.js).
-Agrégateur actif : env `PAYMENT_AGGREGATOR` (`pawapay` | `digikuntz`). Chaque
+Agrégateur actif : `settings_deployment.payment_aggregator` (base, migration 065) (`pawapay` | `digikuntz`). Chaque
 agrégateur garde **ses propres clés** dans `settings_pricing` (migration 063) :
 basculer de l'un à l'autre ne touche jamais au barème de l'autre.
 

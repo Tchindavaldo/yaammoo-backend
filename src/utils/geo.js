@@ -6,8 +6,7 @@ const EARTH_RADIUS_KM = 6371;
 const toRad = deg => (deg * Math.PI) / 180;
 
 /** Coordonnées exploitables : deux nombres dans les bornes. */
-exports.isValidPoint = p =>
-  !!p && Number.isFinite(p.latitude) && Number.isFinite(p.longitude) && Math.abs(p.latitude) <= 90 && Math.abs(p.longitude) <= 180;
+exports.isValidPoint = p => !!p && Number.isFinite(p.latitude) && Number.isFinite(p.longitude) && Math.abs(p.latitude) <= 90 && Math.abs(p.longitude) <= 180;
 
 /**
  * Distance à vol d'oiseau (formule de haversine), en km.

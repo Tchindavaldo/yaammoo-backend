@@ -19,7 +19,7 @@ const repos = require('../../repositories');
 const { getIO } = require('../../socket');
 const { validateWithdrawal } = require('../../utils/validator/validateWithdrawal');
 const { reliableEmit } = require('../../utils/reliableEmit');
-const { resolvePaymentAggregator } = require('../../utils/paymentAggregator');
+const { getPaymentAggregator } = require('../settings/settings.service');
 const mobilewallet = require('../transaction/mobilewalletService');
 const { quoteWithdrawal } = require('./withdrawQuote.service');
 
@@ -108,7 +108,7 @@ exports.requestWithdrawal = async ({ userId, amount, phone, network, sourceNetwo
     finalReceiver = fullName || fastfood?.name || 'Marchand yaammoo';
   }
 
-  const aggregator = resolvePaymentAggregator();
+  const aggregator = await getPaymentAggregator();
 
   // 4. Tracer la demande (pending) — AUCUN débit à ce stade
   const withdrawal = await repos.withdrawals.create({
