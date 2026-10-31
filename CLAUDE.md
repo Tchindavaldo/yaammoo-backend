@@ -3,7 +3,7 @@
 Ce fichier est **versionné** : ses règles s'appliquent automatiquement sur tout
 PC où le projet est cloné/pull, dans n'importe quelle session Claude Code.
 
-> **20 règles numérotées R1 → R20.** Toute nouvelle règle ajoutée à ce fichier
+> **21 règles numérotées R1 → R21.** Toute nouvelle règle ajoutée à ce fichier
 > DOIT recevoir le numéro suivant (R20, R21, …) et le total ci-dessus doit être
 > mis à jour. On cite une règle par son numéro (ex. « R1 » pour le style de réponse).
 
@@ -477,3 +477,7 @@ avant de chercher `architecture/<x>*.md`.
 - `git`, `npm`, `curl`, les pipelines et `> /dev/null` restent libres.
 - Un hook qui bloque n'est pas un bug : c'est la règle qui s'applique. Lire le
   doc demandé ou utiliser l'outil dédié — ne jamais contourner.
+
+## R21 — Plusieurs options : DEMANDER, ne rien inventer (OBLIGATOIRE)
+
+Quand une action a plusieurs options possibles (ex. workflow avec cases a cocher, mode permanent ou non, deployer ou non, quelle branche), DEMANDER a l utilisateur laquelle prendre AVANT d agir. Ne jamais choisir une option ni inventer un parametre qu il n a pas donne. Regarder comment l action a ete lancee precedemment ne suffit pas : demander.
