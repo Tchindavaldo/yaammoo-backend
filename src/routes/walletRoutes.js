@@ -104,7 +104,7 @@ router.get('/history', firebaseAuth, getHistoryController);
  *         schema: { type: string, format: date-time }
  *     responses:
  *       200:
- *         description: "{ groupBy, totals:{payin,payout,net}, series:[{period,payin,payout,net,count}] }"
+ *         description: "{ groupBy, balance, balances:{mtn,orange}, totals:{payin,payout,net}, series:[{period,payin,payout,net,count}] }"
  *       401:
  *         description: Non authentifié
  */

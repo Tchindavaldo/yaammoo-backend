@@ -163,6 +163,8 @@ Agrégats pour graphiques/résumés. Query : `groupBy=day|week|month` (+ `period
 ```json
 {
   "groupBy": "day",
+  "balance": 14150,
+  "balances": { "mtn": 9000, "orange": 5150 },
   "totals": { "payin": 14250, "payout": 100, "net": 14150 },
   "series": [{ "period": "2026-06-18", "payin": 4650, "payout": 0, "net": 4650, "count": 1 }]
 }
