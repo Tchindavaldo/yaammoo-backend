@@ -240,7 +240,7 @@ Détails feature : [ratings.md](./ratings.md).
 | Event             | Destination          | Émetteur                              | Payload                 |
 | ----------------- | -------------------- | ------------------------------------- | ----------------------- |
 | `newFastfood`     | **tous** (`io.emit`) | `services/fastfood/createFastFood.js` | `{ message, fastFood }` |
-| `fastfoodUpdated` | **tous** (`io.emit`) | `services/fastfood/updateFastFood.js` | `{ message, fastFood }` |
+| `fastfoodUpdated` | **tous** (`io.emit`) | `services/fastfood/updateFastFood.js` | `{ message, fastFood }` — si `drinks` modifié, `fastFood.menus` est joint (prix affiché, `menu.drink` reconstruit) |
 | `fastfoodsDeleted` | **tous** (`io.emit`) | `services/fastfood/deleteFastfood.service.js` | `{ ids: string[] }` |
 
 `fastfoodsDeleted` : suppression admin (soft delete). Le front retire ces

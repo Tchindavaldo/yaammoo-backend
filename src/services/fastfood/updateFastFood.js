@@ -7,7 +7,10 @@ const { sanitizeDeliveryHours } = require('../../utils/deliveryHoursSanitize');
 const { validateDeliveryZones } = require('../pricing/menuPriceGuard');
 const { getPricingSettings } = require('../settings/settings.service');
 const { purgeUnusedImages } = require('../images/uploadImage.service');
-const { sanitizeShopDrinks } = require('../menu/shopDrinks');
+const { sanitizeShopDrinks, withShopDrinks } = require('../menu/shopDrinks');
+const { getMenuService } = require('../menu/getMenu.services');
+const { applyDisplayPricing } = require('../pricing/deliveryPricing');
+const { withMenuThumbnails } = require('../images/thumbnailUrl');
 
 const badRequest = message => Object.assign(new Error(message), { code: 400 });
 
@@ -72,7 +75,24 @@ exports.updateFastFoodService = async (fastFoodId, data) => {
   // Image remplacée → l'ancienne est effacée du storage.
   if (updateData.image !== undefined) await purgeUnusedImages([existing.image], [updated?.image]);
 
-  getIO().emit('fastfoodUpdated', { message: 'Fastfood mis à jour', fastFood: updated });
+  // Boissons modifiees : `menu.drink` de chaque plat en derive. On joint donc les
+  // menus (prix AFFICHE, boissons reconstruites) au broadcast, sinon la home et
+  // le checkout gardent les anciennes boissons jusqu'au prochain rechargement.
+  let payload = updated;
+  if (updateData.drinks !== undefined) {
+    try {
+      const raw = await getMenuService(fastFoodId);
+      // Meme forme que la home (`getFastFoods`) : plats disponibles, vignettes.
+      const menus = (Array.isArray(raw) ? raw : Object.values(raw || {})).filter(
+        m => m.status !== 'unavailable' && m.disponibilite !== false,
+      );
+      payload = applyDisplayPricing(withShopDrinks({ ...updated, menus }), await getPricingSettings(), false);
+      payload.menus = (payload.menus || []).map(withMenuThumbnails);
+    } catch (e) {
+      console.error(`[updateFastFood] menus pour broadcast boissons: ${e.message}`);
+    }
+  }
+  getIO().emit('fastfoodUpdated', { message: 'Fastfood mis à jour', fastFood: payload });
 
   return updated;
 };
