@@ -73,19 +73,13 @@ async function getSettings() {
   return cache;
 }
 
-/** Version d'app du client : header `x-app-version`, sinon `platform_default_app_version`. */
-async function clientVersionOf(req) {
-  const s = await getSettings();
-  return resolveClientVersion(req, s[KEYS.DEFAULT_APP_VERSION]);
-}
-
 /**
  * R11 : vrai si le client a au moins la version stockée sous `key` (version à
  * partir de laquelle une feature est disponible, `settings_deployment`).
  */
 async function clientSupportsFeature(req, key) {
   const s = await getSettings();
-  return compareVersions(resolveClientVersion(req, s[KEYS.DEFAULT_APP_VERSION]), String(s[key])) >= 0;
+  return compareVersions(resolveClientVersion(req), String(s[key])) >= 0;
 }
 
 /** Agrégateur de paiement actif (`settings_deployment.payment_aggregator`). */
@@ -205,7 +199,7 @@ async function isAppleReviewClient(req) {
   const s = await getSettings();
   const reviewVersion = String(requireSetting(s, KEYS.APPLE_VERSION_REVIEW_MODE) || '').trim();
   if (!reviewVersion) return false;
-  return resolveClientVersion(req, s[KEYS.DEFAULT_APP_VERSION]) === reviewVersion;
+  return resolveClientVersion(req) === reviewVersion;
 }
 
 /**
@@ -215,7 +209,7 @@ async function isAppleReviewClient(req) {
  * s'appuie sur cette seule fonction.
  *
  * Égalité stricte sur le header `x-app-version` UNIQUEMENT, sans le repli
- * `platform_default_app_version` : un client sans header
+ * repli '0.0.0' : un client sans header
  * (ancienne app, curl) ne doit jamais être pris pour une build de test.
  * Ancienne forme chaîne acceptée (migration 056 pas encore appliquée).
  *
@@ -287,7 +281,7 @@ async function getAppVersionGate(req) {
   const s = await getSettings();
   const minVersion = String(s[KEYS.MIN_APP_VERSION] || '0.0.0');
   const latestVersion = String(s[KEYS.LATEST_APP_VERSION] || '0.0.0');
-  const clientVersion = resolveClientVersion(req, s[KEYS.DEFAULT_APP_VERSION]);
+  const clientVersion = resolveClientVersion(req);
 
   return {
     clientVersion,
@@ -312,7 +306,6 @@ module.exports = {
   getSettings,
   getPricingSettings,
   getPaymentAggregator,
-  clientVersionOf,
   clientSupportsFeature,
   getOtpSettings,
   getFastfoodDeletionSettings,

@@ -22,10 +22,10 @@ const compareVersions = (a, b) => {
   return 0;
 };
 
-// Version du header `x-app-version`, sinon `fallback` (lu en base par l'appelant).
-const resolveClientVersion = (req, fallback) => {
-  const headerVersion = req && req.headers && req.headers['x-app-version'];
-  return headerVersion || fallback;
-};
+// Version du header `x-app-version`. Header absent = '0.0.0' : la plus ancienne
+// possible, donc bloquée par tout contrôle de version. L'app envoie toujours
+// ce header ; on ne suppose jamais une version à sa place.
+const NO_HEADER_VERSION = '0.0.0';
+const resolveClientVersion = req => (req && req.headers && req.headers['x-app-version']) || NO_HEADER_VERSION;
 
 module.exports = { compareVersions, resolveClientVersion };

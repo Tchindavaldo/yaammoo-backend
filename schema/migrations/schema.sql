@@ -778,7 +778,6 @@ INSERT INTO settings_withdrawal (key, value, description) VALUES
 ON CONFLICT (key) DO NOTHING;
 
 INSERT INTO settings_deployment (key, value, description) VALUES
-  ('platform_default_app_version',        '"1.0.0"'::jsonb, 'Version supposee quand la requete n''envoie pas le header x-app-version.'),
   ('payment_aggregator', '"pawapay"'::jsonb, 'Agregateur envoye a MobileWallet sur /pay et /payout, et bareme de frais du prix affiche. Valeurs : pawapay | digikuntz.')
 ON CONFLICT (key) DO NOTHING;
 

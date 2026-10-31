@@ -282,10 +282,11 @@ on l'applique.
    (version à partir de laquelle la feature est disponible) via une migration,
    déclarée dans `settings.keys.js` (KEYS, KEY_CATEGORY, FALLBACKS).
 2. **Détecter la version du client** via `settings.service` :
-   `clientSupportsFeature(req, KEYS.<CLE>)` / `clientVersionOf(req)`
+   `clientSupportsFeature(req, KEYS.<CLE>)`
    (primitives pures dans `src/utils/appVersion.js`). Ne JAMAIS réimplémenter.
    - Priorité 1 : header `x-app-version`.
-   - Priorité 2 (pas de header) : `platform_default_app_version` (base).
+   - Header absent = `0.0.0` (bloqué par tout contrôle) : on ne suppose jamais
+     une version ; l'app doit toujours envoyer le header.
 3. **Adapter la réponse dans le controller** (qui a accès à `req`), jamais dans le
    repository/mapper : on garde un seul format en base, on transforme à la sortie.
 4. **Par défaut, servir aux versions sous le seuil** les données qu'elles savent

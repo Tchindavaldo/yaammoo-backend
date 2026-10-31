@@ -63,8 +63,6 @@ const KEYS = {
   // Gate de version d'app (migration 042) — écran de mise à jour forcée.
   MIN_APP_VERSION: 'platform_min_app_version',
   LATEST_APP_VERSION: 'platform_latest_app_version',
-  // Version supposée sans header `x-app-version` (R11, migration 066).
-  DEFAULT_APP_VERSION: 'platform_default_app_version',
   // Agrégateur de paiement actif (migration 065) : pawapay | digikuntz.
   PAYMENT_AGGREGATOR: 'payment_aggregator',
   // Auth par numéro de téléphone / OTP Bird (migration 046). Une clé par
@@ -151,7 +149,6 @@ const KEY_CATEGORY = {
   [KEYS.MIN_APP_VERSION]: 'deployment',
   [KEYS.LATEST_APP_VERSION]: 'deployment',
   [KEYS.PAYMENT_AGGREGATOR]: 'deployment',
-  [KEYS.DEFAULT_APP_VERSION]: 'deployment',
   [KEYS.APPLE_REVIEW_MODE]: 'deployment',
   [KEYS.APPLE_VERSION_REVIEW_MODE]: 'deployment',
   // Suppression de boutiques : exploitation, pas tarification ni livraison.
@@ -236,7 +233,6 @@ const FALLBACKS = {
   // couper l'accès à l'app.
   [KEYS.MIN_APP_VERSION]: '0.0.0',
   [KEYS.LATEST_APP_VERSION]: '0.0.0',
-  [KEYS.DEFAULT_APP_VERSION]: '1.0.0',
   // OTP : replis PRUDENTS, dans le sens qui protège la facture Bird. Un
   // cooldown à 0 sur clé absente ouvrirait les renvois en rafale — donc 60 s.
   // L'indicatif tombe sur le Cameroun, seul pays servi aujourd'hui.

@@ -39,8 +39,7 @@ SUPABASE_ANON_KEY=eyJxxx...
 SUPABASE_SERVICE_KEY=eyJxxx...
 
 # Versioning par version d'app : AUCUNE variable ici (R11). Tout est en base,
-# settings_deployment : platform_default_app_version (migration 066),
-# platform_min_app_version, platform_latest_app_version.
+# settings_deployment : platform_min_app_version, platform_latest_app_version.
 
 # Tarification — cache mémoire des réglages `settings_*` (ms)
 # ⚠️ Les réglages EUX-MÊMES (marge, frais, campagne) sont en BASE, pas ici :
