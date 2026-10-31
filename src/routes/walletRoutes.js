@@ -162,6 +162,8 @@ router.get('/stats', firebaseAuth, getStatsController);
  *         description: Un retrait est déjà en cours (withdrawal_in_progress)
  *       422:
  *         description: Refus MobileWallet propagé tel quel (le front affiche `message`)
+ *       426:
+ *         description: "App antérieure aux deux soldes (header x-app-version < APP_WALLET_NETWORK_MIN_VERSION) : `app_update_required` (version publiée) ou `app_update_coming` (pas encore publiée)"
  *       429:
  *         description: Cooldown entre deux retraits non écoulé (cooldown)
  *       502:

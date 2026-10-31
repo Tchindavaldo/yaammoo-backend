@@ -117,11 +117,19 @@ crédite **chaque item** via
 - émet socket `wallet.credited` vers le marchand (room = `userId`), avec `network`
   (`MTN` | `ORANGEMONEY`) — **uniquement** si le crédit compte dans le portefeuille.
 
-> ⚠️ Achat direct : l'item n'a pas d'`id` avant création. Le crédit pointe
-> désormais la commande **créée** (`created.id`) : c'est elle qui porte le
-> règlement (`items_real`). Avant, il retombait sur le total client (prix
-> affiché, frais et livraison compris) — 200 crédits historiques sans
-> `relatedOrderId` en témoignent.
+> ⚠️ Montant crédité — DEUX comportements coexistent aujourd'hui (non tranché) :
+>
+> - **panier** (item avec `id`, règlement trouvé) : `items_real` = prix brut
+>   plat + extras + boissons — **sans** la livraison ni le frais de retrait ;
+> - **achat direct** (item sans `id` avant création, aucun règlement relu) :
+>   `item.total` = prix client entier (plat, livraison, frais de retrait,
+>   marge plateforme et frais de paiement compris).
+>
+> La règle métier attendue (« plat + livraison si livrée par le marchand +
+> frais de retrait ») ne correspond exactement à aucun des deux : à trancher.
+> Pour un achat direct, l'id de la commande créée est passé à part
+> (`createdOrderId`) et sert UNIQUEMENT à `relatedOrderId` — lien vers le
+> réseau du paiement pour la course livreur — sans changer le montant.
 
 > **Idempotence** : le verdict global est protégé par `reserveSettlement` (un seul canal
 > traite) → un seul crédit par commande. Échec partiel toléré (logué).
@@ -140,6 +148,22 @@ crédite **chaque item** via
 | POST    | `/wallet/withdraw`         | retrait `{ amount, phone, network, sourceNetwork, receiverName?, narration? }`            |
 
 Payloads déclarés dans [walletFields.js](../src/interface/walletFields.js).
+
+### Anciennes apps et retrait (R11)
+
+Une app antérieure aux deux soldes n'envoie pas `sourceNetwork` : son retrait
+ne peut pas être exécuté, et on ne devine pas le solde à sa place. Seuil : env
+**`APP_WALLET_NETWORK_MIN_VERSION`** (header `x-app-version`, via
+[walletAppVersion.js](../src/utils/walletAppVersion.js) → `appVersion.js`).
+Sous ce seuil, `POST /wallet/withdraw` répond **426** :
+
+| Cas | `code` | `message` |
+| --- | --- | --- |
+| version compatible publiée (`platform_latest_app_version` >= seuil) | `app_update_required` | « Mettez à jour l'application pour effectuer un retrait. » |
+| pas encore publiée | `app_update_coming` | « Le retrait sera disponible avec la prochaine mise à jour de l'application. » |
+
+L'ancienne app affiche `message` tel quel (toast). À la publication de l'OTA :
+`PATCH /settings/platform_latest_app_version` à la nouvelle version.
 
 ### `GET /wallet/balance` — compatibilité (R11)
 

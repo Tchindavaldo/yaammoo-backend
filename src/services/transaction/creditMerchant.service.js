@@ -35,8 +35,12 @@ const { toCanonicalNetwork } = require('../../utils/mobileNetwork');
  * @param {string} params.clientUserId  user qui a payé (pour traçabilité/log)
  * @param {object|null} [params.payment] `{ aggregator, network, mwTransactionId }`
  *   du paiement MobileWallet. null = aucun argent encaissé (hors portefeuille).
+ * @param {string|null} [params.createdOrderId] id de la commande CRÉÉE pour un
+ *   achat direct (l'item n'en a pas). Sert UNIQUEMENT à `relatedOrderId` (lien
+ *   vers le réseau du paiement pour la course livreur) : il ne change PAS le
+ *   montant crédité, qui reste calculé comme avant sur `item`.
  */
-exports.creditMerchantForItem = async ({ item, clientUserId, payment = null }) => {
+exports.creditMerchantForItem = async ({ item, clientUserId, payment = null, createdOrderId = null }) => {
   const logPrefix = `[creditMerchant] orderId=${item?.id || '∅'} fastFoodId=${item?.fastFoodId}`;
 
   const fastFoodId = item?.fastFoodId;
@@ -88,7 +92,7 @@ exports.creditMerchantForItem = async ({ item, clientUserId, payment = null }) =
     network,
     mwTransactionId: payment?.mwTransactionId || null,
     fastFoodId,
-    relatedOrderId: item?.id || null,
+    relatedOrderId: item?.id || createdOrderId || null,
     grossAmount: gross,
     clientUserId: clientUserId || null,
   });

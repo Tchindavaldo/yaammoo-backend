@@ -207,12 +207,21 @@ CREATE TABLE IF NOT EXISTS transactions (
   pay_by              TEXT,
   name                TEXT,
   remaining_amount    NUMERIC(12,2),
+  -- Migration 064 : portefeuille par réseau. aggregator = 'pawapay' | 'digikuntz'
+  -- (seul pawaPay compte dans le solde), network = 'MTN' | 'ORANGEMONEY'.
+  aggregator          TEXT,
+  network             TEXT,
+  mw_transaction_id   TEXT,
   extra_data          JSONB DEFAULT '{}'::jsonb,
   created_at          TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_transactions_user_created
   ON transactions(user_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_transactions_wallet
+  ON transactions (user_id, aggregator, network)
+  WHERE type IN ('merchant_credit', 'driver_credit', 'withdrawal');
 
 -- ============================================================================
 -- TABLE: bonus
@@ -736,7 +745,12 @@ ON CONFLICT (key) DO NOTHING;
 
 INSERT INTO settings_pricing (key, value, description) VALUES
   ('platform_margin',                 '100'::jsonb, 'Marge Yaammoo ajoutee au prix affiche de chaque plat (FCFA), en regime plateforme.'),
-  ('payment_fee_percent',             '5'::jsonb,   'Frais du prestataire de paiement, en % du montant paye. Arrondi a l''entier SUPERIEUR.'),
+  ('payment_fee_percent',             '5'::jsonb,   'DigiKUNTZ : frais en % du montant paye, TOUT COMPRIS (commission MobileWallet incluse). Arrondi a l''entier SUPERIEUR.'),
+  ('pawapay_deposit_fee_mtn_percent',    '1.75'::jsonb, 'pawaPay : frais de DEPOT MTN, % du montant paye, arrondi a l''entier SUPERIEUR separement.'),
+  ('pawapay_deposit_fee_orange_percent', '1.77'::jsonb, 'pawaPay : frais de DEPOT Orange, % du montant paye, arrondi a l''entier SUPERIEUR separement.'),
+  ('pawapay_mw_commission_percent',      '0.1'::jsonb,  'pawaPay : commission MobileWallet, % du montant paye, arrondie a l''entier SUPERIEUR separement.'),
+  ('pawapay_payout_fee_mtn_percent',     '1.3'::jsonb,  'pawaPay : reserve de RETRAIT MTN prepayee au depot ; taux interreseau vers MTN.'),
+  ('pawapay_payout_fee_orange_percent',  '1.0'::jsonb,  'pawaPay : reserve de RETRAIT Orange prepayee au depot ; taux interreseau vers Orange.'),
   ('price_rounding_step',             '0'::jsonb,   'Pas d''arrondi du prix des plats (FCFA). 0 = aucun arrondi.'),
   ('express_price_rounding_step',     '0'::jsonb,   'Pas d''arrondi propre aux zones express. Toujours vers le HAUT.'),
   ('driver_amortization_max',         '0'::jsonb,   'Montant maximum de course qu''un surplus d''arrondi peut amortir (FCFA).'),

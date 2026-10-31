@@ -68,6 +68,9 @@ MOBILEWALLET_YAAMMOO_KEY=sk_live_xxxx...      # clé API de l'app Yaammoo (HTTP 
 # prix affiché (cf. architecture/payment.md). Valeurs : pawapay | digikuntz.
 # Absent ou inconnu → erreur journalisée + fonctionnement historique (digikuntz).
 PAYMENT_AGGREGATOR=pawapay
+# Version d'app minimale qui gère les deux soldes MTN / Orange (retrait avec
+# sourceNetwork). En dessous : 426 + message de mise à jour (architecture/wallet.md).
+APP_WALLET_NETWORK_MIN_VERSION=1.1.5
 # Délai artificiel avant de servir GET /payment-page (test du squelette côté app)
 # Absent ou 0 = aucun délai
 PAYMENT_PAGE_DELAY_MS=0

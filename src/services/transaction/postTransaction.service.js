@@ -112,19 +112,15 @@ exports.postTransactionService = async (data, req) => {
           });
         }
       }
-      // Le crédit marchand doit pointer la commande CRÉÉE (son id porte le
-      // règlement) : sans id, il retombait sur le total client.
-      const toCredit = [...toUpdate];
       for (const order of toCreate) {
         const created = await createOrderService({ ...order, userId });
-        const createdId = created?.data?.id || created?.id || null;
-        log.info(`${logPrefix} [panier] + commande créée id=${createdId || '?'} fastFoodId=${order?.fastFoodId}`);
-        toCredit.push(createdId ? { ...order, id: createdId } : order);
+        const createdId = created?.data?.id || created?.id || '?';
+        log.info(`${logPrefix} [panier] + commande créée id=${createdId} fastFoodId=${order?.fastFoodId}`);
       }
       // ⚠️ Aucun argent encaissé : le crédit est tracé SANS agrégateur, donc
       // hors portefeuille (ni affiché ni retirable). Sinon un retrait de test
       // puiserait dans l'argent réel des autres marchands chez MobileWallet.
-      for (const item of toCredit) {
+      for (const item of orders) {
         await creditMerchantForItem({ item, clientUserId: userId, payment: null }).catch(e => log.error(`${logPrefix} ❌ Crédit marchand échoué: ${e.message}`));
       }
 
