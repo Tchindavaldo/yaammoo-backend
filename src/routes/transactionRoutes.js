@@ -85,19 +85,23 @@ const { authorize, selfFromParam, transactionCreate, adminOnly } = require('../m
  *                 status:
  *                   type: string
  *                   example: ussd_sent
- *                 mw_transaction_id:
+ *                 transaction_id:
  *                   type: string
- *                 payment_number:
+ *                   description: Référence MobileWallet du paiement
+ *                 ussd_code:
  *                   type: string
- *                   description: Code USSD à taper par le client (*123*{payment_number}#)
+ *                   nullable: true
+ *                   description: Code USSD à composer si la demande de PIN n'arrive pas (ex. *126#). Remplace l'ancien `payment_number`, supprimé côté MobileWallet.
  *       400:
  *         description: Validation échouée (champs manquants, items sans fastFoodId)
  *       409:
  *         description: "Doublon (pending_exists / retry_too_soon) ou stock insuffisant (insufficient_stock)"
+ *       422:
+ *         description: "Refus MobileWallet propagé tel quel (ex. montant sous le minimum) — le front affiche `message`"
  *       503:
  *         description: Opérateur ou réseau indisponible
  *       502:
- *         description: Erreur serveur MobileWallet
+ *         description: MobileWallet injoignable (réseau, erreur serveur, clé API refusée)
  */
 router.post('', firebaseAuth, authorize(transactionCreate), postTransactionController);
 

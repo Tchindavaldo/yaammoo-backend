@@ -79,7 +79,32 @@ const userFromSupabase = (row, pushTokens = []) => {
 // ---------------------------------------------------------------------------
 const fastfoodToSupabase = data => {
   const { createdAt, updatedAt, ...rest } = data;
-  const known = ['id', 'userId', 'name', 'number', 'momoNumber', 'whatsappNumber', 'openTime', 'closeTime', 'image', 'orderLeadTime', 'advanceDays', 'pickupAllowed', 'cities', 'deliveryHours', 'platformDeliveryZones', 'deliveryBy', 'driverRatingAvg', 'driverRatingCount', 'openDays', 'isAvailable', 'available', 'latitude', 'longitude', 'drinks'];
+  const known = [
+    'id',
+    'userId',
+    'name',
+    'number',
+    'momoNumber',
+    'whatsappNumber',
+    'openTime',
+    'closeTime',
+    'image',
+    'orderLeadTime',
+    'advanceDays',
+    'pickupAllowed',
+    'cities',
+    'deliveryHours',
+    'platformDeliveryZones',
+    'deliveryBy',
+    'driverRatingAvg',
+    'driverRatingCount',
+    'openDays',
+    'isAvailable',
+    'available',
+    'latitude',
+    'longitude',
+    'drinks',
+  ];
   const extra = {};
   for (const k of Object.keys(rest)) {
     if (!known.includes(k)) extra[k] = rest[k];
@@ -310,7 +335,10 @@ const orderFromSupabase = row => {
 // ---------------------------------------------------------------------------
 const transactionToSupabase = data => {
   const { createdAt, ...rest } = data;
-  const known = ['id', 'userId', 'type', 'amount', 'currentAmount', 'payBy', 'name', 'remainingAmount'];
+  // `aggregator` / `network` / `mwTransactionId` (migration 064) : colonnes
+  // dédiées, car le solde du portefeuille se calcule PAR réseau et ne compte
+  // que les agrégateurs affichés (cf. utils/paymentAggregator.js).
+  const known = ['id', 'userId', 'type', 'amount', 'currentAmount', 'payBy', 'name', 'remainingAmount', 'aggregator', 'network', 'mwTransactionId'];
   const extra_data = {};
   for (const k of Object.keys(rest)) {
     if (!known.includes(k)) extra_data[k] = rest[k];
@@ -324,6 +352,9 @@ const transactionToSupabase = data => {
     pay_by: data.payBy ?? null,
     name: data.name ?? null,
     remaining_amount: data.remainingAmount ?? null,
+    aggregator: data.aggregator ?? null,
+    network: data.network ?? null,
+    mw_transaction_id: data.mwTransactionId ?? null,
     extra_data,
     created_at: toIso(createdAt),
   };
@@ -341,7 +372,14 @@ const transactionFromSupabase = row => {
     name: row.name,
     remainingAmount: row.remaining_amount != null ? Number(row.remaining_amount) : null,
     createdAt: row.created_at,
+    // L'historique antérieur à la migration 064 portait `network` dans
+    // extra_data (réseau de réception d'un retrait) : il prime alors, la
+    // colonne étant NULL sur ces lignes.
+    ...(row.network != null ? { network: row.network } : {}),
+    ...(row.mw_transaction_id != null ? { mwTransactionId: row.mw_transaction_id } : {}),
     ...(row.extra_data || {}),
+    // Jamais exposé : aucun nom d'agrégateur ne doit sortir vers le front.
+    aggregator: undefined,
   };
 };
 
@@ -355,6 +393,10 @@ const withdrawalToSupabase = data => ({
   amount: data.amount ?? null,
   phone: data.phone ?? null,
   network: data.network ?? null,
+  // Migration 064 : agrégateur du payout, solde débité, frais interréseau.
+  aggregator: data.aggregator ?? null,
+  source_network: data.sourceNetwork ?? null,
+  fee: data.fee ?? 0,
   status: data.status ?? 'pending',
   mw_payout_id: data.mwPayoutId ?? null,
   failure_reason: data.failureReason ?? null,
@@ -370,6 +412,9 @@ const withdrawalFromSupabase = row => {
     amount: row.amount != null ? Number(row.amount) : null,
     phone: row.phone,
     network: row.network,
+    aggregator: row.aggregator ?? null,
+    sourceNetwork: row.source_network ?? null,
+    fee: row.fee != null ? Number(row.fee) : 0,
     status: row.status,
     mwPayoutId: row.mw_payout_id,
     failureReason: row.failure_reason,

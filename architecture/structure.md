@@ -66,9 +66,14 @@ src/
 │   │   ├── helpers/           # notifyOrderEvent, cleanStaleTokens, getUserTokens
 │   │   ├── socket/            # helpers d'émission socket
 │   │   └── whatsapp/
-│   ├── order/                 # createOrder, updateOrders, rankQueue…
+│   ├── order/                 # createOrder, updateOrders, settleDelivery, rankQueue…
+│   ├── pricing/               # deliveryPricing (prix affiché), deliverySplit (répartition course),
+│   │                          #   paymentFees (frais de paiement PAR agrégateur), withdrawalFees,
+│   │                          #   menuPriceGuard, deliveryOffer* (pricing*.md)
+│   ├── settings/              # settings.service (lecture/écriture) + settings.keys (clés, tables, replis)
 │   ├── support/               # fils + messages, emitSupportMessage, notifySupportMessage
-│   ├── transaction/
+│   ├── transaction/           # mobilewalletService, mwVerdict, creditMerchant/Driver, webhookPayout
+│   ├── wallet/                # withdraw.service, withdrawQuote.service (wallet.md)
 │   └── user/                  # userService (push tokens) + userLocation.service (user-location.md)
 │
 ├── interface/                 # Définitions champs Firestore (schemas logiques)
@@ -80,7 +85,9 @@ src/
     ├── validator/             # validateOrder, validateNotificationData, validateUser…
     │                          #   + validateFieldRules (générique, positions user / livreur)
     ├── flattenNotifications.js
-    └── supabaseKeepAlive.js
+    ├── paymentAggregator.js   # agrégateur actif (PAYMENT_AGGREGATOR), agrégateurs du wallet
+    ├── mobileNetwork.js       # normalisation MTN / ORANGEMONEY (payment.md, wallet.md)
+    └── supabaseKeepAlive.js   # multi-projets : KEEPALIVE_<NOM>_SUPABASE_URL/KEY
 ```
 
 ---

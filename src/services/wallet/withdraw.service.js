@@ -1,15 +1,17 @@
 // ============================================================================
-// withdraw.service — Demande de retrait du portefeuille marchand
+// withdraw.service — Demande de retrait du portefeuille marchand / livreur
 // ============================================================================
-// Le solde est calculé depuis les transactions. Le débit (transaction
-// 'withdrawal') n'est créé QU'AU SUCCÈS du payout (cf. mwVerdictService
-// branche payout) — pas à la demande. Une demande de retrait :
-//   1. valide les champs + le solde (>= montant),
-//   2. bloque s'il existe déjà un retrait 'pending' pour ce marchand,
-//   3. applique un cooldown (WITHDRAWAL_COOLDOWN_HOURS) depuis le dernier retrait,
-//   4. insère une ligne `withdrawals` (status='pending'),
-//   5. appelle MobileWallet /payout, stocke mw_payout_id,
-//   6. émet un socket fiable `wallet.withdrawal` (status='pending').
+// Le solde est calculé depuis les transactions, PAR RÉSEAU (MTN / Orange). Le
+// débit (transaction 'withdrawal') n'est créé QU'AU SUCCÈS du payout (cf.
+// webhookPayout.service) — pas à la demande. Une demande de retrait :
+//   1. valide les champs (montant, numéro, réseau de réception, solde source),
+//   2. calcule les frais : 0 même réseau, interréseau via MobileWallet,
+//   3. vérifie le solde SOURCE (>= montant + frais) — aucun repli sur l'autre,
+//   4. bloque s'il existe déjà un retrait 'pending' pour cet utilisateur,
+//   5. applique un cooldown (WITHDRAWAL_COOLDOWN_HOURS) depuis le dernier retrait,
+//   6. insère une ligne `withdrawals` (status='pending', source, frais),
+//   7. appelle MobileWallet /payout (agrégateur + source_network), stocke mw_payout_id,
+//   8. émet un socket fiable `wallet.withdrawal` (status='pending').
 // Le verdict final (completed/failed) arrive via webhook/socket.
 // ============================================================================
 
@@ -17,21 +19,28 @@ const repos = require('../../repositories');
 const { getIO } = require('../../socket');
 const { validateWithdrawal } = require('../../utils/validator/validateWithdrawal');
 const { reliableEmit } = require('../../utils/reliableEmit');
+const { resolvePaymentAggregator } = require('../../utils/paymentAggregator');
 const mobilewallet = require('../transaction/mobilewalletService');
+const { quoteWithdrawal } = require('./withdrawQuote.service');
 
 // 0 = désactivé (dev). Si non défini → 24h par défaut (prod).
 const COOLDOWN_HOURS = process.env.WITHDRAWAL_COOLDOWN_HOURS !== undefined ? Number(process.env.WITHDRAWAL_COOLDOWN_HOURS) : 24;
 
+const NETWORK_LABEL = { MTN: 'MTN', ORANGEMONEY: 'Orange' };
+
+/** Vue renvoyée au front : aucun nom d'agrégateur ne sort. */
+const publicWithdrawal = w => (w ? { ...w, aggregator: undefined } : w);
+
 /**
- * @param {object} params { userId, amount, phone, network, receiverName?, narration? }
+ * @param {object} params { userId, amount, phone, network, sourceNetwork, receiverName?, narration? }
  * @returns {{ success:boolean, httpStatus:number, code?:string, message?:string, data?:object }}
  */
-exports.requestWithdrawal = async ({ userId, amount, phone, network, receiverName, narration }) => {
+exports.requestWithdrawal = async ({ userId, amount, phone, network, sourceNetwork, receiverName, narration }) => {
   if (!userId) {
     return { success: false, httpStatus: 401, code: 'unauthenticated', message: 'Utilisateur non authentifié' };
   }
 
-  const errors = validateWithdrawal({ amount, phone, network });
+  const errors = validateWithdrawal({ amount, phone, network, sourceNetwork });
   if (errors.length > 0) {
     return {
       success: false,
@@ -43,17 +52,23 @@ exports.requestWithdrawal = async ({ userId, amount, phone, network, receiverNam
 
   const amt = Number(amount);
 
-  // 1. Solde dérivé (source de vérité)
+  // 1. Frais + solde source (source de vérité : les transactions)
   // ⚠️ TEMPORAIRE : contrôle de solde désactivable via DISABLE_WITHDRAWAL_BALANCE_CHECK=true.
   //    Réactiver (retirer le flag) une fois les tests terminés.
   const SKIP_BALANCE_CHECK = process.env.DISABLE_WITHDRAWAL_BALANCE_CHECK === 'true';
-  const { balance } = await repos.transactions.getMerchantBalance(userId);
-  if (!SKIP_BALANCE_CHECK && amt > balance) {
+  const quote = await quoteWithdrawal({ userId, amount: amt, network, sourceNetwork });
+  if (!quote.success) return quote;
+  const { fee, totalDebited, sourceBalance } = quote.data;
+
+  if (!SKIP_BALANCE_CHECK && totalDebited > sourceBalance) {
+    const label = NETWORK_LABEL[sourceNetwork] || sourceNetwork;
+    const detail = fee > 0 ? ` (${amt} FCFA + ${fee} FCFA de frais)` : '';
     return {
       success: false,
       httpStatus: 400,
       code: 'insufficient_balance',
-      message: `Solde insuffisant : disponible ${balance} FCFA, demandé ${amt} FCFA`,
+      message: `Solde ${label} insuffisant : disponible ${sourceBalance} FCFA, nécessaire ${totalDebited} FCFA${detail}.`,
+      data: quote.data,
     };
   }
 
@@ -93,6 +108,8 @@ exports.requestWithdrawal = async ({ userId, amount, phone, network, receiverNam
     finalReceiver = fullName || fastfood?.name || 'Marchand yaammoo';
   }
 
+  const aggregator = resolvePaymentAggregator();
+
   // 4. Tracer la demande (pending) — AUCUN débit à ce stade
   const withdrawal = await repos.withdrawals.create({
     userId,
@@ -100,6 +117,9 @@ exports.requestWithdrawal = async ({ userId, amount, phone, network, receiverNam
     amount: amt,
     phone,
     network,
+    sourceNetwork,
+    fee,
+    aggregator,
     status: 'pending',
   });
 
@@ -107,10 +127,12 @@ exports.requestWithdrawal = async ({ userId, amount, phone, network, receiverNam
   const mw = await mobilewallet.payout({
     amount: amt,
     network,
+    sourceNetwork,
     phone,
     receiverName: finalReceiver,
     narration,
     withdrawalId: withdrawal.id,
+    aggregator,
   });
 
   if (!mw || mw.status === 'error') {
@@ -125,18 +147,23 @@ exports.requestWithdrawal = async ({ userId, amount, phone, network, receiverNam
     };
   }
 
-  // Stocker l'id MobileWallet pour router le verdict
-  await repos.withdrawals.updateStatus(withdrawal.id, { mwPayoutId: mw.transaction_id });
+  // Frais réellement retenus par MobileWallet : ils font foi pour le débit.
+  const finalFee = network === sourceNetwork ? 0 : Number.isFinite(mw.fee) ? mw.fee : fee;
 
-  // 6. Notifier le marchand (statut pending). Émission fiable.
+  // Stocker l'id MobileWallet pour router le verdict
+  await repos.withdrawals.updateStatus(withdrawal.id, { mwPayoutId: mw.transaction_id, fee: finalFee });
+
+  // 6. Notifier l'utilisateur (statut pending). Émission fiable.
   try {
     await reliableEmit(getIO(), userId, 'wallet.withdrawal', {
       withdrawalId: withdrawal.id,
       type: 'withdrawal',
       direction: 'payout',
       amount: amt,
+      fee: finalFee,
       status: 'pending',
       network,
+      sourceNetwork,
       mwTransactionId: mw.transaction_id,
       createdAt: withdrawal.createdAt,
     });
@@ -148,6 +175,6 @@ exports.requestWithdrawal = async ({ userId, amount, phone, network, receiverNam
     success: true,
     httpStatus: 200,
     message: mw.message || 'Retrait en cours de traitement',
-    data: { withdrawal: { ...withdrawal, mwPayoutId: mw.transaction_id }, status: 'pending' },
+    data: { withdrawal: publicWithdrawal({ ...withdrawal, fee: finalFee, mwPayoutId: mw.transaction_id }), status: 'pending' },
   };
 };

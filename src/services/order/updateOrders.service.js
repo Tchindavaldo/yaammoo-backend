@@ -61,7 +61,13 @@ const buildTransitionNotif = ({ prevStatus, newStatus, order, merchantUserId }) 
 const isRankedStatus = s => s === 'pending' || s === 'processing';
 const isCancelStatus = s => s === 'cancelByUser' || s === 'cancelByFastFood';
 
-exports.updateOrders = async (orders, userId) => {
+/**
+ * @param {Array|Object} orders
+ * @param {string} userId
+ * @param {Object} [payment] `{ aggregator, network }` du paiement MobileWallet
+ *   qui règle le panier — fixe le barème de frais extrait au règlement.
+ */
+exports.updateOrders = async (orders, userId, payment = null) => {
   try {
     const io = getIO();
 
@@ -250,7 +256,7 @@ exports.updateOrders = async (orders, userId) => {
 
       // Le bonus voyage avec le panier, pas avec un plat en particulier.
       const bonusCode = updates.find(o => o && o.bonusCode)?.bonusCode;
-      const settled = await settleDeliveryService({ orders: becamePending, bonusCode });
+      const settled = await settleDeliveryService({ orders: becamePending, bonusCode, payment });
       console.info(`[updateOrders] settleDelivery terminé · bonusCode=${bonusCode || '∅'} · offre=${settled?.offer ? 'appliquée' : '∅'} → order_settlements créés pour ${becamePending.length} cmd`);
       // Le front reçoit l'offre appliquée sans avoir à re-GET.
       if (settled.offer) {
@@ -280,7 +286,7 @@ exports.updateOrders = async (orders, userId) => {
               reliableEmit(io, fastfood.userId, 'newFastFoodOrders', {
                 message: pendingOrders.length > 1 ? 'Nouvelles commandes' : 'Nouvelle commande',
                 data: merchantOrders,
-              }),
+              })
             )
             .catch(e => console.warn('[updateOrders] reliableEmit newFastFoodOrders:', e.message));
           pendingOrders.forEach(order => {
@@ -317,7 +323,9 @@ exports.updateOrders = async (orders, userId) => {
           }
           if (order.status !== 'pending') {
             reliableEmit(io, order.userId, 'userOrderUpdated', { data: order }).catch(e => console.warn('[updateOrders] reliableEmit userOrderUpdated:', e.message));
-            toMerchantViewOne(order).then(view => reliableEmit(io, fastfood.userId, 'fastFoodOrderUpdated', { data: view })).catch(e => console.warn('[updateOrders] reliableEmit fastFoodOrderUpdated:', e.message));
+            toMerchantViewOne(order)
+              .then(view => reliableEmit(io, fastfood.userId, 'fastFoodOrderUpdated', { data: view }))
+              .catch(e => console.warn('[updateOrders] reliableEmit fastFoodOrderUpdated:', e.message));
           }
         });
 
@@ -334,9 +342,7 @@ exports.updateOrders = async (orders, userId) => {
           });
           if (notif) {
             const toClient = notif.targetUserId !== fastfood.userId;
-            notifyOrderEvent({ ...notif, sender: toClient ? sender : null }).catch(e =>
-              console.warn('[updateOrders] notify error:', e.message)
-            );
+            notifyOrderEvent({ ...notif, sender: toClient ? sender : null }).catch(e => console.warn('[updateOrders] notify error:', e.message));
           }
         }
 

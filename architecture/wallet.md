@@ -11,42 +11,72 @@ son portefeuille.
 
 ---
 
+## Deux soldes : MTN et Orange (migration 064)
+
+Chez pawaPay, MobileWallet tient un solde **par réseau**. Le portefeuille
+yaammoo suit la même forme : chaque crédit est rattaché au **réseau qui a
+encaissé le paiement** et à l'**agrégateur** utilisé.
+
+- **Seuls les montants pawaPay** sont affichés et retirables
+  (`WALLET_AGGREGATORS`, [paymentAggregator.js](../src/utils/paymentAggregator.js)).
+  L'historique DigiKUNTZ (818 224 F au passage à pawaPay) est **conservé en
+  base**, marqué `aggregator='digikuntz'`, jamais affiché ni retirable.
+- **Aucun nom d'agrégateur** ne sort vers le front (mapper `transaction` et
+  réponse de retrait le masquent).
+- Réseaux en base : `'MTN' | 'ORANGEMONEY'` (forme `/payout` de MobileWallet),
+  normalisés par [mobileNetwork.js](../src/utils/mobileNetwork.js).
+
 ## Modèle de données
 
-Réutilise la table `transactions` (`extra_data` JSONB absorbe les champs hors colonnes) :
+Réutilise la table `transactions` (`extra_data` JSONB absorbe les champs hors colonnes).
+Colonnes ajoutées par la migration 064 : `aggregator`, `network` (réseau du
+solde touché), `mw_transaction_id`.
 
 - **Crédit** : `type='merchant_credit'`, `userId = userId du marchand`,
-  `amount = total de l'item` (aucune retenue — voir ci-dessous).
-  Extra : `fastFoodId`, `relatedOrderId`, `grossAmount`.
-- **Retrait** : `type='withdrawal'`, `userId = marchand`, `amount = montant retiré`
-  (compté en négatif dans le solde). Extra : `withdrawalId`, `status`, `phone`, `network`.
+  `amount = order_settlements.items_real` (aucune retenue — voir ci-dessous),
+  `aggregator`/`network`/`mw_transaction_id` = ceux du paiement (`pending_payments`).
+  Extra : `fastFoodId`, `relatedOrderId`, `grossAmount`, `clientUserId`.
+  Sans paiement réel (build de test, Apple Review) : `aggregator = NULL`, hors portefeuille.
+- **Retrait** : `type='withdrawal'`, `userId = marchand`, `amount = montant reçu + frais
+  interréseau` (compté en négatif), `network = solde SOURCE débité`.
+  Extra : `withdrawalId`, `status`, `phone`, `receivedAmount`, `fee`, `receiverNetwork`.
+  > Les retraits antérieurs à la migration 064 portent `network` (réseau de
+  > réception) dans `extra_data`.
 
 - **Course livreur** : `type='driver_credit'`, `userId = uid du livreur`,
   `amount = order_settlements.driver_amount`. Versée depuis le portefeuille
   PLATEFORME, uniquement pour les boutiques en `deliveryBy = 'platform'`, et
   **à la livraison** — une course annulée en chemin ne se paie pas.
+  Réseau/agrégateur relus sur le **crédit marchand** de la même commande
+  (`repos.transactions.findMerchantCreditByOrder`).
   Idempotente (`repos.transactions.findDriverCredit`) : une transition
   `delivered` rejouée ne verse pas deux fois. Voir
   [creditDriver.service.js](../src/services/transaction/creditDriver.service.js).
 
-**Solde dérivé** : `balance = Σ(merchant_credit.amount) + Σ(driver_credit.amount) − Σ(withdrawal.amount)`
-(`repos.transactions.getMerchantBalance(userId)`).
+**Solde dérivé** (`repos.transactions.getMerchantBalance(userId)`), agrégateurs du portefeuille seulement :
 
-Table `withdrawals` (migration `004_withdrawals.sql`) — trace les demandes de retrait :
-`id, user_id, fastfood_id, amount, phone, network, status (pending|completed|failed),
+```
+solde[réseau] = Σ(crédits sur ce réseau) − Σ(retraits débités de ce réseau)
+balance       = mtn + orange
+```
+
+Table `withdrawals` (migrations `004_withdrawals.sql`, `064`) — trace les demandes de retrait :
+`id, user_id, fastfood_id, amount (reçu), phone, network (réception), source_network
+(solde débité), fee (interréseau), aggregator, status (pending|completed|failed),
 mw_payout_id, failure_reason`.
 
 ---
 
 ## Commissions — une seule ponction
 
-**Le crédit marchand ne subit AUCUNE retenue.** La commission du prestataire de
-paiement est prélevée **une seule fois**, en amont, sur le montant encaissé :
-`feeIncludedIn(itemsCharged, payment_fee_percent)` dans
-[settleDelivery.service.js](../src/services/order/settleDelivery.service.js).
-Ce taux vit dans la table `settings` (clé `payment_fee_percent`, défaut 5),
-pilotable à chaud — c'est le **même** taux qui compose le prix affiché, donc une
-source de vérité unique.
+**Le crédit marchand ne subit AUCUNE retenue.** Les frais de paiement sont prélevés
+**une seule fois**, en amont, sur le montant encaissé :
+`paymentFeeOf(itemsCharged, pricing, { aggregator, network })` dans
+[settleDelivery.service.js](../src/services/order/settleDelivery.service.js), au
+barème de l'agrégateur ET du réseau qui ont réellement encaissé.
+Barèmes en base (`settings_pricing`), pilotables à chaud — c'est le **même** barème
+qui compose le prix affiché ([paymentFees.js](../src/services/pricing/paymentFees.js),
+détail dans [pricing-fees.md](./pricing-fees.md)).
 
 Le bénéfice yaammoo est porté par la **marge plateforme** et l'**écart de zone**
 (cf. [pricing.md](./pricing.md)) — pas par un frais retenu au marchand.
@@ -83,8 +113,15 @@ crédite **chaque item** via
 (`creditMerchantForItem`) :
 
 - résout le marchand : `repos.fastfoods.getById(item.fastFoodId).userId` ;
-- crée la transaction `merchant_credit` (net) ;
-- émet socket `wallet.credited` vers le marchand (room = `userId`).
+- crée la transaction `merchant_credit` (net), avec `aggregator`/`network` du paiement ;
+- émet socket `wallet.credited` vers le marchand (room = `userId`), avec `network`
+  (`MTN` | `ORANGEMONEY`) — **uniquement** si le crédit compte dans le portefeuille.
+
+> ⚠️ Achat direct : l'item n'a pas d'`id` avant création. Le crédit pointe
+> désormais la commande **créée** (`created.id`) : c'est elle qui porte le
+> règlement (`items_real`). Avant, il retombait sur le total client (prix
+> affiché, frais et livraison compris) — 200 crédits historiques sans
+> `relatedOrderId` en témoignent.
 
 > **Idempotence** : le verdict global est protégé par `reserveSettlement` (un seul canal
 > traite) → un seul crédit par commande. Échec partiel toléré (logué).
@@ -93,12 +130,22 @@ crédite **chaque item** via
 
 ## Routes (`/wallet`, protégées `firebaseAuth`)
 
-| Méthode | Endpoint           | Rôle                                                                       |
-| ------- | ------------------ | -------------------------------------------------------------------------- |
-| GET     | `/wallet/balance`  | `{ balance, totalEarned, totalWithdrawn }` du marchand (`req.user.uid`)    |
-| GET     | `/wallet/history`  | payin (gains) + payout (retraits), filtrable, triés DESC                   |
-| GET     | `/wallet/stats`    | totaux payin/payout/net agrégés par jour/semaine/mois                      |
-| POST    | `/wallet/withdraw` | demande de retrait `{ amount, phone, network, receiverName?, narration? }` |
+| Méthode | Endpoint                   | Rôle                                                                                      |
+| ------- | -------------------------- | ----------------------------------------------------------------------------------------- |
+| GET     | `/wallet/balance`          | `{ balance, mtn, orange, totalEarned, totalWithdrawn }` (`req.user.uid`)                  |
+| GET     | `/wallet/history`          | payin (gains) + payout (retraits), filtrable, triés DESC                                  |
+| GET     | `/wallet/stats`            | totaux payin/payout/net agrégés par jour/semaine/mois                                     |
+| GET     | `/wallet/withdraw/quote`   | frais d'un retrait avant confirmation `?amount&network&sourceNetwork`                     |
+| POST    | `/wallet/operator/predict` | réseau d'un numéro saisi `{ phone }` → `{ phone, network }` (relais MobileWallet)         |
+| POST    | `/wallet/withdraw`         | retrait `{ amount, phone, network, sourceNetwork, receiverName?, narration? }`            |
+
+Payloads déclarés dans [walletFields.js](../src/interface/walletFields.js).
+
+### `GET /wallet/balance` — compatibilité (R11)
+
+`balance` garde son sens (**total retirable**) ; `mtn` et `orange` sont **ajoutés**.
+Changement purement additif : une ancienne app lit `balance` et ignore le reste.
+Depuis le passage à pawaPay, `balance` ne compte plus l'historique DigiKUNTZ.
 
 ### `GET /wallet/history`
 
@@ -130,23 +177,47 @@ Service : [withdraw.service.js](../src/services/wallet/withdraw.service.js) ·
 Repo : [withdrawals.repo.js](../src/repositories/supabase/withdrawals.repo.js) ·
 Validateur : [validateWithdrawal.js](../src/utils/validator/validateWithdrawal.js).
 
+### Frais d'un retrait
+
+L'utilisateur choisit **le solde débité** (`sourceNetwork`) ET **le numéro de
+réception** (réseau `network`, détecté à la saisie via `POST /wallet/operator/predict`).
+**Aucun repli automatique** sur l'autre solde.
+
+| Cas                                | Frais                                                    |
+| ---------------------------------- | -------------------------------------------------------- |
+| même réseau (`sourceNetwork = network`) | **0 F** — prépayés au dépôt (réserve de retrait pawaPay) |
+| interréseau                        | ⌈taux du réseau de réception × montant⌉, débité **en plus** sur le solde source |
+
+Le frais interréseau vient de MobileWallet (`GET /payout/quote`), qui fait foi ;
+il est redemandé au retrait. `GET /wallet/withdraw/quote` renvoie
+`{ amount, fee, totalDebited, sourceBalance, sufficient, maxAmount, sameNetwork }` —
+`maxAmount` (plus gros montant recevable depuis ce solde, frais compris) est
+estimé avec `pawapay_payout_fee_<réseau>_percent`
+([withdrawQuote.service.js](../src/services/wallet/withdrawQuote.service.js)).
+Le front n'affiche les frais **qu'en interréseau**.
+
 ### Flux retrait (`POST /wallet/withdraw`)
 
-Body : `{ amount, phone, network, receiverName?, narration? }`.
+Body : `{ amount, phone, network, sourceNetwork, receiverName?, narration? }`.
+`amount` = montant **reçu**, entier.
 
 > ⚠️ **Le débit n'a lieu QU'AU SUCCÈS du payout** (transaction `withdrawal` créée au verdict
 > `successful`), jamais à la demande. Donc un retrait échoué/annulé laisse le solde intact.
 
-1. valide montant/phone/network ;
-2. recalcule le solde → **400 `insufficient_balance`** si `amount > balance` ;
-3. **blocage doublon** : **409 `withdrawal_in_progress`** s'il existe déjà un retrait `pending` ;
-4. **cooldown** : **429 `cooldown`** si moins de `WITHDRAWAL_COOLDOWN_HOURS` (env, défaut 24h)
+1. valide montant/phone/network/sourceNetwork (`MTN` | `ORANGEMONEY`) ;
+2. devis : frais 0 (même réseau) ou interréseau (MobileWallet) ;
+3. solde **source** → **400 `insufficient_balance`** si `amount + frais > solde source`
+   (`data` = le devis) ;
+4. **blocage doublon** : **409 `withdrawal_in_progress`** s'il existe déjà un retrait `pending` ;
+5. **cooldown** : **429 `cooldown`** si moins de `WITHDRAWAL_COOLDOWN_HOURS` (env, défaut 24h)
    depuis le dernier retrait ;
-5. `receiver_name` : `receiverName` du body → nom marchand (`users`) → `fastfood.name` ;
-6. insère `withdrawals` (`status='pending'`) — **aucun débit** ;
-7. appelle **MobileWallet `/payout`** ([mobilewalletService.payout](../src/services/transaction/mobilewalletService.js)),
-   stocke `mw_payout_id`. Échec d'initiation (409/503/502) → `status='failed'` + erreur renvoyée ;
-8. émet socket fiable `wallet.withdrawal` (`status='pending'`).
+6. `receiver_name` : `receiverName` du body → nom marchand (`users`) → `fastfood.name` ;
+7. insère `withdrawals` (`status='pending'`, `source_network`, `fee`, `aggregator`) — **aucun débit** ;
+8. appelle **MobileWallet `/payout`** avec `aggregator` + `source_network`
+   ([mobilewalletService.payout](../src/services/transaction/mobilewalletService.js)),
+   stocke `mw_payout_id` et le `fee` réellement retenu. Échec d'initiation → `status='failed'`
+   + **vrai code HTTP MobileWallet** renvoyé (400/409/422…, 503 opérateur, 502 injoignable) ;
+9. émet socket fiable `wallet.withdrawal` (`status='pending'`, `fee`, `sourceNetwork`).
 
 ### Verdict du retrait (webhook + socket)
 
@@ -155,8 +226,9 @@ Même double canal que les paiements. [webhookMobilewallet.service](../src/servi
 [webhookPayout.service](../src/services/transaction/webhookPayout.service.js) :
 
 - idempotence via `reserveSettlement` (table partagée) ;
-- `successful` → crée la transaction `withdrawal` (**débit réel**) + `status='completed'` +
-  socket `wallet.withdrawal` (`status='completed'`, `newBalance`) ;
+- `successful` → crée la transaction `withdrawal` (**débit réel** = montant + frais, sur le
+  solde source) + `status='completed'` + socket `wallet.withdrawal` (`status='completed'`,
+  `newBalance`, `newBalances: { mtn, orange }`) ;
 - `failed`/`cancelled` → `status='failed'`, **aucun débit** + socket `wallet.withdrawal`
   (`status='failed'`).
 

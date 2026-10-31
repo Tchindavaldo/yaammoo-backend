@@ -3,13 +3,62 @@
 Deux prélèvements **distincts**, souvent confondus. Les nommer correctement est
 la moitié du travail :
 
-| Frais                     | Qui le prend                             | Sur quoi                              | Réglage                                            |
-| ------------------------- | ---------------------------------------- | ------------------------------------- | -------------------------------------------------- |
-| **Commission agrégateur** | MobileWallet, le prestataire de paiement | le montant **encaissé**               | `payment_fee_percent` (5 %)                        |
-| **Frais de retrait**      | l'**opérateur mobile** (MTN / Orange)    | l'argent qui **sort** du portefeuille | `withdrawal_fee_mtn_*` / `withdrawal_fee_orange_*` |
+| Frais                       | Qui le prend                                    | Sur quoi                                        | Réglage                                            |
+| --------------------------- | ----------------------------------------------- | ----------------------------------------------- | -------------------------------------------------- |
+| **Frais de paiement**       | l'agrégateur ACTIF, via MobileWallet            | le montant **encaissé**                         | par agrégateur — voir ci-dessous                   |
+| **Frais de retrait kiosque**| l'**opérateur mobile** (MTN / Orange)           | l'argent que le marchand **sort** au kiosque    | `withdrawal_fee_mtn_*` / `withdrawal_fee_orange_*` |
 
-> ⚠️ Ne jamais appeler la commission de 5 % « commission MTN ». MTN et Orange
-> n'interviennent que sur le **retrait**.
+> ⚠️ Ne jamais appeler les frais de paiement « commission MTN ». Les frais de
+> retrait kiosque (54 F / 1,2 % + 4) restent dus **quel que soit l'agrégateur** :
+> ils couvrent le marchand qui retire son argent chez Orange/MTN.
+
+## Frais de paiement — un barème PAR agrégateur
+
+Source unique : [paymentFees.js](../src/services/pricing/paymentFees.js).
+Agrégateur actif : env `PAYMENT_AGGREGATOR` (`pawapay` | `digikuntz`). Chaque
+agrégateur garde **ses propres clés** dans `settings_pricing` (migration 063) :
+basculer de l'un à l'autre ne touche jamais au barème de l'autre.
+
+| Agrégateur | Clés                                                                                                    | Formule (P = montant payé)                                    |
+| ---------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| DigiKUNTZ  | `payment_fee_percent` (5)                                                                                | ⌈5 % × P⌉                                                      |
+| pawaPay    | `pawapay_deposit_fee_{mtn,orange}_percent` (1,75 / 1,77), `pawapay_mw_commission_percent` (0,1), `pawapay_payout_fee_{mtn,orange}_percent` (1,3 / 1) | ⌈dépôt[n] × P⌉ + ⌈commission MW × P⌉ + ⌈réserve[n] × P⌉ |
+
+> **DigiKUNTZ n'a pas de clé de commission MobileWallet séparée** : ses 5 % sont
+> un taux TOUT COMPRIS, commission MW incluse. C'était déjà le fonctionnement
+> avant pawaPay ; on l'a laissé tel quel (ni renommé ni scindé) pour ne rien casser.
+
+**pawaPay, en détail** — chaque frais est calculé sur P et arrondi à l'excès
+**séparément**, comme MobileWallet (`core/fees.py`) :
+
+- **dépôt** : ce que prend pawaPay sur l'encaissement ;
+- **commission MobileWallet** ;
+- **réserve de retrait** : MobileWallet la prélève **au dépôt** pour payer plus
+  tard le virement vers le marchand sur le **même réseau**. C'est pourquoi un
+  retrait même réseau coûte 0 F au marchand. Le même taux sert de frais
+  **interréseau** quand le marchand retire vers l'autre réseau (voir
+  [wallet.md](./wallet.md#frais-dun-retrait)).
+
+Total : MTN 3,15 %, Orange 2,87 %.
+
+**Réseau inconnu** (prix affiché sur le home : le client n'a pas encore choisi
+MTN ou Orange) → barème du réseau **le plus cher** (MTN), pour que les frais
+soient couverts dans tous les cas. Quand le client paie par Orange, l'écart
+(~0,28 %) revient à la marge. Au **règlement**, le réseau et l'agrégateur réels
+du paiement sont connus (`pending_payments`) : ce sont eux qui servent.
+
+## Ce que couvre le prix d'un plat (pawaPay)
+
+```
+base + frais de retrait kiosque (54 F, ou 1,2 % + 4 au-dessus de 4 200)
+  → + dépôt pawaPay (1,75 %) + commission MobileWallet (0,1 %) + réserve de retrait (1,3 %)
+  → arrondi au pas (500), inchangé
+```
+
+`withAllFees` cherche le plus petit P tel que
+`P − ⌈1,75 % P⌉ − ⌈0,1 % P⌉ − ⌈1,3 % P⌉ ≥ base + retrait kiosque`
+(`grossUpForPaymentFees`). DigiKUNTZ garde sa formule historique
+`⌈(base + retrait) / (1 − 5 %)⌉`, inchangée.
 
 > **Prérequis** : [pricing.md](./pricing.md) pour la composition du prix affiché.
 
@@ -44,7 +93,8 @@ Les deux frais ne s'additionnent pas naïvement : la commission est un pourcenta
 du prix **payé**, alors que le retrait porte sur ce qui reste **après** elle.
 
 ```
-payé = (base + frais de retrait) / (1 − commission)
+payé = (base + frais de retrait) / (1 − commission)      (DigiKUNTZ)
+payé = plus petit P couvrant base + retrait               (pawaPay, arrondis séparés)
 ```
 
 Extras et boissons portent eux aussi le retrait, en plus de la commission.

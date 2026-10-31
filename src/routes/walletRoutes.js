@@ -2,13 +2,16 @@ const express = require('express');
 const router = express.Router();
 
 const firebaseAuth = require('../middlewares/authMiddleware');
-const { getBalanceController, getHistoryController, getStatsController, withdrawController } = require('../controllers/wallet/wallet.controller');
+const { getBalanceController, getHistoryController, getStatsController, withdrawController, getWithdrawQuoteController, predictOperatorController } = require('../controllers/wallet/wallet.controller');
 
 /**
  * @swagger
  * /wallet/balance:
  *   get:
- *     summary: Solde du portefeuille marchand (calculé depuis les transactions)
+ *     summary: Solde du portefeuille (calculé depuis les transactions, par réseau)
+ *     description: >-
+ *       Deux soldes, MTN et Orange : chaque crédit est rattaché au réseau qui a
+ *       encaissé le paiement. Seuls les montants retirables sont comptés.
  *     tags:
  *       - Wallet
  *     security:
@@ -28,10 +31,18 @@ const { getBalanceController, getHistoryController, getStatsController, withdraw
  *                   properties:
  *                     balance:
  *                       type: number
+ *                       description: Total retirable (= mtn + orange)
+ *                     mtn:
+ *                       type: number
+ *                       description: Solde MTN
+ *                     orange:
+ *                       type: number
+ *                       description: Solde Orange
  *                     totalEarned:
  *                       type: number
  *                     totalWithdrawn:
  *                       type: number
+ *                       description: Total débité (montants reçus + frais interréseau)
  *       401:
  *         description: Non authentifié
  */
@@ -118,17 +129,22 @@ router.get('/stats', firebaseAuth, getStatsController);
  *               - amount
  *               - phone
  *               - network
+ *               - sourceNetwork
  *             properties:
  *               amount:
- *                 type: number
- *                 description: Montant en XAF (doit être <= solde disponible)
+ *                 type: integer
+ *                 description: Montant REÇU en XAF. Montant + frais interréseau doit être <= solde source.
  *               phone:
  *                 type: string
- *                 description: "Numéro bénéficiaire — backend normalise automatiquement vers 237XXXXXXXXX (accepte : 677001122, +237677001122, 00237677001122)"
+ *                 description: "Numéro de réception — backend normalise automatiquement vers 237XXXXXXXXX (accepte : 677001122, +237677001122, 00237677001122)"
  *               network:
  *                 type: string
  *                 enum: [MTN, ORANGEMONEY]
- *                 description: "Valeur exacte MobileWallet /payout : MTN ou ORANGEMONEY (pas Orangemoney, pas OM)"
+ *                 description: "Réseau du numéro de réception (cf. POST /wallet/operator/predict). Valeur exacte : MTN ou ORANGEMONEY"
+ *               sourceNetwork:
+ *                 type: string
+ *                 enum: [MTN, ORANGEMONEY]
+ *                 description: "Solde débité, choisi par l'utilisateur (aucun repli automatique). Même réseau que `network` : 0 F de frais ; sinon frais interréseau (cf. GET /wallet/withdraw/quote)"
  *               receiverName:
  *                 type: string
  *                 description: Nom du bénéficiaire (optionnel — défaut nom marchand ou boutique)
@@ -139,16 +155,123 @@ router.get('/stats', firebaseAuth, getStatsController);
  *       200:
  *         description: Demande de retrait enregistrée (verdict final via socket wallet.withdrawal)
  *       400:
- *         description: "Montant invalide, solde insuffisant (insufficient_balance) ou champs manquants"
+ *         description: "Montant invalide, solde source insuffisant (insufficient_balance, `data` = devis) ou champs manquants"
  *       401:
  *         description: Non authentifié
  *       409:
  *         description: Un retrait est déjà en cours (withdrawal_in_progress)
+ *       422:
+ *         description: Refus MobileWallet propagé tel quel (le front affiche `message`)
  *       429:
  *         description: Cooldown entre deux retraits non écoulé (cooldown)
  *       502:
- *         description: Échec initiation MobileWallet /payout
+ *         description: MobileWallet injoignable
+ *       503:
+ *         description: Opérateur indisponible
  */
 router.post('/withdraw', firebaseAuth, withdrawController);
+
+/**
+ * @swagger
+ * /wallet/withdraw/quote:
+ *   get:
+ *     summary: Frais d'un retrait avant confirmation
+ *     description: >-
+ *       Même réseau (solde source = réseau de réception) : 0 F, frais prépayés au
+ *       paiement. Interréseau : frais du réseau de réception, débités en plus
+ *       sur le solde source. Rien n'est débité.
+ *     tags:
+ *       - Wallet
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: amount
+ *         required: true
+ *         schema: { type: integer }
+ *         description: Montant reçu (XAF)
+ *       - in: query
+ *         name: network
+ *         required: true
+ *         schema: { type: string, enum: [MTN, ORANGEMONEY] }
+ *         description: Réseau du numéro de réception
+ *       - in: query
+ *         name: sourceNetwork
+ *         required: true
+ *         schema: { type: string, enum: [MTN, ORANGEMONEY] }
+ *         description: Solde débité
+ *     responses:
+ *       200:
+ *         description: Devis
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: boolean }
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     amount: { type: integer, description: Montant reçu }
+ *                     fee: { type: integer, description: Frais interréseau (0 même réseau) }
+ *                     totalDebited: { type: integer, description: amount + fee }
+ *                     sourceBalance: { type: number, description: Solde source actuel }
+ *                     sufficient: { type: boolean }
+ *                     maxAmount: { type: integer, description: Plus gros montant recevable depuis ce solde, frais compris (estimation) }
+ *                     sameNetwork: { type: boolean }
+ *       400:
+ *         description: Paramètres invalides
+ *       401:
+ *         description: Non authentifié
+ *       502:
+ *         description: MobileWallet injoignable
+ */
+router.get('/withdraw/quote', firebaseAuth, getWithdrawQuoteController);
+
+/**
+ * @swagger
+ * /wallet/operator/predict:
+ *   post:
+ *     summary: Réseau d'un numéro de réception (détection en temps réel)
+ *     description: Relais MobileWallet, la clé API reste côté serveur.
+ *     tags:
+ *       - Wallet
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [phone]
+ *             properties:
+ *               phone:
+ *                 type: string
+ *                 description: Numéro saisi librement (espaces, +237, 0…)
+ *     responses:
+ *       200:
+ *         description: Réseau détecté
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: boolean }
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     phone: { type: string, description: Format international }
+ *                     network: { type: string, enum: [MTN, ORANGEMONEY] }
+ *       400:
+ *         description: Numéro incomplet
+ *       401:
+ *         description: Non authentifié
+ *       422:
+ *         description: Opérateur non reconnu (unknown_operator)
+ *       502:
+ *         description: MobileWallet injoignable
+ */
+router.post('/operator/predict', firebaseAuth, predictOperatorController);
 
 module.exports = router;

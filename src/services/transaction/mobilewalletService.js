@@ -1,9 +1,30 @@
+// ============================================================================
+// mobilewalletService — Client HTTP de MobileWallet (paiements, retraits)
+// ============================================================================
+// La clé API (`MOBILEWALLET_YAAMMOO_KEY`) ne quitte jamais le serveur : le
+// front passe toujours par le backend yaammoo.
+//
+// Agrégateur : chaque appel nomme l'agrégateur ACTIF (env `PAYMENT_AGGREGATOR`,
+// cf. utils/paymentAggregator.js). Sans ce champ, MobileWallet retombe sur
+// DigiKUNTZ.
+//
+// Erreurs : le VRAI code HTTP de MobileWallet est propagé pour ses refus
+// métier (400, 409, 422…) — le front n'affiche que `message`. Seuls les
+// incidents d'infrastructure deviennent 502 (réseau, 5xx, et 401/403 : un
+// problème de clé API côté serveur, que le front ne doit jamais prendre pour
+// une session expirée). 503 (opérateur indisponible) reste 503.
+// ============================================================================
 const axios = require('axios');
+const { resolvePaymentAggregator } = require('../../utils/paymentAggregator');
+const { toCanonicalNetwork, toPayNetwork } = require('../../utils/mobileNetwork');
 
 const log = console;
 
 const MOBILEWALLET_URL = process.env.MOBILEWALLET_URL || 'http://localhost:7332';
 const MOBILEWALLET_YAAMMOO_KEY = process.env.MOBILEWALLET_YAAMMOO_KEY;
+
+// Libellé affiché au payeur dans la demande USSD/PIN (4 à 22 caractères).
+const PAY_DESCRIPTION = 'Achat Yaammoo';
 
 if (!MOBILEWALLET_YAAMMOO_KEY) {
   log.warn('⚠️ MOBILEWALLET_YAAMMOO_KEY non configurée. Les paiements Mobile Money échoueront.');
@@ -18,197 +39,171 @@ const mobilewalletClient = axios.create({
   },
 });
 
+const callbackUrl = () => `${process.env.BACKEND_URL}/transaction/webhook/mobilewallet`;
+
 /**
- * Appel POST /pay sur ai_browser2 (MobileWallet) pour initier un paiement Mobile Money.
- *
- * Logs détaillés:
- *   - Avant: URL, méthode, payload
- *   - Après: status HTTP, temps écoulé, réponse
- *   - Erreur: code erreur, message
+ * Normalise une erreur MobileWallet. FastAPI imbrique la charge sous `detail`,
+ * qui peut être un objet `{error|code, message}`, une chaîne, ou une liste
+ * (validation Pydantic, illisible pour un user → message par défaut).
+ */
+function toMwError(error, { logPrefix, defaultMessage }) {
+  const status = error.response?.status;
+  const data = error.response?.data;
+  const detail = data?.detail ?? data;
+  const obj = detail && typeof detail === 'object' && !Array.isArray(detail) ? detail : {};
+
+  log.error(`${logPrefix} ❌ Erreur HTTP ${status || 'UNKNOWN'}: ${error.message}`);
+  if (error.response) log.error(`${logPrefix} Réponse erreur:`, JSON.stringify(data, null, 2));
+  else if (error.code) log.error(`${logPrefix} Code erreur: ${error.code} (réseau/timeout?)`);
+
+  const isBusinessRefusal = status >= 400 && status < 500 && status !== 401 && status !== 403;
+  const httpStatus = isBusinessRefusal ? status : status === 503 ? 503 : 502;
+
+  const fallbackCode = status === 409 ? 'duplicate' : status === 503 ? 'unavailable' : isBusinessRefusal ? 'rejected' : 'server_error';
+  const message = obj.message || (typeof detail === 'string' && isBusinessRefusal ? detail : null) || defaultMessage;
+
+  return {
+    success: false,
+    status: 'error',
+    httpStatus,
+    code: obj.error || obj.code || fallbackCode,
+    message,
+    retry_after_s: obj.retry_after_s,
+    last_status: obj.last_status,
+  };
+}
+
+/**
+ * POST /pay — initie un paiement Mobile Money.
  *
  * @param {Object} params
- * @param {number} params.amount - Montant en XAF
- * @param {string} params.phone - Numéro de téléphone (sans +237)
- * @param {string} params.network - 'Orangemoney' ou 'MTN'
- * @param {string} params.email - Email utilisateur
- * @param {string} params.userId - uid Firebase de l'utilisateur (log/traçabilité)
- * @param {string} params.paymentRef - ID unique de CE paiement (= end_user_ref MW)
- * @returns {Promise<{success, status, transaction_id, message, code}>}
+ * @param {number} params.amount
+ * @param {string} params.phone       numéro (sans +237)
+ * @param {string} params.network     'MTN' | 'Orangemoney' (forme libre acceptée)
+ * @param {string} [params.email]
+ * @param {string} [params.mode]
+ * @param {string} params.userId      uid Firebase (log/traçabilité)
+ * @param {string} params.paymentRef  ID unique de CE paiement (= end_user_ref MW)
+ * @param {string} [params.aggregator] agrégateur ; absent = l'actif
+ * @returns {Promise<{success, status, transaction_id, message, code, ussd_code, aggregator}>}
  */
-exports.pay = async ({ amount, phone, network, email, mode, userId, paymentRef }) => {
-  const finalEmail = email || 'yaammoo@rauval.com';
-  const finalMode = mode || process.env.MOBILEWALLET_MODE || 'browser';
+exports.pay = async ({ amount, phone, network, email, mode, userId, paymentRef, aggregator }) => {
+  const agg = aggregator || resolvePaymentAggregator();
+  const payNetwork = toPayNetwork(network) || network;
+  const logPrefix = `[MobileWallet API] ${agg} ${payNetwork} amount=${amount}`;
 
-  // Construire l'URL du callback webhook (depuis env)
-  const backendUrl = process.env.BACKEND_URL;
-  const callbackUrl = `${backendUrl}/transaction/webhook/mobilewallet`;
-
-  const logPrefix = `[MobileWallet API] ${network} amount=${amount}`;
+  const payload = {
+    amount,
+    phone,
+    network: payNetwork,
+    email: email || 'yaammoo@rauval.com',
+    mode: mode || process.env.MOBILEWALLET_MODE || 'browser',
+    aggregator: agg,
+    description: PAY_DESCRIPTION,
+    end_user_ref: paymentRef,
+    callback_url: callbackUrl(),
+  };
 
   try {
-    const payload = {
-      amount,
-      phone,
-      network,
-      email: finalEmail,
-      mode: finalMode,
-      end_user_ref: paymentRef,
-      callback_url: callbackUrl,
-    };
-
-    log.info(`${logPrefix} → POST ${MOBILEWALLET_URL}/pay (timeout=${mobilewalletClient.defaults.timeout / 1000}s, userId=${userId}, phone=${phone})`);
-    log.debug(`${logPrefix} Payload:`, JSON.stringify(payload, null, 2));
-
+    log.info(`${logPrefix} → POST ${MOBILEWALLET_URL}/pay (userId=${userId}, phone=${phone})`);
     const startTime = Date.now();
     const response = await mobilewalletClient.post('/pay', payload);
-    const duration = Date.now() - startTime;
+    const { success, status, transaction_id, message, code, ussd_code } = response.data;
+    log.info(`${logPrefix} ✓ HTTP ${response.status} en ${Date.now() - startTime}ms: status=${status}, tx_id=${transaction_id}`);
 
-    const { success, status, transaction_id, message, code, payment_number } = response.data;
-
-    log.info(`${logPrefix} ✓ HTTP ${response.status} reçu en ${duration}ms: success=${success}, status=${status}, tx_id=${transaction_id}`);
-    log.debug(`${logPrefix} Réponse complète:`, JSON.stringify(response.data, null, 2));
-
-    return {
-      success,
-      status,
-      transaction_id,
-      message,
-      code,
-      payment_number,
-    };
+    return { success, status, transaction_id, message, code, ussd_code: ussd_code ?? null, aggregator: agg };
   } catch (error) {
-    const status = error.response?.status;
-    const data = error.response?.data;
-    // FastAPI (MobileWallet) imbrique la charge d'erreur sous `detail`.
-    // On retombe sur `data` à plat si jamais le format change. Anti-corruption layer.
-    const detail = data?.detail || data;
-
-    log.error(`${logPrefix} ❌ Erreur HTTP ${status || 'UNKNOWN'}: ${error.message}`);
-
-    if (error.response) {
-      log.error(`${logPrefix} Réponse erreur:`, JSON.stringify(data, null, 2));
-    } else if (error.code) {
-      log.error(`${logPrefix} Code erreur: ${error.code} (réseau/timeout?)`);
-    }
-
-    // 409 : doublon (pending_exists, retry_too_soon)
-    if (status === 409) {
-      log.warn(`${logPrefix} → Doublon détecté: code=${detail?.error}, retry_after=${detail?.retry_after_s}s`);
-      return {
-        success: false,
-        status: 'error',
-        httpStatus: 409,
-        code: detail?.error || 'duplicate',
-        message: detail?.message || 'Paiement en cours ou trop rapproché',
-        retry_after_s: detail?.retry_after_s,
-        last_status: detail?.last_status,
-      };
-    }
-
-    // 503 : panne opérateur/réseau
-    if (status === 503) {
-      log.warn(`${logPrefix} → Service indisponible (opérateur/réseau)`);
-      return {
-        success: false,
-        status: 'error',
-        httpStatus: 503,
-        code: detail?.code || detail?.error || 'unavailable',
-        message: detail?.message || 'Opérateur ou réseau indisponible',
-      };
-    }
-
-    // Autres erreurs
-    return {
-      success: false,
-      status: 'error',
-      httpStatus: 502,
-      code: detail?.code || detail?.error || 'server_error',
-      message: detail?.message || error.message || 'Erreur serveur MobileWallet',
-    };
+    return toMwError(error, { logPrefix, defaultMessage: 'Le paiement n’a pas pu être initié. Réessayez.' });
   }
 };
 
 /**
- * Appel POST /payout sur MobileWallet pour initier un RETRAIT (virement sortant).
- * Même principe que /pay : réponse immédiate `pending`, puis verdict via
- * webhook + socket (transaction.update). Le verdict est routé vers la branche
- * payout de mwVerdictService (cf. mw_payout_id sur withdrawals).
+ * POST /payout — initie un RETRAIT (virement sortant). Réponse immédiate
+ * `pending`, verdict par webhook + socket (cf. withdrawals.mw_payout_id).
  *
  * @param {Object} params
- * @param {number} params.amount
- * @param {string} params.network        - code banque/opérateur (ex. 'MTN', 'Orangemoney')
- * @param {string} params.phone          - numéro bénéficiaire
- * @param {string} params.receiverName   - nom du bénéficiaire
+ * @param {number} params.amount         montant REÇU par le bénéficiaire
+ * @param {string} params.network        réseau du numéro de réception
+ * @param {string} params.sourceNetwork  solde MobileWallet débité
+ * @param {string} params.phone
+ * @param {string} params.receiverName
  * @param {string} [params.narration]
- * @param {string} [params.withdrawalId] - pour la traçabilité (end_user_ref)
- * @returns {Promise<{success, status, transaction_id, message, code, httpStatus?}>}
+ * @param {string} [params.withdrawalId] traçabilité (end_user_ref)
+ * @param {string} [params.aggregator]   absent = l'actif
+ * @returns {Promise<{success, status, transaction_id, message, code, fee, total_debited, httpStatus?}>}
  */
-exports.payout = async ({ amount, network, phone, receiverName, narration, withdrawalId }) => {
-  const backendUrl = process.env.BACKEND_URL;
-  const callbackUrl = `${backendUrl}/transaction/webhook/mobilewallet`;
-  const currency = process.env.WITHDRAWAL_CURRENCY || 'XAF';
-
+exports.payout = async ({ amount, network, sourceNetwork, phone, receiverName, narration, withdrawalId, aggregator }) => {
+  const agg = aggregator || resolvePaymentAggregator();
   // Normaliser : strip tout préfixe (+237, 00237) puis préfixer 237
-  const normalizedPhone = `237${String(phone).replace(/^\+?237/, '')}`;
+  const normalizedPhone = `237${String(phone).replace(/^\+?(00)?237/, '')}`;
+  const logPrefix = `[MobileWallet API] payout ${agg} ${sourceNetwork}→${network} amount=${amount}`;
 
-  const logPrefix = `[MobileWallet API] payout ${network} amount=${amount}`;
+  // MobileWallet exige 'MTN' | 'ORANGEMONEY' strictement, pour les DEUX champs.
+  const payload = {
+    amount,
+    account_bank_code: toCanonicalNetwork(network),
+    source_network: toCanonicalNetwork(sourceNetwork),
+    account_number: normalizedPhone,
+    receiver_name: receiverName,
+    currency: process.env.WITHDRAWAL_CURRENCY || 'XAF',
+    narration: narration || 'Retrait yaammoo',
+    aggregator: agg,
+    callback_url: callbackUrl(),
+    end_user_ref: withdrawalId,
+  };
 
   try {
-    // /payout attend la valeur EXACTE : 'ORANGEMONEY' | 'MTN' (validée en amont).
-    const payload = {
-      amount,
-      account_bank_code: network,
-      account_number: normalizedPhone,
-      receiver_name: receiverName,
-      currency,
-      narration: narration || 'Retrait yaammoo',
-      callback_url: callbackUrl,
-      end_user_ref: withdrawalId,
-    };
-
     log.info(`${logPrefix} → POST ${MOBILEWALLET_URL}/payout (withdrawalId=${withdrawalId}, phone=${normalizedPhone})`);
-
     const startTime = Date.now();
     const response = await mobilewalletClient.post('/payout', payload);
-    const duration = Date.now() - startTime;
+    const { success, status, transaction_id, message, code, fee, total_debited } = response.data;
+    log.info(`${logPrefix} ✓ HTTP ${response.status} en ${Date.now() - startTime}ms: status=${status}, tx_id=${transaction_id}, fee=${fee}`);
 
-    const { success, status, transaction_id, message, code } = response.data;
-    log.info(`${logPrefix} ✓ HTTP ${response.status} en ${duration}ms: status=${status}, tx_id=${transaction_id}`);
-
-    return { success, status, transaction_id, message, code };
+    return { success, status, transaction_id, message, code, fee: Number(fee) || 0, total_debited: Number(total_debited) || 0 };
   } catch (error) {
-    const status = error.response?.status;
-    const data = error.response?.data;
-    const detail = data?.detail || data;
+    return toMwError(error, { logPrefix, defaultMessage: 'Le retrait n’a pas pu être initié. Réessayez.' });
+  }
+};
 
-    log.error(`${logPrefix} ❌ Erreur HTTP ${status || 'UNKNOWN'}: ${error.message}`);
+/**
+ * GET /payout/quote — frais d'un retrait, SANS rien débiter.
+ * Même réseau que la source : 0 (frais prépayés au dépôt). Interréseau : taux
+ * du réseau de destination, arrondi à l'excès.
+ *
+ * @returns {Promise<{success:true, fee:number} | {success:false, httpStatus, code, message}>}
+ */
+exports.payoutQuote = async ({ amount, network, sourceNetwork, aggregator }) => {
+  const agg = aggregator || resolvePaymentAggregator();
+  const logPrefix = `[MobileWallet API] quote ${agg} ${sourceNetwork}→${network} amount=${amount}`;
+  try {
+    const response = await mobilewalletClient.get('/payout/quote', {
+      params: {
+        amount,
+        account_bank_code: toCanonicalNetwork(network),
+        source_network: toCanonicalNetwork(sourceNetwork),
+        aggregator: agg,
+      },
+    });
+    return { success: true, fee: Math.max(0, Number(response.data?.fee) || 0) };
+  } catch (error) {
+    return toMwError(error, { logPrefix, defaultMessage: 'Frais de retrait indisponibles. Réessayez.' });
+  }
+};
 
-    if (status === 409) {
-      return {
-        success: false,
-        status: 'error',
-        httpStatus: 409,
-        code: detail?.error || 'duplicate',
-        message: detail?.message || 'Retrait en cours ou trop rapproché',
-        retry_after_s: detail?.retry_after_s,
-      };
-    }
-    if (status === 503) {
-      return {
-        success: false,
-        status: 'error',
-        httpStatus: 503,
-        code: detail?.code || detail?.error || 'unavailable',
-        message: detail?.message || 'Opérateur ou réseau indisponible',
-      };
-    }
-    return {
-      success: false,
-      status: 'error',
-      httpStatus: 502,
-      code: detail?.code || detail?.error || 'server_error',
-      message: detail?.message || error.message || 'Erreur serveur MobileWallet',
-    };
+/**
+ * POST /operators/predict — opérateur d'un numéro saisi librement.
+ *
+ * @returns {Promise<{success:true, phone:string, network:'MTN'|'ORANGEMONEY'|null} | {success:false, httpStatus, code, message}>}
+ */
+exports.predictOperator = async ({ phone, aggregator }) => {
+  const agg = aggregator || resolvePaymentAggregator();
+  const logPrefix = `[MobileWallet API] predict ${agg}`;
+  try {
+    const response = await mobilewalletClient.post('/operators/predict', { phone, aggregator: agg }, { timeout: 15000 });
+    const data = response.data || {};
+    return { success: true, phone: data.phone || null, network: toCanonicalNetwork(data.network) };
+  } catch (error) {
+    return toMwError(error, { logPrefix, defaultMessage: 'Opérateur non reconnu. Vérifiez le numéro.' });
   }
 };
 

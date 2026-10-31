@@ -28,6 +28,7 @@
 // (la course du livreur l'absorbe) — le surplus n'y joue pas le même rôle.
 // ============================================================================
 const { toNumber, withAllFees, roundToStep, marginForBrut, isPlatformDelivered } = require('./deliveryPricing');
+const { paymentFeePercentOf } = require('./paymentFees');
 
 /**
  * Part variable du frais de retrait, en pourcentage. Au-delà du seuil, le barème
@@ -66,7 +67,8 @@ function surplusOf(brut, pricing) {
   // facturée fait monter les deux : la commission porte sur le total encaissé,
   // et le frais de retrait aussi. Diviser par les 5 % seuls sous-estimait la
   // couverture et laissait la marge être entamée (cf. pricing-margin-risk.md).
-  const percent = toNumber(pricing?.paymentFeePercent) + withdrawalPercentOf(pricing);
+  // Commission = barème de l'agrégateur actif, réseau le plus cher.
+  const percent = paymentFeePercentOf(pricing) + withdrawalPercentOf(pricing);
   const covered = percent > 0 ? Math.floor(surplus / (percent / 100)) : Infinity;
 
   return { margin, juste, displayed, surplus, covered };

@@ -7,6 +7,7 @@
 // ============================================================================
 const repos = require('../../repositories');
 const { getPricingSettings, getAppVersionGate, setSetting, KEYS } = require('../../services/settings/settings.service');
+const { paymentFeePercentOf } = require('../../services/pricing/paymentFees');
 
 /** Clés modifiables via l'API. Toute autre clé est refusée. */
 const EDITABLE_KEYS = new Set(Object.values(KEYS));
@@ -56,14 +57,10 @@ function validateSettingValue(key, value) {
       return typeof value === 'string' && /^\d+\.\d+\.\d+$/.test(value) ? null : '`value` doit être une version au format "x.y.z".';
 
     case 'versions':
-      return Array.isArray(value) && value.every(v => typeof v === 'string' && /^\d+\.\d+\.\d+$/.test(v))
-        ? null
-        : '`value` doit être un tableau de versions "x.y.z" (vide autorisé).';
+      return Array.isArray(value) && value.every(v => typeof v === 'string' && /^\d+\.\d+\.\d+$/.test(v)) ? null : '`value` doit être un tableau de versions "x.y.z" (vide autorisé).';
 
     case 'ids':
-      return Array.isArray(value) && value.every(v => typeof v === 'string' && v.trim() !== '')
-        ? null
-        : '`value` doit être un tableau d\'ID (chaînes non vides, vide autorisé).';
+      return Array.isArray(value) && value.every(v => typeof v === 'string' && v.trim() !== '') ? null : "`value` doit être un tableau d'ID (chaînes non vides, vide autorisé).";
 
     case 'text':
       return typeof value === 'string' ? null : '`value` doit être une chaîne.';
@@ -92,8 +89,11 @@ async function requireAdmin(req, res) {
 /** GET /settings/pricing — public. Sans la marge. */
 exports.getPublicPricingController = async (req, res) => {
   try {
-    const { paymentFeePercent, deliveryFreeMode } = await getPricingSettings();
-    return res.status(200).json({ success: true, message: 'Réglages tarifaires.', data: { paymentFeePercent, deliveryFreeMode } });
+    const pricing = await getPricingSettings();
+    // Taux EFFECTIF de l'agrégateur actif (réseau le plus cher) : même champ,
+    // même sens qu'avant, qu'il s'agisse de DigiKUNTZ ou de pawaPay.
+    const paymentFeePercent = paymentFeePercentOf(pricing);
+    return res.status(200).json({ success: true, message: 'Réglages tarifaires.', data: { paymentFeePercent, deliveryFreeMode: pricing.deliveryFreeMode } });
   } catch (error) {
     console.error('Erreur lecture réglages :', error);
     return res.status(500).json({ success: false, message: error.message || 'Erreur serveur.' });

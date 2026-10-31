@@ -26,6 +26,7 @@ const repos = require('../../repositories');
 const { getIO } = require('../../socket');
 const { reliableEmit } = require('../../utils/reliableEmit');
 const { isPlatformDelivered } = require('../pricing/deliveryPricing');
+const { countsInWallet } = require('../../utils/paymentAggregator');
 
 /**
  * Verse sa course au livreur d'une commande livrée par la plateforme.
@@ -79,16 +80,34 @@ exports.creditDriverForOrder = async ({ order }) => {
     console.warn(`${logPrefix} contrôle d'idempotence impossible (${e.message}) → versement tenté`);
   }
 
+  // Le portefeuille est scindé par RÉSEAU : la course est versée sur le solde
+  // du réseau qui a encaissé la commande, relu sur son crédit marchand (posé
+  // au paiement). Introuvable → crédit hors portefeuille, journalisé.
+  let payment = null;
+  try {
+    payment = await repos.transactions.findMerchantCreditByOrder(order.id);
+  } catch (e) {
+    console.warn(`${logPrefix} paiement d'origine non lu (${e.message})`);
+  }
+  if (!payment?.aggregator || !payment?.network) {
+    console.error(`${logPrefix} ⚠️ agrégateur/réseau du paiement introuvable → course tracée hors portefeuille`);
+  }
+
   const tx = await repos.transactions.create({
     type: 'driver_credit',
     userId: driverId,
     amount,
     name: 'Course livrée',
     payBy: 'platform',
+    aggregator: payment?.aggregator || null,
+    network: payment?.network || null,
+    mwTransactionId: payment?.mwTransactionId || null,
     fastFoodId: order?.fastFoodId || null,
     relatedOrderId: order?.id || null,
     grossAmount: amount,
   });
+
+  if (!countsInWallet(payment?.aggregator) || !payment?.network) return tx;
 
   await reliableEmit(getIO(), driverId, 'wallet.credited', {
     transactionId: tx.id,
@@ -96,6 +115,7 @@ exports.creditDriverForOrder = async ({ order }) => {
     direction: 'payin',
     amount,
     grossAmount: amount,
+    network: payment.network,
     name: tx.name,
     fastFoodId: tx.fastFoodId ?? null,
     relatedOrderId: tx.relatedOrderId ?? null,

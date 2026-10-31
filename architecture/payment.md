@@ -128,10 +128,27 @@ Réponse (200) si initiation OK :
   "success": true,
   "status": "ussd_sent",
   "message": "...",
-  "mw_transaction_id": "mock_141_1780858395257",
-  "payment_number": "123456"
+  "transaction_id": "mock_141_1780858395257",
+  "code": 200,
+  "ussd_code": "*126#"
 }
 ```
+
+> ⚠️ Doc corrigée : elle annonçait `mw_transaction_id` et `payment_number`. Le code
+> renvoie `transaction_id`, et `payment_number` n'existe plus côté MobileWallet :
+> il est remplacé par `ussd_code` (code à composer si la demande de PIN n'arrive
+> pas ; `null` sinon).
+
+### Agrégateur (env `PAYMENT_AGGREGATOR`)
+
+Chaque `/pay` et `/payout` nomme l'agrégateur actif (`pawapay` | `digikuntz`,
+[paymentAggregator.js](../src/utils/paymentAggregator.js)). Sans ce champ,
+MobileWallet retombe sur DigiKUNTZ — c'est pourquoi les retraits étaient refusés
+(`422 source_network_required`) et les paiements partaient chez DigiKUNTZ.
+L'agrégateur est **figé à l'initiation** dans `pending_payments.aggregator` :
+le verdict, le règlement et le crédit marchand relisent celui-ci.
+`/pay` envoie aussi `description: "Achat Yaammoo"` (libellé affiché dans la
+demande USSD/PIN).
 
 > ⚠️ MobileWallet renvoie `success=false` même quand l'init est OK. Le backend **ignore le
 > flag `success`** et se base sur `status` / `code` (`ussd_sent` = OK ; `error`/`failed` = KO).
@@ -158,8 +175,8 @@ Réponse (200) si initiation OK :
 4. `mobilewalletService.pay()` :
    - construit `callback_url = ${BACKEND_URL}/transaction/webhook/mobilewallet`
    - `POST {MOBILEWALLET_URL}/pay` avec header `Authorization: Bearer MOBILEWALLET_YAAMMOO_KEY`
-   - payload : `amount, phone, network, email, mode, end_user_ref=userId, callback_url`
-   - gère erreurs : **409** (doublon, `retry_after_s`), **503** (opérateur/réseau indispo), autres.
+   - payload : `amount, phone, network, email, mode, aggregator, description, end_user_ref=paymentRef, callback_url`
+   - gère erreurs : vrai code HTTP MobileWallet propagé (400/409/422…), **503** (opérateur/réseau indispo), 502 sinon.
 5. Avant l'appel `/pay`, le service génère un **`paymentRef` unique** (`generateId()`) qui sert
    de clé primaire interne pour la ligne `pending_payments`. Ce ref est **distinct du
    `mw_transaction_id`** (attribué par MobileWallet en retour) — il garantit l'unicité de chaque
@@ -171,12 +188,13 @@ Réponse (200) si initiation OK :
    (`items` = tableau de commandes complètes)
    (table `pending_payments`). Sert à retrouver le contexte de commande quand le verdict arrivera.
    ⚠️ C'est en BD (plus en mémoire) → survit aux redémarrages et au multi-instance.
-7. Renvoie `{ success:true, status:'ussd_sent', mw_transaction_id, payment_number }`.
+7. Renvoie `{ success:true, status:'ussd_sent', transaction_id, ussd_code }`.
    → Frontend affiche "En attente de paiement" et écoute le socket.
 
-### Phase 2 — Client tape le code USSD
+### Phase 2 — Client valide la demande de PIN
 
-Le client valide `*123*{payment_number}#` sur son téléphone. L'opérateur route vers MobileWallet.
+Le client valide la demande de PIN reçue sur son téléphone (ou compose `ussd_code`
+si elle n'arrive pas). L'opérateur route vers MobileWallet.
 
 ### Phase 3 — Verdict (DOUBLE CANAL, traité par le backend)
 
@@ -277,9 +295,9 @@ Frontend ──POST /transaction──► Backend yaammoo ──POST /pay──�
 - Utilisée à la fois pour `Authorization: Bearer` (HTTP `/pay`) et `auth.token` (socket client).
 - `MOBILEWALLET_URL` et `BACKEND_URL` sont aussi en env var.
 
-### payment_number ≠ numéro de livraison
+### ussd_code ≠ numéro de livraison
 
-- **payment_number** : généré par MobileWallet, unique par transaction, affiché au client pour l'USSD.
+- **ussd_code** : renvoyé par MobileWallet (ex. `*126#`), à composer si la demande de PIN n'arrive pas. Remplace `payment_number`.
 - **Numéro livraison** : numéro OM de la boutique (stocké dans fastfood), identique pour toutes les commandes.
 
 ### Format numéro de téléphone — `/pay` vs `/payout`
@@ -299,8 +317,9 @@ Frontend ──POST /transaction──► Backend yaammoo ──POST /pay──�
 - **`repos.pendingPayments`** (`supabase/pendingPayments.repo.js`) — `create(paymentRef, ctx)`,
   `setMwTransactionId(paymentRef, mwTxId)`, `getByMwTransactionId(mwTxId)`,
   `getLatestByUser(userId)`, `markSettled(paymentRef, status)`.
-- **`mobilewalletService.js`** — `pay({ amount, phone, network, email, mode, userId })` :
-  appel HTTP `/pay`, gestion 409/503 (payload imbriqué sous `detail`), construction `callback_url`.
+- **`mobilewalletService.js`** — `pay(...)`, `payout(...)`, `payoutQuote(...)`,
+  `predictOperator(...)` : appels HTTP MobileWallet (agrégateur actif), erreurs
+  normalisées par `toMwError` (payload imbriqué sous `detail`), construction `callback_url`.
 - **`mwVerdictService.js`** — `mwVerdictService(payload, source)` :
   traitement commun des deux canaux, idempotence, émission `payment.settled`, puis **routage par
   item** : item avec `id` → `updateOrders` (transition `pendingToBuy → pending`) ; item sans `id`
@@ -334,8 +353,16 @@ Frontend ──POST /transaction──► Backend yaammoo ──POST /pay──�
 
 - **409** : doublon (`pending_exists`, `retry_too_soon`) → renvoie `code`, `message`,
   `retry_after_s`, `last_status`. Le backend répond **HTTP 409** (plus 400).
+- **400 / 422 / autres 4xx** : refus métier MobileWallet (montant sous le minimum,
+  solde insuffisant…) → **code HTTP propagé tel quel** (plus de 502). Le front
+  n'affiche que `message`. `detail` en liste (validation Pydantic) → message générique.
+- **401 / 403** : clé API refusée → **502** (incident serveur ; le front ne doit
+  jamais le prendre pour une session expirée).
 - **503** : opérateur/réseau indisponible → backend répond **HTTP 503**.
-- Autres → `code: server_error`, backend répond **HTTP 502**.
+- Réseau / 5xx → `code: server_error`, backend répond **HTTP 502**.
+
+Normalisation unique : `toMwError` dans [mobilewalletService.js](../src/services/transaction/mobilewalletService.js)
+(`pay`, `payout`, `payoutQuote`, `predictOperator`).
 
 Le **status HTTP** indique la catégorie ; le **body** (`code`/`message`/`retry_after_s`) est la
 source de vérité que le frontend lit explicitement (ex. `if (code === 'retry_too_soon')` →

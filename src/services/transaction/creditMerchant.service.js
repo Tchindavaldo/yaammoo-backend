@@ -5,11 +5,17 @@
 // Le portefeuille marchand est calculé depuis les transactions : on enregistre
 // donc une transaction `type='merchant_credit'` sur le userId du marchand.
 //
-// AUCUNE retenue n'est appliquée ici. La commission MobileWallet est prélevée
-// UNE SEULE FOIS, en amont, sur le montant encaissé (`payment_fee_percent` des
-// settings, extrait du TTC par `feeIncludedIn`). Le bénéfice yaammoo, lui, est
+// AUCUNE retenue n'est appliquée ici. Les frais de paiement sont prélevés UNE
+// SEULE FOIS, en amont, sur le montant encaissé (barème de l'agrégateur,
+// `pricing/paymentFees.js`, extrait au règlement). Le bénéfice yaammoo, lui, est
 // déjà porté par la marge plateforme et l'écart de zone — pas par un frais
 // supplémentaire sur le marchand.
+//
+// Chaque crédit enregistre l'AGRÉGATEUR et le RÉSEAU du paiement (migration
+// 064) : le portefeuille est scindé en deux soldes MTN / Orange, et seuls les
+// agrégateurs du portefeuille (pawaPay) sont affichés et retirables. Un crédit
+// sans paiement réel (build de test, Apple Review) est tracé sans agrégateur :
+// il reste hors portefeuille.
 //
 // Le verdict global est protégé par reserveSettlement (un seul canal traite) :
 // le crédit n'est créé qu'une seule fois. Échec partiel toléré (logué), comme
@@ -19,14 +25,18 @@
 const repos = require('../../repositories');
 const { getIO } = require('../../socket');
 const { reliableEmit } = require('../../utils/reliableEmit');
+const { countsInWallet } = require('../../utils/paymentAggregator');
+const { toCanonicalNetwork } = require('../../utils/mobileNetwork');
 
 /**
  * Crée la transaction de crédit marchand pour un item de commande payé.
  * @param {object} params
  * @param {object} params.item  commande complète (fastFoodId, total, id?, menu?)
  * @param {string} params.clientUserId  user qui a payé (pour traçabilité/log)
+ * @param {object|null} [params.payment] `{ aggregator, network, mwTransactionId }`
+ *   du paiement MobileWallet. null = aucun argent encaissé (hors portefeuille).
  */
-exports.creditMerchantForItem = async ({ item, clientUserId }) => {
+exports.creditMerchantForItem = async ({ item, clientUserId, payment = null }) => {
   const logPrefix = `[creditMerchant] orderId=${item?.id || '∅'} fastFoodId=${item?.fastFoodId}`;
 
   const fastFoodId = item?.fastFoodId;
@@ -62,6 +72,11 @@ exports.creditMerchantForItem = async ({ item, clientUserId }) => {
   }
 
   const menuName = item?.menu?.name || item?.menu?.titre || 'Commande';
+  const aggregator = payment?.aggregator || null;
+  const network = toCanonicalNetwork(payment?.network);
+  if (aggregator && !network) {
+    console.error(`${logPrefix} ⚠️ réseau du paiement illisible ("${payment?.network}") → crédit hors solde MTN/Orange`);
+  }
 
   const tx = await repos.transactions.create({
     type: 'merchant_credit',
@@ -69,11 +84,18 @@ exports.creditMerchantForItem = async ({ item, clientUserId }) => {
     amount: credited,
     name: `Gain ${menuName}`,
     payBy: 'order',
+    aggregator,
+    network,
+    mwTransactionId: payment?.mwTransactionId || null,
     fastFoodId,
     relatedOrderId: item?.id || null,
     grossAmount: gross,
     clientUserId: clientUserId || null,
   });
+
+  // Hors portefeuille (DigiKUNTZ, test) : rien à annoncer au marchand, son
+  // solde affiché ne bouge pas.
+  if (!countsInWallet(aggregator) || !network) return tx;
 
   // Notifier le marchand (émission FIABLE : rejouée si le marchand est hors ligne).
   try {
@@ -83,6 +105,8 @@ exports.creditMerchantForItem = async ({ item, clientUserId }) => {
       direction: 'payin',
       amount: credited,
       grossAmount: gross,
+      // Solde crédité : 'MTN' | 'ORANGEMONEY' (clés `mtn` / `orange` de /wallet/balance).
+      network,
       name: tx.name,
       fastFoodId,
       relatedOrderId: item?.id || null,

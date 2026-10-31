@@ -7,6 +7,9 @@
 
 const repos = require('../../repositories');
 const { requestWithdrawal } = require('../../services/wallet/withdraw.service');
+const { quoteWithdrawal } = require('../../services/wallet/withdrawQuote.service');
+const { predictOperator } = require('../../services/transaction/mobilewalletService');
+const { validateWithdrawalQuote } = require('../../utils/validator/validateWithdrawal');
 const { resolvePeriod } = require('../../utils/period');
 
 /** GET /wallet/balance — solde du marchand authentifié. */
@@ -16,8 +19,10 @@ exports.getBalanceController = async (req, res) => {
     console.info(`[Wallet] GET /balance → userId=${userId}`);
     if (!userId) return res.status(401).json({ success: false, error: 'Non authentifié' });
 
+    // `balance` garde son sens (total retirable) ; `mtn` / `orange` sont ajoutés
+    // (R11, purement additif). Seuls les montants pawaPay comptent.
     const balance = await repos.transactions.getMerchantBalance(userId);
-    console.info(`[Wallet] GET /balance ✓ userId=${userId} → balance=${balance.balance}, earned=${balance.totalEarned}, withdrawn=${balance.totalWithdrawn}`);
+    console.info(`[Wallet] GET /balance ✓ userId=${userId} → balance=${balance.balance} (mtn=${balance.mtn}, orange=${balance.orange}), earned=${balance.totalEarned}, withdrawn=${balance.totalWithdrawn}`);
     return res.status(200).json({ success: true, data: balance });
   } catch (error) {
     console.error(`[Wallet] GET /balance ❌ userId=${req.user?.uid}: ${error.message}`);
@@ -75,14 +80,19 @@ exports.getStatsController = async (req, res) => {
   }
 };
 
-/** POST /wallet/withdraw — demande de retrait. */
+/**
+ * POST /wallet/withdraw — demande de retrait.
+ * Body : { amount, phone, network, sourceNetwork, receiverName?, narration? }
+ * (cf. interface/walletFields.js). `sourceNetwork` = solde débité, choisi par
+ * l'utilisateur : aucun repli automatique.
+ */
 exports.withdrawController = async (req, res) => {
   try {
     const userId = req.user?.uid;
-    const { amount, phone, network } = req.body || {};
-    console.info(`[Wallet] POST /withdraw → userId=${userId}, amount=${amount}, network=${network}, phone=${phone}`);
+    const { amount, phone, network, sourceNetwork, receiverName, narration } = req.body || {};
+    console.info(`[Wallet] POST /withdraw → userId=${userId}, amount=${amount}, source=${sourceNetwork}, network=${network}, phone=${phone}`);
 
-    const result = await requestWithdrawal({ userId, amount, phone, network });
+    const result = await requestWithdrawal({ userId, amount, phone, network, sourceNetwork, receiverName, narration });
     if (result.success) {
       console.info(`[Wallet] POST /withdraw ✓ userId=${userId} → withdrawalId=${result.data?.withdrawal?.id}, status=${result.data?.status} (débit appliqué au verdict)`);
     } else {
@@ -91,6 +101,62 @@ exports.withdrawController = async (req, res) => {
     return res.status(result.httpStatus || (result.success ? 200 : 400)).json(result);
   } catch (error) {
     console.error(`[Wallet] POST /withdraw ❌ userId=${req.user?.uid}: ${error.message}`);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+/**
+ * GET /wallet/withdraw/quote?amount=&network=&sourceNetwork= — frais d'un
+ * retrait avant confirmation (0 même réseau, interréseau via MobileWallet).
+ */
+exports.getWithdrawQuoteController = async (req, res) => {
+  try {
+    const userId = req.user?.uid;
+    if (!userId) return res.status(401).json({ success: false, error: 'Non authentifié' });
+
+    const { amount, network, sourceNetwork } = req.query || {};
+    const errors = validateWithdrawalQuote({ amount, network, sourceNetwork });
+    if (errors.length > 0) {
+      return res.status(400).json({ success: false, code: 'invalid_input', message: errors.map(e => `${e.field}: ${e.message}`).join(', ') });
+    }
+
+    const result = await quoteWithdrawal({ userId, amount: Number(amount), network, sourceNetwork });
+    if (!result.success) {
+      console.warn(`[Wallet] GET /withdraw/quote ✗ userId=${userId} → ${result.code}: ${result.message}`);
+      return res.status(result.httpStatus || 502).json({ success: false, code: result.code, message: result.message });
+    }
+    console.info(`[Wallet] GET /withdraw/quote ✓ userId=${userId} → ${sourceNetwork}→${network} amount=${amount} fee=${result.data.fee}`);
+    return res.status(200).json({ success: true, data: result.data });
+  } catch (error) {
+    console.error(`[Wallet] GET /withdraw/quote ❌ userId=${req.user?.uid}: ${error.message}`);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+/**
+ * POST /wallet/operator/predict — réseau d'un numéro saisi, en temps réel.
+ * Relais MobileWallet (clé API côté serveur). Body : { phone }.
+ */
+exports.predictOperatorController = async (req, res) => {
+  try {
+    const userId = req.user?.uid;
+    if (!userId) return res.status(401).json({ success: false, error: 'Non authentifié' });
+
+    const phone = String(req.body?.phone ?? '').trim();
+    if (phone.replace(/\D/g, '').length < 8) {
+      return res.status(400).json({ success: false, code: 'invalid_input', message: 'phone: numéro incomplet' });
+    }
+
+    const result = await predictOperator({ phone });
+    if (!result.success) {
+      return res.status(result.httpStatus || 502).json({ success: false, code: result.code, message: result.message });
+    }
+    if (!result.network) {
+      return res.status(422).json({ success: false, code: 'unknown_operator', message: 'Opérateur non reconnu. Saisissez un numéro MTN ou Orange.' });
+    }
+    return res.status(200).json({ success: true, data: { phone: result.phone, network: result.network } });
+  } catch (error) {
+    console.error(`[Wallet] POST /operator/predict ❌ userId=${req.user?.uid}: ${error.message}`);
     return res.status(500).json({ success: false, error: error.message });
   }
 };

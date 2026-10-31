@@ -5,7 +5,8 @@
 // correspond à un withdrawal (mw_payout_id). Couvre webhook HTTP + socket.
 //
 // Règle métier : le DÉBIT (transaction 'withdrawal') n'est créé qu'au SUCCÈS.
-//   - successful → withdrawal.status='completed' + transaction 'withdrawal' (débit réel)
+//   - successful → withdrawal.status='completed' + transaction 'withdrawal'
+//                  (débit réel = montant + frais interréseau, sur le solde SOURCE)
 //   - failed/cancelled → withdrawal.status='failed' (aucun débit, solde intact)
 //
 // Idempotence : reserveSettlement (même table que les paiements) garantit qu'un
@@ -37,32 +38,44 @@ exports.webhookPayoutVerdict = async (withdrawal, data, source) => {
 
   const userId = withdrawal.userId;
   const amt = Number(withdrawal.amount) || 0;
+  // Frais interréseau (0 si même réseau) : débités EN PLUS du montant reçu.
+  const fee = Number(withdrawal.fee) || 0;
 
   if (status === 'successful') {
-    // Débit réel : créer la transaction 'withdrawal' (impacte le solde dérivé)
+    // Débit réel : créer la transaction 'withdrawal' (impacte le solde dérivé).
+    // Elle porte le SOLDE débité (`network` = source), pas le réseau de
+    // réception : c'est ce solde-là qui baisse.
     await repos.transactions.create({
       type: 'withdrawal',
       userId,
-      amount: amt,
+      amount: amt + fee,
       name: 'Retrait portefeuille',
       payBy: withdrawal.network,
+      aggregator: withdrawal.aggregator || null,
+      network: withdrawal.sourceNetwork || null,
+      mwTransactionId: transaction_id || null,
       withdrawalId: withdrawal.id,
       status: 'completed',
       phone: withdrawal.phone,
-      network: withdrawal.network,
+      receivedAmount: amt,
+      fee,
+      receiverNetwork: withdrawal.network,
     });
     await repos.withdrawals.updateStatus(withdrawal.id, { status: 'completed' });
-    log.info(`${logPrefix} ✓ Retrait confirmé → débit ${amt} appliqué`);
+    log.info(`${logPrefix} ✓ Retrait confirmé → débit ${amt + fee} (dont frais ${fee}) sur ${withdrawal.sourceNetwork}`);
 
-    const { balance } = await repos.transactions.getMerchantBalance(userId);
+    const { balance, mtn, orange } = await repos.transactions.getMerchantBalance(userId);
     await reliableEmit(getIO(), userId, 'wallet.withdrawal', {
       withdrawalId: withdrawal.id,
       type: 'withdrawal',
       direction: 'payout',
       amount: amt,
+      fee,
       status: 'completed',
       network: withdrawal.network,
+      sourceNetwork: withdrawal.sourceNetwork,
       newBalance: balance,
+      newBalances: { mtn, orange },
       createdAt: new Date().toISOString(),
     });
   } else {
@@ -78,6 +91,7 @@ exports.webhookPayoutVerdict = async (withdrawal, data, source) => {
       status: 'failed',
       reason: status,
       network: withdrawal.network,
+      sourceNetwork: withdrawal.sourceNetwork,
     });
   }
 };

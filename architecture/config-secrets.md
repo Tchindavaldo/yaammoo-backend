@@ -63,11 +63,19 @@ BIRD_API_KEY=bk_us1_xxxx...              # région et URL déduites de la clé
 
 # Payments
 MOBILEWALLET_URL=https://api.mobilewallet.com
-MOBILEWALLET_API_KEY=sk_live_xxxx...
-MOBILEWALLET_WEBHOOK_SECRET=whsec_xxxx...
+MOBILEWALLET_YAAMMOO_KEY=sk_live_xxxx...      # clé API de l'app Yaammoo (HTTP + socket)
+# Agrégateur envoyé à MobileWallet sur /pay et /payout, et barème de frais du
+# prix affiché (cf. architecture/payment.md). Valeurs : pawapay | digikuntz.
+# Absent ou inconnu → erreur journalisée + fonctionnement historique (digikuntz).
+PAYMENT_AGGREGATOR=pawapay
 # Délai artificiel avant de servir GET /payment-page (test du squelette côté app)
 # Absent ou 0 = aucun délai
 PAYMENT_PAGE_DELAY_MS=0
+
+# Keep-alive Supabase (src/utils/supabaseKeepAlive.js) : un projet de plus =
+# 2 variables, sans recoder. Ex. projet Rauval :
+KEEPALIVE_RAUVAL_SUPABASE_URL=https://<ref>.supabase.co
+KEEPALIVE_RAUVAL_SUPABASE_KEY=<clé anon ou service_role du projet Rauval>
 
 # Push Notifications
 FCM_PROJECT_ID=yaammoo-fcm
@@ -192,13 +200,13 @@ module.exports = { supabase };
 
 ```bash
 # Set secret
-fly secrets set MOBILEWALLET_API_KEY=sk_live_xxxx...
+fly secrets set MOBILEWALLET_YAAMMOO_KEY=sk_live_xxxx...
 
 # List secrets
 fly secrets list
 
 # Remove secret
-fly secrets unset MOBILEWALLET_API_KEY
+fly secrets unset MOBILEWALLET_YAAMMOO_KEY
 ```
 
 ### Docker secrets (Kubernetes-style)

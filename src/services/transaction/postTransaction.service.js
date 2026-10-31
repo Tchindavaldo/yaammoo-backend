@@ -12,6 +12,7 @@ const { createOrderService } = require('../order/createOrder');
 const { updateOrders } = require('../order/updateOrders.service');
 const { creditMerchantForItem } = require('./creditMerchant.service');
 const { isAppleReviewClient, isTestClient } = require('../settings/settings.service');
+const { resolvePaymentAggregator } = require('../../utils/paymentAggregator');
 
 const log = console;
 
@@ -77,10 +78,7 @@ exports.postTransactionService = async (data, req) => {
     // `test_user_ids` (migration 057) — les autres paient.
     // Même réponse (`appleReviewMode: true`) : l'app saute alors l'écran USSD.
     // =========================================================================
-    const freeReason = payBy !== 'mobilemoney' ? null
-      : (await isAppleReviewClient(req)) ? 'apple_version_review_mode'
-      : (await isTestClient(req, userId)) ? 'test_app_version/test_user_ids'
-      : null;
+    const freeReason = payBy !== 'mobilemoney' ? null : (await isAppleReviewClient(req)) ? 'apple_version_review_mode' : (await isTestClient(req, userId)) ? 'test_app_version/test_user_ids' : null;
     if (freeReason) {
       log.info(`${logPrefix} ${freeReason} → createOrder direct sans paiement`);
       const orders = Array.isArray(items) ? items : [];
@@ -90,7 +88,9 @@ exports.postTransactionService = async (data, req) => {
       // ── Trace panier : d'où part chaque commande ────────────────────────────
       log.info(`${logPrefix} [panier] ${orders.length} cmd reçue(s) → ${toUpdate.length} à mettre à jour, ${toCreate.length} à créer`);
       orders.forEach((o, i) => {
-        log.info(`${logPrefix} [panier] #${i + 1} id=${o?.id || '∅ (nouvelle)'} fastFoodId=${o?.fastFoodId} menu=${o?.menu?.id || '?'} qty=${o?.quantity} total=${o?.total} statusEnvoyé=${o?.status || '∅'} livraison=${o?.delivery?.status === true ? `${o?.delivery?.type}/${o?.delivery?.date}${o?.delivery?.time ? '/' + o.delivery.time : ''}` : 'retrait'}`);
+        log.info(
+          `${logPrefix} [panier] #${i + 1} id=${o?.id || '∅ (nouvelle)'} fastFoodId=${o?.fastFoodId} menu=${o?.menu?.id || '?'} qty=${o?.quantity} total=${o?.total} statusEnvoyé=${o?.status || '∅'} livraison=${o?.delivery?.status === true ? `${o?.delivery?.type}/${o?.delivery?.date}${o?.delivery?.time ? '/' + o.delivery.time : ''}` : 'retrait'}`
+        );
       });
 
       // Le retour de `updateOrders` est AUTORITAIRE : en cas d'échec (stock
@@ -112,13 +112,20 @@ exports.postTransactionService = async (data, req) => {
           });
         }
       }
+      // Le crédit marchand doit pointer la commande CRÉÉE (son id porte le
+      // règlement) : sans id, il retombait sur le total client.
+      const toCredit = [...toUpdate];
       for (const order of toCreate) {
         const created = await createOrderService({ ...order, userId });
-        const createdId = created?.data?.id || created?.id || '?';
-        log.info(`${logPrefix} [panier] + commande créée id=${createdId} fastFoodId=${order?.fastFoodId}`);
+        const createdId = created?.data?.id || created?.id || null;
+        log.info(`${logPrefix} [panier] + commande créée id=${createdId || '?'} fastFoodId=${order?.fastFoodId}`);
+        toCredit.push(createdId ? { ...order, id: createdId } : order);
       }
-      for (const item of orders) {
-        await creditMerchantForItem({ item, clientUserId: userId }).catch(e => log.error(`${logPrefix} ❌ Crédit marchand échoué: ${e.message}`));
+      // ⚠️ Aucun argent encaissé : le crédit est tracé SANS agrégateur, donc
+      // hors portefeuille (ni affiché ni retirable). Sinon un retrait de test
+      // puiserait dans l'argent réel des autres marchands chez MobileWallet.
+      for (const item of toCredit) {
+        await creditMerchantForItem({ item, clientUserId: userId, payment: null }).catch(e => log.error(`${logPrefix} ❌ Crédit marchand échoué: ${e.message}`));
       }
 
       const totalAmount = orders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
@@ -186,6 +193,9 @@ exports.postTransactionService = async (data, req) => {
       // pour retrouver le contexte au verdict de façon DÉTERMINISTE, quel que
       // soit le tx_id que MobileWallet attribue. Une transaction = un paymentRef.
       const paymentRef = generateId();
+      // Agrégateur figé pour CE paiement : le verdict, le règlement et le crédit
+      // marchand liront celui-ci, même si l'env change entre-temps.
+      const aggregator = resolvePaymentAggregator();
 
       // Persister le contexte AVANT l'appel MobileWallet : si /pay timeout mais
       // que MobileWallet traite quand même, le webhook retrouvera le contexte.
@@ -197,6 +207,7 @@ exports.postTransactionService = async (data, req) => {
           phone,
           network: network || 'Orangemoney',
           email,
+          aggregator,
         });
         log.debug(`${logPrefix} Contexte persisté ref=${paymentRef} → userId=${userId}, nbCommandes=${Array.isArray(items) ? items.length : 0}`);
       } catch (e) {
@@ -218,6 +229,7 @@ exports.postTransactionService = async (data, req) => {
           email,
           userId,
           paymentRef,
+          aggregator,
         });
         const duration = Date.now() - startTime;
         log.info(`${logPrefix} ✓ Réponse MobileWallet reçue en ${duration}ms`);
@@ -256,14 +268,16 @@ exports.postTransactionService = async (data, req) => {
       log.info(`${logPrefix} ✓ Transaction initiée, en attente de webhook/socket`);
 
       // On renvoie au frontend la MÊME réponse que MobileWallet (success,
-      // status, message, transaction_id, code) + le contexte utile (payment_number).
+      // status, message, transaction_id, code) + `ussd_code` : code à composer
+      // si la demande de PIN n'arrive pas (ex. *126#). `payment_number` n'existe
+      // plus côté MobileWallet.
       return {
         success: mwResult.success, // true
         status: mwResult.status, // 'ussd_sent'
         message: mwResult.message, // "Composez #150*50# ..."
         transaction_id: mw_transaction_id, // "IN960#260613155908"
         code: mwResult.code, // 200
-        payment_number: mwResult.payment_number,
+        ussd_code: mwResult.ussd_code,
       };
     }
 

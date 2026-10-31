@@ -35,6 +35,7 @@
 // deuxième exemplaire, un fondu entier n'a plus aucune course en face.
 // ============================================================================
 const { toNumber, withAllFees, roundToStep, marginForBrut, isPlatformDelivered } = require('../pricing/deliveryPricing');
+const { paymentFeePercentOf } = require('../pricing/paymentFees');
 
 /**
  * Plats minimum pour une gratuité en régime PLATEFORME, selon le motif.
@@ -74,7 +75,8 @@ function contributionPerItem(brutUnit, pricing) {
   const displayed = step > 0 ? roundToStep(juste, { step, amortizationMax: 0 }) : juste;
 
   const surplus = displayed - juste;
-  const percent = toNumber(pricing?.paymentFeePercent);
+  // Barème de l'agrégateur actif (réseau le plus cher).
+  const percent = paymentFeePercentOf(pricing);
   const gross = margin + surplus;
 
   // La commission porte sur ce qui est encaissé, donc aussi sur cette part.

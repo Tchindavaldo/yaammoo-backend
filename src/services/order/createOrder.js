@@ -20,7 +20,12 @@ const { settleDeliveryService } = require('./settleDelivery.service');
 const { enrichMenuForClient } = require('../menu/enrichMenuForClient');
 const { toMerchantView } = require('./toMerchantView');
 
-exports.createOrderService = async order => {
+/**
+ * @param {Object} order
+ * @param {Object} [payment] `{ aggregator, network }` du paiement MobileWallet
+ *   qui règle cette commande — fixe le barème de frais extrait au règlement.
+ */
+exports.createOrderService = async (order, payment = null) => {
   // Validation au niveau service : garantit qu'aucun chemin d'appel
   // (HTTP POST /order OU flux paiement mwVerdict/postTransaction) ne
   // contourne le validateur.
@@ -43,7 +48,7 @@ exports.createOrderService = async order => {
   // être retirée, on ne facture ni ne consomme rien.
   // Le panier payé, lui, passe par updateOrders — pas par ici.
   if (createdOrder.status === 'pending') {
-    const settled = await settleDeliveryService({ orders: [createdOrder], bonusCode });
+    const settled = await settleDeliveryService({ orders: [createdOrder], bonusCode, payment });
     createdOrder.deliveryOffer = settled.offer;
   }
 
@@ -96,7 +101,7 @@ exports.createOrderService = async order => {
             reliableEmit(getIO(), merchantUserId, 'newFastFoodOrders', {
               message: 'Nouvelle commande',
               data: merchantOrders,
-            }),
+            })
           )
           .catch(e => console.warn('[createOrder] reliableEmit newFastFoodOrders:', e.message));
 

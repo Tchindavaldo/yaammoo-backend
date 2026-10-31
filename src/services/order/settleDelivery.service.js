@@ -35,14 +35,26 @@ const { generateId } = require('../../repositories/idGen');
 const { getPricingSettings } = require('../settings/settings.service');
 const { resolveOffer } = require('../pricing/deliveryOfferResolver');
 const { resolveDeliveryBonus, consumeDeliveryBonus } = require('../bonus/applyDeliveryBonus.service');
-const { splitDeliveryAmounts, toNumber, feeIncludedIn, isPlatformDelivered, marginForBrut } = require('../pricing/deliveryPricing');
+const { toNumber, isPlatformDelivered, marginForBrut } = require('../pricing/deliveryPricing');
+const { splitDeliveryAmounts } = require('../pricing/deliverySplit');
+const { paymentFeeOf } = require('../pricing/paymentFees');
 const { withdrawalFee } = require('../pricing/withdrawalFees');
 // Clé PARTAGÉE avec `validatePaymentAmount` : on verse exactement le nombre de
 // courses qu'on a facturé au user.
 const { deliveryGroupKey } = require('../pricing/deliveryGroupKey');
 
-/** Frais de retrait dus sur un montant, pour l'opérateur de la commande. */
-const withdrawalFee_ = (amount, pricing, order) => withdrawalFee(amount, pricing?.withdrawalFees, order?.network ?? order?.payBy);
+/**
+ * Frais de retrait dus sur un montant, pour l'opérateur de la commande.
+ * Le réseau du PAIEMENT prime : c'est sur ce réseau que l'argent est reçu.
+ */
+const withdrawalFee_ = (amount, pricing, order, payment) => withdrawalFee(amount, pricing?.withdrawalFees, payment?.network ?? order?.network ?? order?.payBy);
+
+/**
+ * Frais de paiement inclus dans un montant encaissé, au barème de l'agrégateur
+ * qui a RÉELLEMENT encaissé (et de son réseau). Sans contexte de paiement
+ * (commande hors flux MobileWallet) : agrégateur actif, réseau le plus cher.
+ */
+const paymentFee_ = (charged, pricing, payment) => paymentFeeOf(charged, pricing, { network: payment?.network, aggregator: payment?.aggregator });
 
 /**
  * Prix BRUT unitaire du plat choisi, depuis les `rawPrice` figés à l'achat.
@@ -71,10 +83,12 @@ function rawItemsOf(order) {
 /**
  * @param {Array}  orders     commandes venant de passer en `pending`
  * @param {string} [bonusCode] code bonus présenté pour le lot
+ * @param {Object} [payment]   `{ aggregator, network }` du paiement qui a réglé
+ *   le lot (verdict MobileWallet). Absent : barème actif, réseau le plus cher.
  * @returns {Promise<{offer: Object|null, settlements: Array, deliveries: Array}>}
  *   `settlements` : une entrée par commande. `deliveries` : seulement les livrées.
  */
-exports.settleDeliveryService = async ({ orders, bonusCode }) => {
+exports.settleDeliveryService = async ({ orders, bonusCode, payment = null }) => {
   const settled = { offer: null, settlements: [], deliveries: [] };
   const list = (Array.isArray(orders) ? orders : [orders]).filter(o => o && o.id);
   if (list.length === 0) return settled;
@@ -140,7 +154,7 @@ exports.settleDeliveryService = async ({ orders, bonusCode }) => {
       if (!order?.fastFoodId) continue;
       const key = withdrawalKeyOf(order);
       const charged = toNumber(order.total);
-      netByKey[key] = (netByKey[key] || 0) + (charged - feeIncludedIn(charged, pricing.paymentFeePercent));
+      netByKey[key] = (netByKey[key] || 0) + (charged - paymentFee_(charged, pricing, payment));
       if (orderByKey[key] === undefined) orderByKey[key] = order;
     }
     const withdrawalByKey = {};
@@ -149,7 +163,7 @@ exports.settleDeliveryService = async ({ orders, bonusCode }) => {
     // Id STOCKÉ, comme `deliveryGroupId` — la clé composée ne sort jamais.
     const withdrawalGroupIdByKey = {};
     for (const [key, net] of Object.entries(netByKey)) {
-      withdrawalByKey[key] = withdrawalFee_(net, pricing, orderByKey[key]);
+      withdrawalByKey[key] = withdrawalFee_(net, pricing, orderByKey[key], payment);
       withdrawalHolder[key] = orderByKey[key].id;
       withdrawalGroupIdByKey[key] = generateId();
     }
@@ -198,9 +212,9 @@ exports.settleDeliveryService = async ({ orders, bonusCode }) => {
 
       // `order.total` est déjà TTC : les frais y sont inclus, on les EXTRAIT.
       // On redescend la cascade dans l'ordre inverse de sa composition —
-      // commission de l'agrégateur d'abord, frais de retrait ensuite.
+      // frais de paiement de l'agrégateur d'abord, frais de retrait ensuite.
       const itemsCharged = toNumber(order.total);
-      const paymentFee = feeIncludedIn(itemsCharged, pricing.paymentFeePercent);
+      const paymentFee = paymentFee_(itemsCharged, pricing, payment);
       const afterPaymentFee = itemsCharged - paymentFee;
       // Le retrait porte sur ce qui reste APRÈS la commission — et il est dû
       // UNE fois pour toute la boutique, pas une fois par commande.

@@ -5,6 +5,8 @@ const { supabase } = require('../../config/supabase');
 const { generateId } = require('../idGen');
 const m = require('../mappers');
 const { groupKey } = require('../../utils/period');
+const { WALLET_AGGREGATORS } = require('../../utils/paymentAggregator');
+const { toBalanceKey } = require('../../utils/mobileNetwork');
 
 const TABLE = 'transactions';
 
@@ -43,27 +45,60 @@ exports.getByUser = async userId => {
   return (data || []).map(m.transaction.fromSupabase);
 };
 
+/**
+ * Crédit marchand d'une commande, ou null : sert à retrouver l'agrégateur et
+ * le réseau qui ont encaissé l'argent (la course livreur est versée plus tard,
+ * à la livraison, sur le même solde).
+ * @returns {Promise<{aggregator:string|null, network:string|null, mwTransactionId:string|null}|null>}
+ */
+exports.findMerchantCreditByOrder = async orderId => {
+  if (!orderId) return null;
+  const { data, error } = await supabase.from(TABLE).select('aggregator, network, mw_transaction_id').eq('type', 'merchant_credit').contains('extra_data', { relatedOrderId: orderId }).limit(1).maybeSingle();
+  if (error) throw error;
+  return data ? { aggregator: data.aggregator ?? null, network: data.network ?? null, mwTransactionId: data.mw_transaction_id ?? null } : null;
+};
+
 // ===== Portefeuille marchand (solde dérivé + historique) =====
 
+const WALLET_TYPES = ['merchant_credit', 'driver_credit', 'withdrawal'];
+const isCredit = type => type === 'merchant_credit' || type === 'driver_credit';
+
 /**
- * Solde du portefeuille marchand, CALCULÉ depuis les transactions :
- *   balance = Σ(merchant_credit.amount) − Σ(withdrawal.amount)
- * @returns {{ balance:number, totalEarned:number, totalWithdrawn:number }}
+ * Solde du portefeuille, CALCULÉ depuis les transactions, PAR RÉSEAU :
+ *   solde[réseau] = Σ(crédits sur ce réseau) − Σ(retraits débités de ce réseau)
+ *   balance       = mtn + orange
+ *
+ * ⚠️ Seuls les agrégateurs du portefeuille (`WALLET_AGGREGATORS`, pawaPay)
+ * comptent. L'historique DigiKUNTZ reste en base mais n'est ni affiché ni
+ * retirable.
+ *
+ * @returns {{ balance:number, totalEarned:number, totalWithdrawn:number, mtn:number, orange:number }}
  */
 exports.getMerchantBalance = async userId => {
   // `driver_credit` compte comme un gain : le portefeuille d'un livreur suit la
   // même mécanique que celui d'un marchand (crédits − retraits).
-  const { data, error } = await supabase.from(TABLE).select('type, amount').eq('user_id', userId).in('type', ['merchant_credit', 'driver_credit', 'withdrawal']);
+  const { data, error } = await supabase.from(TABLE).select('type, amount, network').eq('user_id', userId).in('type', WALLET_TYPES).in('aggregator', WALLET_AGGREGATORS);
   if (error) throw error;
 
+  const byNetwork = { mtn: 0, orange: 0 };
   let totalEarned = 0;
   let totalWithdrawn = 0;
   for (const row of data || []) {
     const amt = Number(row.amount) || 0;
-    if (row.type === 'merchant_credit' || row.type === 'driver_credit') totalEarned += amt;
-    else if (row.type === 'withdrawal') totalWithdrawn += amt;
+    const key = toBalanceKey(row.network);
+    if (!key) {
+      console.error(`[transactions.repo] ⚠️ ligne wallet sans réseau (userId=${userId}, type=${row.type}, amount=${amt}) → ignorée du solde`);
+      continue;
+    }
+    if (isCredit(row.type)) {
+      totalEarned += amt;
+      byNetwork[key] += amt;
+    } else {
+      totalWithdrawn += amt;
+      byNetwork[key] -= amt;
+    }
   }
-  return { balance: totalEarned - totalWithdrawn, totalEarned, totalWithdrawn };
+  return { balance: byNetwork.mtn + byNetwork.orange, totalEarned, totalWithdrawn, mtn: byNetwork.mtn, orange: byNetwork.orange };
 };
 
 // payin  = gain marchand (merchant_credit) ; payout = retrait (withdrawal)
@@ -79,7 +114,7 @@ const directionOf = type => (type === 'withdrawal' ? 'payout' : 'payin');
 exports.getMerchantHistory = async (userId, { direction, from, to } = {}) => {
   const types = TYPE_BY_DIRECTION[direction] ? [TYPE_BY_DIRECTION[direction]] : ['merchant_credit', 'withdrawal'];
 
-  let query = supabase.from(TABLE).select('*').eq('user_id', userId).in('type', types);
+  let query = supabase.from(TABLE).select('*').eq('user_id', userId).in('type', types).in('aggregator', WALLET_AGGREGATORS);
   if (from) query = query.gte('created_at', from);
   if (to) query = query.lte('created_at', to);
   query = query.order('created_at', { ascending: false });
@@ -102,7 +137,7 @@ exports.getMerchantHistory = async (userId, { direction, from, to } = {}) => {
  * @param {{ groupBy?:'day'|'week'|'month', from?:string|null, to?:string|null }} opts
  */
 exports.getMerchantStats = async (userId, { groupBy = 'day', from, to } = {}) => {
-  let query = supabase.from(TABLE).select('type, amount, created_at').eq('user_id', userId).in('type', ['merchant_credit', 'withdrawal']);
+  let query = supabase.from(TABLE).select('type, amount, created_at').eq('user_id', userId).in('type', ['merchant_credit', 'withdrawal']).in('aggregator', WALLET_AGGREGATORS);
   if (from) query = query.gte('created_at', from);
   if (to) query = query.lte('created_at', to);
 

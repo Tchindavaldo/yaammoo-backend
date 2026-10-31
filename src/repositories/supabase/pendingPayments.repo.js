@@ -28,13 +28,16 @@ const fromRow = row =>
         phone: row.phone,
         email: row.email,
         status: row.status,
+        // Agrégateur de CE paiement (migration 064). NULL sur l'historique
+        // antérieur, rétro-rempli à 'digikuntz'.
+        aggregator: row.aggregator ?? null,
       }
     : null;
 
 /**
  * Crée le contexte d'un paiement en attente AVANT l'appel MobileWallet.
  * @param {string} paymentRef  ID unique généré par nous (= end_user_ref MW)
- * @param {object} ctx { userId, items, amount, network, phone, email }
+ * @param {object} ctx { userId, items, amount, network, phone, email, aggregator }
  *   items = tableau de commandes complètes (chacune avec son fastFoodId).
  */
 exports.create = async (paymentRef, ctx) => {
@@ -46,6 +49,7 @@ exports.create = async (paymentRef, ctx) => {
     network: ctx.network || null,
     phone: ctx.phone || null,
     email: ctx.email || null,
+    aggregator: ctx.aggregator || null,
     status: 'pending',
     updated_at: new Date().toISOString(),
   };

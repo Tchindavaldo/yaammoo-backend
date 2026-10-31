@@ -31,7 +31,11 @@ const route = express.Router();
  *                   properties:
  *                     paymentFeePercent:
  *                       type: number
- *                       description: Frais prestataire de paiement, en % du montant payé, arrondi à l'entier supérieur.
+ *                       description: >-
+ *                         Frais de paiement de l'agrégateur actif, en % du montant payé
+ *                         (réseau le plus cher). DigiKUNTZ — `payment_fee_percent`, tout
+ *                         compris. pawaPay — dépôt + commission MobileWallet + réserve de
+ *                         retrait. Chaque frais est arrondi à l'entier supérieur.
  *                     deliveryFreeMode:
  *                       type: boolean
  *                       description: Campagne « livraison offerte » globale en cours.
@@ -151,6 +155,11 @@ route.get('', firebaseAuth, getSettingsController);
  *             # pricing (settings_pricing)
  *             - platform_margin
  *             - payment_fee_percent
+ *             - pawapay_deposit_fee_mtn_percent
+ *             - pawapay_deposit_fee_orange_percent
+ *             - pawapay_mw_commission_percent
+ *             - pawapay_payout_fee_mtn_percent
+ *             - pawapay_payout_fee_orange_percent
  *             - price_rounding_step
  *             - express_price_rounding_step
  *             - driver_amortization_max

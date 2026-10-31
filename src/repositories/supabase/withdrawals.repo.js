@@ -55,10 +55,12 @@ exports.getByPayoutId = async payoutId => {
   return m.withdrawal.fromSupabase(data);
 };
 
-exports.updateStatus = async (id, { status, mwPayoutId, failureReason } = {}) => {
+exports.updateStatus = async (id, { status, mwPayoutId, failureReason, fee } = {}) => {
   const patch = { status, updated_at: new Date().toISOString() };
   if (mwPayoutId !== undefined) patch.mw_payout_id = mwPayoutId;
   if (failureReason !== undefined) patch.failure_reason = failureReason;
+  // Frais interréseau réellement retenus par MobileWallet (réponse /payout).
+  if (fee !== undefined) patch.fee = fee;
   const { data, error } = await supabase.from(TABLE).update(patch).eq('id', id).select().single();
   if (error) throw error;
   return m.withdrawal.fromSupabase(data);

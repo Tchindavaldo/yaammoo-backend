@@ -5,6 +5,7 @@ const { updateOrders } = require('../order/updateOrders.service');
 const { creditMerchantForItem } = require('./creditMerchant.service');
 const { reliableEmit } = require('../../utils/reliableEmit');
 const { webhookPayoutVerdict } = require('./webhookPayout.service');
+const { AGGREGATORS } = require('../../utils/paymentAggregator');
 
 const log = console;
 
@@ -59,7 +60,15 @@ exports.mwVerdictService = async (payload, source = 'webhook') => {
     }
 
     const { userId, items } = ctx;
-    log.info(`${logPrefix} userId=${userId}, nbCommandes=${Array.isArray(items) ? items.length : 0}`);
+    // Contexte du paiement, transmis au règlement (barème de frais réel) et au
+    // crédit marchand (solde MTN / Orange). L'agrégateur est celui figé à
+    // l'initiation ; à défaut (paiement antérieur à la migration 064), DigiKUNTZ.
+    const payment = {
+      aggregator: ctx.aggregator || AGGREGATORS.DIGIKUNTZ,
+      network: ctx.network || network || null,
+      mwTransactionId: transaction_id || ctx.mwTransactionId || null,
+    };
+    log.info(`${logPrefix} userId=${userId}, nbCommandes=${Array.isArray(items) ? items.length : 0}, réseau=${payment.network}`);
 
     // ========================================================================
     // 2. Réserver le verdict (atomique) — garantit un seul traitement
@@ -113,7 +122,7 @@ exports.mwVerdictService = async (payload, source = 'webhook') => {
       if (toUpdate.length > 0) {
         log.info(`${logPrefix} status=successful → Transition de ${toUpdate.length} commande(s) existante(s) pour ${userId}`);
         try {
-          const res = await updateOrders(toUpdate, userId);
+          const res = await updateOrders(toUpdate, userId, payment);
           if (res?.success) {
             log.info(`${logPrefix} ✓ ${toUpdate.length} commande(s) confirmée(s) (pendingToBuy → pending)`);
           } else {
@@ -126,24 +135,32 @@ exports.mwVerdictService = async (payload, source = 'webhook') => {
 
       // 2) Commandes nouvelles (achat direct) → création.
       // Échec partiel toléré : on crée tout ce qui peut l'être, on logue les échecs.
+      // ⚠️ Le crédit marchand doit pointer la commande CRÉÉE : c'est son id qui
+      // porte le règlement (`items_real`) et qui relie la course livreur au
+      // réseau du paiement. Sans lui, le crédit retombait sur le total client.
+      const toCredit = [...toUpdate];
       for (const [i, order] of toCreate.entries()) {
         const label = `nouvelle commande ${i + 1}/${toCreate.length} (fastFoodId=${order?.fastFoodId})`;
         try {
-          const created = await createOrderService({ ...order, userId });
+          const created = await createOrderService({ ...order, userId }, payment);
           if (created?.error) {
             log.error(`${logPrefix} ❌ ${label} échouée: ${created.error}`);
+            toCredit.push(order);
           } else {
             log.info(`${logPrefix} ✓ ${label} confirmée (id=${created?.id || order.id})`);
+            toCredit.push(created?.id ? { ...order, id: created.id } : order);
           }
         } catch (e) {
           log.error(`${logPrefix} ❌ ${label} exception: ${e.message}`);
+          toCredit.push(order);
         }
       }
 
-      // 3) Crédit du portefeuille marchand (par item, net de commissions).
-      for (const item of orders) {
+      // 3) Crédit du portefeuille marchand (par item, net de commissions), sur
+      // le solde du réseau qui a encaissé.
+      for (const item of toCredit) {
         try {
-          await creditMerchantForItem({ item, clientUserId: userId });
+          await creditMerchantForItem({ item, clientUserId: userId, payment });
         } catch (e) {
           log.error(`${logPrefix} ❌ Crédit marchand (fastFoodId=${item?.fastFoodId}) échoué: ${e.message}`);
         }
