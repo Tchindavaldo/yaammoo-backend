@@ -299,21 +299,16 @@ Deux formats coexistent en base (`delivery_hours` JSON) :
 L'app 1.0.0 plante (`hour.split is not a function`) si on lui sert des objets.
 Le backend **downgrade** donc vers le format legacy selon le client appelant.
 
-**Détection de la version** — utilitaire générique `src/utils/appVersion.js`
-(`resolveClientVersion`, `clientVersionAtLeast`) ; la transformation deliveryHours
-vit dans `src/utils/deliveryHoursFormat.js` qui s'appuie dessus :
+**Détection de la version** — `settings.service.clientSupportsFeature(req,
+KEYS.DELIVERY_NEW_FORMAT_MIN_VERSION)` (R11) :
 
 1. Header `x-app-version` (prioritaire) — version réelle du client.
-2. Fallback `FRONTEND_APP_VERSION` (.env, défaut `1.0.0`) si aucun header.
+2. Repli `platform_default_app_version` (base, `1.0.0`) si aucun header.
 
-La version résolue est comparée à `APP_DELIVERY_NEW_MIN_VERSION` (1.0.1) :
-< 1.0.1 → format legacy (strings) ; >= 1.0.1 → format new (objets).
-
-`FRONTEND_APP_VERSION` est générique et réutilisable pour tout futur endpoint
-devant adapter sa réponse selon la version de l'app.
+Comparée à `delivery_new_format_min_app_version` (base, `settings_deployment`,
+`1.0.1`) : en dessous → format legacy (strings) ; sinon → objets.
 
 **Appliqué dans** : `getFastFoods` (liste home) et `getFastFood` (détail).
-Au déploiement de la 1.0.1, passer `FRONTEND_APP_VERSION=1.0.1`.
 
 ---
 

@@ -9,13 +9,11 @@
 // On "downgrade" donc le nouveau format vers l'ancien selon la version du client.
 // La détection de version est déléguée à `appVersion.js` (logique générique).
 // ============================================================================
-const { clientVersionAtLeast } = require('./appVersion');
+const { clientSupportsFeature, KEYS } = require('../services/settings/settings.service');
 
-// Version d'app minimale comprenant le nouveau format deliveryHours (objets).
-const NEW_FORMAT_MIN_VERSION = process.env.APP_DELIVERY_NEW_MIN_VERSION || '1.0.1';
-
-// Vrai si le client appelant supporte le format deliveryHours enrichi (objets).
-const clientSupportsNewDeliveryFormat = req => clientVersionAtLeast(req, NEW_FORMAT_MIN_VERSION);
+// Vrai si le client supporte le format enrichi. Seuil en base :
+// `delivery_new_format_min_app_version` (settings_deployment).
+const clientSupportsNewDeliveryFormat = req => clientSupportsFeature(req, KEYS.DELIVERY_NEW_FORMAT_MIN_VERSION);
 
 // Convertit un tableau deliveryHours vers le format legacy (strings "HH:mm").
 // - une string reste telle quelle
@@ -39,8 +37,8 @@ const applyDeliveryFormatToFastfood = (fastfood, newFormat) => {
 };
 
 // Applique le format à une liste de fastfoods selon la requête entrante.
-const formatFastfoodsForClient = (fastfoods, req) => {
-  if (clientSupportsNewDeliveryFormat(req)) return fastfoods;
+const formatFastfoodsForClient = async (fastfoods, req) => {
+  if (await clientSupportsNewDeliveryFormat(req)) return fastfoods;
   return (fastfoods || []).map(f => applyDeliveryFormatToFastfood(f, false));
 };
 

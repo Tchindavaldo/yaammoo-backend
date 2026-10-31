@@ -139,12 +139,15 @@ Payloads déclarés dans [walletFields.js](../src/interface/walletFields.js).
 
 ### Anciennes apps et retrait (R11)
 
-Une app antérieure aux deux soldes n'envoie pas `sourceNetwork` : son retrait
-ne peut pas être exécuté, et on ne devine pas le solde à sa place. Référence :
-la version actuelle **déjà en base**, `platform_latest_app_version` (via
-`settings.getAppVersionGate`, header `x-app-version`) — aucun réglage ajouté.
-App en dessous → `POST /wallet/withdraw` répond **426** `app_update_required`,
-« Mettez à jour l'application pour effectuer un retrait. » (toast).
+Une app antérieure aux deux soldes n'envoie pas `sourceNetwork` : on ne devine
+pas le solde. Seuil en base : **`wallet_networks_min_app_version`**
+(`settings_deployment`, migration 066, `1.1.5`). En dessous, `POST /wallet/withdraw`
+répond **426** :
+
+| Cas | `code` | `message` |
+| --- | --- | --- |
+| `platform_latest_app_version` >= seuil | `app_update_required` | « Mettez à jour l'application pour effectuer un retrait. » |
+| sinon | `app_update_coming` | « Le retrait sera disponible avec la prochaine mise à jour de l'application. » |
 
 ### `GET /wallet/balance` — compatibilité (R11)
 

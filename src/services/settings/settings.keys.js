@@ -63,6 +63,12 @@ const KEYS = {
   // Gate de version d'app (migration 042) — écran de mise à jour forcée.
   MIN_APP_VERSION: 'platform_min_app_version',
   LATEST_APP_VERSION: 'platform_latest_app_version',
+  // Versioning par feature (R11, migration 066) : version d'app à partir de
+  // laquelle la feature est disponible. Tout en base, rien sur Fly.
+  DEFAULT_APP_VERSION: 'platform_default_app_version',
+  DELIVERY_NEW_FORMAT_MIN_VERSION: 'delivery_new_format_min_app_version',
+  LEGACY_NO_AUTH_MAX_VERSION: 'legacy_no_auth_max_app_version',
+  WALLET_NETWORKS_MIN_VERSION: 'wallet_networks_min_app_version',
   // Agrégateur de paiement actif (migration 065) : pawapay | digikuntz.
   PAYMENT_AGGREGATOR: 'payment_aggregator',
   // Auth par numéro de téléphone / OTP Bird (migration 046). Une clé par
@@ -149,6 +155,10 @@ const KEY_CATEGORY = {
   [KEYS.MIN_APP_VERSION]: 'deployment',
   [KEYS.LATEST_APP_VERSION]: 'deployment',
   [KEYS.PAYMENT_AGGREGATOR]: 'deployment',
+  [KEYS.DEFAULT_APP_VERSION]: 'deployment',
+  [KEYS.DELIVERY_NEW_FORMAT_MIN_VERSION]: 'deployment',
+  [KEYS.LEGACY_NO_AUTH_MAX_VERSION]: 'deployment',
+  [KEYS.WALLET_NETWORKS_MIN_VERSION]: 'deployment',
   [KEYS.APPLE_REVIEW_MODE]: 'deployment',
   [KEYS.APPLE_VERSION_REVIEW_MODE]: 'deployment',
   // Suppression de boutiques : exploitation, pas tarification ni livraison.
@@ -233,6 +243,11 @@ const FALLBACKS = {
   // couper l'accès à l'app.
   [KEYS.MIN_APP_VERSION]: '0.0.0',
   [KEYS.LATEST_APP_VERSION]: '0.0.0',
+  // Versioning par feature : replis = valeurs historiques (anciennes env).
+  [KEYS.DEFAULT_APP_VERSION]: '1.0.0',
+  [KEYS.DELIVERY_NEW_FORMAT_MIN_VERSION]: '1.0.1',
+  [KEYS.LEGACY_NO_AUTH_MAX_VERSION]: '1.1.0',
+  [KEYS.WALLET_NETWORKS_MIN_VERSION]: '1.1.5',
   // OTP : replis PRUDENTS, dans le sens qui protège la facture Bird. Un
   // cooldown à 0 sur clé absente ouvrirait les renvois en rafale — donc 60 s.
   // L'indicatif tombe sur le Cameroun, seul pays servi aujourd'hui.

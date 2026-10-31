@@ -38,7 +38,7 @@ exports.getfastfoodController = async (req, res) => {
     // `distanceKm` : user (query `lat`/`lng`, sinon dernière position connue)
     // → position de la boutique. Voir services/fastfood/fastfoodDistance.js.
     const fastfoods = await withDistances(paginated ? result.items : result, { userId: req.user?.uid, query: req.query });
-    const data = formatFastfoodsForClient(fastfoods, req);
+    const data = await formatFastfoodsForClient(fastfoods, req);
     const appleReviewMode = await getAppleReviewMode();
 
     // Bannières : uniquement sur la PREMIÈRE page. Les renvoyer à chaque

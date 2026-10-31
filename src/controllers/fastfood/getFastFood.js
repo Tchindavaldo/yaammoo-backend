@@ -7,7 +7,7 @@ exports.getfastfood = async (req, res) => {
     if (!fastFoodId) return res.status(400).json({ success: false, message: 'ID du fastfood requis.' });
 
     const fastfood = await getFastFoodService(fastFoodId);
-    const data = applyDeliveryFormatToFastfood(fastfood, clientSupportsNewDeliveryFormat(req));
+    const data = applyDeliveryFormatToFastfood(fastfood, await clientSupportsNewDeliveryFormat(req));
     return res.status(200).json({ success: true, message: 'fastfood récupérées avec succès.', data });
   } catch (error) {
     console.error('Erreur récupération fastfood :', error);

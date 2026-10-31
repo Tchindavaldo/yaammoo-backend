@@ -16,10 +16,8 @@
 // ⚠️ Aucun SECRET dans ces tables : la clé d'API Bird reste en variable
 // d'environnement (`.env` en local, secrets Fly en production).
 //
-// Les seuils de version d'app (compatibilité ascendante des données) restent en
-// `.env` : ils sont liés au déploiement. Exception : `apple_version_review_mode`,
-// qui n'est pas un seuil de compatibilité mais la désignation ponctuelle de la
-// build soumise à Apple — elle doit basculer sans redéployer.
+// Les versions d'app de référence (repli sans header, seuil de chaque feature,
+// R11) sont aussi en base (`settings_deployment`, migration 066) : rien sur Fly.
 //
 // Cache mémoire court : ces valeurs sont lues à CHAQUE affichage du home. Sans
 // cache, chaque écran coûterait une requête de plus. La contrepartie est qu'une
@@ -73,6 +71,21 @@ async function getSettings() {
     cachedAt = Date.now();
   }
   return cache;
+}
+
+/** Version d'app du client : header `x-app-version`, sinon `platform_default_app_version`. */
+async function clientVersionOf(req) {
+  const s = await getSettings();
+  return resolveClientVersion(req, s[KEYS.DEFAULT_APP_VERSION]);
+}
+
+/**
+ * R11 : vrai si le client a au moins la version stockée sous `key` (version à
+ * partir de laquelle une feature est disponible, `settings_deployment`).
+ */
+async function clientSupportsFeature(req, key) {
+  const s = await getSettings();
+  return compareVersions(resolveClientVersion(req, s[KEYS.DEFAULT_APP_VERSION]), String(s[key])) >= 0;
 }
 
 /** Agrégateur de paiement actif (`settings_deployment.payment_aggregator`). */
@@ -192,7 +205,7 @@ async function isAppleReviewClient(req) {
   const s = await getSettings();
   const reviewVersion = String(requireSetting(s, KEYS.APPLE_VERSION_REVIEW_MODE) || '').trim();
   if (!reviewVersion) return false;
-  return resolveClientVersion(req) === reviewVersion;
+  return resolveClientVersion(req, s[KEYS.DEFAULT_APP_VERSION]) === reviewVersion;
 }
 
 /**
@@ -202,7 +215,7 @@ async function isAppleReviewClient(req) {
  * s'appuie sur cette seule fonction.
  *
  * Égalité stricte sur le header `x-app-version` UNIQUEMENT, sans le repli
- * `FRONTEND_APP_VERSION` de `resolveClientVersion` : un client sans header
+ * `platform_default_app_version` : un client sans header
  * (ancienne app, curl) ne doit jamais être pris pour une build de test.
  * Ancienne forme chaîne acceptée (migration 056 pas encore appliquée).
  *
@@ -274,7 +287,7 @@ async function getAppVersionGate(req) {
   const s = await getSettings();
   const minVersion = String(s[KEYS.MIN_APP_VERSION] || '0.0.0');
   const latestVersion = String(s[KEYS.LATEST_APP_VERSION] || '0.0.0');
-  const clientVersion = resolveClientVersion(req);
+  const clientVersion = resolveClientVersion(req, s[KEYS.DEFAULT_APP_VERSION]);
 
   return {
     clientVersion,
@@ -299,6 +312,8 @@ module.exports = {
   getSettings,
   getPricingSettings,
   getPaymentAggregator,
+  clientVersionOf,
+  clientSupportsFeature,
   getOtpSettings,
   getFastfoodDeletionSettings,
   getAppleReviewMode,

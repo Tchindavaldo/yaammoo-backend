@@ -276,33 +276,29 @@ on l'applique.
 
 ### Ce qu'il FAUT faire (sans exception)
 
-1. **Détecter la version du client** via l'utilitaire GÉNÉRIQUE centralisé
-   `src/utils/appVersion.js` (`resolveClientVersion(req)` /
-   `clientVersionAtLeast(req, minVersion)`). Ne JAMAIS réimplémenter la détection
-   ailleurs, et ne JAMAIS mettre cette logique transverse dans un fichier spécifique
-   à un domaine (ex. `deliveryHoursFormat.js` ne gère QUE les heures de livraison).
-   - Priorité 1 : header `x-app-version` (version réelle du client).
-   - Priorité 2 (fallback si pas de header) : env **`FRONTEND_APP_VERSION`**.
-   - Chaque domaine définit son propre seuil (env dédiée) et une fonction métier
-     fine (ex. `clientSupportsNewDeliveryFormat`) qui s'appuie sur `appVersion.js`.
-2. **Adapter la réponse dans le controller** (qui a accès à `req`), jamais dans le
+1. **Versions en BASE, jamais sur Fly** : toute version de référence vit dans
+   `settings_deployment` (Supabase), modifiable à chaud via `PATCH /settings/:key`.
+   Nouvelle feature versionnée = **nouvelle clé** `<feature>_min_app_version`
+   (version à partir de laquelle la feature est disponible) via une migration,
+   déclarée dans `settings.keys.js` (KEYS, KEY_CATEGORY, FALLBACKS).
+2. **Détecter la version du client** via `settings.service` :
+   `clientSupportsFeature(req, KEYS.<CLE>)` / `clientVersionOf(req)`
+   (primitives pures dans `src/utils/appVersion.js`). Ne JAMAIS réimplémenter.
+   - Priorité 1 : header `x-app-version`.
+   - Priorité 2 (pas de header) : `platform_default_app_version` (base).
+3. **Adapter la réponse dans le controller** (qui a accès à `req`), jamais dans le
    repository/mapper : on garde un seul format en base, on transforme à la sortie.
-3. **Servir l'ancien format aux anciennes apps** et le nouveau aux versions >= seuil.
-   Le seuil est porté par une env dédiée (ex. `APP_DELIVERY_NEW_MIN_VERSION`).
-4. **Documenter** dans `architecture/<feature>.md` les deux formats + le seuil de
-   version + l'env de bascule.
-5. **Au déploiement de la nouvelle version d'app**, basculer `FRONTEND_APP_VERSION`
-   (et tout seuil concerné) côté Fly : `flyctl secrets set FRONTEND_APP_VERSION=x.y.z`.
+4. **Par défaut, servir aux versions sous le seuil** les données qu'elles savent
+   lire (ancien format, ou message clair si la feature leur est impossible).
+5. **Documenter** dans `architecture/<feature>.md` les deux comportements + la clé.
 
 ### Ce qu'il NE faut JAMAIS faire
 
 - ❌ Changer la forme des données renvoyées sans gérer l'ancienne version d'app.
 - ❌ Mettre la logique de version dans le repository ou le mapper.
-- ❌ Hardcoder une version ou un seuil dans le code (toujours via `.env`).
-- ❌ Dupliquer la détection de version : réutiliser l'utilitaire central.
-
-> `FRONTEND_APP_VERSION` est **générique et réutilisable** : tout nouvel endpoint
-> soumis à cette règle s'appuie sur la même variable et le même utilitaire.
+- ❌ Une version ou un seuil en dur dans le code ou en variable d'env Fly :
+  toujours une clé `settings_deployment`.
+- ❌ Redéployer / `flyctl secrets set` pour changer une version.
 
 ### ⚠️ Déploiement Fly — piège connu
 

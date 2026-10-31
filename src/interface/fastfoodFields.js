@@ -41,7 +41,7 @@ exports.FastfoodFields = {
   latitude: { type: 'number', required: false },
   longitude: { type: 'number', required: false },
   // Créneaux de livraison. Deux formats coexistent en base :
-  //   - legacy (app < APP_DELIVERY_NEW_MIN_VERSION) : ["10:00", "14:00"]
+  //   - legacy (app < delivery_new_format_min_app_version (base)) : ["10:00", "14:00"]
   //   - actuel : objets enrichis décrits par `deliveryHourItem` ci-dessous.
   // À l'écriture, `utils/deliveryHoursSanitize.js` ne conserve qu'un créneau
   // ayant au moins un mode (express|periodic) actif ET pourvu de zones valides.
