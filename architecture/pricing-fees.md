@@ -50,7 +50,7 @@ du paiement sont connus (`pending_payments`) : ce sont eux qui servent.
 ## Ce que couvre le prix d'un plat (pawaPay)
 
 ```
-base + frais de retrait kiosque (54 F, ou 1,2 % + 4 au-dessus de 4 200)
+base + frais de retrait kiosque (1,2 % + 4, barème le plus cher des deux réseaux)
   → + dépôt pawaPay (1,75 %) + commission MobileWallet (0,1 %) + réserve de retrait (1,3 %)
   → arrondi au pas (500), inchangé
 ```
@@ -84,7 +84,12 @@ montant <  seuil  →  frais FIXE           (54 F)
 montant >= seuil  →  pourcentage + fixe   (1,2 % + 4 F)
 ```
 
-Valeurs par défaut : `threshold` 4200, `flat` 54, `percent` 1,2, `addend` 4.
+Valeurs en base (vérifiées sur SMS réels, octobre 2026 : 1 % opérateur + taxe
+TTA 0,2 % + 4 F, MTN comme Orange) : `threshold` 0, `percent` 1,2, `addend` 4
+→ toujours 1,2 % + 4 F (`flat` 54 inutilisé). Minimum sous 2 000 F non vérifié.
+
+**Prix affiché (réseau inconnu)** : le barème le PLUS CHER des deux opérateurs
+(`withdrawalFeeOn`, `deliveryPricing.js`), comme les frais de paiement.
 
 > ⚠️ Un jeu de clés PAR opérateur. Mêmes valeurs aujourd'hui, mais un opérateur
 > qui change son barème ne doit pas entraîner l'autre.

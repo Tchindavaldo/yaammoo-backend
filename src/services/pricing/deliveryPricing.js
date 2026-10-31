@@ -272,8 +272,11 @@ function applyExpressZonePricing(deliveryHours, pricing) {
  */
 function withdrawalFeeOn(amount, pricing) {
   if (!pricing?.withdrawalFees) return 0;
-  const { withdrawalFee } = require('./withdrawalFees');
-  return withdrawalFee(amount, pricing.withdrawalFees, pricing.withdrawalOperator);
+  const { withdrawalFee, OPERATORS } = require('./withdrawalFees');
+  if (pricing.withdrawalOperator) return withdrawalFee(amount, pricing.withdrawalFees, pricing.withdrawalOperator);
+  // Réseau inconnu (prix affiché) : barème de retrait le PLUS CHER des réseaux,
+  // comme pour les frais de paiement. L'écart éventuel reste à la plateforme.
+  return Math.max(...OPERATORS.map(op => withdrawalFee(amount, pricing.withdrawalFees, op)));
 }
 
 /**
