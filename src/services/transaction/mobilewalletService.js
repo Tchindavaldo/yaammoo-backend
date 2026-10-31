@@ -118,6 +118,21 @@ exports.pay = async ({ amount, phone, network, email, mode, userId, paymentRef, 
 };
 
 /**
+ * GET /status/:ref — message utilisateur exact du verdict (ex. « solde
+ * insuffisant »). Le webhook MobileWallet ne porte que le statut.
+ * @returns {Promise<string|null>}
+ */
+exports.getStatusMessage = async (transactionRef) => {
+  try {
+    const { data } = await mobilewalletClient.get(`/status/${encodeURIComponent(transactionRef)}`);
+    return data?.message || data?.final_message || null;
+  } catch (error) {
+    log.error(`[MobileWallet API] GET /status/${transactionRef} échoué: ${error.message}`);
+    return null;
+  }
+};
+
+/**
  * POST /payout — initie un RETRAIT (virement sortant). Réponse immédiate
  * `pending`, verdict par webhook + socket (cf. withdrawals.mw_payout_id).
  *
