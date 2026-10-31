@@ -117,7 +117,12 @@ crédite **chaque item** via
 - émet socket `wallet.credited` vers le marchand (room = `userId`), avec `network`
   (`MTN` | `ORANGEMONEY`) — **uniquement** si le crédit compte dans le portefeuille.
 
-> Montant crédité : calcul historique, inchangé par le passage à pawaPay.
+> **Montant crédité** (lu dans `order_settlements`) :
+> `items_real` (plat + extras + boissons) + `withdrawal_fee` + `driver_amount`
+> **si le marchand livre** (régime fastfood ; en régime plateforme la course va
+> au livreur plateforme). Panier : règlement lu via `item.id`. Achat direct :
+> via l'id de la commande créée au verdict (`orderId`). Règlement absent → repli
+> sur le total client, journalisé en erreur.
 
 > **Idempotence** : le verdict global est protégé par `reserveSettlement` (un seul canal
 > traite) → un seul crédit par commande. Échec partiel toléré (logué).

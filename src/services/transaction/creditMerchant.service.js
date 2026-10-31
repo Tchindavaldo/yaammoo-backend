@@ -27,17 +27,22 @@ const { getIO } = require('../../socket');
 const { reliableEmit } = require('../../utils/reliableEmit');
 const { countsInWallet } = require('../../utils/paymentAggregator');
 const { toCanonicalNetwork } = require('../../utils/mobileNetwork');
+const { isPlatformDelivered } = require('../pricing/deliveryPricing');
 
 /**
  * Crée la transaction de crédit marchand pour un item de commande payé.
  * @param {object} params
  * @param {object} params.item  commande complète (fastFoodId, total, id?, menu?)
  * @param {string} params.clientUserId  user qui a payé (pour traçabilité/log)
+ * @param {string|null} [params.orderId] id de la commande en base. Panier :
+ *   `item.id`. Achat direct : id de la commande CRÉÉE au verdict (l'item n'en
+ *   a pas) — sans lui, son règlement est introuvable.
  * @param {object|null} [params.payment] `{ aggregator, network, mwTransactionId }`
  *   du paiement MobileWallet. null = aucun argent encaissé (hors portefeuille).
  */
-exports.creditMerchantForItem = async ({ item, clientUserId, payment = null }) => {
-  const logPrefix = `[creditMerchant] orderId=${item?.id || '∅'} fastFoodId=${item?.fastFoodId}`;
+exports.creditMerchantForItem = async ({ item, clientUserId, payment = null, orderId = null }) => {
+  const resolvedOrderId = item?.id || orderId || null;
+  const logPrefix = `[creditMerchant] orderId=${resolvedOrderId || '∅'} fastFoodId=${item?.fastFoodId}`;
 
   const fastFoodId = item?.fastFoodId;
   const gross = Number(item?.total) || 0;
@@ -54,21 +59,26 @@ exports.creditMerchantForItem = async ({ item, clientUserId, payment = null }) =
     return null;
   }
 
-  // Ce qui revient VRAIMENT au marchand : le règlement fait foi. `item.total`
-  // est le prix CLIENT — il porte la livraison, la marge et les frais, dont
-  // rien ne lui appartient. Le créditer entier gonflerait son portefeuille
-  // d'un argent qui doit partir ailleurs.
+  // Ce qui revient au marchand, lu dans le règlement (`order_settlements`) :
+  //   plat + extras + boissons (`items_real`)
+  //   + frais de retrait (`withdrawal_fee`, sur la commande qui les porte)
+  //   + course (`driver_amount`) SI c'est le marchand qui livre (régime
+  //     fastfood). En régime plateforme, la course va au livreur plateforme
+  //     (`creditDriver`), pas au marchand.
+  // Jamais `item.total` quand le règlement existe : il porte la marge et les
+  // frais de paiement, qui ne lui appartiennent pas.
   let credited = gross;
   try {
-    const settlement = await repos.orderSettlements.getByOrder(item?.id);
+    const settlement = resolvedOrderId ? await repos.orderSettlements.getByOrder(resolvedOrderId) : null;
     if (settlement) {
-      credited = Math.max(0, Number(settlement.itemsReal) || 0);
-      console.info(`${logPrefix} règlement trouvé → crédit=${credited} (total client=${gross})`);
+      const course = isPlatformDelivered(fastfood) ? 0 : Number(settlement.driverAmount) || 0;
+      credited = Math.max(0, (Number(settlement.itemsReal) || 0) + (Number(settlement.withdrawalFee) || 0) + course);
+      console.info(`${logPrefix} règlement → crédit=${credited} (plats=${settlement.itemsReal}, retrait=${settlement.withdrawalFee}, course=${course}, total client=${gross})`);
     } else {
-      console.warn(`${logPrefix} ⚠️ règlement absent → crédit sur le total client (${gross}) — settleDelivery n'a PAS tourné pour cette commande (updateOrders échoué ou commande jamais passée en pending)`);
+      console.error(`${logPrefix} ❌ règlement absent → crédit sur le total client (${gross}) — à corriger à la main`);
     }
   } catch (e) {
-    console.warn(`${logPrefix} ⚠️ règlement non lu (${e.message}) → crédit sur le total client`);
+    console.error(`${logPrefix} ❌ règlement non lu (${e.message}) → crédit sur le total client`);
   }
 
   const menuName = item?.menu?.name || item?.menu?.titre || 'Commande';
@@ -88,7 +98,7 @@ exports.creditMerchantForItem = async ({ item, clientUserId, payment = null }) =
     network,
     mwTransactionId: payment?.mwTransactionId || null,
     fastFoodId,
-    relatedOrderId: item?.id || null,
+    relatedOrderId: resolvedOrderId,
     grossAmount: gross,
     clientUserId: clientUserId || null,
   });
@@ -109,7 +119,7 @@ exports.creditMerchantForItem = async ({ item, clientUserId, payment = null }) =
       network,
       name: tx.name,
       fastFoodId,
-      relatedOrderId: item?.id || null,
+      relatedOrderId: resolvedOrderId,
       createdAt: tx.createdAt, // date de la transaction (pour liste + groupement par jour)
     });
   } catch (e) {

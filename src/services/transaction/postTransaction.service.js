@@ -111,16 +111,18 @@ exports.postTransactionService = async (data, req) => {
           });
         }
       }
+      const createdIdByOrder = new Map();
       for (const order of toCreate) {
         const created = await createOrderService({ ...order, userId });
         const createdId = created?.data?.id || created?.id || '?';
+        if (createdId !== '?') createdIdByOrder.set(order, createdId);
         log.info(`${logPrefix} [panier] + commande créée id=${createdId} fastFoodId=${order?.fastFoodId}`);
       }
       // ⚠️ Aucun argent encaissé : le crédit est tracé SANS agrégateur, donc
       // hors portefeuille (ni affiché ni retirable). Sinon un retrait de test
       // puiserait dans l'argent réel des autres marchands chez MobileWallet.
       for (const item of orders) {
-        await creditMerchantForItem({ item, clientUserId: userId, payment: null }).catch(e => log.error(`${logPrefix} ❌ Crédit marchand échoué: ${e.message}`));
+        await creditMerchantForItem({ item, clientUserId: userId, payment: null, orderId: createdIdByOrder.get(item) || null }).catch(e => log.error(`${logPrefix} ❌ Crédit marchand échoué: ${e.message}`));
       }
 
       const totalAmount = orders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
