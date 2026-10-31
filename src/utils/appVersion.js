@@ -3,7 +3,7 @@
 // ----------------------------------------------------------------------------
 // Les versions de référence (repli sans header, seuil de chaque feature) sont
 // en BASE (`settings_deployment`, migration 066) : voir
-// `settings.service` › `clientVersionOf` / `clientSupportsFeature`.
+// `settings.service` › `clientSupportsFeature`.
 // Voir CLAUDE.md › R11.
 // ============================================================================
 
