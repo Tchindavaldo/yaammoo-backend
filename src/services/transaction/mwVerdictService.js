@@ -6,7 +6,6 @@ const { creditMerchantForItem } = require('./creditMerchant.service');
 const { reliableEmit } = require('../../utils/reliableEmit');
 const { webhookPayoutVerdict } = require('./webhookPayout.service');
 const { AGGREGATORS } = require('../../utils/paymentAggregator');
-const mobilewallet = require('./mobilewalletService');
 
 const log = console;
 
@@ -31,7 +30,7 @@ const log = console;
  */
 exports.mwVerdictService = async (payload, source = 'webhook') => {
   const { data } = payload;
-  const { transaction_id, status, end_user_ref, amount, network } = data;
+  const { transaction_id, status, end_user_ref, amount, network, message } = data;
 
   const logPrefix = `[Verdict MobileWallet:${source}] tx=${transaction_id}`;
 
@@ -92,11 +91,9 @@ exports.mwVerdictService = async (payload, source = 'webhook') => {
     // → socket.join(userId)). Tout le reste du code émet aussi vers io.to(userId).
     // On garde la même convention ici, sinon le client ne reçoit jamais le verdict.
     log.info(`${logPrefix} → Émission socket payment.settled vers ${userId}`);
-    // Échec/annulation : message exact de MobileWallet (raison opérateur).
-    const message = status === 'successful' ? null : await mobilewallet.getStatusMessage(transaction_id);
     await reliableEmit(io, userId, 'payment.settled', {
       status,
-      message,
+      message: message || null, // message exact MobileWallet (ex. solde insuffisant)
       transaction_id,
       amount,
       source,

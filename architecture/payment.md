@@ -243,7 +243,7 @@ reconnexion auto) écoute `transaction.update`, normalise le payload, puis appel
 ```js
 socket.on('payment.settled', data => {
   if (data.status === 'successful') navigate('/orders');
-  else showError('Paiement échoué');
+  else showError(data.message || 'Paiement échoué'); // message exact MW (webhook)
 });
 ```
 
