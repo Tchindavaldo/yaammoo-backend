@@ -1,5 +1,4 @@
 const { getFastFoodService } = require('../../services/fastfood/getFastFood');
-const { applyDeliveryFormatToFastfood, clientSupportsNewDeliveryFormat } = require('../../utils/deliveryHoursFormat');
 
 exports.getfastfood = async (req, res) => {
   try {
@@ -7,7 +6,7 @@ exports.getfastfood = async (req, res) => {
     if (!fastFoodId) return res.status(400).json({ success: false, message: 'ID du fastfood requis.' });
 
     const fastfood = await getFastFoodService(fastFoodId);
-    const data = applyDeliveryFormatToFastfood(fastfood, await clientSupportsNewDeliveryFormat(req));
+    const data = fastfood;
     return res.status(200).json({ success: true, message: 'fastfood récupérées avec succès.', data });
   } catch (error) {
     console.error('Erreur récupération fastfood :', error);

@@ -291,6 +291,13 @@ on l'applique.
 4. **Par défaut, servir aux versions sous le seuil** les données qu'elles savent
    lire (ancien format, ou message clair si la feature leur est impossible).
 5. **Documenter** dans `architecture/<feature>.md` les deux comportements + la clé.
+6. **Nettoyer le versioning périmé (OBLIGATOIRE)** : dès qu'on travaille sur un
+   fichier ou qu'on le contrôle, si une feature y est versionnée et que
+   `platform_min_app_version` (base) est déjà >= sa version, toutes les apps
+   encore acceptées la gèrent (les autres sont forcées de mettre à jour). On
+   SUPPRIME alors entièrement ce versioning : la branche « ancienne app », la
+   clé `settings_*` correspondante et sa doc ; seul le code de la dernière
+   version reste.
 
 ### Ce qu'il NE faut JAMAIS faire
 

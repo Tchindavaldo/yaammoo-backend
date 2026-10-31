@@ -289,26 +289,10 @@ Frontend → confirmation ✅
 
 ---
 
-## Compatibilité versions app — `deliveryHours`
+## `deliveryHours` — format unique
 
-Deux formats coexistent en base (`delivery_hours` JSON) :
-
-- **legacy (app 1.0.0)** : `["10:00", "14:00"]` (tableau de strings)
-- **new (app 1.0.1+)** : `[{ hour: "13:06", express, periodic, expressZones, periodicZones }]` (objets enrichis)
-
-L'app 1.0.0 plante (`hour.split is not a function`) si on lui sert des objets.
-Le backend **downgrade** donc vers le format legacy selon le client appelant.
-
-**Détection de la version** — `settings.service.clientSupportsFeature(req,
-KEYS.DELIVERY_NEW_FORMAT_MIN_VERSION)` (R11) :
-
-1. Header `x-app-version` (prioritaire) — version réelle du client.
-2. Repli `platform_default_app_version` (base, `1.0.0`) si aucun header.
-
-Comparée à `delivery_new_format_min_app_version` (base, `settings_deployment`,
-`1.0.1`) : en dessous → format legacy (strings) ; sinon → objets.
-
-**Appliqué dans** : `getFastFoods` (liste home) et `getFastFood` (détail).
+Servi tel quel (objets enrichis). L'ancien downgrade vers `["HH:mm"]` pour
+l'app 1.0.0 a été retiré (R11 : `platform_min_app_version` = 1.1.4 > 1.0.1).
 
 ---
 

@@ -1,7 +1,6 @@
 const { getFastFoodsService } = require('../../services/fastfood/getFastFoods');
 const { getActiveBanners } = require('../../services/banners/banners.service');
 const { withBannerThumbnail } = require('../../services/images/thumbnailUrl');
-const { formatFastfoodsForClient } = require('../../utils/deliveryHoursFormat');
 const { getAppleReviewMode, isTestClient, getTestFastfoodVolume, getTestVolumeImageUrl, getClientSettings } = require('../../services/settings/settings.service');
 const { getVolumeTestPage } = require('../../services/fastfood/volumeTestFastFoods');
 const { withDistances } = require('../../services/fastfood/fastfoodDistance');
@@ -38,7 +37,7 @@ exports.getfastfoodController = async (req, res) => {
     // `distanceKm` : user (query `lat`/`lng`, sinon dernière position connue)
     // → position de la boutique. Voir services/fastfood/fastfoodDistance.js.
     const fastfoods = await withDistances(paginated ? result.items : result, { userId: req.user?.uid, query: req.query });
-    const data = await formatFastfoodsForClient(fastfoods, req);
+    const data = fastfoods;
     const appleReviewMode = await getAppleReviewMode();
 
     // Bannières : uniquement sur la PREMIÈRE page. Les renvoyer à chaque

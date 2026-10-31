@@ -1,27 +1,12 @@
 // src/middlewares/firebaseAuth.js
 const { admin } = require('../config/firebase');
-const { compareVersions } = require('../utils/appVersion');
-const { isNoAuthToleratedClient, clientVersionOf, getSettings, KEYS } = require('../services/settings/settings.service');
-
-/**
- * Compatibilite R11 : `/order`, `/menu` et `/support` etaient publiques avant la
- * gestion des employes. Les apps <= `legacy_no_auth_max_app_version` (base) n'y envoient pas
- * de Bearer : sans jeton, on les laisse passer comme avant (`req.legacyNoAuth`,
- * lu par `authorize`). Les autres routes protegees l'etaient deja : ces apps y
- * envoient leur jeton. A retirer quand ces versions ont disparu.
- */
-const LEGACY_OPEN_ROUTES = ['/order', '/menu', '/support'];
+const { isNoAuthToleratedClient } = require('../services/settings/settings.service');
 
 module.exports = async (req, res, next) => {
   const authHeader = req.headers.authorization;
 
-  if (!authHeader && LEGACY_OPEN_ROUTES.includes(req.baseUrl) && compareVersions(await clientVersionOf(req), (await getSettings())[KEYS.LEGACY_NO_AUTH_MAX_VERSION]) <= 0) {
-    req.legacyNoAuth = true;
-    return next();
-  }
-
   // Versions listées dans `test_no_auth_versions` (settings_test) : tolérées
-  // sans jeton, comme les anciennes apps ci-dessus (`authorize` ne contrôle rien).
+  // sans jeton (`req.legacyNoAuth` : `authorize` ne contrôle rien).
   // ⚠️ Le header se falsifie : vider ce tableau dès que possible.
   if (!authHeader && (await isNoAuthToleratedClient(req))) {
     req.legacyNoAuth = true;

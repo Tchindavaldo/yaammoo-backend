@@ -303,7 +303,7 @@ const options = {
             cities: { type: 'array', items: { type: 'string' } },
             deliveryHours: {
               type: 'array',
-              description: 'Créneaux de livraison avec zones et prix. Deux formats coexistent selon la version du client ' + '(cf. utils/deliveryHoursFormat.js) : legacy = tableau de "HH:mm", actuel = tableau d\'objets.',
+              description: 'Créneaux de livraison avec zones et prix (tableau d\'objets).',
               items: { $ref: '#/components/schemas/DeliveryHour' },
             },
             driverRatingAvg: { type: 'number' },

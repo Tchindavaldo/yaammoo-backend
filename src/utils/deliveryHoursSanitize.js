@@ -33,7 +33,7 @@ const hasUsableMode = hour => (hour.express === true && keepValidZones(hour.expr
  * Nettoie un tableau `deliveryHours` reçu du client.
  *
  * - Format legacy (strings "HH:mm") : laissé intact, il ne porte aucune zone et
- *   reste servi tel quel aux anciennes apps (cf. `deliveryHoursFormat.js`).
+ *   reste servi tel quel.
  * - Format enrichi (objets) : les créneaux sans mode exploitable sont retirés,
  *   et les zones invalides sont purgées des créneaux conservés.
  *

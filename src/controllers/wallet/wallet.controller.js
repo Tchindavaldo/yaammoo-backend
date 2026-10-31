@@ -11,8 +11,8 @@ const { quoteWithdrawal } = require('../../services/wallet/withdrawQuote.service
 const { predictOperator } = require('../../services/transaction/mobilewalletService');
 const { validateWithdrawalQuote } = require('../../utils/validator/validateWithdrawal');
 const { resolvePeriod } = require('../../utils/period');
-const { outdatedWithdrawResponse } = require('../../utils/walletAppVersion');
-const { getAppVersionGate, clientSupportsFeature, getSettings, KEYS } = require('../../services/settings/settings.service');
+const { OUTDATED_WITHDRAW_RESPONSE } = require('../../utils/walletAppVersion');
+const { getAppVersionGate } = require('../../services/settings/settings.service');
 
 /** GET /wallet/balance — solde du marchand authentifié. */
 exports.getBalanceController = async (req, res) => {
@@ -95,11 +95,12 @@ exports.withdrawController = async (req, res) => {
     console.info(`[Wallet] POST /withdraw → userId=${userId}, amount=${amount}, source=${sourceNetwork}, network=${network}, phone=${phone}`);
 
     // R11 : une app antérieure aux deux soldes n'envoie pas `sourceNetwork`.
-    // Pas de solde deviné. Seuil en base : `wallet_networks_min_app_version`.
-    if (!(await clientSupportsFeature(req, KEYS.WALLET_NETWORKS_MIN_VERSION))) {
-      const [{ clientVersion, latestVersion }, s] = await Promise.all([getAppVersionGate(req), getSettings()]);
-      const outdated = outdatedWithdrawResponse(latestVersion, s[KEYS.WALLET_NETWORKS_MIN_VERSION]);
-      console.warn(`[Wallet] POST /withdraw ✗ userId=${userId} → app ${clientVersion} trop ancienne (${outdated.code})`);
+    // Pas de solde deviné. Référence : version ACTUELLE en base
+    // (`platform_latest_app_version`) ; toute version antérieure est bloquée.
+    const { clientVersion, latestVersion, updateAvailable } = await getAppVersionGate(req);
+    if (updateAvailable) {
+      const outdated = OUTDATED_WITHDRAW_RESPONSE;
+      console.warn(`[Wallet] POST /withdraw ✗ userId=${userId} → app ${clientVersion} < ${latestVersion} (${outdated.code})`);
       return res.status(outdated.httpStatus).json(outdated);
     }
 

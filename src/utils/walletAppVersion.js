@@ -1,26 +1,16 @@
 // ============================================================================
-// walletAppVersion — Compatibilité ascendante du portefeuille (retraits)
+// walletAppVersion — Retrait refusé aux versions antérieures (R11)
 // ----------------------------------------------------------------------------
-// Depuis le passage à pawaPay, un retrait exige le solde débité
-// (`sourceNetwork`, MTN | Orange). Les apps antérieures ne l'envoient pas : on
-// ne devine pas le solde à leur place, on leur répond un message clair.
-//
-// Seuil en BASE : `wallet_networks_min_app_version` (settings_deployment,
-// migration 066). Message :
-//   - version publiée (`platform_latest_app_version` >= seuil) → mettre à jour ;
-//   - pas encore publiée → le retrait arrive avec la prochaine mise à jour.
+// Un retrait exige le solde débité (`sourceNetwork`, MTN | Orange). Référence :
+// la version ACTUELLE en base, `platform_latest_app_version` (via
+// `settings.getAppVersionGate`). Toute version antérieure reçoit ce message.
 // ============================================================================
-const { compareVersions } = require('./appVersion');
 
-/** Réponse 426 servie à une app sous le seuil. */
-const outdatedWithdrawResponse = (latestVersion, minVersion) => {
-  const updatePublished = compareVersions(latestVersion || '0.0.0', minVersion) >= 0;
-  return {
-    success: false,
-    httpStatus: 426,
-    code: updatePublished ? 'app_update_required' : 'app_update_coming',
-    message: updatePublished ? 'Mettez à jour l’application pour effectuer un retrait.' : 'Le retrait sera disponible avec la prochaine mise à jour de l’application.',
-  };
-};
+const OUTDATED_WITHDRAW_RESPONSE = Object.freeze({
+  success: false,
+  httpStatus: 426,
+  code: 'app_update_required',
+  message: 'Mettez à jour l’application pour effectuer un retrait.',
+});
 
-module.exports = { outdatedWithdrawResponse };
+module.exports = { OUTDATED_WITHDRAW_RESPONSE };

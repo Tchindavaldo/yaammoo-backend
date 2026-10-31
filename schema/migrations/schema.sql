@@ -779,9 +779,6 @@ ON CONFLICT (key) DO NOTHING;
 
 INSERT INTO settings_deployment (key, value, description) VALUES
   ('platform_default_app_version',        '"1.0.0"'::jsonb, 'Version supposee quand la requete n''envoie pas le header x-app-version.'),
-  ('delivery_new_format_min_app_version', '"1.0.1"'::jsonb, 'Version a partir de laquelle deliveryHours est servi en objets enrichis.'),
-  ('legacy_no_auth_max_app_version',      '"1.1.0"'::jsonb, 'Versions <= : /order, /menu, /support toleres sans jeton.'),
-  ('wallet_networks_min_app_version',     '"1.1.5"'::jsonb, 'Version a partir de laquelle le retrait gere les soldes MTN / Orange. En dessous : 426.'),
   ('payment_aggregator', '"pawapay"'::jsonb, 'Agregateur envoye a MobileWallet sur /pay et /payout, et bareme de frais du prix affiche. Valeurs : pawapay | digikuntz.')
 ON CONFLICT (key) DO NOTHING;
 
