@@ -239,9 +239,12 @@ exports.postTransactionService = async (data, req) => {
         throw error;
       }
 
-      // MobileWallet renvoie maintenant un vrai flag `success`.
-      // Init OK = success:true + status:'ussd_sent'. Sinon c'est une erreur.
-      if (!mwResult.success || mwResult.status === 'error') {
+      // Init OK = status 'ussd_sent', QUEL QUE SOIT `success` : avec pawaPay,
+      // MobileWallet renvoie success=false tant que le paiement n'est pas réglé
+      // (DigiKUNTZ renvoyait true). Se fier à `success` annulait le paiement en
+      // cours et affichait la demande de validation en toast d'erreur.
+      const initOk = mwResult.status === 'ussd_sent';
+      if (!initOk) {
         log.warn(`${logPrefix} MobileWallet erreur: success=${mwResult.success}, code=${mwResult.code}, message=${mwResult.message}`);
         // Refus EXPLICITE de MobileWallet → aucun paiement ne sera traité → cancel.
         await repos.pendingPayments.markSettled(paymentRef, 'cancelled').catch(e => log.error(`${logPrefix} ❌ markSettled(cancelled) échoué: ${e.message}`));
@@ -269,7 +272,7 @@ exports.postTransactionService = async (data, req) => {
       // si la demande de PIN n'arrive pas (ex. *126#). `payment_number` n'existe
       // plus côté MobileWallet.
       return {
-        success: mwResult.success, // true
+        success: true, // init OK (cf. initOk)
         status: mwResult.status, // 'ussd_sent'
         message: mwResult.message, // "Composez #150*50# ..."
         transaction_id: mw_transaction_id, // "IN960#260613155908"
