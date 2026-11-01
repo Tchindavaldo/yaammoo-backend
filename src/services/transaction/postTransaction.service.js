@@ -7,6 +7,7 @@ const { validateTransactionCreation } = require('../../utils/validator/validateT
 const { validateExpressDelivery } = require('../../utils/validator/validateExpressDelivery');
 const { validatePaymentAmount } = require('../../utils/validator/validatePaymentAmount');
 const mobilewalletService = require('./mobilewalletService');
+const { toPayNetwork } = require('../../utils/mobileNetwork');
 const { generateId } = require('../../repositories/idGen');
 const { createOrderService } = require('../order/createOrder');
 const { updateOrders } = require('../order/updateOrders.service');
@@ -144,7 +145,15 @@ exports.postTransactionService = async (data, req) => {
     // Appel MobileWallet si payBy === 'mobilemoney'
     // =========================================================================
     if (payBy === 'mobilemoney') {
-      const networkName = network || 'Orangemoney';
+      // Le réseau réel vient de MobileWallet (/operators/predict sur le numéro) :
+      // le choix de l'utilisateur peut être faux. Repli sur son choix si la
+      // détection échoue ou ne reconnaît pas le numéro.
+      const predicted = await mobilewalletService.predictOperator({ phone }).catch(() => null);
+      const predictedNetwork = predicted?.success ? toPayNetwork(predicted.network) : null;
+      if (predictedNetwork && toPayNetwork(network) !== predictedNetwork) {
+        log.warn(`${logPrefix} Réseau corrigé par predict : choisi=${network} → réel=${predictedNetwork}`);
+      }
+      const networkName = predictedNetwork || network || 'Orangemoney';
       const callPayloadLog = {
         amount,
         phone,
@@ -202,7 +211,7 @@ exports.postTransactionService = async (data, req) => {
           items, // tableau de commandes complètes (chacune avec son fastFoodId)
           amount,
           phone,
-          network: network || 'Orangemoney',
+          network: networkName,
           email,
           aggregator,
         });

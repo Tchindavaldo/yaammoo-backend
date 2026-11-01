@@ -414,3 +414,11 @@ Réponse type renvoyée au frontend pour un `retry_too_soon` (HTTP 409) :
       traité » même si aucune commande n'a été créée. Vérifier le statut réel avant skip.
 - [ ] Aligner la sémantique « stock null = illimité » entre `updateOrders` (via `getById`,
       null→0) et `create_order_with_stock_check` (SQL, null = illimité).
+
+## Réseau réel du paiement (`/operators/predict`)
+
+Avant `/pay`, `postTransactionService` interroge MobileWallet `POST /operators/predict`
+sur le numéro saisi. Le réseau détecté remplace celui choisi par l'utilisateur
+(log `Réseau corrigé par predict` en cas d'écart), pour `/pay`, `pendingPayments`
+et donc les frais et le solde par réseau. Si la détection échoue ou ne reconnaît
+pas le numéro : repli sur le réseau choisi.
