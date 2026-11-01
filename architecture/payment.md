@@ -148,7 +148,7 @@ MobileWallet retombe sur DigiKUNTZ — c'est pourquoi les retraits étaient refu
 (`422 source_network_required`) et les paiements partaient chez DigiKUNTZ.
 L'agrégateur est **figé à l'initiation** dans `pending_payments.aggregator` :
 le verdict, le règlement et le crédit marchand relisent celui-ci.
-`/pay` envoie aussi `description: "Achat Yaammoo"` (libellé affiché dans la
+`/pay` envoie aussi `description: "Fastfood chez yaammoo"` (libellé affiché dans la
 demande USSD/PIN).
 
 > ⚠️ MobileWallet renvoie `success=false` même quand l'init est OK. Le backend **ignore le

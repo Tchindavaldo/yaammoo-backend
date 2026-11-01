@@ -24,7 +24,7 @@ const MOBILEWALLET_URL = process.env.MOBILEWALLET_URL || 'http://localhost:7332'
 const MOBILEWALLET_YAAMMOO_KEY = process.env.MOBILEWALLET_YAAMMOO_KEY;
 
 // Libellé affiché au payeur dans la demande USSD/PIN (4 à 22 caractères).
-const PAY_DESCRIPTION = 'Achat Yaammoo';
+const PAY_DESCRIPTION = 'Fastfood chez yaammoo';
 
 if (!MOBILEWALLET_YAAMMOO_KEY) {
   log.warn('⚠️ MOBILEWALLET_YAAMMOO_KEY non configurée. Les paiements Mobile Money échoueront.');
