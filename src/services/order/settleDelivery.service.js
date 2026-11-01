@@ -130,44 +130,10 @@ exports.settleDeliveryService = async ({ orders, bonusCode, payment = null }) =>
     const groupIdByKey = {};
     const billedKeys = new Set();
 
-    // ── Frais de retrait : UNE ponction par BOUTIQUE, pas par commande ──────
-    // Le prix affiché porte le frais sur CHAQUE plat — au moment où il est
-    // composé, sur le home, le panier n'existe pas encore. Mais l'argent d'une
-    // même boutique sort en UNE fois : facturer N forfaits pour un seul retrait
-    // ferait payer au client des frais qui n'existeront jamais.
-    //
-    // On calcule donc le frais réel sur le total encaissé par boutique, et on
-    // le porte sur UNE commande — celle qui porte déjà la course quand il y en
-    // a une. Les autres valent 0. L'écart avec ce qui a été facturé revient à
-    // la plateforme, exactement comme l'écart de zone.
-    //
-    // ⚠️ Groupé par `fastFoodId` SEUL, pas par `deliveryGroupKey` : le retrait
-    // ne dépend ni de la zone, ni du créneau, ni du mode de livraison — c'est
-    // le portefeuille de la boutique qui se vide, tous départs confondus.
-    // Clé : `groupId + fastFoodId`. Un panier chez DEUX boutiques n'a qu'un
-    // `groupId` mais vide DEUX portefeuilles — donc deux ponctions.
-    const withdrawalKeyOf = order => `${order?.groupId ?? order?.id}|${order?.fastFoodId ?? ''}`;
-
-    const netByKey = {};
-    const orderByKey = {};
-    for (const order of list) {
-      if (!order?.fastFoodId) continue;
-      const key = withdrawalKeyOf(order);
-      const charged = toNumber(order.total);
-      netByKey[key] = (netByKey[key] || 0) + (charged - paymentFee_(charged, pricing, payment));
-      if (orderByKey[key] === undefined) orderByKey[key] = order;
-    }
-    const withdrawalByKey = {};
-    // Qui porte le frais : la première commande rencontrée du groupe.
-    const withdrawalHolder = {};
-    // Id STOCKÉ, comme `deliveryGroupId` — la clé composée ne sort jamais.
-    const withdrawalGroupIdByKey = {};
-    for (const [key, net] of Object.entries(netByKey)) {
-      withdrawalByKey[key] = withdrawalFee_(net, pricing, orderByKey[key], payment);
-      withdrawalHolder[key] = orderByKey[key].id;
-      withdrawalGroupIdByKey[key] = generateId();
-    }
-
+    // ── Pré-calcul par commande (course, offre, marge, prix réels) ──────────
+    // Fait AVANT les frais de retrait : ceux-ci portent sur ce que la boutique
+    // REÇOIT (plats réels + course qu'elle livre), qu'il faut donc connaître.
+    const prepById = new Map();
     for (const order of list) {
       // ⚠️ Une commande à emporter est réglée AUSSI : le user a bien payé le
       // supplément livraison (fondu dans le prix du plat depuis le home). Sans
@@ -209,6 +175,55 @@ exports.settleDeliveryService = async ({ orders, bonusCode, payment = null }) =>
         delivered,
         freeReason: orderOffer?.reason ?? null,
       });
+      const platformDelivered = isPlatformDelivered(fastfood);
+      const itemsReal = rawItemsOf(order);
+      prepById.set(order.id, { delivered, ffId, groupKey, fastfood, orderOffer, marginPerItem, amounts, platformDelivered, itemsReal });
+    }
+
+    // ── Frais de retrait : UNE ponction par BOUTIQUE, pas par commande ──────
+    // Le prix affiché porte le frais sur CHAQUE plat — au moment où il est
+    // composé, sur le home, le panier n'existe pas encore. Mais l'argent d'une
+    // même boutique sort en UNE fois : facturer N forfaits pour un seul retrait
+    // ferait payer au client des frais qui n'existeront jamais.
+    //
+    // On calcule donc le frais réel sur ce que la boutique reçoit, et on
+    // le porte sur UNE commande — celle qui porte déjà la course quand il y en
+    // a une. Les autres valent 0. L'écart avec ce qui a été facturé revient à
+    // la plateforme, exactement comme l'écart de zone.
+    //
+    // ⚠️ Groupé par `fastFoodId` SEUL, pas par `deliveryGroupKey` : le retrait
+    // ne dépend ni de la zone, ni du créneau, ni du mode de livraison — c'est
+    // le portefeuille de la boutique qui se vide, tous départs confondus.
+    // Clé : `groupId + fastFoodId`. Un panier chez DEUX boutiques n'a qu'un
+    // `groupId` mais vide DEUX portefeuilles — donc deux ponctions.
+    const withdrawalKeyOf = order => `${order?.groupId ?? order?.id}|${order?.fastFoodId ?? ''}`;
+
+    const netByKey = {};
+    const orderByKey = {};
+    for (const order of list) {
+      if (!order?.fastFoodId) continue;
+      const key = withdrawalKeyOf(order);
+      // Base = ce que la boutique RETIRERA : plats aux prix réels + course
+      // qu'elle livre (régime fastfood). Jamais le net encaissé, qui contient
+      // encore la marge et l'arrondi plateforme.
+      const p = prepById.get(order.id);
+      const courseToShop = !p.platformDelivered && p.amounts.courseBilled ? toNumber(p.amounts.realPrice) : 0;
+      netByKey[key] = (netByKey[key] || 0) + p.itemsReal + courseToShop;
+      if (orderByKey[key] === undefined) orderByKey[key] = order;
+    }
+    const withdrawalByKey = {};
+    // Qui porte le frais : la première commande rencontrée du groupe.
+    const withdrawalHolder = {};
+    // Id STOCKÉ, comme `deliveryGroupId` — la clé composée ne sort jamais.
+    const withdrawalGroupIdByKey = {};
+    for (const [key, net] of Object.entries(netByKey)) {
+      withdrawalByKey[key] = withdrawalFee_(net, pricing, orderByKey[key], payment);
+      withdrawalHolder[key] = orderByKey[key].id;
+      withdrawalGroupIdByKey[key] = generateId();
+    }
+
+    for (const order of list) {
+      const { delivered, ffId, groupKey, orderOffer, marginPerItem, amounts, platformDelivered, itemsReal } = prepById.get(order.id);
 
       // `order.total` est déjà TTC : les frais y sont inclus, on les EXTRAIT.
       // On redescend la cascade dans l'ordre inverse de sa composition —
@@ -216,7 +231,7 @@ exports.settleDeliveryService = async ({ orders, bonusCode, payment = null }) =>
       const itemsCharged = toNumber(order.total);
       const paymentFee = paymentFee_(itemsCharged, pricing, payment);
       const afterPaymentFee = itemsCharged - paymentFee;
-      // Le retrait porte sur ce qui reste APRÈS la commission — et il est dû
+      // Le retrait (calculé sur ce que reçoit la boutique) est dû
       // UNE fois pour toute la boutique, pas une fois par commande.
       const withdrawalKey = withdrawalKeyOf(order);
       const holdsWithdrawal = withdrawalHolder[withdrawalKey] === order.id;
@@ -236,8 +251,6 @@ exports.settleDeliveryService = async ({ orders, bonusCode, payment = null }) =>
       // commission de l'agrégateur porte dessus aussi. Cette part de commission
       // n'appartient pas au marchand : elle revient à la MARGE, seule variable
       // d'ajustement. En résidu, le marchand la payait — 2000 devenait 1987.
-      const platformDelivered = isPlatformDelivered(fastfood);
-      const itemsReal = rawItemsOf(order);
 
       // Ce qui reste au livreur : le résidu de la cascade. Il porte l'arrondi
       // (à la baisse comme à la hausse) dans la limite fixée par

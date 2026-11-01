@@ -77,10 +77,14 @@ const isCredit = type => type === 'merchant_credit' || type === 'driver_credit';
 exports.getMerchantBalance = async userId => {
   // `driver_credit` compte comme un gain : le portefeuille d'un livreur suit la
   // même mécanique que celui d'un marchand (crédits − retraits).
-  const { data, error } = await supabase.from(TABLE).select('type, amount, network').eq('user_id', userId).in('type', WALLET_TYPES).in('aggregator', WALLET_AGGREGATORS);
+  const { data, error } = await supabase.from(TABLE).select('type, amount, network, extra_data').eq('user_id', userId).in('type', WALLET_TYPES).in('aggregator', WALLET_AGGREGATORS);
   if (error) throw error;
 
   const byNetwork = { mtn: 0, orange: 0 };
+  // Découpage de chaque solde : commandes (plats + courses) / réserve de frais
+  // de retrait kiosque. Crédit : `extra_data.kioskFee` va aux frais. Retrait :
+  // `extra_data.feesDebit` sort des frais, le reste des commandes.
+  const parts = { mtn: { orders: 0, fees: 0 }, orange: { orders: 0, fees: 0 } };
   let totalEarned = 0;
   let totalWithdrawn = 0;
   for (const row of data || []) {
@@ -90,15 +94,26 @@ exports.getMerchantBalance = async userId => {
       console.error(`[transactions.repo] ⚠️ ligne wallet sans réseau (userId=${userId}, type=${row.type}, amount=${amt}) → ignorée du solde`);
       continue;
     }
+    const extra = row.extra_data || {};
     if (isCredit(row.type)) {
       totalEarned += amt;
       byNetwork[key] += amt;
+      const fees = Math.min(amt, Math.max(0, Number(extra.kioskFee) || 0));
+      parts[key].fees += fees;
+      parts[key].orders += amt - fees;
     } else {
       totalWithdrawn += amt;
       byNetwork[key] -= amt;
+      const fees = Math.min(amt, Math.max(0, Number(extra.feesDebit) || 0));
+      parts[key].fees -= fees;
+      parts[key].orders -= amt - fees;
     }
   }
-  return { balance: byNetwork.mtn + byNetwork.orange, totalEarned, totalWithdrawn, mtn: byNetwork.mtn, orange: byNetwork.orange };
+  const breakdown = {
+    mtn: { orders: parts.mtn.orders, fees: parts.mtn.fees, total: byNetwork.mtn },
+    orange: { orders: parts.orange.orders, fees: parts.orange.fees, total: byNetwork.orange },
+  };
+  return { balance: byNetwork.mtn + byNetwork.orange, totalEarned, totalWithdrawn, mtn: byNetwork.mtn, orange: byNetwork.orange, breakdown };
 };
 
 // payin  = gain marchand (merchant_credit) ; payout = retrait (withdrawal)
@@ -166,12 +181,13 @@ exports.getMerchantStats = async (userId, { groupBy = 'day', from, to } = {}) =>
   const series = [...buckets.values()].sort((a, b) => (a.period < b.period ? 1 : -1));
 
   // Solde actuel = tout l'historique (pas seulement la période demandée)
-  const { balance, mtn, orange } = await exports.getMerchantBalance(userId);
+  const { balance, mtn, orange, breakdown } = await exports.getMerchantBalance(userId);
 
   return {
     groupBy,
     balance, // montant total actuel disponible du marchand (tout l'historique)
     balances: { mtn, orange }, // les deux soldes (ajout R11, purement additif)
+    breakdown, // { mtn|orange: { orders, fees, total } } (ajout additif)
     totals: { payin: totalPayin, payout: totalPayout, net: totalPayin - totalPayout },
     series, // un bucket par jour/semaine/mois : { period, payin, payout, net, count }
   };

@@ -60,6 +60,18 @@ solde[réseau] = Σ(crédits sur ce réseau) − Σ(retraits débités de ce ré
 balance       = mtn + orange
 ```
 
+**Découpage de chaque solde** (`breakdown`, ajout additif R11 de `GET /wallet/balance`) :
+
+```
+breakdown[réseau] = { orders, fees, total }     total = orders + fees = solde[réseau]
+crédit  : extra_data.kioskFee → fees, le reste → orders
+retrait : extra_data.feesDebit → sort de fees, le reste → sort de orders
+```
+
+`kioskFee` = frais de retrait kiosque du règlement (`order_settlements.withdrawal_fee`).
+Au retrait, les frais (kiosque + interréseau) sont pris d'abord sur `fees` ; si la
+réserve ne suffit plus, le manque sort de `orders`.
+
 Table `withdrawals` (migrations `004_withdrawals.sql`, `064`) — trace les demandes de retrait :
 `id, user_id, fastfood_id, amount (reçu), phone, network (réception), source_network
 (solde débité), fee (interréseau), aggregator, status (pending|completed|failed),
@@ -187,6 +199,12 @@ Repo : [withdrawals.repo.js](../src/repositories/supabase/withdrawals.repo.js) �
 Validateur : [validateWithdrawal.js](../src/utils/validator/validateWithdrawal.js).
 
 ### Frais d'un retrait
+
+`amount` = **espèces voulues** (touchées chez l'agent). On **envoie** au téléphone
+`sentAmount = amount + kioskFee` (1,2 % + 4 du réseau de réception, migration 066
+`withdrawals.kiosk_fee` ; `withdrawals.amount` = montant envoyé). Débité du solde
+source : `totalDebited = sentAmount + fee` (frais interréseau calculés sur `sentAmount`).
+
 
 L'utilisateur choisit **le solde débité** (`sourceNetwork`) ET **le numéro de
 réception** (réseau `network`, détecté à la saisie via `POST /wallet/operator/predict`).

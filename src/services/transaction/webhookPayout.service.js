@@ -13,6 +13,7 @@
 // seul canal (webhook OU socket) traite le verdict.
 // ============================================================================
 
+const { toBalanceKey } = require('../../utils/mobileNetwork');
 const repos = require('../../repositories');
 const { getIO } = require('../../socket');
 const { reliableEmit } = require('../../utils/reliableEmit');
@@ -42,6 +43,14 @@ exports.webhookPayoutVerdict = async (withdrawal, data, source) => {
   const fee = Number(withdrawal.fee) || 0;
 
   if (status === 'successful') {
+    // Découpage du débit : frais (kiosque + interréseau) pris d'abord sur la
+    // réserve « frais » du solde source, le manque sur la part « commandes ».
+    const kioskFee = Number(withdrawal.kioskFee) || 0;
+    const before = await repos.transactions.getMerchantBalance(userId);
+    const srcKey = toBalanceKey(withdrawal.sourceNetwork);
+    const feesAvailable = Math.max(0, Number(before?.breakdown?.[srcKey]?.fees) || 0);
+    const feesDebit = Math.min(feesAvailable, kioskFee + fee);
+
     // Débit réel : créer la transaction 'withdrawal' (impacte le solde dérivé).
     // Elle porte le SOLDE débité (`network` = source), pas le réseau de
     // réception : c'est ce solde-là qui baisse.
@@ -60,22 +69,29 @@ exports.webhookPayoutVerdict = async (withdrawal, data, source) => {
       receivedAmount: amt,
       fee,
       receiverNetwork: withdrawal.network,
+      // extra_data : espèces nettes, frais kiosque, part prise sur la réserve.
+      cashAmount: amt - kioskFee,
+      kioskFee,
+      feesDebit,
     });
     await repos.withdrawals.updateStatus(withdrawal.id, { status: 'completed' });
     log.info(`${logPrefix} ✓ Retrait confirmé → débit ${amt + fee} (dont frais ${fee}) sur ${withdrawal.sourceNetwork}`);
 
-    const { balance, mtn, orange } = await repos.transactions.getMerchantBalance(userId);
+    const { balance, mtn, orange, breakdown } = await repos.transactions.getMerchantBalance(userId);
     await reliableEmit(getIO(), userId, 'wallet.withdrawal', {
       withdrawalId: withdrawal.id,
       type: 'withdrawal',
       direction: 'payout',
-      amount: amt,
+      amount: amt - kioskFee,
+      kioskFee,
+      sentAmount: amt,
       fee,
       status: 'completed',
       network: withdrawal.network,
       sourceNetwork: withdrawal.sourceNetwork,
       newBalance: balance,
       newBalances: { mtn, orange },
+      newBreakdown: breakdown,
       createdAt: new Date().toISOString(),
     });
   } else {
@@ -87,7 +103,7 @@ exports.webhookPayoutVerdict = async (withdrawal, data, source) => {
       withdrawalId: withdrawal.id,
       type: 'withdrawal',
       direction: 'payout',
-      amount: amt,
+      amount: amt - (Number(withdrawal.kioskFee) || 0),
       status: 'failed',
       reason: status,
       network: withdrawal.network,
