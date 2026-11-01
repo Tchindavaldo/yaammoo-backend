@@ -125,7 +125,7 @@ frais réel        : 20 000 → 1,2 % + 4 = 244
 écart                                  = 296  → marge plateforme
 ```
 
-Le règlement ne prélève donc **qu'une fois** par boutique, sur le total encaissé,
+Le règlement ne prélève donc **qu'une fois** par boutique, sur ce que la boutique **reçoit** (plats aux prix réels + course qu'elle livre ; jamais le net encaissé, qui contient encore la marge),
 et le porte sur UNE commande (celle qui porte déjà la course quand il y en a
 une) ; les autres ont `withdrawal_fee = 0`. L'écart avec ce qui a été facturé
 revient à la plateforme, exactement comme l'écart de zone.
