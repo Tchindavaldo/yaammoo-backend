@@ -68,11 +68,14 @@ exports.creditMerchantForItem = async ({ item, clientUserId, payment = null, ord
   // Jamais `item.total` quand le règlement existe : il porte la marge et les
   // frais de paiement, qui ne lui appartiennent pas.
   let credited = gross;
+  // Part du crédit réservée aux frais de retrait kiosque (solde « frais »).
+  let kioskFee = 0;
   try {
     const settlement = resolvedOrderId ? await repos.orderSettlements.getByOrder(resolvedOrderId) : null;
     if (settlement) {
       const course = isPlatformDelivered(fastfood) ? 0 : Number(settlement.driverAmount) || 0;
       credited = Math.max(0, (Number(settlement.itemsReal) || 0) + (Number(settlement.withdrawalFee) || 0) + course);
+      kioskFee = Math.max(0, Number(settlement.withdrawalFee) || 0);
       console.info(`${logPrefix} règlement → crédit=${credited} (plats=${settlement.itemsReal}, retrait=${settlement.withdrawalFee}, course=${course}, total client=${gross})`);
     } else {
       console.error(`${logPrefix} ❌ règlement absent → crédit sur le total client (${gross}) — à corriger à la main`);
@@ -101,6 +104,8 @@ exports.creditMerchantForItem = async ({ item, clientUserId, payment = null, ord
     relatedOrderId: resolvedOrderId,
     grossAmount: gross,
     clientUserId: clientUserId || null,
+    // extra_data : découpage du solde (commandes / frais de retrait).
+    kioskFee,
   });
 
   // Hors portefeuille (DigiKUNTZ, test) : rien à annoncer au marchand, son
@@ -115,6 +120,7 @@ exports.creditMerchantForItem = async ({ item, clientUserId, payment = null, ord
       direction: 'payin',
       amount: credited,
       grossAmount: gross,
+      kioskFee,
       // Solde crédité : 'MTN' | 'ORANGEMONEY' (clés `mtn` / `orange` de /wallet/balance).
       network,
       name: tx.name,

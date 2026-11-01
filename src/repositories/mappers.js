@@ -397,6 +397,8 @@ const withdrawalToSupabase = data => ({
   aggregator: data.aggregator ?? null,
   source_network: data.sourceNetwork ?? null,
   fee: data.fee ?? 0,
+  // Migration 066 : frais kiosque inclus dans `amount` (envoyé au téléphone).
+  kiosk_fee: data.kioskFee ?? 0,
   status: data.status ?? 'pending',
   mw_payout_id: data.mwPayoutId ?? null,
   failure_reason: data.failureReason ?? null,
@@ -415,6 +417,7 @@ const withdrawalFromSupabase = row => {
     aggregator: row.aggregator ?? null,
     sourceNetwork: row.source_network ?? null,
     fee: row.fee != null ? Number(row.fee) : 0,
+    kioskFee: row.kiosk_fee != null ? Number(row.kiosk_fee) : 0,
     status: row.status,
     mwPayoutId: row.mw_payout_id,
     failureReason: row.failure_reason,

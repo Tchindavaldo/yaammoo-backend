@@ -5,7 +5,8 @@
 // débit (transaction 'withdrawal') n'est créé QU'AU SUCCÈS du payout (cf.
 // webhookPayout.service) — pas à la demande. Une demande de retrait :
 //   1. valide les champs (montant, numéro, réseau de réception, solde source),
-//   2. calcule les frais : 0 même réseau, interréseau via MobileWallet,
+//   2. calcule les frais : kiosque (1,2 % + 4, ajouté au montant envoyé pour que
+//      le marchand touche `amount` en espèces) + interréseau via MobileWallet,
 //   3. vérifie le solde SOURCE (>= montant + frais) — aucun repli sur l'autre,
 //   4. bloque s'il existe déjà un retrait 'pending' pour cet utilisateur,
 //   5. applique un cooldown (WITHDRAWAL_COOLDOWN_HOURS) depuis le dernier retrait,
@@ -58,11 +59,11 @@ exports.requestWithdrawal = async ({ userId, amount, phone, network, sourceNetwo
   const SKIP_BALANCE_CHECK = process.env.DISABLE_WITHDRAWAL_BALANCE_CHECK === 'true';
   const quote = await quoteWithdrawal({ userId, amount: amt, network, sourceNetwork });
   if (!quote.success) return quote;
-  const { fee, totalDebited, sourceBalance } = quote.data;
+  const { fee, kioskFee, sentAmount, totalDebited, sourceBalance } = quote.data;
 
   if (!SKIP_BALANCE_CHECK && totalDebited > sourceBalance) {
     const label = NETWORK_LABEL[sourceNetwork] || sourceNetwork;
-    const detail = fee > 0 ? ` (${amt} FCFA + ${fee} FCFA de frais)` : '';
+    const detail = ` (${amt} FCFA + ${kioskFee} FCFA de frais de retrait${fee > 0 ? ` + ${fee} FCFA de frais interréseau` : ''})`;
     return {
       success: false,
       httpStatus: 400,
@@ -114,7 +115,9 @@ exports.requestWithdrawal = async ({ userId, amount, phone, network, sourceNetwo
   const withdrawal = await repos.withdrawals.create({
     userId,
     fastFoodId: fastfood?.id || null,
-    amount: amt,
+    // Montant ENVOYÉ au téléphone (espèces + frais kiosque).
+    amount: sentAmount,
+    kioskFee,
     phone,
     network,
     sourceNetwork,
@@ -125,7 +128,7 @@ exports.requestWithdrawal = async ({ userId, amount, phone, network, sourceNetwo
 
   // 5. Appel MobileWallet /payout
   const mw = await mobilewallet.payout({
-    amount: amt,
+    amount: sentAmount,
     network,
     sourceNetwork,
     phone,
@@ -160,6 +163,8 @@ exports.requestWithdrawal = async ({ userId, amount, phone, network, sourceNetwo
       type: 'withdrawal',
       direction: 'payout',
       amount: amt,
+      kioskFee,
+      sentAmount,
       fee: finalFee,
       status: 'pending',
       network,
@@ -175,6 +180,6 @@ exports.requestWithdrawal = async ({ userId, amount, phone, network, sourceNetwo
     success: true,
     httpStatus: 200,
     message: mw.message || 'Retrait en cours de traitement',
-    data: { withdrawal: publicWithdrawal({ ...withdrawal, fee: finalFee, mwPayoutId: mw.transaction_id }), status: 'pending' },
+    data: { withdrawal: publicWithdrawal({ ...withdrawal, fee: finalFee, mwPayoutId: mw.transaction_id }), cashAmount: amt, kioskFee, sentAmount, status: 'pending' },
   };
 };

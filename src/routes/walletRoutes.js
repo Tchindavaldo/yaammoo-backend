@@ -35,6 +35,9 @@ const { getBalanceController, getHistoryController, getStatsController, withdraw
  *                     mtn:
  *                       type: number
  *                       description: Solde MTN
+ *                     breakdown:
+ *                       type: object
+ *                       description: "Découpage par réseau { mtn: { orders, fees, total }, orange: {…} } — total = commandes (plats + courses) + réserve de frais de retrait kiosque"
  *                     orange:
  *                       type: number
  *                       description: Solde Orange
@@ -133,7 +136,7 @@ router.get('/stats', firebaseAuth, getStatsController);
  *             properties:
  *               amount:
  *                 type: integer
- *                 description: Montant REÇU en XAF. Montant + frais interréseau doit être <= solde source.
+ *                 description: "Espèces voulues en XAF (touchées chez l'agent). Envoyé au téléphone = amount + frais kiosque (1,2 % + 4 du réseau de réception) ; envoyé + frais interréseau doit être <= solde source."
  *               phone:
  *                 type: string
  *                 description: "Numéro de réception — backend normalise automatiquement vers 237XXXXXXXXX (accepte : 677001122, +237677001122, 00237677001122)"
@@ -191,7 +194,7 @@ router.post('/withdraw', firebaseAuth, withdrawController);
  *         name: amount
  *         required: true
  *         schema: { type: integer }
- *         description: Montant reçu (XAF)
+ *         description: Espèces voulues (XAF)
  *       - in: query
  *         name: network
  *         required: true
@@ -214,12 +217,14 @@ router.post('/withdraw', firebaseAuth, withdrawController);
  *                 data:
  *                   type: object
  *                   properties:
- *                     amount: { type: integer, description: Montant reçu }
- *                     fee: { type: integer, description: Frais interréseau (0 même réseau) }
- *                     totalDebited: { type: integer, description: amount + fee }
+ *                     amount: { type: integer, description: Espèces voulues }
+ *                     kioskFee: { type: integer, description: "Frais de retrait kiosque (1,2 % + 4, réseau de réception)" }
+ *                     sentAmount: { type: integer, description: Envoyé au téléphone = amount + kioskFee }
+ *                     fee: { type: integer, description: Frais interréseau sur sentAmount (0 même réseau) }
+ *                     totalDebited: { type: integer, description: sentAmount + fee }
  *                     sourceBalance: { type: number, description: Solde source actuel }
  *                     sufficient: { type: boolean }
- *                     maxAmount: { type: integer, description: Plus gros montant recevable depuis ce solde, frais compris (estimation) }
+ *                     maxAmount: { type: integer, description: Plus grosses espèces retirables depuis ce solde, tous frais compris (estimation) }
  *                     sameNetwork: { type: boolean }
  *       400:
  *         description: Paramètres invalides
