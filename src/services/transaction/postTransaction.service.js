@@ -148,12 +148,9 @@ exports.postTransactionService = async (data, req) => {
       // Le réseau réel vient de MobileWallet (/operators/predict sur le numéro) :
       // le choix de l'utilisateur peut être faux. Repli sur son choix si la
       // détection échoue ou ne reconnaît pas le numéro.
-      // Indicatif pays obligatoire pour pawaPay : '696080087' -> '237696080087'.
-      const digits = String(phone || '').replace(/\D/g, '');
-      const intlPhone = digits.length === 9 ? `237${digits}` : digits;
-      const predicted = await mobilewalletService.predictOperator({ phone: intlPhone }).catch(e => ({ success: false, message: e.message }));
+      const predicted = await mobilewalletService.predictOperator({ phone }).catch(e => ({ success: false, message: e.message }));
       const predictedNetwork = predicted?.success ? toPayNetwork(predicted.network) : null;
-      log.info(`${logPrefix} predict ${intlPhone} -> ${JSON.stringify(predicted)}`);
+      log.info(`${logPrefix} predict ${phone} -> ${JSON.stringify(predicted)}`);
       if (predictedNetwork && toPayNetwork(network) !== predictedNetwork) {
         log.warn(`${logPrefix} Réseau corrigé par predict : choisi=${network} → réel=${predictedNetwork}`);
       }
