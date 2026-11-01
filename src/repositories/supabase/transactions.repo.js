@@ -181,12 +181,13 @@ exports.getMerchantStats = async (userId, { groupBy = 'day', from, to } = {}) =>
   const series = [...buckets.values()].sort((a, b) => (a.period < b.period ? 1 : -1));
 
   // Solde actuel = tout l'historique (pas seulement la période demandée)
-  const { balance, mtn, orange } = await exports.getMerchantBalance(userId);
+  const { balance, mtn, orange, breakdown } = await exports.getMerchantBalance(userId);
 
   return {
     groupBy,
     balance, // montant total actuel disponible du marchand (tout l'historique)
     balances: { mtn, orange }, // les deux soldes (ajout R11, purement additif)
+    breakdown, // { mtn|orange: { orders, fees, total } } (ajout additif)
     totals: { payin: totalPayin, payout: totalPayout, net: totalPayin - totalPayout },
     series, // un bucket par jour/semaine/mois : { period, payin, payout, net, count }
   };
