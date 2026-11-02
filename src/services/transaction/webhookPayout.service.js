@@ -96,7 +96,7 @@ exports.webhookPayoutVerdict = async (withdrawal, data, source) => {
     });
   } else {
     // failed / cancelled → pas de débit, solde intact
-    await repos.withdrawals.updateStatus(withdrawal.id, { status: 'failed', failureReason: status });
+    await repos.withdrawals.updateStatus(withdrawal.id, { status: 'failed', failureReason: data.message || status });
     log.info(`${logPrefix} ✗ Retrait ${status} → aucun débit (solde intact)`);
 
     await reliableEmit(getIO(), userId, 'wallet.withdrawal', {
@@ -106,6 +106,7 @@ exports.webhookPayoutVerdict = async (withdrawal, data, source) => {
       amount: amt - (Number(withdrawal.kioskFee) || 0),
       status: 'failed',
       reason: status,
+      message: data.message || null, // message exact MobileWallet (ex. numéro invalide)
       network: withdrawal.network,
       sourceNetwork: withdrawal.sourceNetwork,
     });
