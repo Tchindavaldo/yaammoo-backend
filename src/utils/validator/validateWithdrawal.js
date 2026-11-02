@@ -46,3 +46,25 @@ exports.validateWithdrawal = (data = {}) => {
   }
   return errors;
 };
+
+/** Transfert de marge plateforme (admin) : destinataire + sources. */
+exports.validatePlatformTransfer = (data = {}) => {
+  const errors = [];
+  if (!data.toFastFoodId || typeof data.toFastFoodId !== 'string') {
+    errors.push({ field: 'toFastFoodId', message: 'Boutique destinataire requise' });
+  }
+  if (!Array.isArray(data.sources) || data.sources.length === 0) {
+    errors.push({ field: 'sources', message: 'Au moins une source requise' });
+    return errors;
+  }
+  data.sources.forEach((src, i) => {
+    const s = src || {};
+    if (!s.fastFoodId || typeof s.fastFoodId !== 'string') errors.push({ field: `sources[${i}].fastFoodId`, message: 'Boutique source requise' });
+    checkNetwork(errors, `sources[${i}].network`, s.network, 'Réseau de la source');
+    const sub = [];
+    checkAmount(sub, s.amount);
+    sub.forEach(e => errors.push({ field: `sources[${i}].amount`, message: e.message }));
+  });
+  if (data.reason !== undefined && typeof data.reason !== 'string') errors.push({ field: 'reason', message: 'Motif invalide' });
+  return errors;
+};

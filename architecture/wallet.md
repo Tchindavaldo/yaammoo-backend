@@ -53,6 +53,13 @@ solde touché), `mw_transaction_id`.
   `delivered` rejouée ne verse pas deux fois. Voir
   [creditDriver.service.js](../src/services/transaction/creditDriver.service.js).
 
+- **Transfert de marge plateforme** : `type='platform_transfer'`, `userId = propriétaire
+  de la boutique destinataire`, `amount` = montant versé, `network` = réseau de la
+  marge prélevée, `aggregator = 'pawapay'`, `payBy='platform'`, `name='Crédit Yaammoo'`.
+  Extra : `fastFoodId` (destinataire), `sourceFastFoodId`, `reason`, `adminUid`.
+  Compté comme un crédit (solde, historique `payin`, stats). Voir
+  [Transfert de marge plateforme](#transfert-de-marge-plateforme-admin).
+
 **Solde dérivé** (`repos.transactions.getMerchantBalance(userId)`), agrégateurs du portefeuille seulement :
 
 ```
@@ -151,6 +158,7 @@ crédite **chaque item** via
 | GET     | `/wallet/withdraw/quote`   | frais d'un retrait avant confirmation `?amount&network&sourceNetwork`                     |
 | POST    | `/wallet/operator/predict` | réseau d'un numéro saisi `{ phone }` → `{ phone, network }` (relais MobileWallet)         |
 | POST    | `/wallet/withdraw`         | retrait `{ amount, phone, network, sourceNetwork, receiverName?, narration? }`            |
+| POST    | `/wallet/admin/platform-transfer` | **admin** : verse de la marge plateforme `{ toFastFoodId, sources[], reason? }`   |
 
 Payloads déclarés dans [walletFields.js](../src/interface/walletFields.js).
 
@@ -260,6 +268,50 @@ Même double canal que les paiements. [webhookMobilewallet.service](../src/servi
   (`status='failed'`).
 
 Variables d'env : `WITHDRAWAL_COOLDOWN_HOURS`, `WITHDRAWAL_CURRENCY` (défaut `XAF`).
+
+---
+
+## Transfert de marge plateforme (admin)
+
+Il n'existe **pas de solde plateforme** : la part Yaammoo d'une commande est le
+résidu `order_settlements.platform_margin` (marge + arrondi + écart de zone − frais),
+qui reste sur le compte de l'agrégateur. `order_deliveries.platform_margin` n'en est
+que le détail course : ne **jamais** l'additionner (double compte).
+
+`POST /wallet/admin/platform-transfer` (`authorize(adminOnly)`) en verse une partie
+sur le portefeuille d'une boutique. Body ([walletFields.js](../src/interface/walletFields.js)) :
+
+```json
+{ "toFastFoodId": "ff_B", "reason": "geste commercial",
+  "sources": [ { "fastFoodId": "ff_A", "network": "MTN", "amount": 1000 },
+               { "fastFoodId": "ff_C", "network": "ORANGEMONEY", "amount": 500 } ] }
+```
+
+```
+marge gagnée[F, réseau]   = Σ platform_margin des commandes de F payées sur ce réseau
+                            (réseau relu sur le merchant_credit, pawaPay seulement)
+déjà transférée[F, réseau] = Σ platform_transfer dont sourceFastFoodId = F
+disponible                 = gagnée − transférée     ← PLAFOND de chaque source
+```
+
+- **Montant par source** ; une source peut être la boutique destinataire elle-même.
+  Deux lignes identiques (même boutique, même réseau) sont additionnées.
+- **Réseau conservé** : marge MTN → solde MTN du destinataire, Orange → Orange.
+  La réserve de retrait pawaPay (1,3 %) a été prélevée au dépôt sur **tout** le
+  paiement, marge comprise : le retrait même réseau reste gratuit.
+- **Frais kiosque inclus** : 1 000 F transférés = 1 000 F crédités ; le marchand
+  touchera ~984 F en espèces (1,2 % + 4 pris au retrait, comme tout retrait).
+- **Tout ou rien** : une source au-delà de sa marge disponible → **400
+  `insufficient_margin`**, `data.refused[] = { fastFoodId, network, amount, available, reason }`,
+  rien n'est versé. Destinataire absent → **404 `destination_not_found`**.
+- Une insertion unique (une transaction par source) puis socket `wallet.credited`
+  (`type: 'platform_transfer'`) vers le destinataire.
+- ⚠️ Pas de verrou : deux transferts simultanés sur la même source peuvent
+  dépasser le plafond. Opération admin rare, à faire une par une.
+
+Code : [platformTransfer.service.js](../src/services/wallet/platformTransfer.service.js) ·
+[platformTransfers.repo.js](../src/repositories/supabase/platformTransfers.repo.js) ·
+validateur `validatePlatformTransfer` ([validateWithdrawal.js](../src/utils/validator/validateWithdrawal.js)).
 
 ---
 
