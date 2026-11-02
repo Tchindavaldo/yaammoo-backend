@@ -139,6 +139,7 @@ function initMobileWalletSocket() {
           network: data.network,
           phone: data.phone,
           provider_transaction_id: data.provider_transaction_id,
+          message: data.message, // message exact MobileWallet (solde insuffisant, annulé…)
         },
       };
 
