@@ -422,3 +422,6 @@ sur le numéro saisi. Le réseau détecté remplace celui choisi par l'utilisate
 (log `Réseau corrigé par predict` en cas d'écart), pour `/pay`, `pendingPayments`
 et donc les frais et le solde par réseau. Si la détection échoue ou ne reconnaît
 pas le numéro : repli sur le réseau choisi.
+
+`predictOperator` envoie toujours le numéro AVEC indicatif : un numéro local à
+9 chiffres reçoit `237` (MobileWallet répond 422 `country_code_required` sinon).

@@ -199,7 +199,11 @@ exports.predictOperator = async ({ phone, aggregator }) => {
   const agg = aggregator || (await getPaymentAggregator());
   const logPrefix = `[MobileWallet API] predict ${agg}`;
   try {
-    const response = await mobilewalletClient.post('/operators/predict', { phone, aggregator: agg }, { timeout: 15000 });
+    // Indicatif pays OBLIGATOIRE côté MobileWallet : un numéro local à 9 chiffres
+    // (Cameroun) reçoit le 237 ; un numéro déjà international passe tel quel.
+    const digits = String(phone || '').replace(/\D/g, '');
+    const intlPhone = digits.length === 9 ? `237${digits}` : digits;
+    const response = await mobilewalletClient.post('/operators/predict', { phone: intlPhone, aggregator: agg }, { timeout: 15000 });
     const data = response.data || {};
     return { success: true, phone: data.phone || null, network: toCanonicalNetwork(data.network) };
   } catch (error) {
