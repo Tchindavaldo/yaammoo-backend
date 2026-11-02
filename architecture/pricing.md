@@ -123,11 +123,14 @@ valides :
 > ⚠️ Un plafond fixe ne protégerait de rien : il laisserait passer 8990
 > (surplus 98) et bloquerait 9100 (surplus 482).
 
-**Aucun plafond sur les ZONES** : sur une commande normale la course est payée
-par le client ; sur une gratuité, c'est le minimum de plats qui protège
-(cf. [bonus-delivery-offer.md](./bonus-delivery-offer.md)). 1400 est donc le prix
-de livraison qu'un **seul** plat couvre toujours — au-delà, la couverture dépend
-du plat (1 480 à 7 640 selon le brut).
+**Plafond sur les ZONES** (même valeur, `fastfood_min_covered_course` = 1400) :
+`validateDeliveryZones` (`menuPriceGuard.js`) refuse toute zone périodique ou
+express au-delà, à la mise à jour de la boutique (`updateFastFood.js`). Un menu
+valide couvre 1400 de course, une zone plafonnée à 1400 est donc toujours
+couverte. Détail et pertes acceptées : [pricing-margin-risk.md](./pricing-margin-risk.md).
+
+> ⚠️ Le plafond n'est **pas** appliqué à la création de la boutique
+> (`createFastFood.js`) : des zones au-delà de 1400 y passent encore.
 
 Contrôle **sauté** en régime `platform`, si le réglage vaut `0`, et sur une
 édition qui ne touche pas aux prix. Les menus **déjà en base** ne sont pas
