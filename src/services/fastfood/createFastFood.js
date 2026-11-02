@@ -4,6 +4,8 @@
 const repos = require('../../repositories');
 const { getIO } = require('../../socket');
 const { validateFastfood } = require('../../utils/validator/validateFastfood');
+const { validateDeliveryZones } = require('../pricing/menuPriceGuard');
+const { getPricingSettings } = require('../settings/settings.service');
 
 exports.createFastfoodService = async data => {
   const io = getIO();
@@ -13,6 +15,18 @@ exports.createFastfoodService = async data => {
     const error = new Error(`Erreur de validation: ${formattedErrors}`);
     error.code = 400;
     throw error;
+  }
+
+  // Plafond des zones (`fastfood_min_covered_course`), comme a la mise a jour
+  // (`updateFastFood.js`) : une course plus chere n'est plus couverte par le
+  // surplus d'arrondi du plat. Refuse AVANT ecriture.
+  if (data.deliveryHours !== undefined) {
+    const zoneErrors = validateDeliveryZones(data.deliveryHours, await getPricingSettings());
+    if (zoneErrors.length > 0) {
+      const error = new Error(zoneErrors.map(e => e.message).join(' '));
+      error.code = 400;
+      throw error;
+    }
   }
 
   // Vérification d'unicité par userId
