@@ -125,12 +125,10 @@ valides :
 
 **Plafond sur les ZONES** (même valeur, `fastfood_min_covered_course` = 1400) :
 `validateDeliveryZones` (`menuPriceGuard.js`) refuse toute zone périodique ou
-express au-delà, à la mise à jour de la boutique (`updateFastFood.js`). Un menu
+express au-delà, à la création (`createFastFood.js`) comme à la mise à jour
+(`updateFastFood.js`) de la boutique. Un menu
 valide couvre 1400 de course, une zone plafonnée à 1400 est donc toujours
 couverte. Détail et pertes acceptées : [pricing-margin-risk.md](./pricing-margin-risk.md).
-
-> ⚠️ Le plafond n'est **pas** appliqué à la création de la boutique
-> (`createFastFood.js`) : des zones au-delà de 1400 y passent encore.
 
 Contrôle **sauté** en régime `platform`, si le réglage vaut `0`, et sur une
 édition qui ne touche pas aux prix. Les menus **déjà en base** ne sont pas
