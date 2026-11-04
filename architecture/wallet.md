@@ -306,8 +306,9 @@ disponible                 = gagnée − transférée     ← PLAFOND de chaque 
   rien n'est versé. Destinataire absent → **404 `destination_not_found`**.
 - Une insertion unique (une transaction par source) puis socket `wallet.credited`
   (`type: 'platform_transfer'`) vers le destinataire.
-- ⚠️ Pas de verrou : deux transferts simultanés sur la même source peuvent
-  dépasser le plafond. Opération admin rare, à faire une par une.
+- Verrou en base `platform_transfer_locks` (migration 067) : une ligne par
+  boutique source pendant le transfert ; un second transfert simultané sur la
+  même source reçoit 409 `transfer_in_progress`. Verrou périmé après 2 min (crash).
 
 Code : [platformTransfer.service.js](../src/services/wallet/platformTransfer.service.js) ·
 [platformTransfers.repo.js](../src/repositories/supabase/platformTransfers.repo.js) ·

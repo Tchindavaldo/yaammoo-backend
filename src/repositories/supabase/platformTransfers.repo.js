@@ -65,6 +65,30 @@ exports.getTransferredByNetwork = async fastFoodId => {
   return out;
 };
 
+const LOCK_TABLE = 'platform_transfer_locks';
+const LOCK_TTL_MS = 2 * 60 * 1000; // verrou périmé (crash) au-delà
+
+/**
+ * Verrouille les boutiques sources (tout ou rien). Retourne false si l'une
+ * est déjà en cours de transfert (violation de clé primaire).
+ */
+exports.acquireLocks = async (fastFoodIds, adminUid) => {
+  const stale = new Date(Date.now() - LOCK_TTL_MS).toISOString();
+  const { error: e1 } = await supabase.from(LOCK_TABLE).delete().in('source_fastfood_id', fastFoodIds).lt('created_at', stale);
+  if (e1) throw e1;
+  const rows = fastFoodIds.map(id => ({ source_fastfood_id: id, admin_uid: adminUid }));
+  const { error } = await supabase.from(LOCK_TABLE).insert(rows);
+  if (!error) return true;
+  if (error.code === '23505') return false;
+  throw error;
+};
+
+/** Libère les verrous des boutiques sources. */
+exports.releaseLocks = async fastFoodIds => {
+  const { error } = await supabase.from(LOCK_TABLE).delete().in('source_fastfood_id', fastFoodIds);
+  if (error) console.warn(`[PlatformTransfer] libération verrou: ${error.message}`);
+};
+
 /**
  * Enregistre les transferts en UNE insertion (tout ou rien).
  * @param {Array<Object>} rows transactions au format métier (camelCase)

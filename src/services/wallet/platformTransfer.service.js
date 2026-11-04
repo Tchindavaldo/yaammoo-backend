@@ -18,8 +18,8 @@
 //
 // Écriture : une transaction `platform_transfer` par source, créditée au
 // propriétaire de la boutique destinataire, en UNE insertion (tout ou rien).
-// ⚠️ Deux transferts simultanés sur la même source peuvent dépasser le plafond
-// (pas de verrou) : opération admin, rare, à faire une par une.
+// Verrou en base (table platform_transfer_locks) par boutique source : un
+// second transfert simultané sur une même source est refusé (409).
 // ============================================================================
 
 const repos = require('../../repositories');
@@ -60,6 +60,18 @@ exports.transferPlatformMargin = async ({ toFastFoodId, sources, reason, adminUi
   if (!dest.userId) return fail(400, 'destination_without_owner', 'La boutique destinataire n’a pas de propriétaire');
 
   const merged = mergeSources(sources);
+  const sourceIds = [...new Set(merged.map(s => s.fastFoodId))];
+  if (!(await repos.platformTransfers.acquireLocks(sourceIds, adminUid))) {
+    return fail(409, 'transfer_in_progress', 'Un transfert est déjà en cours sur une des boutiques sources');
+  }
+  try {
+    return await runTransfer({ dest, toFastFoodId, merged, reason, adminUid });
+  } finally {
+    await repos.platformTransfers.releaseLocks(sourceIds);
+  }
+};
+
+async function runTransfer({ dest, toFastFoodId, merged, reason, adminUid }) {
 
   // Contrôle du plafond, source par source (une boutique peut apparaître sur
   // ses deux réseaux : sa marge n'est lue qu'une fois).
@@ -127,4 +139,4 @@ exports.transferPlatformMargin = async ({ toFastFoodId, sources, reason, adminUi
       destination: { fastFoodId: toFastFoodId, userId: dest.userId, balance: { balance: balance.balance, mtn: balance.mtn, orange: balance.orange } },
     },
   };
-};
+}
