@@ -8,3 +8,4 @@ CREATE TABLE IF NOT EXISTS platform_transfer_locks (
   admin_uid          TEXT,
   created_at         TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE platform_transfer_locks ENABLE ROW LEVEL SECURITY;
