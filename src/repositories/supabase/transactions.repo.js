@@ -40,7 +40,7 @@ exports.getById = async id => {
 };
 
 exports.getByUser = async userId => {
-  const { data, error } = await supabase.from(TABLE).select('*').eq('user_id', userId).not('type', 'in', '("merchant_credit","driver_credit","withdrawal")').order('created_at', { ascending: false });
+  const { data, error } = await supabase.from(TABLE).select('*').eq('user_id', userId).not('type', 'in', '("merchant_credit","driver_credit","platform_transfer","withdrawal")').order('created_at', { ascending: false });
   if (error) throw error;
   return (data || []).map(m.transaction.fromSupabase);
 };
@@ -60,8 +60,10 @@ exports.findMerchantCreditByOrder = async orderId => {
 
 // ===== Portefeuille marchand (solde dérivé + historique) =====
 
-const WALLET_TYPES = ['merchant_credit', 'driver_credit', 'withdrawal'];
-const isCredit = type => type === 'merchant_credit' || type === 'driver_credit';
+// `platform_transfer` : marge plateforme versee par un admin (platformTransfer.service).
+const WALLET_TYPES = ['merchant_credit', 'driver_credit', 'platform_transfer', 'withdrawal'];
+const CREDIT_TYPES = ['merchant_credit', 'driver_credit', 'platform_transfer'];
+const isCredit = type => CREDIT_TYPES.includes(type);
 
 /**
  * Solde du portefeuille, CALCULÉ depuis les transactions, PAR RÉSEAU :
@@ -116,8 +118,9 @@ exports.getMerchantBalance = async userId => {
   return { balance: byNetwork.mtn + byNetwork.orange, totalEarned, totalWithdrawn, mtn: byNetwork.mtn, orange: byNetwork.orange, breakdown };
 };
 
-// payin  = gain marchand (merchant_credit) ; payout = retrait (withdrawal)
-const TYPE_BY_DIRECTION = { payin: 'merchant_credit', payout: 'withdrawal' };
+// payin  = gain marchand (merchant_credit, platform_transfer) ; payout = retrait (withdrawal)
+const PAYIN_TYPES = ['merchant_credit', 'platform_transfer'];
+const TYPE_BY_DIRECTION = { payin: PAYIN_TYPES, payout: ['withdrawal'] };
 const directionOf = type => (type === 'withdrawal' ? 'payout' : 'payin');
 
 /**
@@ -127,7 +130,7 @@ const directionOf = type => (type === 'withdrawal' ? 'payout' : 'payin');
  * @param {{ direction?:'payin'|'payout', from?:string|null, to?:string|null }} opts
  */
 exports.getMerchantHistory = async (userId, { direction, from, to } = {}) => {
-  const types = TYPE_BY_DIRECTION[direction] ? [TYPE_BY_DIRECTION[direction]] : ['merchant_credit', 'withdrawal'];
+  const types = TYPE_BY_DIRECTION[direction] || [...PAYIN_TYPES, 'withdrawal'];
 
   let query = supabase.from(TABLE).select('*').eq('user_id', userId).in('type', types).in('aggregator', WALLET_AGGREGATORS);
   if (from) query = query.gte('created_at', from);
@@ -152,7 +155,12 @@ exports.getMerchantHistory = async (userId, { direction, from, to } = {}) => {
  * @param {{ groupBy?:'day'|'week'|'month', from?:string|null, to?:string|null }} opts
  */
 exports.getMerchantStats = async (userId, { groupBy = 'day', from, to } = {}) => {
-  let query = supabase.from(TABLE).select('type, amount, created_at').eq('user_id', userId).in('type', ['merchant_credit', 'withdrawal']).in('aggregator', WALLET_AGGREGATORS);
+  let query = supabase
+    .from(TABLE)
+    .select('type, amount, created_at')
+    .eq('user_id', userId)
+    .in('type', [...PAYIN_TYPES, 'withdrawal'])
+    .in('aggregator', WALLET_AGGREGATORS);
   if (from) query = query.gte('created_at', from);
   if (to) query = query.lte('created_at', to);
 
@@ -165,7 +173,7 @@ exports.getMerchantStats = async (userId, { groupBy = 'day', from, to } = {}) =>
 
   for (const row of data || []) {
     const amt = Number(row.amount) || 0;
-    const isPayin = row.type === 'merchant_credit';
+    const isPayin = PAYIN_TYPES.includes(row.type);
     if (isPayin) totalPayin += amt;
     else totalPayout += amt;
 

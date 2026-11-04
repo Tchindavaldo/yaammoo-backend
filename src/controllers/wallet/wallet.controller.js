@@ -9,7 +9,8 @@ const repos = require('../../repositories');
 const { requestWithdrawal } = require('../../services/wallet/withdraw.service');
 const { quoteWithdrawal } = require('../../services/wallet/withdrawQuote.service');
 const { predictOperator } = require('../../services/transaction/mobilewalletService');
-const { validateWithdrawalQuote } = require('../../utils/validator/validateWithdrawal');
+const { validateWithdrawalQuote, validatePlatformTransfer } = require('../../utils/validator/validateWithdrawal');
+const { transferPlatformMargin } = require('../../services/wallet/platformTransfer.service');
 const { resolvePeriod } = require('../../utils/period');
 const { OUTDATED_WITHDRAW_RESPONSE } = require('../../utils/walletAppVersion');
 const { getAppVersionGate } = require('../../services/settings/settings.service');
@@ -169,6 +170,30 @@ exports.predictOperatorController = async (req, res) => {
     return res.status(200).json({ success: true, data: { phone: result.phone, network: result.network } });
   } catch (error) {
     console.error(`[Wallet] POST /operator/predict ❌ userId=${req.user?.uid}: ${error.message}`);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+/**
+ * POST /wallet/admin/platform-transfer — verse de la marge plateforme sur le
+ * portefeuille d'une boutique (admin uniquement, cf. walletRoutes).
+ * Body : { toFastFoodId, sources: [{ fastFoodId, network, amount }], reason? }
+ */
+exports.platformTransferController = async (req, res) => {
+  try {
+    const adminUid = req.user?.uid;
+    const errors = validatePlatformTransfer(req.body);
+    if (errors.length) return res.status(400).json({ success: false, error: 'Validation échouée', errors });
+
+    const { toFastFoodId, sources, reason } = req.body;
+    console.info(`[Wallet] POST /admin/platform-transfer → admin=${adminUid}, dest=${toFastFoodId}, sources=${sources.length}`);
+    const result = await transferPlatformMargin({ toFastFoodId, sources, reason, adminUid });
+    if (!result.success) {
+      return res.status(result.httpStatus).json({ success: false, code: result.code, message: result.message, ...(result.data ? { data: result.data } : {}) });
+    }
+    return res.status(200).json({ success: true, data: result.data });
+  } catch (error) {
+    console.error(`[Wallet] POST /admin/platform-transfer ❌ admin=${req.user?.uid}: ${error.message}`);
     return res.status(500).json({ success: false, error: error.message });
   }
 };

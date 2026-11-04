@@ -2,7 +2,8 @@ const express = require('express');
 const router = express.Router();
 
 const firebaseAuth = require('../middlewares/authMiddleware');
-const { getBalanceController, getHistoryController, getStatsController, withdrawController, getWithdrawQuoteController, predictOperatorController } = require('../controllers/wallet/wallet.controller');
+const { getBalanceController, getHistoryController, getStatsController, withdrawController, getWithdrawQuoteController, predictOperatorController, platformTransferController } = require('../controllers/wallet/wallet.controller');
+const { authorize, adminOnly } = require('../middlewares/staffPermissionMiddleware');
 
 /**
  * @swagger
@@ -280,5 +281,60 @@ router.get('/withdraw/quote', firebaseAuth, getWithdrawQuoteController);
  *         description: MobileWallet injoignable
  */
 router.post('/operator/predict', firebaseAuth, predictOperatorController);
+
+/**
+ * @swagger
+ * /wallet/admin/platform-transfer:
+ *   post:
+ *     summary: Verse de la marge plateforme sur le portefeuille d'une boutique (admin)
+ *     description: >-
+ *       Chaque source prélève sur la marge plateforme d'UNE boutique (somme des
+ *       `order_settlements.platform_margin` de ses commandes payées sur ce réseau,
+ *       moins les transferts déjà faits depuis elle), sur UN réseau. Le montant est
+ *       crédité au propriétaire de la boutique destinataire sur le MÊME réseau
+ *       (transaction `platform_transfer`). Frais kiosque inclus dans le montant.
+ *       Tout ou rien : si une source dépasse sa marge disponible, rien n'est versé.
+ *     tags:
+ *       - Wallet
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [toFastFoodId, sources]
+ *             properties:
+ *               toFastFoodId:
+ *                 type: string
+ *                 description: Boutique créditée
+ *               sources:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   required: [fastFoodId, network, amount]
+ *                   properties:
+ *                     fastFoodId: { type: string, description: "Boutique dont la marge est prélevée (peut être la destinataire)" }
+ *                     network: { type: string, enum: [MTN, ORANGEMONEY], description: "Réseau de la marge = solde crédité" }
+ *                     amount: { type: integer, description: "FCFA, plafonné à la marge disponible de la source sur ce réseau" }
+ *               reason:
+ *                 type: string
+ *                 description: Motif (traçabilité)
+ *     responses:
+ *       200:
+ *         description: "Transferts créés : `{ transfers[], total, destination: { fastFoodId, userId, balance: { balance, mtn, orange } } }`"
+ *       400:
+ *         description: "Validation échouée, ou `insufficient_margin` (`data.refused[]` : { fastFoodId, network, amount, available, reason })"
+ *       401:
+ *         description: Non authentifié
+ *       403:
+ *         description: Réservé aux administrateurs
+ *       404:
+ *         description: Boutique destinataire introuvable (destination_not_found)
+ *       409:
+ *         description: Transfert déjà en cours sur une des boutiques sources (transfer_in_progress)
+ */
+router.post('/admin/platform-transfer', firebaseAuth, authorize(adminOnly), platformTransferController);
 
 module.exports = router;
