@@ -332,6 +332,8 @@ router.post('/operator/predict', firebaseAuth, predictOperatorController);
  *         description: Réservé aux administrateurs
  *       404:
  *         description: Boutique destinataire introuvable (destination_not_found)
+ *       409:
+ *         description: Transfert déjà en cours sur une des boutiques sources (transfer_in_progress)
  */
 router.post('/admin/platform-transfer', firebaseAuth, authorize(adminOnly), platformTransferController);
 
