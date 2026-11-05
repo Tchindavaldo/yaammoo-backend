@@ -23,7 +23,7 @@ const MONEY_TABLES = /\b(transactions|order_settlements|order_deliveries|withdra
 const SQL_WRITE = /\b(insert|update|delete|alter|drop|truncate|create)\b/i
 
 let lastRulesRead = 0
-const COMPACT_AT_PERCENT = 30
+const COMPACT_AT_PERCENT = 29
 const activity = atom({ plugin: 'money-guard', key: 'activity' } as const, null as MoneyActivity)
 const rulesReadAt = atom({ plugin: 'money-guard', key: 'rulesReadAt' } as const, 0)
 
@@ -98,14 +98,30 @@ export const register: Register = on => {
     )
   })
 
-  // 5. Compactage automatique : à l'envoi d'un message, si le contexte dépasse 30 %.
+  // 5. Compactage automatique : dès que le contexte atteint 29 %, mesuré après
+  //    chaque tour (session.measure) ET à l'envoi d'un message (filet).
+  let compacting = false
+  const maybeCompact = async ($: any, percent: number | undefined) => {
+    if (compacting || (percent ?? 0) < COMPACT_AT_PERCENT) return
+    compacting = true
+    try {
+      $.ui.toast(`Contexte à ${Math.round(percent ?? 0)} % : compactage automatique`)
+      await $.session.compact({ instructions: "Garder : règles argent (money-rules.md), décisions de l'utilisateur, branches et déploiements en cours, travail en cours et prochaines étapes." })
+    } catch (err: any) {
+      $.ui.toast(`Compactage automatique en échec : ${err?.message ?? err}`)
+    } finally {
+      compacting = false
+    }
+  }
+  on('session.measure', async ($, e, next) => {
+    const out = next(e)
+    maybeCompact($, e.context?.percent)
+    return out
+  })
   on('prompt.submit', async ($, e, next) => {
     try {
       const { context } = await $.session.usage()
-      if ((context?.percent ?? 0) >= COMPACT_AT_PERCENT) {
-        $.ui.toast(`Contexte à ${Math.round(context.percent ?? 0)} % : compactage automatique`)
-        await $.session.compact({ instructions: "Garder : règles argent (money-rules.md), décisions de l'utilisateur, branches et déploiements en cours, travail en cours et prochaines étapes." })
-      }
+      await maybeCompact($, context?.percent)
     } catch {}
     return next(e)
   })
