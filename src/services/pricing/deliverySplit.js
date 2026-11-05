@@ -23,7 +23,7 @@ const { toNumber, deliverySource, isPlatformDelivered, maxDeliveryPrice, zoneDel
  * marge fastfood ne portant plus de zone, offrir une course chère coûte
  * réellement de l'argent — et ce coût doit être tracé, pas borné à 0.
  */
-function splitDeliveryAmounts({ fastfood, zone, deliveryType, platformMargin, pricing, quantity = 1, courseBilled = true, delivered = true, freeReason = null }) {
+function splitDeliveryAmounts({ fastfood, zone, deliveryType, deliveryHour = null, platformMargin, pricing, quantity = 1, courseBilled = true, delivered = true, freeReason = null }) {
   const qty = Math.max(1, toNumber(quantity) || 1);
 
   // Facturé au user au titre de la LIVRAISON, dans le prix du plat.
@@ -54,7 +54,9 @@ function splitDeliveryAmounts({ fastfood, zone, deliveryType, platformMargin, pr
   const chargedPrice = periodicCharged + expressCharged;
 
   // Pas de livraison = pas de course : rien n'est dû au fastfood.
-  const realPrice = delivered ? zoneDeliveryPrice(source, zone, deliveryType) : 0;
+  // Tarif lu dans le CRÉNEAU choisi (`deliveryHour`) : un lieu n'a pas le même
+  // prix à toutes les heures.
+  const realPrice = delivered ? zoneDeliveryPrice(source, zone, deliveryType, deliveryHour) : 0;
   const due = delivered && courseBilled ? realPrice : 0;
 
   return {

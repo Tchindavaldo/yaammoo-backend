@@ -88,9 +88,13 @@ function rawItemsOf(order) {
  * @returns {Promise<{offer: Object|null, settlements: Array, deliveries: Array}>}
  *   `settlements` : une entrée par commande. `deliveries` : seulement les livrées.
  */
-exports.settleDeliveryService = async ({ orders, bonusCode, payment = null }) => {
-  const settled = { offer: null, settlements: [], deliveries: [] };
-  const list = (Array.isArray(orders) ? orders : [orders]).filter(o => o && o.id);
+exports.settleDeliveryService = async ({ orders, bonusCode, payment = null, dryRun = false }) => {
+  const settled = { offer: null, settlements: [], deliveries: [], error: null };
+  // `dryRun` : AVANT le paiement (cf. settlementPrecheck). Même calcul, aucune
+  // écriture (ni règlement, ni course, ni bonus consommé). Les commandes d'un
+  // achat direct n'ont pas encore d'id : on leur en prête un.
+  const input = (Array.isArray(orders) ? orders : [orders]).filter(Boolean);
+  const list = (dryRun ? input.map((o, i) => ({ ...o, id: o.id || `dry-${i}` })) : input).filter(o => o.id);
   if (list.length === 0) return settled;
 
   try {
@@ -120,7 +124,7 @@ exports.settleDeliveryService = async ({ orders, bonusCode, payment = null }) =>
     const { offer, consumeBonus } = resolveOffer(pricing.deliveryFreeMode, bonusResolution?.offer || null);
     settled.offer = offer;
 
-    if (consumeBonus && bonusResolution?.bonus) {
+    if (consumeBonus && bonusResolution?.bonus && !dryRun) {
       settled.offer = await consumeDeliveryBonus({ ...bonusResolution, orderId: list[0].id });
     }
 
@@ -167,6 +171,8 @@ exports.settleDeliveryService = async ({ orders, bonusCode, payment = null }) =>
         zone: order.delivery?.zone,
         // Un même lieu n'a pas le même prix en express et en périodique.
         deliveryType: order.delivery?.type,
+        // Le tarif d'un lieu dépend du créneau : 500 à 09:12, 100 à 13:06.
+        deliveryHour: order.delivery?.time ?? null,
         platformMargin: marginPerItem,
         // Nécessaire au calcul du prix AFFICHÉ d'une zone express (frais + pas).
         pricing,
@@ -267,8 +273,9 @@ exports.settleDeliveryService = async ({ orders, bonusCode, payment = null }) =>
       const driverAmount = platformDelivered ? Math.min(amounts.realPrice, Math.max(0, net - itemsReal - marginDue)) : amounts.courseBilled ? amounts.realPrice : 0;
 
       // ── 1. Le règlement : une ligne par commande, TOUJOURS ────────────────
+      let settlementRow = null;
       try {
-        const settlement = await repos.orderSettlements.create({
+        settlementRow = {
           orderId: order.id,
           userId: order.userId,
           fastFoodId: ffId,
@@ -289,14 +296,26 @@ exports.settleDeliveryService = async ({ orders, bonusCode, payment = null }) =>
           // doit apparaître en base, pas être masqué par un plancher à 0.
           platformMargin: net - itemsReal - driverAmount,
           delivered,
-        });
-        settled.settlements.push(settlement);
+        };
+        settled.settlements.push(dryRun ? settlementRow : await repos.orderSettlements.create(settlementRow));
       } catch (err) {
+        settled.error = err.message;
         console.error(`settleDelivery: règlement non enregistré pour ${order.id} —`, err.message);
+        if (!dryRun) {
+          await repos.appErrors.record({
+            scope: 'settlement',
+            code: /margin_chk/.test(err.message) ? 'negative_margin' : 'settlement_insert_failed',
+            message: `Règlement non enregistré : ${err.message}` + (settlementRow ? ` (payé=${settlementRow.itemsCharged}, plats=${settlementRow.itemsReal}, course=${settlementRow.driverAmount}, frais paiement=${settlementRow.paymentFee}, retrait=${settlementRow.withdrawalFee}, marge=${settlementRow.platformMargin})` : ''),
+            orderId: order.id,
+            userId: order.userId,
+            fastFoodId: ffId,
+            context: { settlement: settlementRow, delivery: order.delivery ?? null, zoneAmounts: amounts, payment },
+          });
+        }
       }
 
       // ── 2. La course : seulement si la commande est livrée ────────────────
-      if (!delivered) continue;
+      if (!delivered || dryRun) continue;
 
       try {
         const row = await repos.orderDeliveries.create({
@@ -322,6 +341,10 @@ exports.settleDeliveryService = async ({ orders, bonusCode, payment = null }) =>
 
     return settled;
   } catch (error) {
+    settled.error = error.message;
+    if (!dryRun) {
+      await repos.appErrors.record({ scope: 'settlement', code: 'settlement_failed', message: `Règlement échoué : ${error.message}`, orderId: list[0]?.id, userId: list[0]?.userId, fastFoodId: list[0]?.fastFoodId, context: { orderIds: list.map(o => o.id), payment, stack: error.stack } });
+    }
     console.error('settleDelivery: règlement échoué (commandes conservées) —', error.message);
     return settled;
   }

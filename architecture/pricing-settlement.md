@@ -246,3 +246,29 @@ modifiés** : ils appellent déjà ces deux services. Voir [payment.md](./paymen
 production le lisent tel quel. `order_deliveries` le **complète**. Le seul ajout
 côté réponse est `deliveryOffer`, purement additif et ignoré des anciennes apps.
 → Aucun seuil de version d'app n'est nécessaire ici (cf. CLAUDE.md R11).
+
+## Tarif de la course : lu dans le CRÉNEAU choisi
+
+Une même zone peut avoir un prix différent selon l'heure de départ
+(`deliveryHours[].hour`) : Banekane à 500 F à 09:12, à 100 F à 13:06. Le tarif
+dû (`realPrice`) est lu par `zoneDeliveryPrice(source, zone, type, delivery.time)`
+dans les zones **du créneau** de la commande. Créneau introuvable (supprimé
+depuis) → toutes les heures, comme avant.
+
+> ⚠️ Bug corrigé (05/11/2026) : la recherche prenait le premier lieu trouvé
+> dans TOUS les créneaux. Commande payée 100 F de course → règlement à 500 F →
+> marge négative → règlement refusé par `order_settlements_margin_chk`.
+
+## Garde-fous (avant et après paiement)
+
+1. **Avant la demande USSD** — `settlementPrecheck.service` (appelé par
+   `postTransaction`) rejoue le règlement en `dryRun` (aucune écriture, aucun
+   bonus consommé) et **refuse le paiement (422)** si :
+   - `delivery_price_mismatch` : course payée ≠ tarif du créneau (régime fastfood) ;
+   - `settlement_failed` : calcul en échec ;
+   - `negative_margin` : une marge sort négative.
+2. **Après paiement** — si le règlement manque malgré tout, `creditMerchant`
+   **ne crédite rien** (plus jamais le total client) : crédit en attente,
+   à régulariser à la main.
+3. Chaque échec est écrit dans **`app_errors`** (cf. [app-errors.md](./app-errors.md)),
+   avec tous les chiffres du calcul.

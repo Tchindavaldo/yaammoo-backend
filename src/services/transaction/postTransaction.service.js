@@ -12,6 +12,7 @@ const { generateId } = require('../../repositories/idGen');
 const { createOrderService } = require('../order/createOrder');
 const { updateOrders } = require('../order/updateOrders.service');
 const { creditMerchantForItem } = require('./creditMerchant.service');
+const { precheckSettlement } = require('../order/settlementPrecheck.service');
 const { isAppleReviewClient, isTestClient, getPaymentAggregator } = require('../settings/settings.service');
 
 const log = console;
@@ -195,6 +196,17 @@ exports.postTransactionService = async (data, req) => {
         }
       }
       log.info(`${logPrefix} ✓ Pré-check stock OK (${Object.keys(qtyByMenu).length} menu(s))`);
+
+      // Règlement simulé AVANT d'encaisser : une commande qu'on ne saurait pas
+      // répartir (course ≠ tarif du créneau, marge négative, calcul en échec)
+      // est refusée ici, sans demande USSD.
+      const precheck = await precheckSettlement({ orders: items, userId, bonusCode: (Array.isArray(items) ? items : []).find(o => o && o.bonusCode)?.bonusCode, payment: { network: networkName } }).catch(e => ({ code: 'settlement_failed', message: 'Paiement refusé : vérification du montant impossible. Réessaie.', detail: e.message }));
+      if (precheck) {
+        log.error(`${logPrefix} ❌ Pré-check règlement refusé (${precheck.code}) : ${precheck.detail}`);
+        await repos.appErrors.record({ scope: 'payment_precheck', code: precheck.code, message: `Paiement refusé avant USSD : ${precheck.detail}`, userId, fastFoodId: items?.[0]?.fastFoodId, context: { amount, network: networkName, items } });
+        return { success: false, httpStatus: 422, code: precheck.code, message: precheck.message };
+      }
+      log.info(`${logPrefix} ✓ Pré-check règlement OK`);
 
       // ID UNIQUE de CE paiement (= end_user_ref MobileWallet). On l'utilise
       // pour retrouver le contexte au verdict de façon DÉTERMINISTE, quel que

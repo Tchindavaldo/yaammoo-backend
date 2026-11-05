@@ -78,10 +78,17 @@ exports.creditMerchantForItem = async ({ item, clientUserId, payment = null, ord
       kioskFee = Math.max(0, Number(settlement.withdrawalFee) || 0);
       console.info(`${logPrefix} règlement → crédit=${credited} (plats=${settlement.itemsReal}, retrait=${settlement.withdrawalFee}, course=${course}, total client=${gross})`);
     } else {
-      console.error(`${logPrefix} ❌ règlement absent → crédit sur le total client (${gross}) — à corriger à la main`);
+      // Jamais de crédit sur le total client : il contient la marge et les
+      // frais, qui ne sont pas au marchand. Commande conservée, crédit EN
+      // ATTENTE d'une correction manuelle.
+      console.error(`${logPrefix} ❌ ALERTE règlement absent → AUCUN crédit (total client ${gross}) — crédit en attente, à régulariser à la main`);
+      await repos.appErrors.record({ scope: 'credit_merchant', code: 'settlement_missing', message: `Crédit marchand NON versé : aucun règlement pour la commande (total client ${gross} F). À régulariser à la main.`, orderId: resolvedOrderId, userId: merchantUserId, fastFoodId, context: { gross, clientUserId, payment } });
+      return null;
     }
   } catch (e) {
-    console.error(`${logPrefix} ❌ règlement non lu (${e.message}) → crédit sur le total client`);
+    console.error(`${logPrefix} ❌ ALERTE règlement non lu (${e.message}) → AUCUN crédit (total client ${gross}) — à régulariser à la main`);
+    await repos.appErrors.record({ scope: 'credit_merchant', code: 'settlement_unreadable', message: `Crédit marchand NON versé : règlement illisible (${e.message}), total client ${gross} F. À régulariser à la main.`, orderId: resolvedOrderId, userId: merchantUserId, fastFoodId, context: { gross, clientUserId, payment } });
+    return null;
   }
 
   const menuName = item?.menu?.name || item?.menu?.titre || 'Commande';
