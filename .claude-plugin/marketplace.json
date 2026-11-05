@@ -1,0 +1,5 @@
+{
+  "name": "yaammoo",
+  "owner": { "name": "Rauval" },
+  "plugins": [{ "name": "money-guard", "source": "./claude-mods/money-guard" }]
+}

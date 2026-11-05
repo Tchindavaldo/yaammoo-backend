@@ -140,8 +140,9 @@ crédite **chaque item** via
 > `items_real` (plat + extras + boissons) + `withdrawal_fee` + `driver_amount`
 > **si le marchand livre** (régime fastfood ; en régime plateforme la course va
 > au livreur plateforme). Panier : règlement lu via `item.id`. Achat direct :
-> via l'id de la commande créée au verdict (`orderId`). Règlement absent → repli
-> sur le total client, journalisé en erreur.
+> via l'id de la commande créée au verdict (`orderId`). Règlement absent →
+> **aucun crédit** (jamais le total client), alerte dans `app_errors`, à
+> régulariser à la main. Voir [money-rules.md](./money-rules.md).
 
 > **Idempotence** : le verdict global est protégé par `reserveSettlement` (un seul canal
 > traite) → un seul crédit par commande. Échec partiel toléré (logué).
