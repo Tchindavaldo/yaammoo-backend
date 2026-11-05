@@ -87,7 +87,7 @@ src/
     ├── flattenNotifications.js
     ├── paymentAggregator.js   # agrégateurs connus (actif en base), agrégateurs du wallet
     ├── mobileNetwork.js       # normalisation MTN / ORANGEMONEY (payment.md, wallet.md)
-    └── supabaseKeepAlive.js   # multi-projets : KEEPALIVE_<NOM>_SUPABASE_URL/KEY
+    └── supabaseKeepAlive.js   # multi-projets : KEEPALIVE_<NOM>_SUPABASE_URL/KEY (KEY = service_role)
 ```
 
 ---

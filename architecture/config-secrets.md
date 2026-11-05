@@ -69,8 +69,13 @@ PAYMENT_PAGE_DELAY_MS=0
 
 # Keep-alive Supabase (src/utils/supabaseKeepAlive.js) : un projet de plus =
 # 2 variables, sans recoder. Ex. projet Rauval :
+#   URL : Project Settings > API > Project URL
+#   KEY : OBLIGATOIREMENT la clé service_role (Project Settings > API Keys >
+#         Legacy API Keys > service_role, commence par eyJ...).
+#         ⚠️ anon et sb_publishable_... sont refusées (401) : le ping lit
+#         /rest/v1/, réservé à la service_role.
 KEEPALIVE_RAUVAL_SUPABASE_URL=https://<ref>.supabase.co
-KEEPALIVE_RAUVAL_SUPABASE_KEY=<clé anon ou service_role du projet Rauval>
+KEEPALIVE_RAUVAL_SUPABASE_KEY=<clé service_role du projet Rauval>
 
 # Push Notifications
 FCM_PROJECT_ID=yaammoo-fcm

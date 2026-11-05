@@ -9,6 +9,8 @@
  *   - PRIMARY : SUPABASE_URL        + SUPABASE_KEY (ou SUPABASE_SERVICE_ROLE_KEY)
  *   - LEGACY  : LEGACY_SUPABASE_URL + LEGACY_SUPABASE_KEY
  *   - <NOM>   : KEEPALIVE_<NOM>_SUPABASE_URL + KEEPALIVE_<NOM>_SUPABASE_KEY
+ *              KEY = clé service_role OBLIGATOIRE (anon / sb_publishable_ → 401
+ *              sur /rest/v1/, réservé à la service_role)
  *              (ajouter un projet = ajouter ces 2 vars, sans recoder)
  *
  * Chaque ping est ISOLÉ : un projet en pause/erreur n'empêche pas les autres.
