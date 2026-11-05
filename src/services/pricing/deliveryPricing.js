@@ -82,8 +82,13 @@ const ZONES_BY_DELIVERY_TYPE = { express: 'expressZones', time: 'periodicZones' 
  * Zones d'une boutique.
  * @param {string} [deliveryType] `express` | `time` — omis, les deux listes.
  */
-function collectZones(fastfood, deliveryType) {
-  const hours = Array.isArray(fastfood?.deliveryHours) ? fastfood.deliveryHours : [];
+function collectZones(fastfood, deliveryType, hour) {
+  const allHours = Array.isArray(fastfood?.deliveryHours) ? fastfood.deliveryHours : [];
+  // Créneau donné : seulement ses zones. Un même lieu peut valoir 500 à 09:12
+  // et 100 à 13:06 ; lire le premier trouvé versait le mauvais tarif.
+  // Créneau absent de la boutique (supprimé depuis) : toutes les heures.
+  const slot = hour ? allHours.filter(h => h && typeof h === 'object' && h.hour === hour) : [];
+  const hours = slot.length ? slot : allHours;
   const field = ZONES_BY_DELIVERY_TYPE[deliveryType];
   const zones = [];
   for (const h of hours) {
@@ -118,12 +123,15 @@ function maxDeliveryPrice(fastfood, deliveryType) {
  * 500 en périodique et 900 en express. Sans ce filtre, une course express était
  * créditée au tarif périodique, et l'écart tombait dans la marge plateforme.
  *
+ * ⚠️ Et par le CRÉNEAU (`hour` = `delivery.time`) : le prix d'un lieu dépend
+ * de l'heure de départ.
+ *
  * Zone introuvable : on retombe sur la plus chère du même type, jamais sur 0,
  * pour ne pas créditer la plateforme d'une marge qu'elle n'a pas gagnée.
  */
-function zoneDeliveryPrice(fastfood, zoneName, deliveryType) {
+function zoneDeliveryPrice(fastfood, zoneName, deliveryType, hour) {
   if (!zoneName) return maxDeliveryPrice(fastfood, deliveryType);
-  const zone = collectZones(fastfood, deliveryType).find(z => z.lieu === zoneName);
+  const zone = collectZones(fastfood, deliveryType, hour).find(z => z.lieu === zoneName);
   return zone ? toNumber(zone.prix) : maxDeliveryPrice(fastfood, deliveryType);
 }
 

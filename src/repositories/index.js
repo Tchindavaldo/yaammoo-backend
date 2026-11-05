@@ -37,6 +37,7 @@ const sb = {
   orderDeliveries: require('./supabase/orderDeliveries.repo'),
   orderSettlements: require('./supabase/orderSettlements.repo'),
   platformTransfers: require('./supabase/platformTransfers.repo'),
+  appErrors: require('./supabase/appErrors.repo'),
   supportThreads: require('./supabase/supportThreads.repo'),
   banners: require('./supabase/banners.repo'),
   phoneOtp: require('./supabase/phoneOtp.repo'),
