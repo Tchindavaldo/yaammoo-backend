@@ -14,6 +14,8 @@ const repos = require('../../repositories');
 const { settleDeliveryService } = require('./settleDelivery.service');
 const { resolveOfferedDeliveries } = require('../../utils/validator/validatePaymentAmount');
 const { toNumber, isPlatformDelivered, deliverySource, zoneDeliveryPrice } = require('../pricing/deliveryPricing');
+const { getPricingSettings } = require('../settings/settings.service');
+const { suggestFixes, merchantMessage, notifyMerchant } = require('./precheckSuggestions.service');
 
 const REFUSAL = 'Paiement refusé : le montant de cette commande ne peut pas être réparti correctement. Réessaie ou contacte le support.';
 
@@ -40,12 +42,27 @@ exports.precheckSettlement = async ({ orders, userId, bonusCode, payment }) => {
   }
 
   // 2-3. Règlement simulé.
-  const settled = await settleDeliveryService({ orders: list.map(o => ({ ...o, userId: o.userId || userId })), bonusCode, payment, dryRun: true });
+  const withUser = list.map((o, i) => ({ ...o, id: o.id || `dry-${i}`, userId: o.userId || userId }));
+  const settled = await settleDeliveryService({ orders: withUser, bonusCode, payment, dryRun: true });
   if (settled.error) return { code: 'settlement_failed', message: REFUSAL, detail: settled.error };
   if (settled.settlements.length !== list.length) return { code: 'settlement_failed', message: REFUSAL, detail: `${settled.settlements.length}/${list.length} règlement(s) calculé(s)` };
   const negative = settled.settlements.find(s => toNumber(s.platformMargin) < 0);
   if (negative) {
-    return { code: 'negative_margin', message: REFUSAL, detail: `marge ${negative.platformMargin} (plats=${negative.itemsReal}, course=${negative.driverAmount}, frais paiement=${negative.paymentFee}, retrait=${negative.withdrawalFee}, payé=${negative.itemsCharged})` };
+    const detail = `marge ${negative.platformMargin} (plats=${negative.itemsReal}, course=${negative.driverAmount}, frais paiement=${negative.paymentFee}, retrait=${negative.withdrawalFee}, payé=${negative.itemsCharged})`;
+    // Valeurs qui feraient passer la commande, puis push au marchand.
+    let suggestions = null;
+    let merchantNotice = null;
+    try {
+      const index = withUser.findIndex(o => o.id === negative.orderId);
+      const pricing = await getPricingSettings();
+      suggestions = await suggestFixes({ list: withUser, index, offered, ctx: { bonusCode, payment, pricing } });
+      merchantNotice = merchantMessage(withUser[index], suggestions);
+      await notifyMerchant(withUser[index], suggestions, merchantNotice);
+    } catch (e) {
+      console.warn(`[settlementPrecheck] propositions marchand impossibles : ${e.message}`);
+    }
+    const { shop, ...values } = suggestions || {};
+    return { code: 'negative_margin', message: REFUSAL, detail: `${detail}${merchantNotice ? ` | marchand : ${merchantNotice}` : ''}`, suggestions: suggestions ? values : null };
   }
   return null;
 };

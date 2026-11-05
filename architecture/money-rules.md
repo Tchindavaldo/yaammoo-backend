@@ -107,6 +107,12 @@ premier lieu trouvé dans toutes les heures (bug du 05/11/2026).
 1. **Avant la demande USSD** (`settlementPrecheck`) : règlement simulé ; refus
    422 si course payée ≠ tarif du créneau (`delivery_price_mismatch`), calcul
    en échec (`settlement_failed`) ou marge négative (`negative_margin`).
+   Sur `negative_margin`, `precheckSuggestions` calcule (en rejouant le
+   règlement simulé) la **course maximale** de la zone/créneau et le **prix
+   réel minimum** du plat (règle de la page menu respectée), puis envoie un
+   **push au marchand** (« baissez la livraison … à X F, ou passez le plat à
+   Y F, sinon contactez l'administrateur »), au plus 1 fois/heure par cas.
+   Régime plateforme : seul « contactez l'administrateur ».
 2. **Après paiement** : pas de règlement ⇒ **aucun crédit** (jamais le total
    client), alerte dans `app_errors`.
 3. **Base** : `order_settlements_margin_chk` et `order_deliveries_margin_chk`

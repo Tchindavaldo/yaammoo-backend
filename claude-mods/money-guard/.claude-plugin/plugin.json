@@ -1,6 +1,7 @@
 {
   "name": "money-guard",
-  "version": "0.1.0",
-  "description": "Yaammoo : règles argent dans le prompt système à chaque tour + blocage des modifications d'argent sans relecture de money-rules.md",
-  "license": "UNLICENSED"
+  "version": "0.2.0",
+  "description": "Yaammoo : règles argent dans le prompt système à chaque tour, blocage des modifications d'argent sans relecture de money-rules.md, bandeau rouge, compactage auto à 30 %",
+  "license": "UNLICENSED",
+  "types": "./types/index.d.ts"
 }

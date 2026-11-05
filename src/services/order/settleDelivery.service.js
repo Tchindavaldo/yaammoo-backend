@@ -88,7 +88,7 @@ function rawItemsOf(order) {
  * @returns {Promise<{offer: Object|null, settlements: Array, deliveries: Array}>}
  *   `settlements` : une entrée par commande. `deliveries` : seulement les livrées.
  */
-exports.settleDeliveryService = async ({ orders, bonusCode, payment = null, dryRun = false }) => {
+exports.settleDeliveryService = async ({ orders, bonusCode, payment = null, dryRun = false, fastfoodOverrides = null }) => {
   const settled = { offer: null, settlements: [], deliveries: [], error: null };
   // `dryRun` : AVANT le paiement (cf. settlementPrecheck). Même calcul, aucune
   // écriture (ni règlement, ni course, ni bonus consommé). Les commandes d'un
@@ -154,7 +154,9 @@ exports.settleDeliveryService = async ({ orders, bonusCode, payment = null, dryR
       const courseBilled = !!groupKey && !billedKeys.has(groupKey);
       if (groupKey) billedKeys.add(groupKey);
 
-      const fastfood = await repos.fastfoods.getById(ffId);
+      // `fastfoodOverrides` (dryRun seul) : boutique modifiée pour simuler un
+      // autre tarif de course (propositions du pré-check).
+      const fastfood = (dryRun && fastfoodOverrides?.[ffId]) || (await repos.fastfoods.getById(ffId));
 
       // L'offre ne vaut que pour la boutique concernée (ou partout si campagne
       // / bonus plateforme), et n'a aucun sens sans livraison.

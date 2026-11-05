@@ -271,6 +271,8 @@ depuis) → toutes les heures, comme avant.
    - `delivery_price_mismatch` : course payée ≠ tarif du créneau (régime fastfood) ;
    - `settlement_failed` : calcul en échec ;
    - `negative_margin` : une marge sort négative.
+     → `precheckSuggestions.service` propose au marchand, par push, la course
+     maximale et le prix réel minimum du plat qui feraient passer la commande.
 2. **Après paiement** — si le règlement manque malgré tout, `creditMerchant`
    **ne crédite rien** (plus jamais le total client) : crédit en attente,
    à régulariser à la main.

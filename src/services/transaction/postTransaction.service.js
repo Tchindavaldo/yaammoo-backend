@@ -203,7 +203,7 @@ exports.postTransactionService = async (data, req) => {
       const precheck = await precheckSettlement({ orders: items, userId, bonusCode: (Array.isArray(items) ? items : []).find(o => o && o.bonusCode)?.bonusCode, payment: { network: networkName } }).catch(e => ({ code: 'settlement_failed', message: 'Paiement refusé : vérification du montant impossible. Réessaie.', detail: e.message }));
       if (precheck) {
         log.error(`${logPrefix} ❌ Pré-check règlement refusé (${precheck.code}) : ${precheck.detail}`);
-        await repos.appErrors.record({ scope: 'payment_precheck', code: precheck.code, message: `Paiement refusé avant USSD : ${precheck.detail}`, userId, fastFoodId: items?.[0]?.fastFoodId, context: { amount, network: networkName, items } });
+        await repos.appErrors.record({ scope: 'payment_precheck', code: precheck.code, message: `Paiement refusé avant USSD : ${precheck.detail}`, userId, fastFoodId: items?.[0]?.fastFoodId, context: { amount, network: networkName, items, suggestions: precheck.suggestions ?? null } });
         return { success: false, httpStatus: 422, code: precheck.code, message: precheck.message };
       }
       log.info(`${logPrefix} ✓ Pré-check règlement OK`);
