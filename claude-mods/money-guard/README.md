@@ -3,6 +3,8 @@
 Yaammoo manipule de l'argent réel. Ce mod :
 
 - ajoute `architecture/money-rules.md` (backend yaammoo) au **prompt système à chaque tour** ;
+- affiche un **bandeau rouge** au-dessus du prompt pendant un travail sur l'argent ;
+- lance un **compactage automatique** à l'envoi d'un message quand le contexte dépasse 30 % ;
 - **refuse** toute modification d'un fichier d'argent, toute écriture SQL sur une table d'argent
   et tout déploiement si `money-rules.md` n'a pas été relu avec Read dans les 15 dernières minutes.
 
