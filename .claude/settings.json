@@ -7,6 +7,11 @@
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-start-read.sh\"",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/money-context.sh\"",
+            "timeout": 10
           }
         ]
       }
@@ -31,7 +36,51 @@
             "timeout": 10
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash|mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/require-money-rules.sh\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/money-read-marker.sh\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/install-money-guard.sh\"",
+            "timeout": 60
+          }
+        ]
       }
     ]
+  },
+  "extraKnownMarketplaces": {
+    "yaammoo": {
+      "source": {
+        "source": "github",
+        "repo": "Tchindavaldo/yaammoo-backend"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "money-guard@yaammoo": true
   }
 }

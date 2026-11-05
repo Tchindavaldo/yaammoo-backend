@@ -101,8 +101,12 @@ transaction `driver_credit`, idempotente). Voir [wallet.md](./wallet.md).
 
 ### ⚠️ `platform_margin` PEUT être négatif (migration 038)
 
-La contrainte `platform_margin >= 0` a été **levée** sur `order_settlements` et
-`order_deliveries`. Elle supposait qu'une gratuité fait seulement renoncer à un
+La migration 038 prévoit de lever la contrainte `platform_margin >= 0` sur
+`order_settlements` et `order_deliveries`.
+
+> ⚠️ **En prod, les deux contraintes sont TOUJOURS présentes** (constaté le
+> 05/11/2026, `pg_constraint`) : une marge négative fait échouer le règlement.
+> Le pré-check avant USSD refuse donc ces paiements (`negative_margin`). Elle supposait qu'une gratuité fait seulement renoncer à un
 gain — vrai tant que la zone max était fondue dans le prix (marge 1100), faux
 depuis que la marge fastfood vaut 200 et ne porte plus de zone.
 

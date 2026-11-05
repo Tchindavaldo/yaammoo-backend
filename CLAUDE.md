@@ -3,7 +3,7 @@
 Ce fichier est **versionné** : ses règles s'appliquent automatiquement sur tout
 PC où le projet est cloné/pull, dans n'importe quelle session Claude Code.
 
-> **21 règles numérotées R1 → R21.** Toute nouvelle règle ajoutée à ce fichier
+> **22 règles numérotées R1 → R22.** Toute nouvelle règle ajoutée à ce fichier
 > DOIT recevoir le numéro suivant (R20, R21, …) et le total ci-dessus doit être
 > mis à jour. On cite une règle par son numéro (ex. « R1 » pour le style de réponse).
 
@@ -463,6 +463,10 @@ respecter ce fichier par le harness. Ils sont **identiques au frontend**
 | `session-start-read.sh` | `UserPromptSubmit` | Injecte CLAUDE.md + `architecture/README.md` au 1er prompt (R2) |
 | `require-architecture-read.sh` | `PreToolUse` | Bloque une recherche sur une feature dont le doc n'a pas été lu, et tout agent Explore/Plan/general-purpose (R2, R3) |
 | `no-bash-file-edit.sh` | `PreToolUse` | Refuse Bash pour lire/écrire un fichier — `Read`/`Edit`/`Write` à la place |
+| `money-context.sh` | `UserPromptSubmit` | Message qui parle d'argent → injecte `architecture/money-rules.md` EN ENTIER, à chaque fois (R22) |
+| `require-money-rules.sh` | `PreToolUse` | BLOQUE écriture de fichier d'argent / SQL d'argent / déploiement sans relecture de `money-rules.md` < 15 min (R22) |
+| `money-read-marker.sh` | `PostToolUse` (Read) | Note la relecture de `money-rules.md` (R22) |
+| `install-money-guard.sh` | `SessionStart` | Installe le mod `money-guard` (`claude-mods/`) à chaque session (R22) |
 
 **Adaptation backend** de `require-architecture-read.sh` : la feature est
 déduite de `src/services/<x>`, `src/controllers/<x>`, `src/routes/<x>` et
@@ -481,3 +485,29 @@ avant de chercher `architecture/<x>*.md`.
 ## R21 — Plusieurs options : DEMANDER, ne rien inventer (OBLIGATOIRE)
 
 Quand une action a plusieurs options possibles (ex. workflow avec cases a cocher, mode permanent ou non, deployer ou non, quelle branche), DEMANDER a l utilisateur laquelle prendre AVANT d agir. Ne jamais choisir une option ni inventer un parametre qu il n a pas donne. Regarder comment l action a ete lancee precedemment ne suffit pas : demander.
+
+## R22 — ARGENT : relecture OBLIGATOIRE, aucun chiffre de mémoire (OBLIGATOIRE)
+
+**Yaammoo manipule de l'argent réel** (paiements, crédits marchands, retraits).
+Une erreur de chiffre = un marchand mal payé, de l'argent perdu, un litige.
+
+1. **Source unique** : [`architecture/money-rules.md`](./architecture/money-rules.md)
+   — les deux niveaux (prix affiché par régime fastfood / plateforme, puis
+   règlement), tous les frais (dépôt, commission MobileWallet, réserve de
+   retrait prise au dépôt, kiosque, interréseau), les fichiers qui font foi.
+2. **Aucun chiffre d'argent de mémoire.** Avant chaque chiffre : relire les
+   `settings_*` en base ET la formule dans le code, calculer chaque arrondi.
+   Un chiffre non vérifié est annoncé comme tel.
+3. **Appliqué par le harness, pas par la bonne volonté** :
+   - `money-context.sh` réinjecte `money-rules.md` à CHAQUE message qui parle
+     d'argent, même s'il a déjà été lu ;
+   - `require-money-rules.sh` BLOQUE toute écriture d'un fichier d'argent,
+     toute écriture SQL sur une table d'argent et tout déploiement si
+     `money-rules.md` n'a pas été relu (Read) dans les 15 dernières minutes ;
+   - le mod `money-guard` (`claude-mods/`, installé à chaque session par
+     `install-money-guard.sh`) met les règles dans le prompt système à chaque
+     tour et double le blocage.
+4. **Toute modification d'une formule d'argent** met à jour `money-rules.md`
+   ET la doc détaillée dans le même commit, puis **resynchronise la copie
+   frontend** (`yaammoo/architecture/money-rules.md`, R23 frontend).
+5. **Tout échec d'argent est tracé** dans `app_errors` (cf. `architecture/app-errors.md`).
