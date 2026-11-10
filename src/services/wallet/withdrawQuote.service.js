@@ -33,6 +33,16 @@ async function crossNetworkRate(network) {
   return Number(pricing?.paymentFees?.pawapay?.payoutReserve?.[key]) || 0;
 }
 
+/**
+ * Taux interréseau (%) par réseau de RÉCEPTION, pour l'affichage avant saisie
+ * du montant (« +1 % interréseau » sur la carte du numéro). Indicatif : le
+ * frais réel reste celui du devis MobileWallet.
+ */
+exports.crossNetworkRates = async () => ({
+  mtn: await crossNetworkRate('MTN'),
+  orange: await crossNetworkRate('ORANGEMONEY'),
+});
+
 /** Frais de retrait kiosque (espèces chez l'agent) sur le réseau de RÉCEPTION. */
 async function kioskFeeOf(cash, network) {
   const pricing = await getPricingSettings();
