@@ -194,9 +194,16 @@ Agrégats pour graphiques/résumés. Query : `groupBy=day|week|month` (+ `period
   "balance": 14150,
   "balances": { "mtn": 9000, "orange": 5150 },
   "totals": { "payin": 14250, "payout": 100, "net": 14150 },
-  "series": [{ "period": "2026-06-18", "payin": 4650, "payout": 0, "net": 4650, "count": 1 }]
+  "series": [{ "period": "2026-06-18", "payin": 4650, "payout": 0, "net": 4650, "count": 1 }],
+  "withdrawFeePercent": { "mtn": 1.3, "orange": 1.0 }
 }
 ```
+
+`withdrawFeePercent` (additif) : taux interréseau par réseau de **réception**
+(`pawapay_payout_fee_<réseau>_percent`, valeurs d'exemple). Il est affiché sur
+les cartes de numéro du retrait (« +1 % interréseau ») avant la saisie du
+montant. C'est un taux **indicatif** : le frais réel reste celui de
+`GET /wallet/withdraw/quote`.
 
 Clés `period` : `YYYY-MM-DD` (day), `YYYY-Www` semaine ISO (week), `YYYY-MM` (month).
 Helper : [src/utils/period.js](../src/utils/period.js) (`resolvePeriod`, `groupKey`).

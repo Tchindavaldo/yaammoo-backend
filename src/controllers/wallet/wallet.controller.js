@@ -7,7 +7,7 @@
 
 const repos = require('../../repositories');
 const { requestWithdrawal } = require('../../services/wallet/withdraw.service');
-const { quoteWithdrawal } = require('../../services/wallet/withdrawQuote.service');
+const { quoteWithdrawal, crossNetworkRates } = require('../../services/wallet/withdrawQuote.service');
 const { predictOperator } = require('../../services/transaction/mobilewalletService');
 const { validateWithdrawalQuote, validatePlatformTransfer } = require('../../utils/validator/validateWithdrawal');
 const { transferPlatformMargin } = require('../../services/wallet/platformTransfer.service');
@@ -75,6 +75,9 @@ exports.getStatsController = async (req, res) => {
     console.info(`[Wallet] GET /stats → userId=${userId}, groupBy=${groupBy}, period=${req.query.period || '-'}, from=${from || '-'}, to=${to || '-'}`);
 
     const stats = await repos.transactions.getMerchantStats(userId, { groupBy, from, to });
+    // Additif (R11) : taux interréseau par réseau de réception, affiché sur les
+    // cartes de numéro du retrait avant la saisie du montant.
+    stats.withdrawFeePercent = await crossNetworkRates();
     console.info(`[Wallet] GET /stats ✓ userId=${userId} → balance=${stats.balance}, totals=payin:${stats.totals.payin}/payout:${stats.totals.payout}/net:${stats.totals.net}, ${stats.series.length} bucket(s)`);
     return res.status(200).json({ success: true, data: stats });
   } catch (error) {
