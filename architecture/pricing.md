@@ -369,4 +369,8 @@ src/
 - `accepted` / `message` : verdict de `validateMenuPrices` (même message que le refus
   à l'enregistrement).
 
-Le front n'y recalcule rien : il appelle l'endpoint à chaque saisie (debounce).
+Forme groupée : `?prices=2000,3500` → `{ items: [...] }` (même ordre), pour vérifier
+tous les prix d'un menu en une requête.
+
+Le front n'y recalcule rien : il appelle l'endpoint quand le marchand valide un prix
+(bouton ✓), puis la forme groupée au bouton « Suivant ».
