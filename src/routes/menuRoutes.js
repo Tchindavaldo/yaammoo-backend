@@ -7,6 +7,7 @@ const { deleteMenuController } = require('../controllers/menu/deleteMenu.control
 const { updateMenuController } = require('../controllers/menu/updateMenu.controller');
 const { rateMenuController, getMenuRatingsController } = require('../controllers/rating/rateMenu.controller');
 const { getMenuStatsController } = require('../controllers/rating/getMenuStats.controller');
+const { menuPricePreviewController } = require('../controllers/menu/menuPricePreview.controller');
 
 const router = express.Router();
 
@@ -78,6 +79,28 @@ const router = express.Router();
  *         description: Invalid input
  */
 router.post('', firebaseAuth, authorize(menuFromBody), postMenuController);
+
+/**
+ * @swagger
+ * /menu/price-preview/{fastFoodId}:
+ *   get:
+ *     summary: Aperçu d'un prix de menu (prix affiché, frais de retrait, montant reçu, verdict)
+ *     tags: [Menu]
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: fastFoodId
+ *         required: true
+ *         schema: { type: string }
+ *       - in: query
+ *         name: price
+ *         required: true
+ *         schema: { type: number }
+ *     responses:
+ *       200:
+ *         description: "{ data: { price, displayedPrice, withdrawalFee, merchantReceives, accepted, message } }"
+ */
+router.get('/price-preview/:fastFoodId', firebaseAuth, menuPricePreviewController);
 
 /**
  * @swagger

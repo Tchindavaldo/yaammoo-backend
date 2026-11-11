@@ -117,8 +117,7 @@ Environ **14 %** des prix bruts sont refusés — des bandes de ~70 F juste sous
 chaque palier, **pas un plafond**. Le message suggère les deux prix voisins
 valides :
 
-> Le prix 660 ne permet pas de couvrir les frais de livraison (740 F couverts au
-> lieu de 1400). Prix proches valides : 620 ou 700.
+> Le prix 1180 F n'est pas accepté. Prix acceptés : 1100 F ou 1300 F (multiples de 100 les plus proches).
 
 > ⚠️ Un plafond fixe ne protégerait de rien : il laisserait passer 8990
 > (surplus 98) et bloquerait 9100 (surplus 482).
@@ -356,3 +355,18 @@ src/
 | `056_test_app_versions_array.sql`          | `test_app_version` devient un tableau de versions ; ces versions ont aussi le paiement gratuit. Ordre de déploiement indifférent |
 | `057_settings_test_user_ids.sql`           | `test_user_ids` (settings_test) : uid de test, mêmes comportements qu'une version de test quelle que soit la version. Ordre indifférent |
 | `058_settings_test_no_auth_versions.sql`   | `test_no_auth_versions` (settings_test) : versions tolérées sans jeton sur les routes protégées, défaut `["1.1.0","1.1.1"]`. Ordre indifférent |
+
+## Aperçu d'un prix de menu (saisie marchand)
+
+`GET /menu/price-preview/:fastFoodId?price=<brut>` (auth) —
+`src/services/pricing/menuPricePreview.js`. Renvoie
+`{ price, displayedPrice, withdrawalFee, merchantReceives, accepted, message }` :
+
+- `displayedPrice` : prix affiché au client, par la chaîne réelle du catalogue
+  (`applyDisplayPricing`, régime et arrondi de la boutique) ;
+- `withdrawalFee` : frais kiosque sur le prix réel, barème du réseau le plus cher ;
+- `merchantReceives` = `price + withdrawalFee` (hors course) ;
+- `accepted` / `message` : verdict de `validateMenuPrices` (même message que le refus
+  à l'enregistrement).
+
+Le front n'y recalcule rien : il appelle l'endpoint à chaque saisie (debounce).
