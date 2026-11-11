@@ -11,6 +11,7 @@
 //   saisie), sur le prix réel du plat — c'est la part kiosque du crédit
 //   marchand (`items_real + withdrawal_fee`, cf. money-rules.md §2).
 // - Vous recevez = prix du plat + frais de retrait (hors course).
+// - Prix refusé par le garde-fou : montants à null, seul `message` est utile.
 // ============================================================================
 const { applyDisplayPricing, toNumber } = require('./deliveryPricing');
 const { withdrawalFee, OPERATORS } = require('./withdrawalFees');
@@ -27,14 +28,25 @@ function previewMenuPrice(brut, fastfood, pricing) {
   const withdrawal = fees ? Math.max(...OPERATORS.map(op => withdrawalFee(price, fees, op))) : 0;
 
   const errors = validateMenuPrices({ prices: [{ price }] }, fastfood, pricing);
+  // Prix refusé : aucun montant (il ne sera jamais affiché ni payé).
+  if (errors.length) {
+    return {
+      price,
+      displayedPrice: null,
+      withdrawalFee: null,
+      merchantReceives: null,
+      accepted: false,
+      message: errors[0].message,
+    };
+  }
 
   return {
     price,
     displayedPrice: displayed,
     withdrawalFee: withdrawal,
     merchantReceives: price + withdrawal,
-    accepted: errors.length === 0,
-    message: errors[0]?.message || null,
+    accepted: true,
+    message: null,
   };
 }
 
