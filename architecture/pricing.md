@@ -117,8 +117,7 @@ Environ **14 %** des prix bruts sont refusés — des bandes de ~70 F juste sous
 chaque palier, **pas un plafond**. Le message suggère les deux prix voisins
 valides :
 
-> Le prix 660 ne permet pas de couvrir les frais de livraison (740 F couverts au
-> lieu de 1400). Prix proches valides : 620 ou 700.
+> Le prix 660 F n'est pas accepté. Prix acceptés : 620 F ou 700 F.
 
 > ⚠️ Un plafond fixe ne protégerait de rien : il laisserait passer 8990
 > (surplus 98) et bloquerait 9100 (surplus 482).
