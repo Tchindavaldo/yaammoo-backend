@@ -16,7 +16,7 @@ Gestion des utilisateurs : enregistrement, authentification, récupération de p
 | GET     | `/user/phone/:phone`      | `getUserByPhone`           | Récupère user par téléphone             |
 | PUT     | `/user/:id`               | `updateUser`               | Met à jour le profil user               |
 | DELETE  | `/user/delete-account`    | `deleteOwnAccount`         | Supprime le compte (RGPD)               |
-| POST    | `/user/push-token/add`    | `addPushToken`             | Enregistre un token push (multi-device) |
+| POST    | `/user/push-token/add`    | `addPushToken`             | Enregistre un token push (multi-device) ; retire ce device / token des AUTRES comptes (changement de compte sans logout réussi) |
 | POST    | `/user/push-token/remove` | `removePushToken`          | Désenregistre un token push             |
 | POST    | `/user/location`          | `recordUserLocationController` | Position du user connecté (historique + dernière position) — voir [user-location.md](./user-location.md) |
 

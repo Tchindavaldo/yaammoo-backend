@@ -78,6 +78,15 @@ exports.addPushToken = async (userId, { token, platform, deviceId }) => {
   if (platform !== 'ios' && platform !== 'android') {
     throw new Error('platform doit être "ios" ou "android"');
   }
+  // Un appareil (ou un token) n'appartient qu'à UN compte : celui qui vient de
+  // s'y connecter. ⚠️ Si la déconnexion précédente n'a pas pu retirer le token
+  // (hors-ligne, session expirée), l'ancien compte gardait ce device et ses
+  // notifications arrivaient chez le nouvel utilisateur.
+  for (const [col, val] of [['device_id', deviceId], ['token', token]]) {
+    const { error: eOld } = await supabase.from(PUSH).delete().neq('user_id', userId).eq(col, val);
+    if (eOld) throw eOld;
+  }
+
   // Upsert sur (user_id, device_id) → remplace l'entrée existante pour ce device
   const { error } = await supabase.from(PUSH).upsert(
     {

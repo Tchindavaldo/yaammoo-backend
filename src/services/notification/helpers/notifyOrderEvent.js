@@ -40,6 +40,8 @@ exports.notifyOrderEvent = async ({ targetUserId, type, title, body, orderId, ro
       type: type || '',
       route: route || '',
       orderId: orderId || '',
+      // Destinataire : l'app ignore le tap si un autre compte est connecté.
+      userId: targetUserId,
     };
     const result = await postNotificationService({
       data: { title, body, type },
