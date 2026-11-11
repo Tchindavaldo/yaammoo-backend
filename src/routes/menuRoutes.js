@@ -94,11 +94,15 @@ router.post('', firebaseAuth, authorize(menuFromBody), postMenuController);
  *         schema: { type: string }
  *       - in: query
  *         name: price
- *         required: true
+ *         description: Un prix (réponse `{ data }`).
  *         schema: { type: number }
+ *       - in: query
+ *         name: prices
+ *         description: Plusieurs prix séparés par des virgules (réponse `{ items[] }`, même ordre).
+ *         schema: { type: string, example: "2000,3500" }
  *     responses:
  *       200:
- *         description: "{ data: { price, displayedPrice, withdrawalFee, merchantReceives, accepted, message } }"
+ *         description: "{ data: Preview } ou { items: Preview[] } ; Preview = { price, displayedPrice, withdrawalFee, merchantReceives, accepted, message }"
  */
 router.get('/price-preview/:fastFoodId', firebaseAuth, menuPricePreviewController);
 
