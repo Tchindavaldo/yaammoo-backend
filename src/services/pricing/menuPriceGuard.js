@@ -42,8 +42,8 @@ function withdrawalPercentOf(pricing) {
   return Object.values(fees).reduce((max, f) => Math.max(max, toNumber(f?.percent)), 0);
 }
 
-/** Pas de recherche du prix valide le plus proche (FCFA). */
-const SUGGEST_STEP = 10;
+/** Prix proposés : multiples RONDS de ce pas (FCFA), les plus proches du prix refusé. */
+const SUGGEST_STEP = 100;
 /** Bornes de la recherche, pour ne jamais boucler indéfiniment. */
 const SUGGEST_SPAN = 1000;
 
@@ -91,13 +91,16 @@ function nearestAcceptable(brut, pricing) {
   let below = null;
   let above = null;
 
-  for (let b = price - SUGGEST_STEP; b >= Math.max(1, price - SUGGEST_SPAN); b -= SUGGEST_STEP) {
+  // Multiples du pas strictement sous / au-dessus du prix refusé.
+  const firstBelow = Math.ceil(price / SUGGEST_STEP) * SUGGEST_STEP - SUGGEST_STEP;
+  const firstAbove = Math.floor(price / SUGGEST_STEP) * SUGGEST_STEP + SUGGEST_STEP;
+  for (let b = firstBelow; b >= Math.max(1, price - SUGGEST_SPAN); b -= SUGGEST_STEP) {
     if (isPriceAcceptable(b, pricing)) {
       below = b;
       break;
     }
   }
-  for (let b = price + SUGGEST_STEP; b <= price + SUGGEST_SPAN; b += SUGGEST_STEP) {
+  for (let b = firstAbove; b <= price + SUGGEST_SPAN; b += SUGGEST_STEP) {
     if (isPriceAcceptable(b, pricing)) {
       above = b;
       break;

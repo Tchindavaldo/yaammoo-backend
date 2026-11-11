@@ -117,7 +117,7 @@ Environ **14 %** des prix bruts sont refusés — des bandes de ~70 F juste sous
 chaque palier, **pas un plafond**. Le message suggère les deux prix voisins
 valides :
 
-> Le prix 660 F n'est pas accepté. Prix acceptés : 620 F ou 700 F.
+> Le prix 1180 F n'est pas accepté. Prix acceptés : 1100 F ou 1300 F (multiples de 100 les plus proches).
 
 > ⚠️ Un plafond fixe ne protégerait de rien : il laisserait passer 8990
 > (surplus 98) et bloquerait 9100 (surplus 482).
