@@ -367,7 +367,8 @@ src/
 - `withdrawalFee` : frais kiosque sur le prix réel, barème du réseau le plus cher ;
 - `merchantReceives` = `price + withdrawalFee` (hors course) ;
 - `accepted` / `message` : verdict de `validateMenuPrices` (même message que le refus
-  à l'enregistrement).
+  à l'enregistrement). Prix refusé : `displayedPrice`, `withdrawalFee` et
+  `merchantReceives` valent `null`.
 
 Forme groupée : `?prices=2000,3500` → `{ items: [...] }` (même ordre), pour vérifier
 tous les prix d'un menu en une requête.
