@@ -134,12 +134,12 @@ function validateMenuPrices(menu, fastfood, pricing) {
     if (covered >= required) return;
 
     const { below, above } = nearestAcceptable(brut, pricing);
-    const alts = [below, above].filter(v => v != null);
-    const suggestion = alts.length ? ` Prix proches valides : ${alts.join(' ou ')}.` : '';
+    const alts = [below, above].filter(v => v != null).map(v => `${v} F`);
+    const suggestion = alts.length ? ` Prix acceptés : ${alts.join(' ou ')}.` : '';
 
     errors.push({
       field: `prices[${index}].price`,
-      message: `Le prix ${brut} ne permet pas de couvrir les frais de livraison ` + `(${covered} F couverts au lieu de ${required}).${suggestion}`,
+      message: `Le prix ${brut} F n'est pas accepté.${suggestion}`,
     });
   });
 
