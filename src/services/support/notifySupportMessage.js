@@ -46,6 +46,8 @@ exports.notifySupportMessage = async ({ thread, message }) => {
       title,
       body: preview(message.text),
       route: `support/${thread.id}`,
+      // Message d'un client -> boutique : notification marchand.
+      audience: fromSupport ? 'client' : 'merchant',
     });
   } catch (e) {
     console.error('[notifySupportMessage] error:', e.message);

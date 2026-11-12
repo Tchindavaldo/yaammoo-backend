@@ -11,4 +11,7 @@ exports.notificationFields = {
   // Notifications boutique (migration 053) : image jointe et deep-link.
   imageUrl: { type: 'string', required: false },
   route: { type: 'string', required: false },
+  // Destinataire fonctionnel : 'merchant' (boutique) ou 'client'. L'app filtre
+  // l'onglet Notifications par mode et bascule de mode au tap.
+  audience: { type: 'string', required: false },
 };

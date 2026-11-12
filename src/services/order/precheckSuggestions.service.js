@@ -111,6 +111,6 @@ exports.notifyMerchant = async (order, s, message) => {
   const key = `${order.fastFoodId}|${order.delivery?.zone}|${order.delivery?.time}|${order.menu?.id}`;
   if (Date.now() - (lastNotified.get(key) || 0) < NOTIFY_EVERY_MS) return false;
   lastNotified.set(key, Date.now());
-  await notifyOrderEvent({ targetUserId: userId, type: 'pricing_alert', title: 'Commande refusée : prix à ajuster', body: message, route: '' }).catch(e => console.warn(`[precheckSuggestions] push marchand : ${e.message}`));
+  await notifyOrderEvent({ targetUserId: userId, type: 'pricing_alert', title: 'Commande refusée : prix à ajuster', body: message, route: '', audience: 'merchant' }).catch(e => console.warn(`[precheckSuggestions] push marchand : ${e.message}`));
   return true;
 };
