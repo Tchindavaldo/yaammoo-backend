@@ -342,7 +342,7 @@ exports.updateOrders = async (orders, userId, payment = null) => {
           });
           if (notif) {
             const toClient = notif.targetUserId !== fastfood.userId;
-            notifyOrderEvent({ ...notif, sender: toClient ? sender : null }).catch(e => console.warn('[updateOrders] notify error:', e.message));
+            notifyOrderEvent({ ...notif, sender: toClient ? sender : null, audience: toClient ? 'client' : 'merchant' }).catch(e => console.warn('[updateOrders] notify error:', e.message));
           }
         }
 

@@ -48,6 +48,7 @@ const notifyApplicationCreated = async (application, candidate) => {
       body: `${name || 'Un utilisateur'} souhaite devenir livreur`,
       orderId: application.id,
       route: 'settings?section=drivers',
+      audience: 'merchant',
     });
   } catch (e) {
     console.warn('[driver] notifyApplicationCreated:', e.message);

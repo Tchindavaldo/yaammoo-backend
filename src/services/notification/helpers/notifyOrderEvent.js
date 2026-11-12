@@ -31,8 +31,9 @@ const cleanStaleTokens = async (userId, staleTokens) => {
 /**
  * `sender` (optionnel, `shopSender(fastFood)`) : la boutique qui « parle » au
  * client. Absent pour une notification destinée au marchand.
+ * `audience` : 'merchant' (notification de la boutique) ou 'client' (défaut).
  */
-exports.notifyOrderEvent = async ({ targetUserId, type, title, body, orderId, route, sender }) => {
+exports.notifyOrderEvent = async ({ targetUserId, type, title, body, orderId, route, sender, audience = 'client' }) => {
   if (!targetUserId) return { success: false, message: 'targetUserId requis' };
   try {
     const { fcm, apns } = await getUserTokens(targetUserId);
@@ -40,11 +41,12 @@ exports.notifyOrderEvent = async ({ targetUserId, type, title, body, orderId, ro
       type: type || '',
       route: route || '',
       orderId: orderId || '',
+      audience,
       // Destinataire : l'app ignore le tap si un autre compte est connecté.
       userId: targetUserId,
     };
     const result = await postNotificationService({
-      data: { title, body, type },
+      data: { title, body, type, audience },
       userId: targetUserId,
       tokens: fcm,
       apnsTokens: apns,

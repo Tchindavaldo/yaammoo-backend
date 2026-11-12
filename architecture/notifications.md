@@ -158,7 +158,8 @@ du payload — où le champ `icon` prime sur le défaut du manifeste.
 
 1. `userId` ET `fastFoodId` → refus.
 2. `validateNotificationData(data)` (`interface/notificationFields.js`) → `errors[]`.
-3. Construit `newNotif = { id, title, body, type, isRead: [], createdAt }`.
+3. Construit `newNotif = { id, title, body, type, audience, isRead: [], createdAt }`
+   (`audience` = `'merchant'` si `data.audience === 'merchant'`, sinon `'client'`).
 4. `repos.notifications.appendNotification(...)` → groupe du user, ou de la
    boutique (`target = 'all'`).
 5. Push via le dispatcher ; tokens stales supprimés de `user_push_tokens`.
@@ -171,7 +172,21 @@ du payload — où le champ `icon` prime sur le défaut du manifeste.
 |---|---|
 | `getUserTokens(userId)` | `{ fcm, apns }` depuis `user_push_tokens` |
 | `cleanStaleTokens(userId, tokens[])` | supprime ces tokens de `user_push_tokens` |
-| `notifyOrderEvent({targetUserId, type, title, body, orderId, route, sender?})` | tokens + `postNotificationService` avec `extraFcmData: {type, route, orderId}` ; `sender` transmis au dispatcher |
+| `notifyOrderEvent({targetUserId, type, title, body, orderId, route, sender?, audience?})` | tokens + `postNotificationService` avec `extraFcmData: {type, route, orderId, audience}` ; `sender` transmis au dispatcher ; `audience` défaut `'client'` |
+
+## Audience (`audience`)
+
+Chaque notification porte `audience: 'merchant' | 'client'` (stockée dans
+`all_notif`, envoyée dans la push et le socket). Un compte à la fois client et
+marchand : l'app filtre l'onglet Notifications selon le mode actif et bascule en
+mode marchand au tap d'une notification `merchant`.
+
+| audience | Envois |
+|---|---|
+| `merchant` | `order_new`, transitions vers le marchand (`order_cancel_by_user`), `driver_application`, `pricing_alert`, message client → boutique (`Support`) |
+| `client` | tout le reste (défaut) |
+
+Notifications antérieures (sans `audience`) : l'app retombe sur le `type`.
 
 ## Types de notifications
 

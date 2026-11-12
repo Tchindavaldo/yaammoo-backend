@@ -58,6 +58,7 @@ exports.postNotificationService = async dataGet => {
       title: data.title,
       body: data.body,
       type: data.type,
+      audience: data.audience === 'merchant' ? 'merchant' : 'client',
       isRead: [],
       createdAt: new Date().toISOString(),
     };

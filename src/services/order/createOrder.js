@@ -112,6 +112,7 @@ exports.createOrderService = async (order, payment = null) => {
           body: `${order.menu?.name || 'Menu'} x${order.quantity || 1} — ${order.total} FCFA`,
           orderId: createdOrder.id,
           route: '/(tabs)/boutique',
+          audience: 'merchant',
         });
       }
     } catch (e) {
