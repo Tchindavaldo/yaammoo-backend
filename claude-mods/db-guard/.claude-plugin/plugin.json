@@ -1,0 +1,7 @@
+{
+  "name": "db-guard",
+  "version": "0.1.0",
+  "description": "Yaammoo : règles de la base de prod (vrais clients) dans le prompt système à chaque tour, relecture exigée avant tout appel prod, refus des actions destructrices, bandeau rouge",
+  "license": "UNLICENSED",
+  "types": "./types/index.d.ts"
+}
