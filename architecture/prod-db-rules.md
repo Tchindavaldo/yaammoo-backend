@@ -67,5 +67,7 @@ dans le dashboard Supabase.
 Chaque appel prod est journalisé par le hook dans `.claude/prod-audit.log`
 (gitignoré) : date, session, décision (READ / ASK / DENY), commande.
 
-Le jeton `claude-token` (compte `yaammoo@`) est révoqué par l'utilisateur à la
-fin de la migration : https://supabase.com/dashboard/account/tokens
+Le jeton d'accès est le secret réseau `claude-rauval-token` (compte admin
+rauval, membre des deux organisations) de l'environnement cloud. Il est
+**conservé** après la migration (décision de l'utilisateur, 13/11/2026) : ce
+fichier, le hook et le mod `db-guard` restent donc en vigueur.

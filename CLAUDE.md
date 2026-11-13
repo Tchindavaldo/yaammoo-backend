@@ -542,6 +542,6 @@ on identifie une base **par son id de projet**, jamais par son nom.
      `install-db-guard.sh`) met les règles dans le prompt système à chaque
      tour, double le blocage et affiche un bandeau rouge.
 4. **Jamais** de données de prod copiées vers la base de test ou dans le dépôt.
-5. Le jeton d'accès (`claude-token`, compte `yaammoo@`) est un secret réseau de
-   l'environnement cloud, jamais dans le code ; l'utilisateur le révoque à la
-   fin de la migration.
+5. Le jeton d'accès (`claude-rauval-token`, compte admin rauval, membre des
+   deux organisations) est un secret réseau de l'environnement cloud, jamais
+   dans le code. Il est conservé après la migration : les garde-fous restent.
