@@ -8,6 +8,7 @@ const { searchFastfoodController } = require('../controllers/fastfood/searchFast
 const { getFastFoodDeliveryStatsController } = require('../controllers/fastfood/getFastFoodDeliveryStats');
 const { patchFastFoodDeliveryController, patchAllFastFoodsDeliveryController } = require('../controllers/fastfood/deliveryConfig.controller');
 const { deleteFastfoodsController, restoreFastfoodController, listDeletedFastfoodsController, purgeDeletedFastfoodsController } = require('../controllers/fastfood/deleteFastfood.controller');
+const { getMerchantStatsController } = require('../controllers/fastfood/getMerchantStats');
 const firebaseAuth = require('../middlewares/authMiddleware');
 const adminGuard = require('../middlewares/adminMiddleware');
 const { requireFastfoodPermission, authorize, selfFromBody } = require('../middlewares/staffPermissionMiddleware');
@@ -322,6 +323,26 @@ route.patch('/delivery', firebaseAuth, adminGuard, patchAllFastFoodsDeliveryCont
 route.patch('/:fastFoodId/delivery', firebaseAuth, adminGuard, patchFastFoodDeliveryController);
 
 route.get('/:fastFoodId/delivery-stats', firebaseAuth, getFastFoodDeliveryStatsController);
+
+/**
+ * @swagger
+ * /fastFood/{fastFoodId}/stats:
+ *   get:
+ *     summary: Stats du hero du home marchand (propriétaire seulement)
+ *     description: Voir architecture/merchants.md (section Stats hero). Heure de Douala.
+ *     tags: [FastFood]
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - { in: path, name: fastFoodId, required: true, schema: { type: string } }
+ *       - { in: query, name: from, required: true, schema: { type: string, format: date } }
+ *       - { in: query, name: to, required: true, schema: { type: string, format: date } }
+ *       - { in: query, name: bucket, required: true, schema: { type: string, enum: [day, week, month] } }
+ *     responses:
+ *       200: { description: "{ data: { series[], revenue, revenueToday, balance, orders, cancelled, funnel, delays, heatmap[], rankings } }" }
+ *       400: { description: Paramètres invalides }
+ *       403: { description: Pas le propriétaire }
+ */
+route.get('/:fastFoodId/stats', firebaseAuth, getMerchantStatsController);
 
 // ============================================================================
 // Suppression ADMIN de boutiques (soft delete, restaurable)

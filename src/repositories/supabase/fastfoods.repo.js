@@ -190,3 +190,10 @@ exports.exists = async id => {
   if (error) throw error;
   return (count || 0) > 0;
 };
+
+/** Stats du hero marchand : fonction SQL `merchant_stats` (migration 070). */
+exports.getMerchantStats = async (fastFoodId, from, to, bucket) => {
+  const { data, error } = await supabase.rpc('merchant_stats', { p_fastfood_id: fastFoodId, p_from: from, p_to: to, p_bucket: bucket });
+  if (error) throw error;
+  return data;
+};
