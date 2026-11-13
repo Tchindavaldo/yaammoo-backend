@@ -21,6 +21,14 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
+      # VERROU : yaammoo-backend = PROD (vrais clients). Deploiement depuis
+      # `main` UNIQUEMENT ; le backend de test passe par fly-deploy-dev.yml.
+      - name: Verrou branche main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Deploy PROD refuse : lancer le workflow depuis main (branche actuelle : ${{ github.ref_name }})."
+          exit 1
+
       - uses: actions/checkout@v4
 
       - uses: superfly/flyctl-actions/setup-flyctl@master
