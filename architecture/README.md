@@ -74,12 +74,13 @@ Documentation d'architecture du backend Node.js / Express / Supabase / Socket.io
 - **Storage** : Firebase Storage (bucket) + Supabase (images via Multer)
 - **Doc API** : Swagger (`/api-docs`)
 - **Deploy** : Docker + Fly.io — GitHub Action manuelle `.github/workflows/fly-deploy.yml` (choix `always-on` / `auto-stop`, secret `FLY_API_TOKEN`)
+- **Deploy TEST** : app Fly `yaammoo-backend-dev` (`fly.dev.toml`, base de test, auto-stop), GitHub Action `.github/workflows/fly-deploy-dev.yml` lancée depuis `dev` uniquement (secret `FLY_API_TOKEN_DEV`)
 
 ## Structure racine
 
 ```
 BACKEND/
-├── Dockerfile, fly.toml                # Deploy
+├── Dockerfile, fly.toml, fly.dev.toml  # Deploy (prod, test)
 ├── CLAUDE.md                           # Consignes projet (obligatoire lire avant)
 ├── architecture/                       # Ce dossier — documentation features
 ├── src/

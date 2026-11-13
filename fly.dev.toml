@@ -1,0 +1,33 @@
+# Backend de TEST : app Fly yaammoo-backend-dev, branche `dev`, base de test
+# yamo (xaocrcxnueqxnyfqaayf). Deploye par .github/workflows/fly-deploy-dev.yml
+# depuis `dev` uniquement. La prod reste fly.toml (yaammoo-backend, `main`).
+#
+# Machine en auto-stop : eteinte sans trafic entrant, rallumee a la 1re requete
+# (les taches de fond ne tournent pas pendant la veille).
+
+app = 'yaammoo-backend-dev'
+primary_region = 'ams'
+
+[build]
+
+# Config NON secrete. Les secrets (Supabase test, Firebase, APNs, MobileWallet
+# test, Bird) se posent sur le dashboard Fly de l'app, jamais ici.
+[env]
+  PORT = '8080'
+  DB_PROVIDER = 'supabase'
+  # Webhooks MobileWallet : DOIVENT revenir sur le backend de test, pas la prod.
+  BACKEND_URL = 'https://yaammoo-backend-dev.fly.dev'
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
+
+[[vm]]
+  count = 1
+  cpu_kind = 'shared'
+  cpus = 1
+  memory_mb = 256
