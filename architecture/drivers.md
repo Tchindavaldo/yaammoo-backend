@@ -39,6 +39,8 @@ en status `accepted`.
 | GET     | `/driver/my-applications/:userId`     | `getMyApplicationsController` | Demandes envoyées par le user (+ `fastFoodName`, `status`). Relance = re-POST `/driver/apply` |
 | PUT     | `/driver/applications/:applicationId` | `decide`                      | `{ decision: accepted \| refused }`                                                           |
 | DELETE  | `/driver/:driverId?fastFoodId=`       | `removeDriverController`      | Retire le livreur de la boutique (vide `user.driverId` s'il ne sert plus aucune boutique)     |
+| POST    | `/driver/recruit/:fastFoodId`         | `recruitDriverController`     | Le marchand ajoute un livreur : `{ mode: create\|add\|invite, phoneNumber, prenom?, nom?, email?, password? }` (`interface/driverFields.js`) |
+| PUT     | `/driver/invitations/:applicationId`  | `answerInvitationController`  | Le user invité répond `{ decision: accepted\|refused }` (lui seul) |
 | POST    | `/driver/:driverId/rating`            | `rateDriverController`        | Noter un livreur (client livré) — voir [ratings.md](./ratings.md)                             |
 | GET     | `/driver/:driverId/ratings`           | `getDriverRatingsController`  | Liste des avis d'un livreur                                                                   |
 | GET     | `/driver/:driverId`                   | `getDriverProfileController`  | **Infos livreur, contenu adapté au demandeur** (protégé `firebaseAuth`)                       |
@@ -118,3 +120,17 @@ Index : `(fastfood_id, created_at DESC)`, `(user_id)`, et
 - `400` : champ requis manquant / décision invalide
 - `404` : user, fastFood ou demande introuvable
 - `409` : déjà livreur, demande déjà en attente, ou demande déjà traitée
+
+## Ajout par le marchand — `services/driver/driverRecruit.service.js`
+
+- `create` : compte retrouvé par numéro, sinon créé (`resolveStaffAccount`,
+  email + password requis), puis ligne `accepted` + `user.driverId`.
+- `add` : compte existant obligatoire (404 sinon), accepté tout de suite.
+- `invite` : compte existant ; ligne passée à `invited` (nouveau statut) ;
+  socket `driverInvitationReceived` + push. S'il avait déjà une demande
+  `pending`, il est accepté directement.
+- Un compte existant reçoit toujours une notification (route
+  `settings?section=my-applications`). Le marchand reçoit l'écho
+  `merchantDriverApplicationDecided`.
+- Réponse à l'invitation : `accepted` → comme une acceptation ; `refused` →
+  `refused` ; le marchand est notifié dans les deux cas.

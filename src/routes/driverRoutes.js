@@ -5,6 +5,8 @@ const { authorize, selfFromBody, selfFromParam, fastfoodFromParam, driverApplica
 const { rateDriverController, getDriverRatingsController } = require('../controllers/rating/rateDriver.controller');
 const { recordDriverLocationController, getOrderTrackingController } = require('../controllers/driver/driverLocation.controller');
 
+const { recruitDriverController, answerInvitationController } = require('../controllers/driver/driverRecruit.controller');
+
 const router = express.Router();
 
 /**
@@ -236,6 +238,60 @@ router.get('/my-applications/:userId', firebaseAuth, authorize(selfFromParam('us
  *         description: Demande déjà traitée
  */
 router.put('/applications/:applicationId', firebaseAuth, authorize(driverApplicationFromParam), decide);
+
+/**
+ * @swagger
+ * /driver/recruit/{fastFoodId}:
+ *   post:
+ *     summary: Le marchand ajoute un livreur (create | add | invite)
+ *     description: >
+ *       create = crée le compte si absent (email + password requis) puis accepte ;
+ *       add = compte existant, accepté tout de suite ; invite = ligne `invited`,
+ *       le user répond via PUT /driver/invitations/{applicationId}.
+ *       Un compte existant est toujours notifié. Voir architecture/drivers.md.
+ *     tags: [Driver]
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - { in: path, name: fastFoodId, required: true, schema: { type: string } }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [mode, phoneNumber]
+ *             properties:
+ *               mode: { type: string, enum: [create, add, invite] }
+ *               phoneNumber: { type: string }
+ *               prenom: { type: string }
+ *               nom: { type: string }
+ *               email: { type: string }
+ *               password: { type: string }
+ *     responses:
+ *       201: { description: Livreur ajouté ou invitation envoyée }
+ *       400: { description: Champ invalide }
+ *       404: { description: Aucun compte avec ce numéro (add / invite) }
+ *       409: { description: Déjà livreur ou déjà invité }
+ *
+ * /driver/invitations/{applicationId}:
+ *   put:
+ *     summary: Le user invité accepte ou refuse
+ *     tags: [Driver]
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - { in: path, name: applicationId, required: true, schema: { type: string } }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema: { type: object, required: [decision], properties: { decision: { type: string, enum: [accepted, refused] } } }
+ *     responses:
+ *       200: { description: Réponse appliquée }
+ *       404: { description: Invitation non trouvée (ou pas la sienne) }
+ *       409: { description: Déjà traitée }
+ */
+router.post('/recruit/:fastFoodId', firebaseAuth, authorize(fastfoodFromParam), recruitDriverController);
+router.put('/invitations/:applicationId', firebaseAuth, answerInvitationController);
 
 /**
  * @swagger
