@@ -10,7 +10,7 @@
 // (les lignes sont simplement effacées au tour suivant). Un
 // `POST /fastFood/admin/purge` permet de la déclencher à la demande.
 //
-// ⚠️ L'intervalle vient de la BASE (`settings_deployment`, migration 048), pas
+// ⚠️ L'intervalle vient de la BASE (`settings_app`, migration 072), pas
 // de `.env`. Il est donc relu à CHAQUE tour : changer la valeur en base se
 // propage sans redémarrer le process — d'où un `setTimeout` réarmé plutôt qu'un
 // `setInterval`, dont la période serait figée au démarrage.

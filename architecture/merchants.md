@@ -420,7 +420,7 @@ court-circuiterait la rétention de 30 jours.
 
 ### Réglages — en BASE, pas en `.env`
 
-Table `settings_deployment` (migration 048), modifiables à chaud via
+Table `settings_app` (migration 072, avant : `settings_deployment` migration 048), modifiables à chaud via
 `PATCH /settings/:key` — allonger la rétention pour sauver une boutique dont les
 30 jours expirent ne doit pas demander un redéploiement.
 

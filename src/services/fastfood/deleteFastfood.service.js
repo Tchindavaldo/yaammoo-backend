@@ -32,7 +32,7 @@ const DELETABLE_SCOPES = ['menus', 'orders', 'notifications', 'bonus', 'drivers'
  */
 const FINANCIAL_SCOPES = ['withdrawals', 'settlements', 'revenues', 'transactions'];
 
-// ⚠️ La rétention vient de la BASE (`settings_deployment`, migration 048), pas
+// ⚠️ La rétention vient de la BASE (`settings_app`, migration 072), pas
 // de `.env` : allonger le délai pour sauver une boutique dont les 30 jours
 // expirent ne doit pas demander un redéploiement. Elle est donc lue à chaque
 // appel (le service settings met en cache), jamais figée au chargement du module.
@@ -149,7 +149,7 @@ exports.restoreFastfoodService = async fastFoodId => {
  *
  * @param {Object} [opts]
  * @param {number} [opts.retentionDays] Surcharge ponctuelle ; par défaut, la
- *                 valeur en base (`settings_deployment`).
+ *                 valeur en base (`settings_app`).
  */
 exports.purgeDeletedFastfoodsService = async ({ retentionDays } = {}) => {
   const effectiveRetention = Number.isFinite(retentionDays) && retentionDays >= 0 ? retentionDays : (await getFastfoodDeletionSettings()).retentionDays;

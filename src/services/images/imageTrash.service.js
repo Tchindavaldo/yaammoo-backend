@@ -3,7 +3,7 @@
 // ============================================================================
 // `purgeUnusedImages` met en corbeille ; ce service liste, restaure (admin) et
 // efface du storage les images dont le délai `image_trash_retention_days`
-// (settings_deployment, 60 j par défaut) est écoulé. L'effacement tourne dans
+// (settings_app, 60 j par défaut) est écoulé. L'effacement tourne dans
 // le job de purge des boutiques (`utils/fastfoodPurgeJob.js`).
 // ============================================================================
 const repos = require('../../repositories');

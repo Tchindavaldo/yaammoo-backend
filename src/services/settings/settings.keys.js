@@ -157,10 +157,10 @@ const KEY_CATEGORY = {
   [KEYS.APPLE_REVIEW_MODE]: 'deployment',
   [KEYS.APPLE_VERSION_REVIEW_MODE]: 'deployment',
   // Suppression de boutiques : exploitation, pas tarification ni livraison.
-  [KEYS.FASTFOOD_DELETE_RETENTION_DAYS]: 'deployment',
-  [KEYS.FASTFOOD_PURGE_INTERVAL_MS]: 'deployment',
-  [KEYS.HIDDEN_FASTFOOD_IDS]: 'deployment',
-  [KEYS.IMAGE_TRASH_RETENTION_DAYS]: 'deployment',
+  [KEYS.FASTFOOD_DELETE_RETENTION_DAYS]: 'app',
+  [KEYS.FASTFOOD_PURGE_INTERVAL_MS]: 'app',
+  [KEYS.HIDDEN_FASTFOOD_IDS]: 'app',
+  [KEYS.IMAGE_TRASH_RETENTION_DAYS]: 'app',
 
   // test — build de test (sorties de `deployment` par la migration 055)
   [KEYS.TEST_APP_VERSION]: 'test',

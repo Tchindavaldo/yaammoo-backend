@@ -1,10 +1,11 @@
 // ============================================================================
 // Settings Repository — Supabase
 // ============================================================================
-// Réglages métier clé/valeur, répartis en HUIT tables par catégorie
+// Réglages métier clé/valeur, répartis en NEUF tables par catégorie
 // (migration 046) : `settings_auth`, `settings_pricing`, `settings_delivery`,
 // `settings_withdrawal`, `settings_deployment`, `settings_notification`
-// (migration 053), `settings_client` et `settings_test` (migration 055).
+// (migration 053), `settings_client`, `settings_test` (migration 055) et `settings_app`
+// (migration 072 : réglages de fonctionnement du backend).
 //
 // Toutes ont la même forme (key / value JSONB / description / updated_at) :
 // seule la table change. `value` est du JSONB, le type natif (nombre, booléen,
@@ -27,6 +28,7 @@ const TABLES = {
   notification: 'settings_notification',
   client: 'settings_client',
   test: 'settings_test',
+  app: 'settings_app',
 };
 
 exports.CATEGORIES = Object.keys(TABLES);

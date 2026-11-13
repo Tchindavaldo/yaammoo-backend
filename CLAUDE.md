@@ -298,7 +298,16 @@ on l'applique.
    encore acceptées la gèrent (les autres sont forcées de mettre à jour). On
    SUPPRIME alors entièrement ce versioning : la branche « ancienne app », la
    clé `settings_*` correspondante et sa doc ; seul le code de la dernière
-   version reste.
+   version reste. **La clé se supprime AUSSI en base** (une migration
+   `DELETE … WHERE key = …`, appliquée sur test et prod après le déploiement) :
+   retirer le code sans retirer la ligne laisse une clé morte (vécu :
+   `legacy_no_auth_max_app_version` et `delivery_new_format_min_app_version`
+   restées en base des mois après le nettoyage du code).
+7. **Où ranger un réglage** : `settings_deployment` = versions d'app, mode
+   review, agrégateur de paiement. Tout réglage de **fonctionnement du
+   backend** (rétention, purge, délai, boutiques masquées, et les futurs) va
+   dans **`settings_app`** (migration 072). Jamais de nouvelle clé de ce type
+   dans `settings_deployment`.
 
 ### Ce qu'il NE faut JAMAIS faire
 

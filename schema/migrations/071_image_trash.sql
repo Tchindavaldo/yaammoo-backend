@@ -4,7 +4,7 @@
 -- Une image remplacée ou supprimée (menu, logo de boutique, bannière, flyer de
 -- bonus, DELETE /image) n'est plus effacée tout de suite : elle est mise en
 -- corbeille, restaurable par l'admin, puis effacée du storage après
--- `image_trash_retention_days` jours (settings_deployment, 60 par défaut).
+-- `image_trash_retention_days` jours (settings_app, 60 par défaut).
 -- Idempotent.
 -- ============================================================================
 
@@ -24,6 +24,4 @@ CREATE INDEX IF NOT EXISTS image_trash_pending_idx
 
 ALTER TABLE image_trash ENABLE ROW LEVEL SECURITY;
 
-INSERT INTO settings_deployment (key, value)
-VALUES ('image_trash_retention_days', '60'::jsonb)
-ON CONFLICT (key) DO NOTHING;
+-- Réglage `image_trash_retention_days` : table `settings_app` (migration 072).

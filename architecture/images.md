@@ -19,7 +19,7 @@ dans `image_trash`.
 | `DELETE /image` | — | corbeille (sans origine) |
 
 - **Effacement** : après `image_trash_retention_days` jours
-  (`settings_deployment`, **60** par défaut, modifiable à chaud), par
+  (`settings_app`, **60** par défaut, modifiable à chaud), par
   `purgeImageTrash` dans le job `utils/fastfoodPurgeJob.js` (même cadence
   `fastfood_purge_interval_ms`).
 - Seules les URL du storage du projet courant sont concernées : une image

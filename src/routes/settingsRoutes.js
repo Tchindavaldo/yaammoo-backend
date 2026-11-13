@@ -185,8 +185,11 @@ route.get('', firebaseAuth, getSettingsController);
  *             - platform_latest_app_version
  *             - apple_review_mode
  *             - apple_version_review_mode
+ *             # app (settings_app, migration 072)
  *             - fastfood_delete_retention_days
  *             - fastfood_purge_interval_ms
+ *             - hidden_fastfood_ids
+ *             - image_trash_retention_days
  *             # notification (settings_notification)
  *             - broadcast_utc_offset_minutes
  *             # client (settings_client)

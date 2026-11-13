@@ -115,7 +115,7 @@ BACKEND/
 **Controller → Service** : Controllers valident + transforment ; Services orchestrent logique métier + appels repo  
 **Socket Rooms** : `app:<appId>`, `<userId>` (sans préfixe), `<fastFoodId>` (sans préfixe)  
 **Prix affiché ≠ prix stocké** : le catalogue garde les prix du fastfood ; livraison, marge et frais sont ajoutés **à la lecture**, jamais en base — comme `isMarchand`. Voir [pricing.md](./pricing.md)  
-**Réglages métier en base**, pas dans `.env` : ils doivent basculer à chaud. Répartis par catégorie depuis la migration 046 — `settings_pricing`, `settings_delivery`, `settings_withdrawal`, `settings_deployment`, `settings_auth`, puis `settings_notification` (053), `settings_client` et `settings_test` (055) (l'ancienne table `settings` unique a été supprimée). La catégorie d'une clé est déclarée dans `KEY_CATEGORY`, jamais déduite de son préfixe. Voir [pricing.md](./pricing.md)  
+**Réglages métier en base**, pas dans `.env` : ils doivent basculer à chaud. Répartis par catégorie depuis la migration 046 — `settings_pricing`, `settings_delivery`, `settings_withdrawal`, `settings_deployment`, `settings_auth`, puis `settings_notification` (053), `settings_client` et `settings_test` (055), `settings_app` (072 : réglages de fonctionnement du backend — rétentions, purges, boutiques masquées) (l'ancienne table `settings` unique a été supprimée). La catégorie d'une clé est déclarée dans `KEY_CATEGORY`, jamais déduite de son préfixe. Voir [pricing.md](./pricing.md)  
 **Les secrets restent en variable d'environnement** (`.env` en local, secrets Fly en production) : clés d'API, credentials. Aucun secret dans les tables `settings_*`
 
 ---
