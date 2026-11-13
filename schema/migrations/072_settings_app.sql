@@ -30,11 +30,10 @@ INSERT INTO settings_app (key, value, description) VALUES
 ON CONFLICT (key) DO NOTHING;
 
 -- ============================================================================
--- PARTIE 2 — à appliquer APRÈS le déploiement du code.
--- Retire de settings_deployment la clé déplacée et les versionings PÉRIMÉS
--- (plus lus par le code depuis le commit 9d50e56, R11.6) :
---   legacy_no_auth_max_app_version (1.1.0), delivery_new_format_min_app_version
---   (1.0.1) : sous platform_min_app_version (1.1.4) ;
---   platform_default_app_version, wallet_networks_min_app_version : non lus.
+-- PARTIE 2 — appliquée APRÈS le déploiement (13/11/2026, test et prod).
+-- Retire la clé déplacée et les versionings PÉRIMÉS (sous
+-- platform_min_app_version 1.1.4, plus lus par le code depuis 9d50e56, R11.6).
+-- Gardées : wallet_networks_min_app_version (1.1.5, pas encore dépassée) et
+-- platform_default_app_version (pas un seuil de version), non lues par le code.
 -- ============================================================================
--- DELETE FROM settings_deployment WHERE key IN ('hidden_fastfood_ids', 'legacy_no_auth_max_app_version', 'delivery_new_format_min_app_version', 'platform_default_app_version', 'wallet_networks_min_app_version');
+DELETE FROM settings_deployment WHERE key IN ('hidden_fastfood_ids', 'legacy_no_auth_max_app_version', 'delivery_new_format_min_app_version');
