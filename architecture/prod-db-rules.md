@@ -11,7 +11,7 @@
 | Base | Compte Supabase | Projet | Usage | Accès agent |
 |---|---|---|---|---|
 | **yaammoo (PROD)** | `yaammoo@` | `vcuskusfywrigdrkgnur` | vrais clients, versions de prod | API de gestion `api.supabase.com`, jeton injecté par le proxy |
-| yamo (TEST / DEV) | `yamo@` | `xaocrcxnueqxnyfqaayf` | tests, développement | connecteur MCP Supabase |
+| yamo (TEST / DEV) | `yamo@` | `xaocrcxnueqxnyfqaayf` | tests, développement | même jeton `api.supabase.com` (compte admin rauval, membre des deux organisations) ; seul autre projet autorisé par le hook |
 
 Le projet de test s'appelle aussi « yaammoo » dans son dashboard : on identifie
 une base **par son id de projet**, jamais par son nom.

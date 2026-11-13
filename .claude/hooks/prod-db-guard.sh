@@ -19,6 +19,7 @@ set -uo pipefail
 . "$(dirname "$0")/lib-payload.sh"
 
 PROD_REF='vcuskusfywrigdrkgnur'
+TEST_REF='xaocrcxnueqxnyfqaayf' # base de test yamo@, seul autre projet autorisé
 TTL=900
 payload=$(cat)
 tool=$(payload_get "$payload" '.tool_name') || payload_die
@@ -101,9 +102,9 @@ if [ "$via" = "api" ]; then
   printf '%s' "$lc" | grep -qE 'api\.supabase\.com/v1/projects/?([[:space:]'\''"?]|$)' \
     && printf '%s' "$lc" | grep -qE '(-x|--request)[[:space:]]*['\''"]?post|(^|[[:space:]])(-d|--data[a-z-]*|-f|--form)[[:space:]]' \
     && deny "création de projet"
-  # 4. Seul le projet de prod connu peut être visé.
+  # 4. Seuls la prod et le projet de test yamo connus peuvent être visés.
   printf '%s' "$lc" | grep -qE 'api\.supabase\.com/v1/projects/[a-z0-9]+' \
-    && ! printf '%s' "$lc" | grep -qE "api\.supabase\.com/v1/projects/$PROD_REF" \
+    && ! printf '%s' "$lc" | grep -qE "api\.supabase\.com/v1/projects/($PROD_REF|$TEST_REF)" \
     && deny "projet inconnu sur le compte de prod"
 fi
 
