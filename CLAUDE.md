@@ -546,7 +546,10 @@ on identifie une base **par son id de projet**, jamais par son nom.
      ou écriture des données hors `/tmp`), DEMANDE la validation de
      l'utilisateur à CHAQUE écriture SQL ou POST (même en mode automatique),
      exige `money-rules.md` < 15 min pour écrire sur une table d'argent (R22),
-     et journalise chaque appel dans `.claude/prod-audit.log` (gitignoré) ;
+     et journalise chaque appel dans `.claude/prod-audit.log` (gitignoré).
+     Une commande qui vise la prod HORS API de gestion (machine Fly prod,
+     stockage) est soumise à la validation de l'utilisateur (ASK), seules les
+     suppressions y sont refusées ; un appel à la seule base de test est libre ;
    - le mod `db-guard` (`claude-mods/`, installé à chaque session par
      `install-db-guard.sh`) met les règles dans le prompt système à chaque
      tour, double le blocage et affiche un bandeau rouge.

@@ -87,6 +87,17 @@ export const register: Register = on => {
     if (stale()) return { deny: DENY('architecture/prod-db-rules.md non relu dans les 15 dernières minutes') }
     if (String(a.tool).startsWith('mcp__') && !call.sql && !/(list_|get_project|get_advisors|get_logs|search_docs|generate_typescript_types)/.test(String(a.tool)))
       return { deny: DENY(`outil d'administration MCP (${a.tool})`) }
+    const mgmt = /api\.supabase\.com/i.test(t)
+    // Appel à la seule base de test : hors périmètre prod.
+    if (String(a.tool) === 'Bash' && mgmt && !t.includes(PROD_REF)) return next(e)
+    // Prod visée hors API de gestion (machine Fly, stockage) : le hook shell
+    // demande la validation de l'utilisateur ; seules les suppressions sont refusées.
+    if (String(a.tool) === 'Bash' && !mgmt) {
+      if (/drop\s+(database|schema|table)|truncate\b|delete\s+from|\.remove\(|emptyBucket|deleteBucket|-X\s*['"]?DELETE/i.test(t))
+        return { deny: DENY('suppression ou SQL destructif hors API de gestion') }
+      $.ui.toast('BASE DE PROD : commande hors API de gestion — validation requise')
+      return next(e)
+    }
     if (String(a.tool) === 'Bash') {
       if (MANUAL_TOKEN.test(t)) return { deny: DENY("jeton envoyé à la main (le proxy l'injecte)") }
       if (BAD_METHOD.test(t)) return { deny: DENY('méthode DELETE/PATCH/PUT') }

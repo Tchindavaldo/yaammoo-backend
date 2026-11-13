@@ -52,6 +52,13 @@ une base **par son id de projet**, jamais par son nom.
 Si une de ces actions est vraiment nécessaire, **l'utilisateur la fait lui-même**
 dans le dashboard Supabase.
 
+**Hors API de gestion** (commande qui vise la prod par la machine Fly prod, le
+stockage, un script lancé avec les clés de la machine) : ces règles de l'API ne
+s'appliquent pas ; le hook **demande la validation de l'utilisateur à chaque
+appel**, et refuse seulement les suppressions (`DELETE`, `.remove(`, `DROP`,
+`TRUNCATE`, bucket vidé). Une commande qui ne vise **que** la base de test
+(`xaocrcxnueqxnyfqaayf`) est hors périmètre.
+
 ## 4. Migration test → prod
 
 1. Schéma d'abord (tables, index, contraintes, fonctions), sur la prod vide.

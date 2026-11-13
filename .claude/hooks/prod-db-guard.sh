@@ -10,6 +10,9 @@
 #               sortie prod envoyée vers un autre hôte ou écrite hors /tmp.
 #   ASK       : toute écriture SQL et tout POST hors SQL — validation de
 #               l'utilisateur à CHAQUE fois, même en mode automatique.
+#               Commande visant la prod HORS API de gestion (machine Fly,
+#               stockage) : ASK aussi, sauf suppression (DENY).
+#   TEST      : appel à la seule base de test (xaocrc…) : hors périmètre.
 #   ARGENT    : écriture sur une table d'argent => money-rules.md relu < 15 min.
 #   READ      : lectures autorisées.
 # Chaque décision est journalisée dans .claude/prod-audit.log. Fail-closed :
@@ -82,6 +85,19 @@ fresh claude-prodb-read || deny "architecture/prod-db-rules.md non relu dans les
 [ "$via" = "mcp-read" ] && { audit READ; exit 0; }
 
 if [ "$via" = "api" ]; then
+  # 0bis. Base de TEST seule (aucune mention de la prod) : hors périmètre prod.
+  if ! printf '%s' "$lc" | grep -q "$PROD_REF"; then
+    refs=$(printf '%s' "$lc" | grep -oE 'api\.supabase\.com/v1/projects/[a-z0-9]+' | sed 's|.*/||' | sort -u)
+    if [ -n "$refs" ] && [ "$refs" = "$TEST_REF" ]; then audit TEST; exit 0; fi
+  fi
+  # 0ter. Vise la prod SANS passer par l'API de gestion (machine Fly prod,
+  # stockage, script lancé avec les clés de la machine) : les règles de l'API
+  # de gestion ne s'appliquent pas, mais l'utilisateur valide CHAQUE appel.
+  if ! printf '%s' "$lc" | grep -q 'api\.supabase\.com'; then
+    printf '%s' "$lc" | grep -qE 'drop[[:space:]]+(database|schema|table)|truncate([[:space:]]|;)|delete[[:space:]]+from|remove\(|\.remove\(|emptybucket|deletebucket|-x[[:space:]]*['\''"]?delete' \
+      && deny "suppression ou SQL destructif hors API de gestion"
+    ask "commande qui vise la prod hors API de gestion (machine Fly, stockage)"
+  fi
   # 1. Jeton : jamais à la main (le proxy l'injecte).
   printf '%s' "$lc" | grep -qE 'authorization:|bearer[[:space:]]|sbp_[a-z0-9]|apikey:|x-api-key|service_role' \
     && deny "jeton ou en-tête d'authentification envoyé à la main"
