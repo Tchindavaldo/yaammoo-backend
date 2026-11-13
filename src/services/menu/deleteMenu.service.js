@@ -20,7 +20,7 @@ exports.deleteMenuService = async menuId => {
 
     const fastFoodId = existing.fastFoodId;
     await repos.menus.delete(menuId);
-    await purgeUnusedImages([existing.image, existing.coverImage, ...(existing.images || [])]);
+    await purgeUnusedImages([existing.image, existing.coverImage, ...(existing.images || [])], [], { entity: 'menu', entityId: menuId });
 
     const fastFood = await getFastFoodService(fastFoodId);
     const updatedMenus = await getMenuService(fastFoodId);

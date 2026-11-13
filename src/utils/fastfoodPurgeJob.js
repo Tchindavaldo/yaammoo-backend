@@ -18,6 +18,7 @@
 
 const { purgeDeletedFastfoodsService } = require('../services/fastfood/deleteFastfood.service');
 const { getFastfoodDeletionSettings } = require('../services/settings/settings.service');
+const { purgeImageTrash } = require('../services/images/imageTrash.service');
 
 let timer = null;
 let stopped = false;
@@ -36,6 +37,14 @@ async function runOnce() {
   } catch (error) {
     // Un échec ne doit pas arrêter le job : le tour suivant réessaiera.
     console.error('[fastfoodPurge] échec :', error.message);
+  }
+  // Corbeille d'images (migration 071) : même cadence que la purge des boutiques.
+  try {
+    const trash = await purgeImageTrash();
+    if (trash.deleted > 0) console.log(`[imageTrash] ${trash.deleted} image(s) effacée(s) du storage.`);
+    if (trash.errors.length) console.warn(`[imageTrash] ${trash.errors.length} image(s) non effacée(s) :`, trash.errors);
+  } catch (error) {
+    console.error('[imageTrash] échec :', error.message);
   }
 }
 

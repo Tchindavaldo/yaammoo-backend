@@ -327,6 +327,13 @@ async function getHiddenFastfoodIds() {
   return new Set((Array.isArray(raw) ? raw : []).map(v => String(v ?? '').trim()).filter(Boolean));
 }
 
+/** Jours avant effacement d'une image en corbeille (migration 071). Jamais < 1. */
+async function getImageTrashRetentionDays() {
+  const s = await getSettings();
+  const v = Number(s[KEYS.IMAGE_TRASH_RETENTION_DAYS]);
+  return Number.isFinite(v) && v > 0 ? v : 60;
+}
+
 module.exports = {
   KEYS,
   KEY_CATEGORY,
@@ -345,6 +352,7 @@ module.exports = {
   getTestVolumeImageUrl,
   getClientSettings,
   getHiddenFastfoodIds,
+  getImageTrashRetentionDays,
   getAppVersionGate,
   setSetting,
   invalidate,

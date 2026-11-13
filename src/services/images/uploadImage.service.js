@@ -84,22 +84,26 @@ exports.deleteImageFromSupabase = async publicUrl => {
 };
 
 /**
- * Purge du storage les images qui ne sont plus référencées après une
+ * Met en CORBEILLE les images qui ne sont plus référencées après une
  * modification ou une suppression : chaque URL de `oldUrls` absente de
- * `keptUrls` est effacée. Best effort : appelée APRÈS l'écriture en base, un
- * échec laisse un fichier orphelin (loggé) sans faire échouer la requête.
+ * `keptUrls` est notée dans `image_trash` (migration 071), restaurable par
+ * l'admin, puis effacée du storage par `purgeImageTrash` après
+ * `image_trash_retention_days` jours. Best effort : appelée APRÈS l'écriture
+ * en base, un échec est loggé sans faire échouer la requête.
  * Les URL hors storage Supabase (déjà hébergées ailleurs) sont ignorées.
+ * `source` : { entity, entityId, field } pour la restauration.
  */
-exports.purgeUnusedImages = async (oldUrls, keptUrls = []) => {
-  const kept = new Set((keptUrls || []).filter(Boolean).map(u => String(u).split('?')[0]));
+exports.purgeUnusedImages = async (oldUrls, keptUrls = [], source = {}) => {
+  const clean = u => String(u).split('?')[0];
+  const kept = new Set((keptUrls || []).filter(Boolean).map(clean));
   const base = `${process.env.SUPABASE_URL}/storage/v1/object/public/`;
-  const toDelete = [...new Set((oldUrls || []).filter(Boolean).map(u => String(u).split('?')[0]))].filter(u => !kept.has(u) && u.startsWith(base));
-
-  for (const url of toDelete) {
-    try {
-      await exports.deleteImageFromSupabase(url);
-    } catch (err) {
-      console.warn(`[purgeUnusedImages] Impossible de supprimer l'image (${url}) :`, err.message);
-    }
+  const toTrash = [...new Set((oldUrls || []).filter(Boolean).map(clean))].filter(u => !kept.has(u) && u.startsWith(base));
+  if (!toTrash.length) return;
+  try {
+    // Requis ici (et non en tête) : repositories -> services, pas de cycle au chargement.
+    const repos = require('../../repositories');
+    await repos.imageTrash.addMany(toTrash.map(url => ({ url, ...source })));
+  } catch (err) {
+    console.warn('[purgeUnusedImages] Mise en corbeille impossible :', toTrash, err.message);
   }
 };

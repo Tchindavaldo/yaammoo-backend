@@ -15,6 +15,7 @@
 const repos = require('../../repositories');
 const { validateBonus } = require('../../utils/validator/validateBonus');
 const { broadcastBonusActivation } = require('./broadcastBonusActivation');
+const { purgeUnusedImages } = require('../images/uploadImage.service');
 
 /**
  * Fusionne un `criteria` partiel avec celui déjà en base (et, à l'intérieur, un
@@ -119,6 +120,9 @@ exports.patchBonusService = async (bonusId, input, viewerUid) => {
       message: 'Ce bonus a été modifié entre-temps. Rechargez-le puis réessayez.',
     };
   }
+
+  // Flyer remplacé → l'ancien part en corbeille (effacé après rétention).
+  if ('flyerUrl' in fields) await purgeUnusedImages([bonus.flyerUrl], [updated?.flyerUrl], { entity: 'bonus', entityId: bonusId, field: 'flyerUrl' });
 
   // Bascule active/inactive : tous les clients doivent le savoir (socket + push).
   // On ne diffuse que sur un CHANGEMENT réel, pour ne pas notifier un PATCH qui

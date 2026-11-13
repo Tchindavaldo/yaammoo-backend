@@ -48,6 +48,7 @@ const sb = {
   driverPositions: require('./supabase/driverPositions.repo'),
   analytics: require('./supabase/analytics.repo'),
   userConnections: require('./supabase/userConnections.repo'),
+  imageTrash: require('./supabase/imageTrash.repo'),
 };
 
 // ===========================================================================
@@ -98,6 +99,7 @@ module.exports = {
   staff: sb.staff,
   fastfoodBroadcasts: sb.fastfoodBroadcasts,
   userLocations: sb.userLocations,
+  imageTrash: sb.imageTrash,
   driverPositions: sb.driverPositions,
   analytics: sb.analytics,
   userConnections: sb.userConnections,

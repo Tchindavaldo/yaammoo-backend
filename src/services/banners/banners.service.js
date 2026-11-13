@@ -8,7 +8,7 @@
 // boucle sont acceptables et garantissent une séquence exacte.
 // ============================================================================
 const repos = require('../../repositories');
-const { deleteImageFromSupabase, purgeUnusedImages } = require('../images/uploadImage.service');
+const { purgeUnusedImages } = require('../images/uploadImage.service');
 
 const clamp = (n, min, max) => Math.max(min, Math.min(max, Number(n) || 0));
 
@@ -64,8 +64,8 @@ exports.updateBanner = async (id, fields, requestedOrder) => {
 
   // Persiste d'abord les champs, puis remet a plat l'ordre.
   await repos.banners.update(id, fields);
-  // Image remplacée → l'ancienne est effacée du storage.
-  if (fields.imageUrl !== undefined) await purgeUnusedImages([existing.imageUrl], [fields.imageUrl]);
+  // Image remplacée → l'ancienne part en corbeille (effacée après rétention).
+  if (fields.imageUrl !== undefined) await purgeUnusedImages([existing.imageUrl], [fields.imageUrl], { entity: 'banner', entityId: id, field: 'imageUrl' });
   await repos.banners.applyOrder(reindexed.map(({ id: bid, sortOrder }) => ({ id: bid, sortOrder })));
 
   return finalOrder || item;
@@ -80,14 +80,8 @@ exports.deleteBanner = async id => {
   // 1. Suppression de la bannière en BDD
   await repos.banners.remove(id);
 
-  // 2. Suppression de l'image du storage Supabase si elle existe
-  if (targetBanner.imageUrl) {
-    try {
-      await deleteImageFromSupabase(targetBanner.imageUrl);
-    } catch (err) {
-      console.warn(`[deleteBanner] Impossible de supprimer l'image (${targetBanner.imageUrl}) :`, err.message);
-    }
-  }
+  // 2. Image en corbeille (effacée du storage après rétention)
+  await purgeUnusedImages([targetBanner.imageUrl], [], { entity: 'banner', entityId: id, field: 'imageUrl' });
 
   // 3. Réordonnancement des bannières restantes
   const without = all.filter(b => b.id !== id);

@@ -72,8 +72,8 @@ exports.updateFastFoodService = async (fastFoodId, data) => {
   }
 
   const updated = await repos.fastfoods.update(fastFoodId, updateData);
-  // Image remplacée → l'ancienne est effacée du storage.
-  if (updateData.image !== undefined) await purgeUnusedImages([existing.image], [updated?.image]);
+  // Image remplacée → l'ancienne part en corbeille (effacée après rétention).
+  if (updateData.image !== undefined) await purgeUnusedImages([existing.image], [updated?.image], { entity: 'fastfood', entityId: fastFoodId, field: 'image' });
 
   // Boissons modifiees : `menu.drink` de chaque plat en derive. On joint donc les
   // menus (prix AFFICHE, boissons reconstruites) au broadcast, sinon la home et

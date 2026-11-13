@@ -1,4 +1,4 @@
-const { uploadImageToSupabase, deleteImageFromSupabase } = require('../../services/images/uploadImage.service');
+const { uploadImageToSupabase, purgeUnusedImages } = require('../../services/images/uploadImage.service');
 const { uploadFileToSupabase } = require('../../services/storage/uploadFile.service');
 const { STORAGE_FOLDERS } = require('../../services/storage/storageFolders');
 
@@ -23,12 +23,12 @@ exports.handleUpload = async (req, res) => {
   }
 };
 
-/** DELETE — supprime une image du storage (à partir de son URL publique). */
+/** DELETE — met une image en corbeille (effacée du storage après rétention, migration 071). */
 exports.handleDelete = async (req, res) => {
   try {
     const url = req.body?.url || req.query?.url;
     if (!url) return res.status(400).json({ success: false, message: "Champ `url` requis." });
-    await deleteImageFromSupabase(url);
+    await purgeUnusedImages([url]);
     res.status(200).json({ success: true, message: "Image supprimée avec succès." });
   } catch (error) {
     console.error("Erreur suppression image:", error.message);

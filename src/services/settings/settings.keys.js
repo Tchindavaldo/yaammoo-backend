@@ -81,6 +81,8 @@ const KEYS = {
   // Boutiques masquées du home et de la recherche, sauf pour leur propriétaire
   // (migration 069) : boutique de review Apple en prod.
   HIDDEN_FASTFOOD_IDS: 'hidden_fastfood_ids',
+  // Corbeille d'images (migration 071) : jours avant effacement du storage.
+  IMAGE_TRASH_RETENTION_DAYS: 'image_trash_retention_days',
   // Builds de TEST (migration 051, table `settings_test` depuis la 055, tableau
   // depuis la 056) : versions d'app exactes qui reçoivent les comportements de
   // test (mode volume de `GET /fastFood/all`, paiement gratuit). [] = aucune.
@@ -158,6 +160,7 @@ const KEY_CATEGORY = {
   [KEYS.FASTFOOD_DELETE_RETENTION_DAYS]: 'deployment',
   [KEYS.FASTFOOD_PURGE_INTERVAL_MS]: 'deployment',
   [KEYS.HIDDEN_FASTFOOD_IDS]: 'deployment',
+  [KEYS.IMAGE_TRASH_RETENTION_DAYS]: 'deployment',
 
   // test — build de test (sorties de `deployment` par la migration 055)
   [KEYS.TEST_APP_VERSION]: 'test',
@@ -251,6 +254,9 @@ const FALLBACKS = {
   [KEYS.FASTFOOD_PURGE_INTERVAL_MS]: 86400000,
   // Aucune boutique masquée : une clé absente ne cache rien.
   [KEYS.HIDDEN_FASTFOOD_IDS]: [],
+  // Corbeille d'images : 60 j (décision du 13/11/2026). Même logique que la
+  // rétention boutique : jamais plus court sur clé absente.
+  [KEYS.IMAGE_TRASH_RETENTION_DAYS]: 60,
   // Build de test : repli à « aucune ». Une clé absente ne doit JAMAIS servir
   // des données de test à une vraie app.
   [KEYS.TEST_APP_VERSION]: [],

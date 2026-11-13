@@ -40,8 +40,14 @@ exports.updateMenuService = async (menuId, updateData) => {
     }
 
     const updatedMenu = await repos.menus.update(menuId, updateData);
-    // Image remplacée ou retirée de la galerie → fichier effacé du storage.
-    await purgeUnusedImages(menuImages(existing), menuImages(updatedMenu));
+    // Image remplacée ou retirée de la galerie → fichier mis en corbeille
+    // (effacé du storage après le délai de rétention). Un appel par champ,
+    // pour que la restauration admin sache où remettre l'image.
+    const kept = menuImages(updatedMenu);
+    for (const field of ['image', 'coverImage', 'images']) {
+      const old = field === 'images' ? existing.images || [] : [existing[field]];
+      await purgeUnusedImages(old, kept, { entity: 'menu', entityId: menuId, field });
+    }
 
     const fastFood = await getFastFoodService(existing.fastFoodId);
     const userId = fastFood.userId;
