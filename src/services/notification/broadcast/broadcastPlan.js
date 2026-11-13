@@ -4,6 +4,8 @@
 // Les plans vivent dans le réglage `broadcast_plans` (settings_notification,
 // migration 053) : `{ <clé>: { label, dayLimit, weekLimit, audiences[] } }`.
 // La clé d'une boutique est `fastfoods.broadcast_plan` ('free' par défaut).
+// `audienceLimits` (migration 070, facultatif) : `{ <audience>: { dayLimit,
+// weekLimit } }`, plafond PROPRE à une audience, en plus du quota global.
 // ============================================================================
 const { getSettings, KEYS } = require('../../settings/settings.service');
 const { BROADCAST_AUDIENCES } = require('../../../interface/broadcastFields');
@@ -28,12 +30,24 @@ exports.resolvePlan = async planKey => {
   const key = plans[planKey] ? planKey : FREE_PLAN_KEY;
   const plan = plans[key] || {};
 
+  const audiences = (Array.isArray(plan.audiences) ? plan.audiences : []).filter(a => BROADCAST_AUDIENCES.includes(a));
+
+  // Plafond par audience : seulement pour les audiences du plan. Une audience
+  // sans entrée n'a que le quota global ; une entrée illisible vaut 0 (refus).
+  const rawAud = plan.audienceLimits && typeof plan.audienceLimits === 'object' ? plan.audienceLimits : {};
+  const audienceLimits = {};
+  for (const a of audiences) {
+    const l = rawAud[a];
+    if (l && typeof l === 'object') audienceLimits[a] = { dayLimit: toLimit(l.dayLimit), weekLimit: toLimit(l.weekLimit) };
+  }
+
   return {
     key,
     label: typeof plan.label === 'string' && plan.label ? plan.label : key,
     dayLimit: toLimit(plan.dayLimit),
     weekLimit: toLimit(plan.weekLimit),
-    audiences: (Array.isArray(plan.audiences) ? plan.audiences : []).filter(a => BROADCAST_AUDIENCES.includes(a)),
+    audiences,
+    audienceLimits,
   };
 };
 

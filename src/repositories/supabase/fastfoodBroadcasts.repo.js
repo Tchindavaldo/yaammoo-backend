@@ -81,9 +81,16 @@ exports.insertUnderQuota = async p => {
     p_week_start: p.weekStart.toISOString(),
     p_day_limit: p.dayLimit,
     p_week_limit: p.weekLimit,
+    // Surcharge à 15 paramètres (migration 070) : plafond propre à l'audience,
+    // null = aucun.
+    p_audience_day_limit: p.audienceDayLimit ?? null,
+    p_audience_week_limit: p.audienceWeekLimit ?? null,
   });
   if (error) throw error;
-  if (!data?.ok) return { ok: false, reason: data?.reason === 'week' ? 'week' : 'day' };
+  if (!data?.ok) {
+    const reasons = ['week', 'day', 'audience_week', 'audience_day'];
+    return { ok: false, reason: reasons.includes(data?.reason) ? data.reason : 'day' };
+  }
   return { ok: true, item: fromRow(data.row) };
 };
 

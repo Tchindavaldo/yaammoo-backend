@@ -69,13 +69,20 @@ exports.sendBroadcast = async ({ fastFoodId, senderUid, payload }) => {
     weekStart,
     dayLimit: plan.dayLimit,
     weekLimit: plan.weekLimit,
+    // Plafond propre à l'audience (migration 070) : null = quota global seul.
+    audienceDayLimit: plan.audienceLimits[payload.audience]?.dayLimit ?? null,
+    audienceWeekLimit: plan.audienceLimits[payload.audience]?.weekLimit ?? null,
   });
 
   if (!result.ok) {
-    return {
-      status: 429,
-      message: result.reason === 'week' ? 'Quota de la semaine atteint.' : 'Quota du jour atteint.',
+    const target = AUDIENCE_LABELS[payload.audience];
+    const messages = {
+      week: 'Quota de la semaine atteint.',
+      day: 'Quota du jour atteint.',
+      audience_week: `Quota de la semaine atteint pour ${target}.`,
+      audience_day: `Quota du jour atteint pour ${target}.`,
     };
+    return { status: 429, message: messages[result.reason] || messages.day };
   }
 
   // Après la réponse : la diffusion peut prendre du temps (milliers de push).

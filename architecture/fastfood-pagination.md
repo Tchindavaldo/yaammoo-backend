@@ -101,6 +101,19 @@ et sur la jointure `menus` : `status <> 'unavailable'`, `disponibilite <> false`
 pour garder des pages pleines ; le service refiltre (mode complet `getAll()`).
 Voir [merchants.md](./merchants.md#jours-douverture--disponibilité-migration-049).
 
+## Boutiques masquées (migration 069)
+
+`hidden_fastfood_ids` (`settings_deployment`, tableau d'ids, défaut `[]`) :
+ces boutiques sont retirées du home et de la recherche pour tout le monde
+**sauf leur propriétaire** (`fastfoods.user_id` = uid du token). Usage : la
+boutique de review Apple en prod — le reviewer, connecté avec le compte review,
+la voit ; les vrais clients jamais. Filtre dans `getFastFoodsService` (une page
+peut donc rendre une boutique de moins que `limit`).
+
+```sql
+UPDATE settings_deployment SET value = '["8KqUta86xe9fvihWnkzd"]'::jsonb WHERE key = 'hidden_fastfood_ids';
+```
+
 ## Bannières
 
 Servies **uniquement** quand `cursor` est absent. Les renvoyer à chaque

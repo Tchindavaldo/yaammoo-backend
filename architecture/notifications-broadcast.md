@@ -58,10 +58,19 @@ Payload (`interface/broadcastFields.js`, `validateBroadcast`) :
 Réglage `broadcast_plans` (table `settings_notification`, modifiable à chaud) :
 
 ```json
-{ "free": { "label": "Gratuit", "dayLimit": 3, "weekLimit": 10,
-            "audiences": ["customers", "city", "all"] } }
+{ "free": { "label": "Gratuit", "dayLimit": 2, "weekLimit": 8,
+            "audiences": ["customers", "city"],
+            "audienceLimits": { "customers": { "dayLimit": 1, "weekLimit": 7 },
+                                "city":      { "dayLimit": 1, "weekLimit": 1 } } } }
 ```
 
+- Plan gratuit (13/11/2026) : clients 1/jour et 7/semaine, ville 1/semaine,
+  **tous : 0** (audience absente du plan, refus 403). Les plans payants
+  viendront en clés supplémentaires du même JSON.
+- `audienceLimits` (migration 070, facultatif) : plafond **propre** à une
+  audience, vérifié EN PLUS du quota global du plan. Audience sans entrée =
+  quota global seul. Le quota global gratuit vaut la somme (2/jour, 8/semaine) :
+  c'est lui que lisent les apps déjà installées pour leur compteur.
 - Plan d'une boutique : `fastfoods.broadcast_plan` (`'free'` par défaut).
 - Clé inconnue → plan `free` (un plan retiré ne coupe pas l'envoi).
 - Aucun plan lisible → limites à 0 : envoi refusé, jamais illimité.
@@ -76,6 +85,10 @@ Réglage `broadcast_plans` (table `settings_notification`, modifiable à chaud) 
 - `insert_fastfood_broadcast(...)` compte et insère **dans la même
   transaction**, sous `pg_advisory_xact_lock` propre à la boutique : deux envois
   simultanés ne franchissent pas le quota ensemble. Semaine vérifiée avant jour.
+  Surcharge à 15 paramètres (migration 070) : `p_audience_day_limit`,
+  `p_audience_week_limit` (NULL = aucun) ; refus `audience_week` /
+  `audience_day` → 429 « Quota … atteint pour vos clients / cette ville ».
+- `GET` renvoie `plan.audienceLimits` (champ ajouté, ignoré des anciennes apps).
 - `dayLeft` affiché par l'app = `min(dayLimit − jour, weekLimit − semaine)`.
 
 ## Audiences
@@ -118,6 +131,7 @@ Notification du fil :
 ```
 schema/migrations/053_fastfood_broadcasts.sql
 schema/migrations/054_user_locations.sql              # city_user_ids
+schema/migrations/070_broadcast_audience_limits.sql   # quota par audience
 src/interface/broadcastFields.js
 src/utils/validator/validateBroadcast.js
 src/repositories/supabase/fastfoodBroadcasts.repo.js

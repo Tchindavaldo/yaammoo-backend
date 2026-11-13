@@ -13,7 +13,7 @@
 const repos = require('../../repositories');
 const { getMenuService } = require('../menu/getMenu.services');
 const { getArmedDeliveryOffers, pickOfferForFastFood } = require('../bonus/armBonus.service');
-const { getPricingSettings } = require('../settings/settings.service');
+const { getPricingSettings, getHiddenFastfoodIds } = require('../settings/settings.service');
 const { applyDisplayPricing, isPlatformDelivered } = require('../pricing/deliveryPricing');
 const { withShopDrinks } = require('../menu/shopDrinks');
 const { withMenuThumbnails, withFastfoodThumbnail } = require('../images/thumbnailUrl');
@@ -60,7 +60,7 @@ exports.getFastFoodsService = async (userId, page) => {
 
     // Une seule lecture des bonus armés et des réglages pour toute la liste
     // (pas de N+1).
-    const [offers, pricing] = await Promise.all([getArmedDeliveryOffers(userId), getPricingSettings()]);
+    const [offers, pricing, hidden] = await Promise.all([getArmedDeliveryOffers(userId), getPricingSettings(), getHiddenFastfoodIds()]);
 
     // Campagne globale : elle PRIME sur les bonus et s'applique à tout le monde,
     // y compris aux visiteurs non connectés.
@@ -74,8 +74,12 @@ exports.getFastFoodsService = async (userId, page) => {
     // Home = écran d'achat : boutiques et plats indisponibles n'y figurent pas,
     // propriétaire compris. Il les gère via `GET /fastfood/:id` et
     // `GET /menu/:fastFoodId`, non filtrés.
+    // Boutiques masquées (`hidden_fastfood_ids`) : visibles de leur seul
+    // propriétaire. Boutique de review Apple : le reviewer, connecté avec le
+    // compte review, la voit ; les vrais clients jamais (home ni recherche).
+    const visible = f => f.available && (!hidden.has(f.id) || (!!userId && f.userId === userId));
     const fastfoodsWithMenus = await Promise.all(
-      fastfoods.filter(f => f.available).map(async fastfood => {
+      fastfoods.filter(visible).map(async fastfood => {
         const menus = (await getMenuService(fastfood.id)).filter(isMenuAvailable);
         // Prix AFFICHÉ pour tout le monde, y compris le propriétaire de la
         // boutique : `/fastfood/all` alimente le HOME, donc un écran d'achat.

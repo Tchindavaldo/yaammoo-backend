@@ -316,6 +316,17 @@ async function setSetting(key, value) {
   return saved;
 }
 
+/**
+ * Boutiques masquées (`hidden_fastfood_ids`, settings_deployment) : absentes du
+ * home et de la recherche pour tout le monde SAUF leur propriétaire. Sert à la
+ * boutique de review Apple en prod. Ne lève jamais : clé absente = aucune.
+ */
+async function getHiddenFastfoodIds() {
+  const s = await getSettings();
+  const raw = s[KEYS.HIDDEN_FASTFOOD_IDS];
+  return new Set((Array.isArray(raw) ? raw : []).map(v => String(v ?? '').trim()).filter(Boolean));
+}
+
 module.exports = {
   KEYS,
   KEY_CATEGORY,
@@ -333,6 +344,7 @@ module.exports = {
   getTestFastfoodVolume,
   getTestVolumeImageUrl,
   getClientSettings,
+  getHiddenFastfoodIds,
   getAppVersionGate,
   setSetting,
   invalidate,

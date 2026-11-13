@@ -78,6 +78,9 @@ const KEYS = {
   // à chaud, typiquement pour sauver une boutique dont les 30 jours expirent.
   FASTFOOD_DELETE_RETENTION_DAYS: 'fastfood_delete_retention_days',
   FASTFOOD_PURGE_INTERVAL_MS: 'fastfood_purge_interval_ms',
+  // Boutiques masquées du home et de la recherche, sauf pour leur propriétaire
+  // (migration 069) : boutique de review Apple en prod.
+  HIDDEN_FASTFOOD_IDS: 'hidden_fastfood_ids',
   // Builds de TEST (migration 051, table `settings_test` depuis la 055, tableau
   // depuis la 056) : versions d'app exactes qui reçoivent les comportements de
   // test (mode volume de `GET /fastFood/all`, paiement gratuit). [] = aucune.
@@ -154,6 +157,7 @@ const KEY_CATEGORY = {
   // Suppression de boutiques : exploitation, pas tarification ni livraison.
   [KEYS.FASTFOOD_DELETE_RETENTION_DAYS]: 'deployment',
   [KEYS.FASTFOOD_PURGE_INTERVAL_MS]: 'deployment',
+  [KEYS.HIDDEN_FASTFOOD_IDS]: 'deployment',
 
   // test — build de test (sorties de `deployment` par la migration 055)
   [KEYS.TEST_APP_VERSION]: 'test',
@@ -245,6 +249,8 @@ const FALLBACKS = {
   // Purger trop tôt est irréversible ; purger trop tard ne coûte que du stockage.
   [KEYS.FASTFOOD_DELETE_RETENTION_DAYS]: 90,
   [KEYS.FASTFOOD_PURGE_INTERVAL_MS]: 86400000,
+  // Aucune boutique masquée : une clé absente ne cache rien.
+  [KEYS.HIDDEN_FASTFOOD_IDS]: [],
   // Build de test : repli à « aucune ». Une clé absente ne doit JAMAIS servir
   // des données de test à une vraie app.
   [KEYS.TEST_APP_VERSION]: [],
@@ -256,8 +262,15 @@ const FALLBACKS = {
   [KEYS.TEST_VOLUME_IMAGE_URL]: '',
   // Plan gratuit de la migration 053 : une clé illisible ne coupe pas l'envoi
   // et n'ouvre pas plus que le plan de base.
+  // Quota par audience depuis la migration 070 (même valeur qu'en base).
   [KEYS.BROADCAST_PLANS]: {
-    free: { label: 'Gratuit', dayLimit: 3, weekLimit: 10, audiences: ['customers', 'city', 'all'] },
+    free: {
+      label: 'Gratuit',
+      dayLimit: 2,
+      weekLimit: 8,
+      audiences: ['customers', 'city'],
+      audienceLimits: { customers: { dayLimit: 1, weekLimit: 7 }, city: { dayLimit: 1, weekLimit: 1 } },
+    },
   },
   [KEYS.BROADCAST_UTC_OFFSET_MINUTES]: 60,
 };
