@@ -17,6 +17,8 @@ primary_region = 'ams'
   DB_PROVIDER = 'supabase'
   # Webhooks MobileWallet : DOIVENT revenir sur le backend de test, pas la prod.
   BACKEND_URL = 'https://yaammoo-backend-dev.fly.dev'
+  # Fonctions de test (settings_test) : actives sur CE backend seulement.
+  TEST_FEATURES_ENABLED = 'true'
 
 [http_service]
   internal_port = 8080

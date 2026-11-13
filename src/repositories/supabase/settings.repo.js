@@ -31,6 +31,14 @@ const TABLES = {
 
 exports.CATEGORIES = Object.keys(TABLES);
 
+/**
+ * Catégories FACULTATIVES : leur table peut ne pas exister (`settings_test`
+ * est absente de la base prod). Table manquante = catégorie vide, sans faire
+ * échouer la lecture des autres réglages.
+ */
+const OPTIONAL = new Set(['test']);
+const isMissingTable = error => error && (error.code === 'PGRST205' || error.code === '42P01');
+
 const tableFor = category => {
   const table = TABLES[category];
   if (!table) {
@@ -53,6 +61,7 @@ exports.getAll = async () => {
   const results = await Promise.all(
     exports.CATEGORIES.map(async category => {
       const { data, error } = await supabase.from(tableFor(category)).select('key, value');
+      if (error && OPTIONAL.has(category) && isMissingTable(error)) return [];
       if (error) throw error;
       return data || [];
     })

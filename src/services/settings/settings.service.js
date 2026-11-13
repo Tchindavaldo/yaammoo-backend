@@ -225,7 +225,16 @@ async function isAppleReviewClient(req) {
  * l'uid du token (`req.user`, route à auth optionnelle).
  * Ne lève jamais : clés absentes = aucune build de test.
  */
+/**
+ * Fonctions de TEST (builds de test, paiement gratuit, mode volume, tolérance
+ * sans jeton) : actives UNIQUEMENT si `TEST_FEATURES_ENABLED=true`, posée sur
+ * le backend de test (fly.dev.toml). Absente en prod : toujours faux, quelle
+ * que soit la base — `settings_test` n'y est jamais lue.
+ */
+const testFeaturesEnabled = () => process.env.TEST_FEATURES_ENABLED === 'true';
+
 async function isTestClient(req, userId) {
+  if (!testFeaturesEnabled()) return false;
   const s = await getSettings();
   const toList = raw => (Array.isArray(raw) ? raw : [raw]).map(v => String(v ?? '').trim()).filter(Boolean);
   const headerVersion = String(req?.headers?.['x-app-version'] || '').trim();
@@ -240,6 +249,7 @@ async function isTestClient(req, userId) {
  * Ne lève jamais : clé absente = personne.
  */
 async function isNoAuthToleratedClient(req) {
+  if (!testFeaturesEnabled()) return false;
   const s = await getSettings();
   const raw = s[KEYS.TEST_NO_AUTH_VERSIONS];
   const versions = (Array.isArray(raw) ? raw : []).map(v => String(v ?? '').trim()).filter(Boolean);
