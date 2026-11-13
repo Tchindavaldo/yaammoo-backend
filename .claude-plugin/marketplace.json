@@ -1,5 +1,8 @@
 {
   "name": "yaammoo",
   "owner": { "name": "Rauval" },
-  "plugins": [{ "name": "money-guard", "source": "./claude-mods/money-guard" }]
+  "plugins": [
+    { "name": "money-guard", "source": "./claude-mods/money-guard" },
+    { "name": "db-guard", "source": "./claude-mods/db-guard" }
+  ]
 }

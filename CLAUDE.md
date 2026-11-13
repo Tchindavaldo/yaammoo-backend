@@ -3,7 +3,7 @@
 Ce fichier est **versionné** : ses règles s'appliquent automatiquement sur tout
 PC où le projet est cloné/pull, dans n'importe quelle session Claude Code.
 
-> **22 règles numérotées R1 → R22.** Toute nouvelle règle ajoutée à ce fichier
+> **23 règles numérotées R1 → R23.** Toute nouvelle règle ajoutée à ce fichier
 > DOIT recevoir le numéro suivant (R20, R21, …) et le total ci-dessus doit être
 > mis à jour. On cite une règle par son numéro (ex. « R1 » pour le style de réponse).
 
@@ -467,6 +467,10 @@ respecter ce fichier par le harness. Ils sont **identiques au frontend**
 | `require-money-rules.sh` | `PreToolUse` | BLOQUE écriture de fichier d'argent / SQL d'argent / déploiement sans relecture de `money-rules.md` < 15 min (R22) |
 | `money-read-marker.sh` | `PostToolUse` (Read) | Note la relecture de `money-rules.md` (R22) |
 | `install-money-guard.sh` | `SessionStart` | Installe le mod `money-guard` (`claude-mods/`) à chaque session (R22) |
+| `prod-db-context.sh` | `UserPromptSubmit` | Message qui parle de base/prod/migration → injecte `architecture/prod-db-rules.md` EN ENTIER (R23) |
+| `prod-db-guard.sh` | `PreToolUse` (Bash, MCP) | Base de prod : relecture < 15 min exigée, actions destructrices REFUSÉES, validation à chaque écriture, journal d'audit (R23) |
+| `prod-db-read-marker.sh` | `PostToolUse` (Read) | Note la relecture de `prod-db-rules.md` (R23) |
+| `install-db-guard.sh` | `SessionStart` | Installe le mod `db-guard` (`claude-mods/`) à chaque session (R23) |
 
 **Adaptation backend** de `require-architecture-read.sh` : la feature est
 déduite de `src/services/<x>`, `src/controllers/<x>`, `src/routes/<x>` et
@@ -511,3 +515,33 @@ Une erreur de chiffre = un marchand mal payé, de l'argent perdu, un litige.
    ET la doc détaillée dans le même commit, puis **resynchronise la copie
    frontend** (`yaammoo/architecture/money-rules.md`, R23 frontend).
 5. **Tout échec d'argent est tracé** dans `app_errors` (cf. `architecture/app-errors.md`).
+
+## R23 — BASE DE PROD : vrais clients, sécurité MAXIMALE (OBLIGATOIRE)
+
+**La base yaammoo** (compte Supabase `yaammoo@`, projet `vcuskusfywrigdrkgnur`)
+est celle des **vrais clients**. La base de test est `yamo@`
+(`xaocrcxnueqxnyfqaayf`, nommée elle aussi « yaammoo » dans son dashboard) :
+on identifie une base **par son id de projet**, jamais par son nom.
+
+1. **Source unique** : [`architecture/prod-db-rules.md`](./architecture/prod-db-rules.md).
+2. **Chaque requête prod est annoncée** en une phrase (quoi + pourquoi), même
+   en lecture. **Aucune écriture sans l'accord explicite** de l'utilisateur pour
+   CETTE requête. Sauvegarde avant toute écriture de masse ou DDL.
+3. **Appliqué par le harness, pas par la bonne volonté** :
+   - `prod-db-context.sh` réinjecte `prod-db-rules.md` à CHAQUE message qui
+     parle de base, de prod, de migration ou de Supabase ;
+   - `prod-db-guard.sh` exige une relecture de `prod-db-rules.md` < 15 min
+     pour TOUT appel prod (lecture comprise), REFUSE les actions destructrices
+     (gestion du compte/projet, `DELETE`/`PATCH`/`PUT`, `DROP`, `TRUNCATE`,
+     `DELETE`/`UPDATE` sans `WHERE`, désactivation RLS, jeton à la main, relais
+     ou écriture des données hors `/tmp`), DEMANDE la validation de
+     l'utilisateur à CHAQUE écriture SQL ou POST (même en mode automatique),
+     exige `money-rules.md` < 15 min pour écrire sur une table d'argent (R22),
+     et journalise chaque appel dans `.claude/prod-audit.log` (gitignoré) ;
+   - le mod `db-guard` (`claude-mods/`, installé à chaque session par
+     `install-db-guard.sh`) met les règles dans le prompt système à chaque
+     tour, double le blocage et affiche un bandeau rouge.
+4. **Jamais** de données de prod copiées vers la base de test ou dans le dépôt.
+5. Le jeton d'accès (`claude-token`, compte `yaammoo@`) est un secret réseau de
+   l'environnement cloud, jamais dans le code ; l'utilisateur le révoque à la
+   fin de la migration.
