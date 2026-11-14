@@ -167,5 +167,6 @@ qui partage un déplacement. Les commandes en retrait vont dans `(sans livraison
 ## Refus du pré-check (422) : message et rechargement
 
 - `delivery_price_mismatch` (course payée ≠ tarif actuel, la boutique a changé pendant que la page était ouverte) : « Les prix de livraison de cette boutique viennent de changer. Rafraîchis la page et refais ta commande. »
-- `negative_margin`, `settlement_failed` : message générique inchangé.
+- `display_price_changed` : même message. Détecté quand le règlement simulé échoue ou sort une marge négative ET que le prix affiché actuel du plat diffère de celui de la commande (bascule marchand ↔ plateforme, interrupteur global, zones, prix). Ne sert qu'à expliquer un refus : un panier ancien dont le règlement passe n'est jamais refusé pour un écart (`services/order/displayPriceCheck.js`).
+- `negative_margin`, `settlement_failed` sans écart de prix : message générique inchangé.
 - Toute réponse 422 du pré-check porte `fastFoodIds` (boutiques du panier) : l'app les recharge (`GET /fastfood/all?ids=…`).

@@ -120,6 +120,10 @@ et `platformExpressZones` (express).
 1. **Avant la demande USSD** (`settlementPrecheck`) : règlement simulé ; refus
    422 si course payée ≠ tarif du créneau (`delivery_price_mismatch`), calcul
    en échec (`settlement_failed`) ou marge négative (`negative_margin`).
+   Ces deux derniers deviennent `display_price_changed` (message « prix
+   changés », sans push marchand) si le prix affiché actuel du plat diffère de
+   celui de la commande (bascule de régime, zones, prix). Toute réponse 422
+   porte `fastFoodIds` : l'app recharge ces boutiques.
    Sur `negative_margin`, `precheckSuggestions` calcule (en rejouant le
    règlement simulé) la **course maximale** de la zone/créneau et le **prix
    réel minimum** du plat (règle de la page menu respectée), puis envoie un

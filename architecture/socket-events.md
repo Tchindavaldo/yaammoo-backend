@@ -240,8 +240,9 @@ Détails feature : [ratings.md](./ratings.md).
 | Event             | Destination          | Émetteur                              | Payload                 |
 | ----------------- | -------------------- | ------------------------------------- | ----------------------- |
 | `newFastfood`     | **tous** (`io.emit`) | `services/fastfood/createFastFood.js` | `{ message, fastFood }` |
-| `fastfoodUpdated` | **tous** (`io.emit`) | `services/fastfood/updateFastFood.js` | `{ message, fastFood }` — vue HOME de la boutique (prix affichés, zones du régime effectif, menus, vignettes), SANS `deliveryOffer` (propre au user). Boutique non visible au home : pas d'émission |
-| `fastfoodsChanged` | **tous** (`io.emit`) | `services/fastfood/fastfoodsChanged.js` | `{ ids: string[] \| null, reason }` — ces boutiques ont changé (fiche, zones/prix/créneaux/express, régime). `ids: null` = toutes (réglage prix/livraison/retrait, `platform_delivery_all`, `hidden_fastfood_ids`). L'app recharge via `GET /fastfood/all?ids=…` (ou la 1re page du home). Émis par `updateFastFood`, `PATCH /fastfood/:id/delivery`, `PATCH /fastfood/delivery`, `PATCH /settings/:key` |
+| `fastfoodUpdated` | **tous** (`io.emit`) | `services/fastfood/fastfoodsChanged.js` (`broadcastFastfoodViews`) | `{ message, fastFood, reason }` — VUE HOME complète de la boutique (prix affichés, zones du régime effectif, menus, vignettes, note). `deliveryOffer` joint seulement si c'est la campagne globale (sinon absent : bonus du user conservé). Émis par `updateFastFood`, `PATCH /fastfood/:id/delivery`, `PATCH /fastfood/delivery`. L'app applique, sans GET |
+| `fastfoodsHidden` | **tous** (`io.emit`) | idem | `{ ids, reason }` — boutiques modifiées devenues invisibles au home : l'app les retire |
+| `fastfoodsChanged` | **tous** (`io.emit`) | `services/fastfood/fastfoodsChanged.js` | `{ ids: null, reason }` — réglage GLOBAL modifié (`PATCH /settings` : prix, livraison, retrait, `platform_delivery_all`, `hidden_fastfood_ids`) : tout le catalogue change, l'app relance en silence son rafraîchissement de premier plan (`refreshLoadedSilently`) |
 | `fastfoodsDeleted` | **tous** (`io.emit`) | `services/fastfood/deleteFastfood.service.js` | `{ ids: string[] }` |
 
 `fastfoodsDeleted` : suppression admin (soft delete). Le front retire ces
@@ -253,7 +254,7 @@ boutiques du home sans refresh — elles sont déjà invisibles côté API. Voir
 ## Règles d'adressage
 
 - Par défaut : `io.to(userId).emit(...)` — une room par utilisateur.
-- Broadcast global (`io.emit`) : `newGlobalMenu`, `globalMenuUpdated`, `globalMenuDeleted`, `newFastfood`, `fastfoodUpdated`, `fastfoodsChanged`, `fastfoodsDeleted`.
+- Broadcast global (`io.emit`) : `newGlobalMenu`, `globalMenuUpdated`, `globalMenuDeleted`, `newFastfood`, `fastfoodUpdated`, `fastfoodsChanged`, `fastfoodsHidden`, `fastfoodsDeleted`.
 - Le `userId` marchand est stocké dans le document `fastfoods` → champ `userId`.
 
 ## Récepteurs côté client

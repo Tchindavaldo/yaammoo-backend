@@ -235,4 +235,4 @@ curl -s "$B?limit=9999" | jq '.data|length'   # <= 50
 
 ## Rechargement ciblé `?ids=a,b`
 
-`GET /fastfood/all?ids=a,b` (50 max) renvoie ces seules boutiques, même forme que le home (prix affichés, `deliveryOffer` du user, `distanceKm`), en TABLEAU, sans bannières ni `clientSettings`, jamais en mode volume. Utilisé par l'app sur le signal socket `fastfoodsChanged` et sur un refus de paiement (`fastFoodIds` de la réponse 422).
+`GET /fastfood/all?ids=a,b` (50 max) renvoie ces seules boutiques, même forme que le home (prix affichés, `deliveryOffer` du user, `distanceKm`), en TABLEAU, sans bannières ni `clientSettings`, jamais en mode volume. Utilisé par l'app sur un refus de paiement (`fastFoodIds` de la réponse 422), pour récupérer l'offre de livraison du user. Les changements faits par l'API arrivent, eux, avec leurs données dans le socket (`fastfoodUpdated`).
