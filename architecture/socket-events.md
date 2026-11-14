@@ -240,7 +240,8 @@ Détails feature : [ratings.md](./ratings.md).
 | Event             | Destination          | Émetteur                              | Payload                 |
 | ----------------- | -------------------- | ------------------------------------- | ----------------------- |
 | `newFastfood`     | **tous** (`io.emit`) | `services/fastfood/createFastFood.js` | `{ message, fastFood }` |
-| `fastfoodUpdated` | **tous** (`io.emit`) | `services/fastfood/updateFastFood.js` | `{ message, fastFood }` — si `drinks` modifié, `fastFood.menus` est joint (prix affiché, `menu.drink` reconstruit) |
+| `fastfoodUpdated` | **tous** (`io.emit`) | `services/fastfood/updateFastFood.js` | `{ message, fastFood }` — vue HOME de la boutique (prix affichés, zones du régime effectif, menus, vignettes), SANS `deliveryOffer` (propre au user). Boutique non visible au home : pas d'émission |
+| `fastfoodsChanged` | **tous** (`io.emit`) | `services/fastfood/fastfoodsChanged.js` | `{ ids: string[] \| null, reason }` — ces boutiques ont changé (fiche, zones/prix/créneaux/express, régime). `ids: null` = toutes (réglage prix/livraison/retrait, `platform_delivery_all`, `hidden_fastfood_ids`). L'app recharge via `GET /fastfood/all?ids=…` (ou la 1re page du home). Émis par `updateFastFood`, `PATCH /fastfood/:id/delivery`, `PATCH /fastfood/delivery`, `PATCH /settings/:key` |
 | `fastfoodsDeleted` | **tous** (`io.emit`) | `services/fastfood/deleteFastfood.service.js` | `{ ids: string[] }` |
 
 `fastfoodsDeleted` : suppression admin (soft delete). Le front retire ces
@@ -252,7 +253,7 @@ boutiques du home sans refresh — elles sont déjà invisibles côté API. Voir
 ## Règles d'adressage
 
 - Par défaut : `io.to(userId).emit(...)` — une room par utilisateur.
-- Broadcast global (`io.emit`) : `newGlobalMenu`, `globalMenuUpdated`, `globalMenuDeleted`, `newFastfood`, `fastfoodUpdated`, `fastfoodsDeleted`.
+- Broadcast global (`io.emit`) : `newGlobalMenu`, `globalMenuUpdated`, `globalMenuDeleted`, `newFastfood`, `fastfoodUpdated`, `fastfoodsChanged`, `fastfoodsDeleted`.
 - Le `userId` marchand est stocké dans le document `fastfoods` → champ `userId`.
 
 ## Récepteurs côté client

@@ -162,3 +162,10 @@ qui partage un déplacement. Les commandes en retrait vont dans `(sans livraison
   - `resolveOffer` (`services/pricing/deliveryOfferResolver.js`) + `getPricingSettings`.
 - Prix affiché : `src/services/pricing/deliveryPricing.js`.
 - Champs commande : `src/interface/orderFields.js`.
+
+
+## Refus du pré-check (422) : message et rechargement
+
+- `delivery_price_mismatch` (course payée ≠ tarif actuel, la boutique a changé pendant que la page était ouverte) : « Les prix de livraison de cette boutique viennent de changer. Rafraîchis la page et refais ta commande. »
+- `negative_margin`, `settlement_failed` : message générique inchangé.
+- Toute réponse 422 du pré-check porte `fastFoodIds` (boutiques du panier) : l'app les recharge (`GET /fastfood/all?ids=…`).

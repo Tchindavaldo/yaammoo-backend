@@ -14,6 +14,7 @@
 // ============================================================================
 
 const repos = require('../../repositories');
+const { notifyFastfoodsChanged } = require('../../services/fastfood/fastfoodsChanged');
 const { DELIVERY_BY_VALUES } = require('../../services/pricing/deliveryPricing');
 const { sanitizeDeliveryHours, sanitizeExpressZones } = require('../../utils/deliveryHoursSanitize');
 
@@ -85,6 +86,7 @@ exports.patchFastFoodDeliveryController = async (req, res) => {
 
     await repos.fastfoods.update(id, patch);
     const updated = await repos.fastfoods.getById(id);
+    notifyFastfoodsChanged([id], 'delivery_config');
 
     return res.status(200).json({ success: true, message: 'Configuration de livraison mise à jour.', data: updated });
   } catch (error) {
@@ -128,6 +130,7 @@ exports.patchAllFastFoodsDeliveryController = async (req, res) => {
       }
     }
 
+    notifyFastfoodsChanged(updated, 'delivery_config');
     return res.status(200).json({
       success: true,
       message: `${updated.length} boutique(s) mise(s) à jour, ${skipped.length} ignorée(s).`,

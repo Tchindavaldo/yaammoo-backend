@@ -34,6 +34,7 @@ const isMenuAvailable = m => m.status !== 'unavailable' && m.disponibilite !== f
  *   pagination.
  * @param {string} [page.cursor] curseur renvoyé par l'appel précédent.
  * @param {string} [page.q] recherche par nom.
+ * @param {string[]} [page.ids] boutiques à recharger (tableau, non paginé).
  * @returns {Promise<Object[]|{items: Object[], nextCursor: string|null}>}
  *   Un tableau en mode historique, un objet paginé sinon.
  */
@@ -46,7 +47,12 @@ exports.getFastFoodsService = async (userId, page) => {
     let fastfoods;
     let nextCursor = null;
 
-    if (paginated) {
+    if (Array.isArray(page?.ids)) {
+      // Rechargement ciblé (signal `fastfoodsChanged`) : mêmes données que le
+      // home, pour ces seules boutiques. Tableau, jamais paginé.
+      const rows = await Promise.all(page.ids.map(id => repos.fastfoods.getById(id).catch(() => null)));
+      fastfoods = rows.filter(Boolean);
+    } else if (paginated) {
       const res = await repos.fastfoods.getPage(page);
       fastfoods = res.items;
       nextCursor = res.nextCursor;

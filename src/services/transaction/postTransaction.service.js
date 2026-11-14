@@ -204,7 +204,10 @@ exports.postTransactionService = async (data, req) => {
       if (precheck) {
         log.error(`${logPrefix} ❌ Pré-check règlement refusé (${precheck.code}) : ${precheck.detail}`);
         await repos.appErrors.record({ scope: 'payment_precheck', code: precheck.code, message: `Paiement refusé avant USSD : ${precheck.detail}`, userId, fastFoodId: items?.[0]?.fastFoodId, context: { amount, network: networkName, items, suggestions: precheck.suggestions ?? null } });
-        return { success: false, httpStatus: 422, code: precheck.code, message: precheck.message };
+        // `fastFoodIds` : boutiques du panier, que l'app recharge (prix à jour)
+        // quel que soit le refus. Champ additif, ignoré des anciennes apps.
+        const fastFoodIds = [...new Set((Array.isArray(items) ? items : []).map(o => o?.fastFoodId).filter(Boolean))];
+        return { success: false, httpStatus: 422, code: precheck.code, message: precheck.message, fastFoodIds };
       }
       log.info(`${logPrefix} ✓ Pré-check règlement OK`);
 
