@@ -51,8 +51,8 @@ d'arrondi, et cascade de répartition dans les deux sens.
 | PATCH   | `/fastFood/:fastFoodId/delivery` | une boutique             |
 | PATCH   | `/fastFood/delivery`             | **toutes** les boutiques |
 
-Corps : `{ deliveryBy?, platformDeliveryZones? }` — les deux facultatifs, au
-moins un requis. Protégées par `firebaseAuth` + `adminGuard`
+Corps : `{ deliveryBy?, platformDeliveryZones?, platformExpressZones? }` — tous
+facultatifs, au moins un requis. Protégées par `firebaseAuth` + `adminGuard`
 (`middlewares/adminMiddleware.js`) : une boutique ne décide pas qui la livre ni à
 quel tarif.
 
@@ -69,10 +69,11 @@ le lot :
 { "data": { "updated": ["ff1", "ff2"], "skipped": [{ "id": "ff3", "reason": "…sans zones…" }] } }
 ```
 
-`platformDeliveryZones` a **exactement** la même forme que `deliveryHours` —
-`periodicZones` ET `expressZones` par créneau. Le front n'a qu'une structure à
-connaître, et `collectZones` / `maxDeliveryPrice` / `zoneDeliveryPrice`
-fonctionnent dessus sans rien savoir du régime.
+`platformDeliveryZones` a **exactement** la même forme que `deliveryHours`
+(`periodicZones` par créneau), et `platformExpressZones` celle de `expressZones`
+(une liste sans heure, migration 073). Le front n'a qu'une structure à connaître,
+et `collectZones` / `maxDeliveryPrice` / `zoneDeliveryPrice` fonctionnent dessus
+sans rien savoir du régime (`deliverySource`).
 
 ---
 

@@ -150,7 +150,9 @@ function validateMenuPrices(menu, fastfood, pricing) {
 }
 
 /**
- * Vérifie les prix de ZONE d'une liste de créneaux (`deliveryHours`).
+ * Vérifie les prix de ZONE d'une boutique : les créneaux PÉRIODIQUES
+ * (`deliveryHours[].periodicZones`) et la liste EXPRESS (`expressZones`, sans
+ * heure depuis la migration 073).
  *
  * Le pendant du contrôle sur les menus, à l'autre bout : un menu valide a un
  * surplus qui couvre AU MOINS `fastfood_min_covered_course`, donc une zone qui
@@ -161,32 +163,32 @@ function validateMenuPrices(menu, fastfood, pricing) {
  * couvre que 2540) faisait tomber la marge de 308 à 35 : la commission prélevée
  * sur la course sortait de la marge, faute de surplus pour l'absorber.
  *
- * @param {Array}  deliveryHours créneaux avec `periodicZones` / `expressZones`
+ * @param {Array}  deliveryHours créneaux avec `periodicZones` (peut être omis)
  * @param {Object} pricing       réglages tarifaires
+ * @param {Array}  [expressZones] zones express de la boutique
  * @returns {Array<{field:string, message:string}>} erreurs, vide si tout passe
  */
-function validateDeliveryZones(deliveryHours, pricing) {
+function validateDeliveryZones(deliveryHours, pricing, expressZones) {
   const max = toNumber(pricing?.fastfoodMinCoveredCourse);
   if (max <= 0) return [];
-  if (!Array.isArray(deliveryHours)) return [];
 
   const errors = [];
-  deliveryHours.forEach((slot, slotIndex) => {
-    for (const field of ['periodicZones', 'expressZones']) {
-      const zones = slot?.[field];
-      if (!Array.isArray(zones)) continue;
-
-      zones.forEach((zone, zoneIndex) => {
-        const prix = toNumber(zone?.prix);
-        if (prix <= max) return;
-
-        errors.push({
-          field: `deliveryHours[${slotIndex}].${field}[${zoneIndex}].prix`,
-          message: `La zone « ${zone?.lieu ?? '?'} » à ${prix} F dépasse le maximum autorisé ` + `(${max} F). Au-delà, les frais prélevés sur la course ne sont plus couverts.`,
-        });
+  const check = (zones, fieldOf) => {
+    if (!Array.isArray(zones)) return;
+    zones.forEach((zone, zoneIndex) => {
+      const prix = toNumber(zone?.prix);
+      if (prix <= max) return;
+      errors.push({
+        field: fieldOf(zoneIndex),
+        message: `La zone « ${zone?.lieu ?? '?'} » à ${prix} F dépasse le maximum autorisé ` + `(${max} F). Au-delà, les frais prélevés sur la course ne sont plus couverts.`,
       });
-    }
-  });
+    });
+  };
+
+  if (Array.isArray(deliveryHours)) {
+    deliveryHours.forEach((slot, slotIndex) => check(slot?.periodicZones, i => `deliveryHours[${slotIndex}].periodicZones[${i}].prix`));
+  }
+  check(expressZones, i => `expressZones[${i}].prix`);
 
   return errors;
 }

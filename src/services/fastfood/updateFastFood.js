@@ -3,7 +3,7 @@
 // ============================================================================
 const repos = require('../../repositories');
 const { getIO } = require('../../socket');
-const { sanitizeDeliveryHours } = require('../../utils/deliveryHoursSanitize');
+const { sanitizeDeliveryHours, sanitizeExpressZones } = require('../../utils/deliveryHoursSanitize');
 const { validateDeliveryZones } = require('../pricing/menuPriceGuard');
 const { getPricingSettings } = require('../settings/settings.service');
 const { purgeUnusedImages } = require('../images/uploadImage.service');
@@ -58,12 +58,14 @@ exports.updateFastFoodService = async (fastFoodId, data) => {
   }
   // Le front renvoie ses lignes d'heures vidées (mode actif, zéro zone) : on ne
   // garde que les créneaux réellement exploitables. Voir utils/deliveryHoursSanitize.
-  if (data.deliveryHours !== undefined) {
-    updateData.deliveryHours = sanitizeDeliveryHours(data.deliveryHours);
+  if (data.deliveryHours !== undefined) updateData.deliveryHours = sanitizeDeliveryHours(data.deliveryHours);
+  // Zones EXPRESS (migration 073) : une liste par boutique, un prix par lieu.
+  if (data.expressZones !== undefined) updateData.expressZones = sanitizeExpressZones(data.expressZones);
 
-    // Une zone trop chère n'est plus absorbée par le surplus d'arrondi du plat :
-    // la commission prélevée dessus sortirait de la marge. Refusé AVANT écriture.
-    const zoneErrors = validateDeliveryZones(updateData.deliveryHours, await getPricingSettings());
+  // Une zone trop chère n'est plus absorbée par le surplus d'arrondi du plat :
+  // la commission prélevée dessus sortirait de la marge. Refusé AVANT écriture.
+  if (updateData.deliveryHours !== undefined || updateData.expressZones !== undefined) {
+    const zoneErrors = validateDeliveryZones(updateData.deliveryHours, await getPricingSettings(), updateData.expressZones);
     if (zoneErrors.length > 0) {
       const error = new Error(zoneErrors.map(e => e.message).join(' '));
       error.code = 400;

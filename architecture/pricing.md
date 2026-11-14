@@ -200,6 +200,11 @@ dépasse `5 % × course`, la marge de base est intacte.
 Un même lieu a **deux prix** : `periodicZones` et `expressZones`. « Bonanjo »
 peut valoir 500 en périodique et 900 en express.
 
+| Liste | Où | Forme |
+| ----- | -- | ----- |
+| Périodique | `deliveryHours[].periodicZones` | un prix par lieu **et par créneau** |
+| Express | `expressZones` (boutique) | un prix par lieu, **sans heure** (migration 073) |
+
 | Usage                        | Liste consultée                                                  |
 | ---------------------------- | ---------------------------------------------------------------- |
 | Prix **affiché** (home)      | max des **deux** listes — le user n'a pas encore choisi son mode |
@@ -207,6 +212,13 @@ peut valoir 500 en périodique et 900 en express.
 
 Sans ce filtre, une course express était créditée au tarif périodique et l'écart
 tombait dans la marge plateforme.
+
+> ⚠️ **L'express n'a pas d'heure** (migration 073). Ses zones étaient rangées par
+> créneau ; une commande express ne portant jamais d'heure, l'app et le backend
+> prenaient « le premier lieu trouvé » sans le chercher au même endroit (l'app
+> sautait les créneaux `express: false`) : deux prix possibles, paiement refusé
+> (`delivery_price_mismatch`). La migration a gardé, pour chaque lieu, le prix qui
+> s'appliquait déjà : aucun montant n'a changé.
 
 ### Ne jamais inverser le calcul
 
@@ -355,6 +367,7 @@ src/
 | `056_test_app_versions_array.sql`          | `test_app_version` devient un tableau de versions ; ces versions ont aussi le paiement gratuit. Ordre de déploiement indifférent |
 | `057_settings_test_user_ids.sql`           | `test_user_ids` (settings_test) : uid de test, mêmes comportements qu'une version de test quelle que soit la version. Ordre indifférent |
 | `058_settings_test_no_auth_versions.sql`   | `test_no_auth_versions` (settings_test) : versions tolérées sans jeton sur les routes protégées, défaut `["1.1.0","1.1.1"]`. Ordre indifférent |
+| `073_express_zones_without_hour.sql`       | `fastfoods.express_zones` / `platform_express_zones` : l'express sort des créneaux, un prix par lieu. Reprend le prix qui s'appliquait. À appliquer AU déploiement du code |
 
 ## Aperçu d'un prix de menu (saisie marchand)
 

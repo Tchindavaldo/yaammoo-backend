@@ -86,17 +86,16 @@ const route = express.Router();
  *                             type: string
  *                           prix:
  *                             type: string
- *                     express:
- *                       type: boolean
- *                     expressZones:
- *                       type: array
- *                       items:
- *                         type: object
- *                         properties:
- *                           lieu:
- *                             type: string
- *                           prix:
- *                             type: string
+ *               expressZones:
+ *                 type: array
+ *                 description: Zones EXPRESS de la boutique, SANS heure (migration 073). Un prix par lieu.
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     lieu:
+ *                       type: string
+ *                     prix:
+ *                       type: string
  *     responses:
  *       201:
  *         description: FastFood successfully created
@@ -276,7 +275,11 @@ route.get('/search', optionalFirebaseAuth, searchFastfoodController);
  *               deliveryBy: { type: string, enum: [fastfood, platform] }
  *               platformDeliveryZones:
  *                 type: array
- *                 description: Meme forme que `deliveryHours` (periodicZones / expressZones par creneau).
+ *                 description: Meme forme que `deliveryHours` (periodicZones par creneau).
+ *                 items: { type: object }
+ *               platformExpressZones:
+ *                 type: array
+ *                 description: Zones EXPRESS de la plateforme, sans heure (migration 073).
  *                 items: { type: object }
  *     responses:
  *       200: { description: Bilan des mises a jour (updated / skipped) }
@@ -313,6 +316,11 @@ route.patch('/delivery', firebaseAuth, adminGuard, patchAllFastFoodsDeliveryCont
  *               deliveryBy: { type: string, enum: [fastfood, platform] }
  *               platformDeliveryZones:
  *                 type: array
+ *                 description: Creneaux periodiques (meme forme que `deliveryHours`).
+ *                 items: { type: object }
+ *               platformExpressZones:
+ *                 type: array
+ *                 description: Zones EXPRESS de la plateforme, sans heure (migration 073).
  *                 items: { type: object }
  *     responses:
  *       200: { description: Boutique mise a jour }

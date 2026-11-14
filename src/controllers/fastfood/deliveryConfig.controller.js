@@ -15,11 +15,15 @@
 
 const repos = require('../../repositories');
 const { DELIVERY_BY_VALUES } = require('../../services/pricing/deliveryPricing');
+const { sanitizeDeliveryHours, sanitizeExpressZones } = require('../../utils/deliveryHoursSanitize');
 
-/** Au moins une zone exploitable dans un tableau au format `deliveryHours`. */
-function hasZones(zones) {
-  if (!Array.isArray(zones)) return false;
-  return zones.some(h => h && typeof h === 'object' && (h.periodicZones?.length > 0 || h.expressZones?.length > 0));
+/**
+ * Au moins une zone exploitable : un créneau PÉRIODIQUE pourvu de zones
+ * (`platformDeliveryZones`), ou une zone EXPRESS (`platformExpressZones`).
+ */
+function hasZones(hours, expressZones) {
+  const periodic = Array.isArray(hours) && hours.some(h => h && typeof h === 'object' && h.periodicZones?.length > 0);
+  return periodic || (Array.isArray(expressZones) && expressZones.length > 0);
 }
 
 /**
@@ -36,21 +40,32 @@ function buildPatch(body, current) {
     patch.deliveryBy = body.deliveryBy;
   }
 
+  // Créneaux PÉRIODIQUES de la plateforme : même nettoyage que `deliveryHours`
+  // (l'express n'y est plus porté, migration 073).
   if (body.platformDeliveryZones !== undefined) {
     if (!Array.isArray(body.platformDeliveryZones)) {
       return { error: 'platformDeliveryZones doit être un tableau (même forme que deliveryHours).' };
     }
-    patch.platformDeliveryZones = body.platformDeliveryZones;
+    patch.platformDeliveryZones = sanitizeDeliveryHours(body.platformDeliveryZones);
+  }
+
+  // Zones EXPRESS de la plateforme : une liste, sans heure (migration 073).
+  if (body.platformExpressZones !== undefined) {
+    if (!Array.isArray(body.platformExpressZones)) {
+      return { error: 'platformExpressZones doit être un tableau de zones { lieu, prix }.' };
+    }
+    patch.platformExpressZones = sanitizeExpressZones(body.platformExpressZones);
   }
 
   if (Object.keys(patch).length === 0) {
-    return { error: 'Rien à modifier : fournir deliveryBy et/ou platformDeliveryZones.' };
+    return { error: 'Rien à modifier : fournir deliveryBy, platformDeliveryZones et/ou platformExpressZones.' };
   }
 
   // Garde-fou : le régime plateforme n'a aucun sens sans tarif de course.
   const finalRegime = patch.deliveryBy ?? current?.deliveryBy;
   const finalZones = patch.platformDeliveryZones ?? current?.platformDeliveryZones;
-  if (finalRegime === 'platform' && !hasZones(finalZones)) {
+  const finalExpress = patch.platformExpressZones ?? current?.platformExpressZones;
+  if (finalRegime === 'platform' && !hasZones(finalZones, finalExpress)) {
     return { error: 'Impossible de passer en livraison plateforme sans zones : le supplément livraison tomberait à 0 et le livreur ne serait pas payé.' };
   }
 

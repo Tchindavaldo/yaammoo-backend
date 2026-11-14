@@ -73,32 +73,48 @@ function feeIncludedIn(ttcAmount, feePercent) {
   return Math.max(0, Math.ceil((ttc * percent) / 100));
 }
 
-// Type de livraison (orders.delivery.type) → liste de zones correspondante.
-// Un même lieu existe dans les DEUX listes à des prix différents : l'express
-// coûte plus cher. Confondre les deux crédite le fastfood du mauvais montant.
-const ZONES_BY_DELIVERY_TYPE = { express: 'expressZones', time: 'periodicZones' };
+// Type de livraison (orders.delivery.type). Un même lieu existe dans les DEUX
+// listes à des prix différents : l'express coûte plus cher. Confondre les deux
+// crédite le fastfood du mauvais montant.
+//
+// Les deux listes n'ont PAS la même forme (migration 073) :
+//   - PÉRIODIQUE : `deliveryHours[].periodicZones`, un prix par lieu ET par créneau ;
+//   - EXPRESS    : `expressZones`, une liste par boutique, SANS heure — la course
+//     part dès que la commande est prête. Un prix express par heure laissait
+//     l'app et le backend lire deux prix différents pour un même lieu.
 
-/**
- * Zones d'une boutique.
- * @param {string} [deliveryType] `express` | `time` — omis, les deux listes.
- */
-function collectZones(fastfood, deliveryType, hour) {
+/** Zones périodiques, filtrées sur le créneau quand il est connu. */
+function collectPeriodicZones(fastfood, hour) {
   const allHours = Array.isArray(fastfood?.deliveryHours) ? fastfood.deliveryHours : [];
   // Créneau donné : seulement ses zones. Un même lieu peut valoir 500 à 09:12
   // et 100 à 13:06 ; lire le premier trouvé versait le mauvais tarif.
   // Créneau absent de la boutique (supprimé depuis) : toutes les heures.
   const slot = hour ? allHours.filter(h => h && typeof h === 'object' && h.hour === hour) : [];
   const hours = slot.length ? slot : allHours;
-  const field = ZONES_BY_DELIVERY_TYPE[deliveryType];
   const zones = [];
   for (const h of hours) {
     // Le format legacy est un simple "HH:mm" : aucune zone à en tirer.
     if (!h || typeof h !== 'object') continue;
-    const lists = field ? [h[field]] : [h.periodicZones, h.expressZones];
-    for (const list of lists) {
-      if (Array.isArray(list)) zones.push(...list);
-    }
+    if (Array.isArray(h.periodicZones)) zones.push(...h.periodicZones);
   }
+  return zones;
+}
+
+/** Zones express de la boutique : l'heure n'y joue AUCUN rôle. */
+function collectExpressZones(fastfood) {
+  return Array.isArray(fastfood?.expressZones) ? fastfood.expressZones : [];
+}
+
+/**
+ * Zones d'une boutique.
+ * @param {string} [deliveryType] `express` | `time` — omis, les deux listes.
+ * @param {string} [hour] créneau `HH:mm` — ne filtre que le PÉRIODIQUE.
+ */
+function collectZones(fastfood, deliveryType, hour) {
+  let zones;
+  if (deliveryType === 'express') zones = collectExpressZones(fastfood);
+  else if (deliveryType === 'time') zones = collectPeriodicZones(fastfood, hour);
+  else zones = [...collectPeriodicZones(fastfood, hour), ...collectExpressZones(fastfood)];
   return zones.filter(Boolean);
 }
 
@@ -123,8 +139,9 @@ function maxDeliveryPrice(fastfood, deliveryType) {
  * 500 en périodique et 900 en express. Sans ce filtre, une course express était
  * créditée au tarif périodique, et l'écart tombait dans la marge plateforme.
  *
- * ⚠️ Et par le CRÉNEAU (`hour` = `delivery.time`) : le prix d'un lieu dépend
- * de l'heure de départ.
+ * ⚠️ Et, en PÉRIODIQUE, par le CRÉNEAU (`hour` = `delivery.time`) : le prix
+ * d'un lieu dépend de l'heure de départ. L'express n'a pas d'heure : un seul
+ * prix par lieu (`expressZones`, migration 073).
  *
  * Zone introuvable : on retombe sur la plus chère du même type, jamais sur 0,
  * pour ne pas créditer la plateforme d'une marge qu'elle n'a pas gagnée.
@@ -205,13 +222,14 @@ function isPlatformDelivered(fastfood) {
  * Boutique vue par le moteur de prix quand la plateforme livre : ses zones sont
  * celles de la PLATEFORME, pas celles de la boutique.
  *
- * On réutilise `deliveryHours` comme porteur pour que `collectZones`,
- * `maxDeliveryPrice` et `zoneDeliveryPrice` fonctionnent sans le savoir — la
- * structure est identique (periodicZones / expressZones par créneau).
+ * On réutilise `deliveryHours` / `expressZones` comme porteurs pour que
+ * `collectZones`, `maxDeliveryPrice` et `zoneDeliveryPrice` fonctionnent sans le
+ * savoir — la structure est identique : `platformDeliveryZones` (périodique,
+ * par créneau) et `platformExpressZones` (express, sans heure, migration 073).
  */
 function deliverySource(fastfood) {
   if (!isPlatformDelivered(fastfood)) return fastfood;
-  return { ...fastfood, deliveryHours: fastfood?.platformDeliveryZones || [] };
+  return { ...fastfood, deliveryHours: fastfood?.platformDeliveryZones || [], expressZones: fastfood?.platformExpressZones || [] };
 }
 
 /**
@@ -255,21 +273,16 @@ function expressZoneDisplayPrice(fastfood, zoneName, pricing) {
   return expressDisplayPrice(zoneDeliveryPrice(fastfood, zoneName, 'express'), pricing);
 }
 
-function applyExpressZonePricing(deliveryHours, pricing) {
-  if (!Array.isArray(deliveryHours)) return deliveryHours;
-
-  const display = brut => expressDisplayPrice(brut, pricing);
-
-  return deliveryHours.map(slot => {
-    if (!slot || typeof slot !== 'object' || !Array.isArray(slot.expressZones)) return slot;
-    return {
-      ...slot,
-      expressZones: slot.expressZones.map(zone => {
-        const brut = toNumber(zone?.prix);
-        if (!zone || brut <= 0) return zone;
-        return { ...zone, prix: display(brut), rawPrice: brut };
-      }),
-    };
+/**
+ * Habille une liste de zones EXPRESS (`platformExpressZones`, sans heure) de
+ * ses frais : `prix` = ce que paie le client, `rawPrice` = brut du livreur.
+ */
+function applyExpressZonePricing(expressZones, pricing) {
+  if (!Array.isArray(expressZones)) return expressZones;
+  return expressZones.map(zone => {
+    const brut = toNumber(zone?.prix);
+    if (!zone || brut <= 0) return zone;
+    return { ...zone, prix: expressDisplayPrice(brut, pricing), rawPrice: brut };
   });
 }
 
@@ -451,7 +464,7 @@ function applyDisplayPricing(fastfood, pricing, raw = false) {
   // couverts par le surplus d'arrondi du plat (`fastfood_min_covered_course`).
   const out = { ...fastfood, menus, pricing: meta };
   if (platformDelivered) {
-    out.platformDeliveryZones = applyExpressZonePricing(fastfood.platformDeliveryZones, pricing);
+    out.platformExpressZones = applyExpressZonePricing(fastfood.platformExpressZones, pricing);
   }
   return out;
 }

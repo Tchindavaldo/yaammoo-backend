@@ -5,6 +5,7 @@ const repos = require('../../repositories');
 const { getIO } = require('../../socket');
 const { validateFastfood } = require('../../utils/validator/validateFastfood');
 const { validateDeliveryZones } = require('../pricing/menuPriceGuard');
+const { sanitizeDeliveryHours, sanitizeExpressZones } = require('../../utils/deliveryHoursSanitize');
 const { getPricingSettings } = require('../settings/settings.service');
 
 exports.createFastfoodService = async data => {
@@ -20,8 +21,12 @@ exports.createFastfoodService = async data => {
   // Plafond des zones (`fastfood_min_covered_course`), comme a la mise a jour
   // (`updateFastFood.js`) : une course plus chere n'est plus couverte par le
   // surplus d'arrondi du plat. Refuse AVANT ecriture.
-  if (data.deliveryHours !== undefined) {
-    const zoneErrors = validateDeliveryZones(data.deliveryHours, await getPricingSettings());
+  // Même nettoyage qu'à la mise à jour : créneaux PÉRIODIQUES seuls, et une
+  // liste EXPRESS sans heure (migration 073).
+  if (data.deliveryHours !== undefined) data.deliveryHours = sanitizeDeliveryHours(data.deliveryHours);
+  if (data.expressZones !== undefined) data.expressZones = sanitizeExpressZones(data.expressZones);
+  if (data.deliveryHours !== undefined || data.expressZones !== undefined) {
+    const zoneErrors = validateDeliveryZones(data.deliveryHours, await getPricingSettings(), data.expressZones);
     if (zoneErrors.length > 0) {
       const error = new Error(zoneErrors.map(e => e.message).join(' '));
       error.code = 400;
