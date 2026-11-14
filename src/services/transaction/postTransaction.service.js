@@ -67,6 +67,14 @@ exports.postTransactionService = async (data, req) => {
       const amountError = await validatePaymentAmount(amount, items, { userId, bonusCode });
       if (amountError) {
         log.warn(`${logPrefix} ❌ Montant incohérent: ${amountError}`);
+        // Total/montant qui ne correspondent plus (panier resté ouvert : fin de
+        // campagne, prix changés) : le message clair, et l'app recharge
+        // boutiques et panier. Les autres refus (bonus non finançable…) gardent
+        // leur texte.
+        if (/^(Total|Montant) incohérent/.test(amountError)) {
+          const fastFoodIds = [...new Set((Array.isArray(items) ? items : []).map(o => o?.fastFoodId).filter(Boolean))];
+          return { success: false, httpStatus: 422, code: 'price_changed', message: 'Les prix de livraison de cette boutique viennent de changer. Rafraîchis la page et refais ta commande.', fastFoodIds };
+        }
         return { success: false, httpStatus: 400, message: amountError };
       }
     }

@@ -58,7 +58,7 @@ propre). Le régime est **figé au paiement** dans `order_settlements.delivery_b
 | Régime | Base fondue dans le plat | Course |
 |---|---|---|
 | `fastfood` (le marchand livre) | prix brut + **marge par palier** (`fastfood_margin` 200, palier 2 = 300 dès brut 3500) | facturée **à part** (`delivery.prix`, tarif réel de la zone dans le créneau), versée au **marchand** |
-| `platform` (Yaammoo livre) | prix brut + **zone périodique MAX** + `platform_margin` (100) | **fondue** dans le prix du plat ; express facturé à part ; versée au **livreur** à la livraison, plafonnée au tarif de la zone |
+| `platform` (Yaammoo livre) | prix brut + **zone périodique MAX** + `platform_margin` (100) | zone MAX **fondue** dans le prix du plat **ET** course de la zone choisie (`delivery.prix`, périodique brut ou express habillé) **ajoutée au total** : marge en plus pour la plateforme, **voulu** (décision du 14/11/2026). Versée au **livreur** à la livraison, plafonnée au tarif de la zone |
 
 ```
 plat affiché = withAllFees(base + frais kiosque) puis arrondi au pas (500)

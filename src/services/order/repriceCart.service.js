@@ -84,7 +84,12 @@ function repriceOrder(order, view) {
   const delivered = order.delivery?.status === true && !!order.delivery?.type && order.delivery.type !== 'aucune';
   const oldPrix = toNumber(order.delivery?.prix);
   // Course offerte : l'ancien total l'excluait (le vrai prix reste dans delivery.prix).
-  const offered = delivered && oldPrix > 0 && Math.abs(toNumber(order.total) - baseOf(order)) <= 1;
+  // Elle ne le reste que si la cause tient encore : code bonus porté par la
+  // commande, ou campagne globale toujours active sur la boutique. Campagne
+  // terminée : la course revient dans le total (panier à jour, pas de refus).
+  const wasOffered = delivered && oldPrix > 0 && Math.abs(toNumber(order.total) - baseOf(order)) <= 1;
+  const stillOffered = !!(order.bonusCode || order.delivery?.bonusCode) || (view?.deliveryOffer?.active === true && view.deliveryOffer.reason === 'campaign');
+  const offered = wasOffered && stillOffered;
   let prix = oldPrix;
   if (delivered) {
     const { type, zone, time } = order.delivery;
