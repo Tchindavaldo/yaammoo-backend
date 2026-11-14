@@ -56,16 +56,19 @@ exports.precheckSettlement = async ({ orders, userId, bonusCode, payment }) => {
   // 0 bis. Prix ACTUELS : la commande est recalculée sur la vue home de sa
   // boutique (même calcul que la mise à jour du panier). Plat, prix choisi ou
   // zone disparus, ou total différent (plat, extras, boissons, course) :
-  // refus, l'app recharge la boutique et le panier a déjà été mis à jour.
+  // refus, l'app recharge la boutique et son panier.
   const ids = [...new Set(list.map(o => o?.fastFoodId).filter(Boolean).map(String))];
   if (ids.length) {
     const { getFastFoodsService } = require('../fastfood/getFastFoods');
     const views = new Map((await getFastFoodsService(undefined, { ids })).map(v => [String(v.id), v]));
     for (const [i, o] of list.entries()) {
       if (!o?.fastFoodId) continue;
+      // Boutique fermée / plat indisponible : ce n'est pas un changement de
+      // prix, les contrôles de disponibilité existants s'appliquent.
       const view = views.get(String(o.fastFoodId));
-      if (!view) return { code: 'price_changed', message: PRICE_CHANGED, detail: `commande #${i + 1} : boutique ${o.fastFoodId} plus disponible` };
-      const { order: fresh } = repriceOrder(o, view);
+      if (!view) continue;
+      const { order: fresh, missingMenu } = repriceOrder(o, view);
+      if (missingMenu) continue;
       if (fresh.needsReview) return { code: 'price_changed', message: PRICE_CHANGED, detail: `commande #${i + 1} : plat, prix ou zone/créneau disparus` };
       if (Math.abs(toNumber(fresh.total) - toNumber(o.total)) > 1) {
         return { code: 'price_changed', message: PRICE_CHANGED, detail: `commande #${i + 1} : total envoyé ${o.total} ≠ total actuel ${fresh.total}` };

@@ -61,6 +61,10 @@ exports.updateMenuService = async (menuId, updateData) => {
       await reliableEmit(io, userId, 'fastFoodMenuUpdated', { message: 'Menu mis à jour', menuId, menu: updatedMenu });
     }
 
+    // Panier : articles non payés de la boutique recalculés (prix du plat,
+    // plat supprimé => « à revoir »), poussés au client. En arrière-plan.
+    require('../order/repriceCart.service').repriceCartsForShops([existing.fastFoodId]);
+
     return { success: true, message: 'Menu mis à jour avec succès', data: updatedMenu };
   } catch (error) {
     return { success: false, message: error.message || 'Erreur lors de la mise à jour du menu' };

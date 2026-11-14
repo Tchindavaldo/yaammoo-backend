@@ -13,9 +13,10 @@
 //   - `deliveryBy` : régime effectif actuel.
 // Puis `userOrderUpdated { data: order }` au client (l'app l'applique).
 //
-// Rien d'inventé : plat retiré, prix choisi disparu ou zone/créneau disparus
-// => `needsReview: true`, prix laissés tels quels. Le paiement les refusera
-// (precheck), le client doit refaire son choix.
+// Rien d'inventé : plat supprimé, prix choisi disparu, extra/boisson cochés
+// disparus, zone ou créneau disparus => `needsReview: true`, le reste est mis
+// à jour. Le paiement les refusera (precheck), le client refait son choix.
+// Boutique fermée ou plat seulement indisponible : panier non touché.
 // ============================================================================
 const repos = require('../../repositories');
 const { getIO } = require('../../socket');
@@ -33,30 +34,52 @@ function baseOf(order) {
   return unit * qtyOf(order.quantity) + extras + drinks;
 }
 
-/** Recalcule une commande sur la vue boutique. @returns {{order, changed}} */
+/** Zone choisie présente dans la vue ? Périodique : dans SON créneau exactement. */
+function zoneExists(view, type, zone, time) {
+  if (type === 'time' && time) {
+    // `collectZones` retombe sur toutes les heures quand le créneau a disparu :
+    // ici, un créneau supprimé doit compter comme disparu.
+    const slot = (view?.deliveryHours || []).find(h => h && typeof h === 'object' && h.hour === time);
+    return !!slot && (slot.periodicZones || []).some(z => z?.lieu === zone);
+  }
+  return collectZones(view, type, time ?? null).some(z => z?.lieu === zone);
+}
+
+/**
+ * Recalcule une commande sur la vue boutique.
+ * Plat absent de la vue (indisponible, ou supprimé) : `{ missingMenu: true }`,
+ * la commande n'est pas touchée ; l'appelant décide.
+ * @returns {{order, changed, missingMenu?}}
+ */
 function repriceOrder(order, view) {
+  const menu = (view?.menus || []).find(m => String(m.id) === String(order.menu?.id));
+  if (!menu) return { order, changed: false, missingMenu: true };
+
   const next = { ...order };
   let review = false;
 
-  const menu = (view?.menus || []).find(m => String(m.id) === String(order.menu?.id));
+  // Plat : prix actuels. Ancien plat sans `prices[]` (données legacy) : on ne
+  // touche pas au prix plutôt que de le déclarer disparu.
   const idx = Math.max(0, toNumber(order.selectedPriceIndex) - 1);
-  if (!menu || !Array.isArray(menu.prices) || !menu.prices[idx]) {
-    review = true;
-  } else {
-    next.menu = { ...order.menu, prices: menu.prices };
-    const sync = (list, current) =>
-      (list || []).map(it => {
-        if (it?.status !== true) return it;
-        const cur = (current || []).find(c => (c?.type ?? c?.name) === it.name);
-        if (!cur || cur.prix == null) {
-          review = true;
-          return it;
-        }
-        return { ...it, prix: toNumber(cur.prix), ...(cur.rawPrice != null ? { rawPrice: toNumber(cur.rawPrice) } : {}) };
-      });
-    next.extra = sync(order.extra, menu.extra);
-    next.drink = sync(order.drink, menu.drink);
+  if (Array.isArray(menu.prices) && menu.prices.length > 0) {
+    if (!menu.prices[idx]) review = true;
+    else next.menu = { ...order.menu, prices: menu.prices };
   }
+
+  // Extras / boissons : TOUS remis aux prix actuels (l'écran d'édition du
+  // panier relit cette liste, cochés ou non). Disparu : seul un élément COCHÉ
+  // rend la commande « à revoir ».
+  const sync = (list, current) =>
+    (list || []).map(it => {
+      const cur = (current || []).find(c => (c?.type ?? c?.name) === it?.name);
+      if (!cur || cur.prix == null) {
+        if (it?.status === true) review = true;
+        return it;
+      }
+      return { ...it, prix: toNumber(cur.prix), ...(cur.rawPrice != null ? { rawPrice: toNumber(cur.rawPrice) } : {}) };
+    });
+  next.extra = sync(order.extra, menu.extra);
+  next.drink = sync(order.drink, menu.drink);
 
   const delivered = order.delivery?.status === true && !!order.delivery?.type && order.delivery.type !== 'aucune';
   const oldPrix = toNumber(order.delivery?.prix);
@@ -65,8 +88,7 @@ function repriceOrder(order, view) {
   let prix = oldPrix;
   if (delivered) {
     const { type, zone, time } = order.delivery;
-    const exists = collectZones(view, type, time ?? null).some(z => z.lieu === zone);
-    if (!exists) review = true;
+    if (!zoneExists(view, type, zone, time)) review = true;
     else prix = zoneDeliveryPrice(view, zone, type, time ?? null);
     next.delivery = { ...order.delivery, prix };
   }
@@ -75,12 +97,15 @@ function repriceOrder(order, view) {
   if (view?.pricing?.deliveryBy) next.deliveryBy = view.pricing.deliveryBy;
   next.needsReview = review;
 
+  const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
   const changed =
     next.total !== toNumber(order.total) ||
     prix !== oldPrix ||
     next.deliveryBy !== order.deliveryBy ||
     !!next.needsReview !== !!order.needsReview ||
-    JSON.stringify(next.menu?.prices) !== JSON.stringify(order.menu?.prices);
+    !same(next.menu?.prices, order.menu?.prices) ||
+    !same(next.extra, order.extra) ||
+    !same(next.drink, order.drink);
   return { order: next, changed };
 }
 
@@ -105,9 +130,20 @@ async function repriceOrders(orders, { emit = true } = {}) {
   const viewOf = new Map(views.map(v => [String(v.id), v]));
   const io = emit ? getIO() : null;
   for (const [shopId, list] of byShop) {
-    const view = viewOf.get(String(shopId)) || null; // boutique masquée/indispo : tout à revoir
+    // Boutique absente de la vue (fermée, indisponible, masquée) : rien n'a
+    // changé de prix, on ne touche pas au panier. Les contrôles de
+    // disponibilité du paiement s'en chargent.
+    const view = viewOf.get(String(shopId));
+    if (!view) continue;
     for (const o of list) {
-      const { order, changed } = view ? repriceOrder(o, view) : { order: { ...o, needsReview: true }, changed: !o.needsReview };
+      let { order, changed, missingMenu } = repriceOrder(o, view);
+      if (missingMenu) {
+        // Plat seulement indisponible : panier inchangé. Plat SUPPRIMÉ : à revoir.
+        const stillThere = await repos.menus.getById(o.menu?.id).catch(() => true);
+        if (stillThere) continue;
+        order = { ...o, needsReview: true };
+        changed = !o.needsReview;
+      }
       if (!changed) continue;
       const row = await repos.orders.update(o.id, { menu: order.menu, extra: order.extra, drink: order.drink, delivery: order.delivery, total: order.total, deliveryBy: order.deliveryBy, needsReview: order.needsReview }).catch(e => {
         console.error(`[repriceCart] commande ${o.id} non mise à jour : ${e.message}`);

@@ -127,10 +127,13 @@ et `platformExpressZones` (express).
    total différent (> 1 F). Message des refus « prix changés » : « Les prix de
    livraison de cette boutique viennent de changer… ». Toute réponse 422 porte
    `fastFoodIds` : l'app recharge ces boutiques.
-   **Panier** : à chaque changement de boutique (ou réglage global), les
+   **Panier** : à chaque changement de boutique, de plat (`updateMenu`,
+   `deleteMenu`) ou de réglage global, et à chaque `GET /order/user/all`, les
    commandes `pendingToBuy` sont recalculées aux prix actuels (plat, extras,
    boissons, course du créneau, total, `deliveryBy`) et poussées au client
-   (`userOrderUpdated`) ; élément disparu ⇒ `needsReview: true`, prix inchangés.
+   (`userOrderUpdated`) ; plat supprimé, prix choisi, extra/boisson coché, zone
+   ou créneau disparus ⇒ `needsReview: true`. Boutique fermée ou plat seulement
+   indisponible : panier non touché, et le précheck ne refuse pas pour « prix ».
    Sur `negative_margin`, `precheckSuggestions` calcule (en rejouant le
    règlement simulé) la **course maximale** de la zone/créneau et le **prix
    réel minimum** du plat (règle de la page menu respectée), puis envoie un

@@ -263,5 +263,5 @@ Voir la doc frontend : `yaammoo/architecture/socket-events-client.md`.
 
 ## Panier recalculé (`repriceCart.service`)
 
-À chaque `fastfoodUpdated` / `fastfoodsHidden` / `fastfoodsChanged`, les commandes `pendingToBuy` des boutiques concernées sont recalculées aux prix actuels, enregistrées, puis émises au client : `userOrderUpdated { data: order }` (room `<userId>`, fiable). `order.needsReview: true` = plat, prix choisi ou zone/créneau disparus (prix laissés tels quels, paiement refusé).
+À chaque `fastfoodUpdated` / `fastfoodsHidden` / `fastfoodsChanged`, et à chaque modification ou suppression d'un plat (`updateMenu`, `deleteMenu`), les commandes `pendingToBuy` des boutiques concernées sont recalculées aux prix actuels, enregistrées, puis émises au client : `userOrderUpdated { data: order }` (room `<userId>`, fiable). `order.needsReview: true` = plat supprimé, prix choisi, extra/boisson coché, zone ou créneau disparus (le reste est mis à jour, paiement refusé). Boutique fermée ou plat seulement indisponible : panier non touché.
 Filet : `GET /order/user/all/:userId` recalcule aussi le panier AVANT de répondre (`withRepricedCart`) : socket raté, app fermée ou modification faite en base sont rattrapés à l'ouverture et au retour au premier plan.
