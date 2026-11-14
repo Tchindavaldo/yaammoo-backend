@@ -40,7 +40,7 @@ exports.getById = async id => {
 };
 
 exports.getByUser = async userId => {
-  const { data, error } = await supabase.from(TABLE).select('*').eq('user_id', userId).not('type', 'in', '("merchant_credit","driver_credit","platform_transfer","withdrawal")').order('created_at', { ascending: false });
+  const { data, error } = await supabase.from(TABLE).select('*').eq('user_id', userId).not('type', 'in', '("merchant_credit","driver_credit","platform_transfer","withdrawal","merchant_debit")').order('created_at', { ascending: false });
   if (error) throw error;
   return (data || []).map(m.transaction.fromSupabase);
 };
@@ -61,7 +61,9 @@ exports.findMerchantCreditByOrder = async orderId => {
 // ===== Portefeuille marchand (solde dérivé + historique) =====
 
 // `platform_transfer` : marge plateforme versee par un admin (platformTransfer.service).
-const WALLET_TYPES = ['merchant_credit', 'driver_credit', 'platform_transfer', 'withdrawal'];
+// `merchant_debit` : reprise d'une commande annulée (orderCancel.service). DÉBIT :
+// le solde peut devenir négatif (dette reprise sur les gains suivants).
+const WALLET_TYPES = ['merchant_credit', 'driver_credit', 'platform_transfer', 'withdrawal', 'merchant_debit'];
 const CREDIT_TYPES = ['merchant_credit', 'driver_credit', 'platform_transfer'];
 const isCredit = type => CREDIT_TYPES.includes(type);
 
@@ -120,8 +122,8 @@ exports.getMerchantBalance = async userId => {
 
 // payin  = gain marchand (merchant_credit, platform_transfer) ; payout = retrait (withdrawal)
 const PAYIN_TYPES = ['merchant_credit', 'platform_transfer'];
-const TYPE_BY_DIRECTION = { payin: PAYIN_TYPES, payout: ['withdrawal'] };
-const directionOf = type => (type === 'withdrawal' ? 'payout' : 'payin');
+const TYPE_BY_DIRECTION = { payin: PAYIN_TYPES, payout: ['withdrawal', 'merchant_debit'] };
+const directionOf = type => (type === 'withdrawal' || type === 'merchant_debit' ? 'payout' : 'payin');
 
 /**
  * Historique du portefeuille marchand : crédits (payin) + retraits (payout).
@@ -159,7 +161,7 @@ exports.getMerchantStats = async (userId, { groupBy = 'day', from, to } = {}) =>
     .from(TABLE)
     .select('type, amount, created_at')
     .eq('user_id', userId)
-    .in('type', [...PAYIN_TYPES, 'withdrawal'])
+    .in('type', [...PAYIN_TYPES, 'withdrawal', 'merchant_debit'])
     .in('aggregator', WALLET_AGGREGATORS);
   if (from) query = query.gte('created_at', from);
   if (to) query = query.lte('created_at', to);

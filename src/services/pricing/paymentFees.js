@@ -96,6 +96,23 @@ function paymentFeeOf(paid, pricing, { network, aggregator } = {}) {
 }
 
 /**
+ * Frais RÉELLEMENT perdus sur un montant payé, hors réserve de retrait :
+ * ⌈dépôt[n] × P⌉ + ⌈commission MW × P⌉ (pawaPay). La réserve n'est pas une
+ * perte : elle paie le payout de remboursement vers le même réseau.
+ * Sert à l'annulation (`orderCancel.service`). DigiKUNTZ : `null` (pas de
+ * remboursement automatique, régularisation à la main).
+ */
+function realPaymentFeesOf(paid, pricing, { network, aggregator } = {}) {
+  const p = num(paid);
+  if (p <= 0) return 0;
+  const s = scheduleOf(pricing);
+  const agg = aggregator || s.aggregator;
+  if (agg !== AGGREGATORS.PAWAPAY) return null;
+  const r = pawapayRates(s.pawapay, networkKeyFor(s.pawapay, network));
+  return ceilPercent(p, r.deposit) + ceilPercent(p, r.commission);
+}
+
+/**
  * Somme des taux, en % du montant payé (réseau le plus cher si non précisé).
  * Sert aux estimations linéaires (couverture d'un surplus d'arrondi).
  */
@@ -134,6 +151,7 @@ function grossUpForPaymentFees(net, pricing) {
 
 module.exports = {
   paymentFeeOf,
+  realPaymentFeesOf,
   paymentFeePercentOf,
   grossUpForPaymentFees,
   costliestNetworkKey,

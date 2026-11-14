@@ -69,3 +69,11 @@ exports.getByOrders = async orderIds => {
   for (const row of data || []) map[row.order_id] = fromSupabase(row);
   return map;
 };
+
+/** Courses d'un même départ (`delivery_group_id`). */
+exports.getByGroup = async deliveryGroupId => {
+  if (!deliveryGroupId) return [];
+  const { data, error } = await supabase.from(TABLE).select('*').eq('delivery_group_id', deliveryGroupId);
+  if (error) throw error;
+  return (data || []).map(fromSupabase);
+};

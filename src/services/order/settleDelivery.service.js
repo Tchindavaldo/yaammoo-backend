@@ -42,6 +42,7 @@ const { withdrawalFee } = require('../pricing/withdrawalFees');
 // Clé PARTAGÉE avec `validatePaymentAmount` : on verse exactement le nombre de
 // courses qu'on a facturé au user.
 const { deliveryGroupKey } = require('../pricing/deliveryGroupKey');
+const { openPaidGroups } = require('./paidDeliveryGroups.service');
 
 /**
  * Frais de retrait dus sur un montant, pour l'opérateur de la commande.
@@ -133,6 +134,19 @@ exports.settleDeliveryService = async ({ orders, bonusCode, payment = null, dryR
     // exactement les mêmes courses que ce qu'on a facturé au user.
     const groupIdByKey = {};
     const billedKeys = new Set();
+
+    // Groupage : un départ que ce client a DÉJÀ payé et qui n'est pas encore
+    // parti porte déjà la course. Les commandes du lot qui le rejoignent sont
+    // réglées comme les autres commandes d'un panier groupé (course non due)
+    // et reprennent son `deliveryGroupId`.
+    const paidGroups = await openPaidGroups(userId, list).catch(e => {
+      console.warn('settleDelivery: départs déjà payés non lus —', e.message);
+      return new Map();
+    });
+    for (const [key, g] of paidGroups) {
+      billedKeys.add(key);
+      if (g.deliveryGroupId) groupIdByKey[key] = g.deliveryGroupId;
+    }
 
     // ── Pré-calcul par commande (course, offre, marge, prix réels) ──────────
     // Fait AVANT les frais de retrait : ceux-ci portent sur ce que la boutique
@@ -236,7 +250,13 @@ exports.settleDeliveryService = async ({ orders, bonusCode, payment = null, dryR
       // `order.total` est déjà TTC : les frais y sont inclus, on les EXTRAIT.
       // On redescend la cascade dans l'ordre inverse de sa composition —
       // frais de paiement de l'agrégateur d'abord, frais de retrait ensuite.
-      const itemsCharged = toNumber(order.total);
+      // Commande qui partage la course d'une autre (panier groupé ou départ
+      // déjà payé) : son total porte `delivery.prix` (forme du panier), mais
+      // `validatePaymentAmount` l'a DÉDUIT du montant encaissé. Ce qui a
+      // réellement été payé pour elle est donc le total SANS la course. Sans
+      // cette déduction, la marge tracée gonflait de la course jamais payée.
+      const courseNotPaid = delivered && !amounts.courseBilled && !orderOffer ? Math.max(0, toNumber(order.delivery?.prix)) : 0;
+      const itemsCharged = Math.max(0, toNumber(order.total) - courseNotPaid);
       const paymentFee = paymentFee_(itemsCharged, pricing, payment);
       const afterPaymentFee = itemsCharged - paymentFee;
       // Le retrait (calculé sur ce que reçoit la boutique) est dû
@@ -272,7 +292,10 @@ exports.settleDeliveryService = async ({ orders, bonusCode, payment = null, dryR
       //
       // Sans ce plafond, un plat à 3500 arrondi de 4110 à 4500 versait 619 F au
       // livreur pour une course qui en vaut 250 — la plateforme payait l'écart.
-      const driverAmount = platformDelivered ? Math.min(amounts.realPrice, Math.max(0, net - itemsReal - marginDue)) : amounts.courseBilled ? amounts.realPrice : 0;
+      // Une seule course par départ, dans les DEUX régimes : en plateforme, une
+      // commande qui ne porte pas la course ne doit rien au livreur (sinon il
+      // était payé une fois par commande du départ).
+      const driverAmount = !amounts.courseBilled ? 0 : platformDelivered ? Math.min(amounts.realPrice, Math.max(0, net - itemsReal - marginDue)) : amounts.realPrice;
 
       // ── 1. Le règlement : une ligne par commande, TOUJOURS ────────────────
       let settlementRow = null;

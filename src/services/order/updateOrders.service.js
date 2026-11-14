@@ -27,6 +27,7 @@ const { reliableEmit } = require('../../utils/reliableEmit');
 const { settleDeliveryService } = require('./settleDelivery.service');
 const { enrichMenuForClient } = require('../menu/enrichMenuForClient');
 const { generateId } = require('../../repositories/idGen');
+const { cancelRefusal, cancelPaidOrder } = require('./orderCancel.service');
 
 const buildTransitionNotif = ({ prevStatus, newStatus, order, merchantUserId }) => {
   const menuName = order.menu?.name || order.menu?.titre || 'Menu';
@@ -119,6 +120,13 @@ exports.updateOrders = async (orders, userId, payment = null) => {
       // Transition autoritaire (état réel en DB)
       let newStatus;
       if (isCancelStatus(status)) {
+        // Commande payée : annulable seulement avant acceptation (client) ou
+        // avant le départ en livraison (restaurant). Déjà annulée : refus.
+        const refusal = isCancelStatus(prevStatus) ? 'Cette commande est déjà annulée.' : cancelRefusal(prevStatus, status);
+        if (refusal) {
+          console.error(`[updateOrders] ❌ ABANDON id=${id} — annulation refusée (${prevStatus} → ${status})`);
+          return { success: false, message: refusal, data: null };
+        }
         newStatus = status;
       } else {
         switch (prevStatus) {
@@ -224,6 +232,13 @@ exports.updateOrders = async (orders, userId, payment = null) => {
     const becameDelivered = transitions.filter(t => t.newStatus === 'delivered').map(t => t.order);
     for (const order of becameDelivered) {
       await creditDriverForOrder({ order }).catch(e => console.error('[updateOrders] course livreur non versée —', e.message));
+    }
+
+    // ── Annulation d'une commande PAYÉE : remboursement + reprise marchand ──
+    // (un retrait du panier, depuis `pendingToBuy`, n'a rien coûté).
+    for (const t of transitions) {
+      if (!isCancelStatus(t.newStatus) || t.prevStatus === 'pendingToBuy') continue;
+      await cancelPaidOrder(t.order, t.newStatus);
     }
 
     // ── Règlement livraison : le panier vient d'être payé ────────────────────

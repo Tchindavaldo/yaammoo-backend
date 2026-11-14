@@ -7,6 +7,8 @@ const { updateOrdersConstroller } = require('../controllers/order/updateOrdersCo
 const { updateOrdersField } = require('../controllers/order/updateOrdersField.controller');
 const { updateOrdersRankByDate } = require('../controllers/order/updateOrdersRankByDate');
 const { getDriverOrders } = require('../controllers/order/getDriverOrders');
+const { getDeliveryGroup } = require('../controllers/order/getDeliveryGroup');
+const { getCancelQuote } = require('../controllers/order/getCancelQuote');
 const firebaseAuth = require('../middlewares/authMiddleware');
 const { authorize, orderCreate, orderFromBody, ordersFromBody, ordersFromIds, fastfoodFromParam, selfFromParam } = require('../middlewares/staffPermissionMiddleware');
 
@@ -83,6 +85,46 @@ router.get('/all/:fastFoodId', firebaseAuth, authorize(fastfoodFromParam), getOr
  *                     $ref: '#/components/schemas/Order'
  */
 router.get('/user/all/:userId', firebaseAuth, authorize(selfFromParam('userId')), getUsersOrders);
+
+/**
+ * @swagger
+ * /order/delivery-group/{userId}:
+ *   get:
+ *     summary: Groupage — le client a-t-il déjà payé ce départ (pas encore parti) ?
+ *     description: Oui => la course de la nouvelle commande est offerte (cf. orders.md, Groupage).
+ *     tags:
+ *       - Orders
+ *     parameters:
+ *       - { in: path, name: userId, required: true, schema: { type: string } }
+ *       - { in: query, name: fastFoodId, required: true, schema: { type: string } }
+ *       - { in: query, name: zone, required: true, schema: { type: string } }
+ *       - { in: query, name: type, required: true, schema: { type: string, enum: [time, express] } }
+ *       - { in: query, name: date, required: true, schema: { type: string } }
+ *       - { in: query, name: time, schema: { type: string }, description: Créneau (périodique seulement) }
+ *     responses:
+ *       200:
+ *         description: "{ success, data: { grouped: boolean, orderId: string|null } }"
+ */
+router.get('/delivery-group/:userId', firebaseAuth, authorize(selfFromParam('userId')), getDeliveryGroup);
+
+/**
+ * @swagger
+ * /order/cancel-quote/{userId}/{orderId}:
+ *   get:
+ *     summary: Devis d'annulation par le client (rien n'est écrit)
+ *     description: Commande payée encore en attente (pending). Calcul dans order-cancel.md.
+ *     tags:
+ *       - Orders
+ *     parameters:
+ *       - { in: path, name: userId, required: true, schema: { type: string } }
+ *       - { in: path, name: orderId, required: true, schema: { type: string } }
+ *     responses:
+ *       200:
+ *         description: "{ success, data: { refund, feesKept, paid, courseKept, manual } }"
+ *       409:
+ *         description: Commande non annulable (code not_cancellable)
+ */
+router.get('/cancel-quote/:userId/:orderId', firebaseAuth, authorize(selfFromParam('userId')), getCancelQuote);
 
 /**
  * @swagger

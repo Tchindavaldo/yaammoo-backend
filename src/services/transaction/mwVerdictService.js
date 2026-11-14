@@ -3,6 +3,7 @@ const repos = require('../../repositories');
 const { createOrderService } = require('../order/createOrder');
 const { updateOrders } = require('../order/updateOrders.service');
 const { creditMerchantForItem } = require('./creditMerchant.service');
+const { refundPayoutVerdict } = require('./refundPayoutVerdict.service');
 const { reliableEmit } = require('../../utils/reliableEmit');
 const { webhookPayoutVerdict } = require('./webhookPayout.service');
 const { AGGREGATORS } = require('../../utils/paymentAggregator');
@@ -40,6 +41,12 @@ exports.mwVerdictService = async (payload, source = 'webhook') => {
     // ========================================================================
     // 0. Routage RETRAIT (payout) : ce verdict concerne-t-il un withdrawal ?
     // ========================================================================
+    const refund = await repos.orderRefunds.getByPayoutId(transaction_id);
+    if (refund) {
+      log.info(`${logPrefix} → Verdict de REMBOURSEMENT (refundId=${refund.id})`);
+      await refundPayoutVerdict(refund, data, source);
+      return;
+    }
     const withdrawal = await repos.withdrawals.getByPayoutId(transaction_id);
     if (withdrawal) {
       log.info(`${logPrefix} → Verdict de RETRAIT (withdrawalId=${withdrawal.id})`);

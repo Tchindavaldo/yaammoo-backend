@@ -23,6 +23,10 @@
 // la livraison est offerte n'entre pas dans un groupe facturé (elle n'a pas payé
 // de course).
 //
+// GROUPAGE : si le client a déjà payé une commande pour ce départ et qu'elle
+// n'est pas encore partie (`paidDeliveryGroups`), la course de TOUTES les
+// commandes du lot pour ce départ est déduite.
+//
 // ⚠️ `selectedPriceIndex` est en base 1 : prix choisi = prices[selectedPriceIndex-1].
 // ⚠️ Ne s'applique qu'au paiement PLEIN (l'appelant exclut le partiel).
 // ============================================================================
@@ -36,6 +40,7 @@ const { resolveOffer } = require('../../services/pricing/deliveryOfferResolver')
 const { deliveryGroupKey } = require('../../services/pricing/deliveryGroupKey');
 const { checkFreeDeliveryAffordable, affordabilityMessage } = require('../../services/bonus/deliveryOfferAffordability');
 const repos = require('../../repositories');
+const { openPaidGroups } = require('../../services/order/paidDeliveryGroups.service');
 
 /** Prix BRUT unitaire du plat choisi — la base du palier de marge. */
 function rawUnitPriceOf(item) {
@@ -267,11 +272,15 @@ async function validatePaymentAmount(amount, items, ctx = {}) {
     if (!key) continue;
     (groups[key] ||= []).push(orders[i]);
   }
+  // Groupage : départ DÉJÀ payé par ce client et pas encore parti → sa course
+  // est encaissée, AUCUNE commande du lot ne la repaie.
+  const paidGroups = await openPaidGroups(ctx.userId, orders).catch(() => new Map());
   let deduction = 0;
   for (const [key, group] of Object.entries(groups)) {
-    if (group.length < 2) continue;
+    const alreadyPaid = paidGroups.has(key);
+    if (group.length < 2 && !alreadyPaid) continue;
     const unitPrix = Math.max(0, toNumber(group[0]?.delivery?.prix));
-    const dup = group.length - 1;
+    const dup = alreadyPaid ? group.length : group.length - 1;
     deduction += dup * unitPrix;
     console.log(`[payAmount] ⤷ ${key} : ${group.length} cmd → 1 course, déduit ${dup}×${unitPrix}=${dup * unitPrix}`);
   }

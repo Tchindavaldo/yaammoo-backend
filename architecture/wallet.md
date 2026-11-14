@@ -329,3 +329,8 @@ validateur `validatePlatformTransfer` ([validateWithdrawal.js](../src/utils/vali
 - [ ] Réservation atomique du solde entre la demande et le verdict (aujourd'hui : blocage
       `pending` + cooldown suffisent en pratique, mais le solde n'est pas verrouillé).
 - [ ] Remboursement client : crédit marchand inverse à prévoir si une commande payée est annulée.
+
+
+## `merchant_debit`
+
+Reprise d'une commande payée annulée (cf. order-cancel.md) : DÉBIT du solde, sur le réseau du paiement. Le solde peut devenir négatif. `extra_data.feesDebit` = frais kiosque repris.

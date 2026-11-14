@@ -71,6 +71,14 @@ exports.getByRef = async paymentRef => {
   return fromRow(data);
 };
 
+/** Retrouve par l'id MobileWallet du paiement (numéro du payeur, remboursement). */
+exports.getByMwTransactionId = async mwTransactionId => {
+  if (!mwTransactionId) return null;
+  const { data, error } = await supabase.from(TABLE).select('*').eq('mw_transaction_id', mwTransactionId).limit(1).maybeSingle();
+  if (error) throw error;
+  return fromRow(data);
+};
+
 /** Marque le statut final (settled / cancelled). */
 exports.markSettled = async (paymentRef, status) => {
   const { error } = await supabase.from(TABLE).update({ status, updated_at: new Date().toISOString() }).eq('payment_ref', paymentRef);
