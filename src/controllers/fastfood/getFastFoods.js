@@ -17,6 +17,9 @@ exports.getfastfoodController = async (req, res) => {
     const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, MAX_LIMIT) : null;
     const cursor = req.query.cursor || undefined;
     const q = req.query.q || undefined;
+    // `?ids=a,b` : rechargement ciblé après le signal socket `fastfoodsChanged`.
+    // Champ additif : les anciennes apps ne l'envoient pas.
+    const ids = typeof req.query.ids === 'string' ? req.query.ids.split(',').map(s => s.trim()).filter(Boolean).slice(0, MAX_LIMIT) : null;
 
     // Auth facultative : sans token la route reste servie, simplement sans
     // `deliveryOffer` (on ne sait pas de quel user il s'agit).
@@ -24,16 +27,16 @@ exports.getfastfoodController = async (req, res) => {
     // `test_fastfood_volume` clones des boutiques réelles, pour éprouver la
     // fluidité du home. Paginé seulement, et jamais sur une recherche (`q`) :
     // elle reste servie par les données réelles.
-    const volumeTest = limit !== null && !q && (await isTestClient(req));
+    const volumeTest = !ids && limit !== null && !q && (await isTestClient(req));
     let result;
     if (volumeTest) {
       const volume = await getTestFastfoodVolume();
       const imageUrl = await getTestVolumeImageUrl();
       result = await getVolumeTestPage(req.user?.uid, { limit, cursor }, { volume, imageUrl });
     } else {
-      result = await getFastFoodsService(req.user?.uid, limit ? { limit, cursor, q } : undefined);
+      result = await getFastFoodsService(req.user?.uid, ids ? { ids } : limit ? { limit, cursor, q } : undefined);
     }
-    const paginated = limit !== null;
+    const paginated = !ids && limit !== null;
     // `distanceKm` : user (query `lat`/`lng`, sinon dernière position connue)
     // → position de la boutique. Voir services/fastfood/fastfoodDistance.js.
     const fastfoods = await withDistances(paginated ? result.items : result, { userId: req.user?.uid, query: req.query });
@@ -43,7 +46,7 @@ exports.getfastfoodController = async (req, res) => {
     // Bannières : uniquement sur la PREMIÈRE page. Les renvoyer à chaque
     // `loadMore` serait du poids pur — le carrousel ne se recharge pas au
     // scroll. `cursor` absent = première page (ou mode non paginé).
-    const banners = cursor
+    const banners = cursor || ids
       ? []
       : (
           await getActiveBanners().catch(err => {
@@ -56,7 +59,7 @@ exports.getfastfoodController = async (req, res) => {
     // seulement, comme les bannières. L'app s'en sert pour ses pages suivantes
     // et les garde pour le lancement d'après. Champ ajouté : les anciennes apps
     // l'ignorent.
-    const clientSettings = cursor ? null : await getClientSettings();
+    const clientSettings = cursor || ids ? null : await getClientSettings();
 
     return res.status(200).json({
       success: true,

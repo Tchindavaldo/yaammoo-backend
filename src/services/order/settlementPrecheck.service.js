@@ -17,6 +17,10 @@ const { toNumber, isPlatformDelivered, deliverySource, zoneDeliveryPrice } = req
 const { getPricingSettings } = require('../settings/settings.service');
 const { suggestFixes, merchantMessage, notifyMerchant } = require('./precheckSuggestions.service');
 
+// Course payée ≠ tarif actuel : la boutique a changé (zones, prix, créneau ou
+// régime de livraison) pendant que le client avait la page ouverte. L'app
+// recharge la boutique sur ce code (`delivery_price_mismatch`).
+const PRICE_CHANGED = 'Les prix de livraison de cette boutique viennent de changer. Rafraîchis la page et refais ta commande.';
 const REFUSAL = 'Paiement refusé : le montant de cette commande ne peut pas être réparti correctement. Réessaie ou contacte le support.';
 
 /**
@@ -37,7 +41,7 @@ exports.precheckSettlement = async ({ orders, userId, bonusCode, payment }) => {
     const due = zoneDeliveryPrice(deliverySource(shop), o.delivery.zone, o.delivery.type, o.delivery.time ?? null);
     const paid = toNumber(o.delivery.prix);
     if (paid !== due) {
-      return { code: 'delivery_price_mismatch', message: REFUSAL, detail: `commande #${i + 1} zone=${o.delivery.zone} créneau=${o.delivery.time ?? '∅'} : livraison payée ${paid} ≠ tarif ${due}` };
+      return { code: 'delivery_price_mismatch', message: PRICE_CHANGED, detail: `commande #${i + 1} zone=${o.delivery.zone} créneau=${o.delivery.time ?? '∅'} : livraison payée ${paid} ≠ tarif ${due}` };
     }
   }
 

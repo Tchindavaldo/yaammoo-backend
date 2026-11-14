@@ -8,6 +8,8 @@
 const repos = require('../../repositories');
 const { getPricingSettings, getAppVersionGate, setSetting, KEYS } = require('../../services/settings/settings.service');
 const { paymentFeePercentOf } = require('../../services/pricing/paymentFees');
+const { categoryOf } = require('../../services/settings/settings.keys');
+const { notifyFastfoodsChanged } = require('../../services/fastfood/fastfoodsChanged');
 
 /** Clés modifiables via l'API. Toute autre clé est refusée. */
 const EDITABLE_KEYS = new Set(Object.values(KEYS));
@@ -42,6 +44,10 @@ const VALUE_TYPES = {
   // Chaîne vide = images réelles gardées par le mode volume.
   [KEYS.TEST_VOLUME_IMAGE_URL]: 'text',
   [KEYS.OTP_DEFAULT_COUNTRY_CODE]: 'digits',
+  // Interrupteur global « tout livré par la plateforme » (migration 074).
+  [KEYS.PLATFORM_DELIVERY_ALL]: 'boolean',
+  // Boutiques masquées (tableau d'ID) : [] = aucune.
+  [KEYS.HIDDEN_FASTFOOD_IDS]: 'ids',
 };
 
 /**
@@ -150,6 +156,11 @@ exports.patchSettingController = async (req, res) => {
     }
 
     const data = await setSetting(key, value);
+    // Réglage qui change le prix ou les zones affichés (frais, marges, course,
+    // interrupteur global, boutiques masquées) : toutes les apps rechargent.
+    if (['pricing', 'delivery', 'withdrawal'].includes(categoryOf(key)) || key === KEYS.PLATFORM_DELIVERY_ALL || key === KEYS.HIDDEN_FASTFOOD_IDS) {
+      notifyFastfoodsChanged(null, `setting:${key}`);
+    }
     return res.status(200).json({ success: true, message: 'Réglage mis à jour.', data });
   } catch (error) {
     console.error('Erreur mise à jour réglage :', error);
