@@ -464,8 +464,16 @@ function applyDisplayPricing(fastfood, pricing, raw = false) {
   // couverts par le surplus d'arrondi du plat (`fastfood_min_covered_course`).
   const out = { ...fastfood, menus, pricing: meta };
   if (platformDelivered) {
-    out.platformExpressZones = applyExpressZonePricing(fastfood.platformExpressZones, pricing);
+    // Vue CLIENT : un seul jeu de zones, celui du régime actif. En plateforme,
+    // les zones de la plateforme REMPLACENT celles du marchand dans les champs
+    // que l'app lit (`deliveryHours` / `expressZones`) : l'app reste muette sur
+    // le régime, et affichage et contrôle (`deliverySource`) lisent les mêmes
+    // listes. Les champs `platform*` ne sont plus envoyés (aucun double prix).
+    out.deliveryHours = fastfood.platformDeliveryZones || [];
+    out.expressZones = applyExpressZonePricing(fastfood.platformExpressZones, pricing);
   }
+  delete out.platformDeliveryZones;
+  delete out.platformExpressZones;
   return out;
 }
 
