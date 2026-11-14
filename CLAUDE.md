@@ -3,7 +3,7 @@
 Ce fichier est **versionné** : ses règles s'appliquent automatiquement sur tout
 PC où le projet est cloné/pull, dans n'importe quelle session Claude Code.
 
-> **23 règles numérotées R1 → R23.** Toute nouvelle règle ajoutée à ce fichier
+> **24 règles numérotées R1 → R24.** Toute nouvelle règle ajoutée à ce fichier
 > DOIT recevoir le numéro suivant (R20, R21, …) et le total ci-dessus doit être
 > mis à jour. On cite une règle par son numéro (ex. « R1 » pour le style de réponse).
 
@@ -557,3 +557,19 @@ on identifie une base **par son id de projet**, jamais par son nom.
 5. Le jeton d'accès (`claude-rauval-token`, compte admin rauval, membre des
    deux organisations) est un secret réseau de l'environnement cloud, jamais
    dans le code. Il est conservé après la migration : les garde-fous restent.
+
+## R24 — Socket : il ENVOIE la donnée modifiée (OBLIGATOIRE)
+
+Un socket qui signale un changement porte **la donnée modifiée**, sous la forme
+exacte que l'app lit déjà (ex. `fastfoodUpdated { fastFood }` = vue home complète,
+`broadcastFastfoodViews` dans `services/fastfood/fastfoodsChanged.js`). L'app
+l'applique sans refaire de GET.
+
+- **Interdit** : un socket « ping » (`{ ids }` seul) quand la donnée peut être envoyée.
+- Exception : donnée trop lourde (réglage global = tout le catalogue) ou propre
+  au user (offre de livraison) → signal sans données (`fastfoodsChanged { ids: null }`),
+  l'app rafraîchit en silence, en arrière-plan.
+- Toute écriture qui change l'affichage d'une boutique passe par
+  `broadcastFastfoodViews` (aujourd'hui : `updateFastFood`, `PATCH /fastfood/:id/delivery`,
+  `PATCH /fastfood/delivery`). Règle identique côté frontend (R27).
+
