@@ -10,6 +10,7 @@ const repos = require('../../../repositories');
 const { generateId } = require('../../../repositories/idGen');
 const { resolvePlan, quotaWindow } = require('./broadcastPlan');
 const { fanOutBroadcast } = require('./broadcastFanout');
+const { getHiddenFastfoodIds } = require('../../settings/settings.service');
 
 /** Envois renvoyés au minimum : l'écran affiche les derniers + la semaine. */
 const HISTORY_MIN = 30;
@@ -47,6 +48,12 @@ exports.sendBroadcast = async ({ fastFoodId, senderUid, payload }) => {
       status: 403,
       message: `Le plan ${plan.label} ne permet pas d’écrire à ${AUDIENCE_LABELS[payload.audience]}.`,
     };
+  }
+
+  // Boutique masquée (review Apple) : jamais d'envoi hors de ses propres clients,
+  // sinon le compte de review écrirait à de vrais utilisateurs.
+  if (payload.audience !== 'customers' && (await getHiddenFastfoodIds()).has(fastFoodId)) {
+    return { status: 403, message: 'Cette boutique ne peut écrire qu’à ses clients.' };
   }
 
   const city = payload.audience === 'city' ? payload.city.trim() : null;

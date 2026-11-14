@@ -49,7 +49,7 @@ Payload (`interface/broadcastFields.js`, `validateBroadcast`) :
 |---|---|
 | 201 | `{ data: <envoi> }` — la diffusion part ensuite, en arrière-plan |
 | 400 | payload invalide, ou ville non desservie |
-| 403 | permission absente, ou audience non incluse dans le plan |
+| 403 | permission absente, audience non incluse dans le plan, ou boutique masquée (`hidden_fastfood_ids`) visant `city`/`all` |
 | 404 | boutique introuvable (ou supprimée) |
 | 429 | quota du jour (`Quota du jour atteint.`) ou de la semaine atteint |
 

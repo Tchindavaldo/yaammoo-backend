@@ -1002,5 +1002,35 @@ CREATE INDEX IF NOT EXISTS idx_bird_costs_pending ON bird_costs(sent_at) WHERE t
 -- ============================================================================
 
 -- ============================================================================
+-- TABLE: image_trash (migration 071) — corbeille d'images, purge différée
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS image_trash (
+  id          TEXT PRIMARY KEY,
+  url         TEXT NOT NULL,
+  entity      TEXT,          -- menu | fastfood | banner | bonus | NULL (DELETE /image)
+  entity_id   TEXT,
+  field       TEXT,          -- image | coverImage | images | imageUrl | flyerUrl
+  trashed_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  restored_at TIMESTAMPTZ,
+  purged_at   TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS image_trash_pending_idx
+  ON image_trash (trashed_at) WHERE restored_at IS NULL AND purged_at IS NULL;
+ALTER TABLE image_trash ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================================
+-- TABLE: settings_app (migration 072) — réglages de fonctionnement du backend
+-- ============================================================================
+-- Clés : hidden_fastfood_ids, image_trash_retention_days,
+-- fastfood_delete_retention_days, fastfood_purge_interval_ms.
+CREATE TABLE IF NOT EXISTS settings_app (
+  key         TEXT PRIMARY KEY,
+  value       JSONB NOT NULL,
+  description TEXT,
+  updated_at  TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE settings_app ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================================
 -- FIN DU SCHEMA
 -- ============================================================================

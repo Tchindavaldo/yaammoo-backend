@@ -317,7 +317,7 @@ async function setSetting(key, value) {
 }
 
 /**
- * Boutiques masquées (`hidden_fastfood_ids`, settings_deployment) : absentes du
+ * Boutiques masquées (`hidden_fastfood_ids`, settings_app) : absentes du
  * home et de la recherche pour tout le monde SAUF leur propriétaire. Sert à la
  * boutique de review Apple en prod. Ne lève jamais : clé absente = aucune.
  */
