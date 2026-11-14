@@ -289,7 +289,7 @@ const options = {
               type: 'string',
               enum: ['fastfood', 'platform'],
               description:
-                "Qui livre cette boutique — decide par l'ADMIN, jamais par le marchand. 'fastfood' : zones de la boutique, prix exact, course versee au marchand. 'platform' : zones de `platformDeliveryZones`, prix cale sur un multiple de `price_rounding_step`, course versee au livreur.",
+                "Qui livre cette boutique — decide par l'ADMIN, jamais par le marchand. 'fastfood' : zones de la boutique, prix exact, course versee au marchand. 'platform' : zones de la plateforme, servies au client DANS `deliveryHours` / `expressZones` (les champs platform* ne sont pas envoyes au client), prix cale sur un multiple de `price_rounding_step`, course versee au livreur.",
             },
             platformDeliveryZones: {
               type: 'array',

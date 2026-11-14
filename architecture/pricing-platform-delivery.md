@@ -22,6 +22,18 @@ qui absorbe l'arrondi.
 
 ---
 
+## Zones servies à l'app : un seul jeu
+
+En vue client (`applyDisplayPricing`, `raw = false` : `/fastfood/all`, sockets),
+une boutique `platform` renvoie les zones de la PLATEFORME dans `deliveryHours`
+(périodique, brut) et `expressZones` (express, frais inclus : `prix` client,
+`rawPrice` livreur). Les champs `platformDeliveryZones` / `platformExpressZones`
+ne sont jamais envoyés au client, quel que soit le régime : l'app n'a qu'une
+liste à lire, la même que `deliverySource` au contrôle. `GET /fastfood/:id`
+(gestion marchand, brut) n'est pas concerné.
+
+---
+
 ## Le fondu, en une page
 
 Le prix affiché d'un plat porte la zone périodique **la plus chère** et la marge,
