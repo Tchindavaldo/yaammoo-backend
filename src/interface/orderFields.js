@@ -30,6 +30,9 @@ exports.OrderFields = {
   // régime actuel avant paiement (settlementPrecheck, `delivery_mode_changed`).
   // Conservé dans `extra_data`.
   deliveryBy: { type: 'string', required: false },
+  // Posé par le backend (repriceCart) : article du panier dont le plat, le prix
+  // choisi ou la zone/créneau n'existent plus. Le paiement est refusé.
+  needsReview: { type: 'boolean', required: false },
   quantity: { type: 'number', required: true },
   userData: {
     type: 'object',

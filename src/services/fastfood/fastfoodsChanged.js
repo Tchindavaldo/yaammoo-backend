@@ -30,6 +30,8 @@ function notifyFastfoodsChanged(ids, reason) {
     const list = Array.isArray(ids) ? uniq(ids) : null;
     if (list && list.length === 0) return;
     getIO().emit('fastfoodsChanged', { ids: list, reason: reason || null });
+    // Panier : articles non payés recalculés aux prix actuels (en arrière-plan).
+    require('../order/repriceCart.service').repriceCartsForShops(list);
   } catch (e) {
     console.error(`[fastfoodsChanged] émission impossible : ${e.message}`);
   }
@@ -55,6 +57,8 @@ async function broadcastFastfoodViews(ids, reason) {
     }
     const hidden = list.filter(id => !seen.has(id));
     if (hidden.length) io.emit('fastfoodsHidden', { ids: hidden, reason: reason || null });
+    // Panier : articles non payés de ces boutiques recalculés (en arrière-plan).
+    require('../order/repriceCart.service').repriceCartsForShops(list);
   } catch (e) {
     console.error(`[fastfoodsChanged] diffusion des boutiques impossible : ${e.message}`);
   }

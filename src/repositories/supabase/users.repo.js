@@ -30,6 +30,13 @@ exports.getAllUsers = async () => {
   );
 };
 
+/** Ids des comptes administrateurs (alertes d'argent). */
+exports.getAdminIds = async () => {
+  const { data, error } = await supabase.from(TABLE).select('id').eq('is_admin', true);
+  if (error) throw error;
+  return (data || []).map(r => r.id);
+};
+
 exports.getUserById = async id => {
   const user = await fetchUserBundle(id);
   if (!user) throw new Error(`Aucun utilisateur trouvé avec l'ID : ${id}`);

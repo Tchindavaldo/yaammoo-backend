@@ -168,5 +168,7 @@ qui partage un déplacement. Les commandes en retrait vont dans `(sans livraison
 
 - `delivery_price_mismatch` (course payée ≠ tarif actuel, la boutique a changé pendant que la page était ouverte) : « Les prix de livraison de cette boutique viennent de changer. Rafraîchis la page et refais ta commande. »
 - `delivery_mode_changed` : même message. `order.deliveryBy` (régime vu par le client à la création, envoyé par l'app) ≠ régime effectif actuel. Commande sans `deliveryBy` (ancienne app) : contrôle sauté.
+- `price_changed` : même message. La commande recalculée sur la vue home actuelle (`repriceCart.repriceOrder` : plat, extras, boissons, course du créneau) a un élément disparu ou un total différent de plus de 1 F.
+- Marge négative en régime plateforme : en plus du push marchand, push aux administrateurs (`users.is_admin`), 1 fois/heure par cas.
 - `negative_margin`, `settlement_failed` : message générique inchangé.
 - Toute réponse 422 du pré-check porte `fastFoodIds` (boutiques du panier) : l'app les recharge (`GET /fastfood/all?ids=…`).

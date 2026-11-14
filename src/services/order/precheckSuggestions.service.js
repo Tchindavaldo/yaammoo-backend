@@ -113,3 +113,14 @@ exports.notifyMerchant = async (order, s, message) => {
   await notifyOrderEvent({ targetUserId: userId, type: 'pricing_alert', title: 'Commande refusée : prix à ajuster', body: message, route: '', audience: 'merchant' }).catch(e => console.warn(`[precheckSuggestions] push marchand : ${e.message}`));
   return true;
 };
+
+/** Marge négative en régime plateforme : push à chaque administrateur (1/h par cas). */
+exports.notifyAdmins = async (order, detail) => {
+  const key = `admin|${order.fastFoodId}|${order.delivery?.zone}|${order.delivery?.time}|${order.menu?.id}`;
+  if (Date.now() - (lastNotified.get(key) || 0) < NOTIFY_EVERY_MS) return false;
+  lastNotified.set(key, Date.now());
+  const ids = await repos.users.getAdminIds().catch(() => []);
+  const body = `Livraison plateforme : paiement refusé, marge négative (${order.menu?.name || 'plat'}, zone ${order.delivery?.zone || '-'}). ${detail}`;
+  await Promise.all(ids.map(id => notifyOrderEvent({ targetUserId: id, type: 'pricing_alert', title: 'Marge négative (plateforme)', body, route: '' }).catch(e => console.warn(`[precheckSuggestions] push admin : ${e.message}`))));
+  return ids.length > 0;
+};

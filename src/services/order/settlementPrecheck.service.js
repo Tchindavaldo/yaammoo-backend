@@ -5,7 +5,8 @@
 // (settleDelivery) n'a lieu qu'APRÈS le paiement : s'il échoue à ce moment-là,
 // l'argent est déjà pris. On rejoue donc le même calcul, sans écriture, et on
 // REFUSE le paiement si :
-//   0. le régime de livraison vu par le client n'est plus le régime actuel ;
+//   0. le régime de livraison vu par le client n'est plus le régime actuel,
+//      ou le total ne correspond plus aux prix actuels (plat, extras, course) ;
 //   1. le prix de livraison payé ne correspond pas au tarif de la zone dans le
 //      créneau choisi (régime fastfood : la course est facturée à part) ;
 //   2. le calcul échoue ;
@@ -16,7 +17,8 @@ const { settleDeliveryService } = require('./settleDelivery.service');
 const { resolveOfferedDeliveries } = require('../../utils/validator/validatePaymentAmount');
 const { toNumber, isPlatformDelivered, deliverySource, zoneDeliveryPrice } = require('../pricing/deliveryPricing');
 const { getPricingSettings } = require('../settings/settings.service');
-const { suggestFixes, merchantMessage, notifyMerchant } = require('./precheckSuggestions.service');
+const { suggestFixes, merchantMessage, notifyMerchant, notifyAdmins } = require('./precheckSuggestions.service');
+const { repriceOrder } = require('./repriceCart.service');
 
 // Course payée ≠ tarif actuel : la boutique a changé (zones, prix, créneau ou
 // régime de livraison) pendant que le client avait la page ouverte. L'app
@@ -51,6 +53,26 @@ exports.precheckSettlement = async ({ orders, userId, bonusCode, payment }) => {
     }
   }
 
+  // 0 bis. Prix ACTUELS : la commande est recalculée sur la vue home de sa
+  // boutique (même calcul que la mise à jour du panier). Plat, prix choisi ou
+  // zone disparus, ou total différent (plat, extras, boissons, course) :
+  // refus, l'app recharge la boutique et le panier a déjà été mis à jour.
+  const ids = [...new Set(list.map(o => o?.fastFoodId).filter(Boolean).map(String))];
+  if (ids.length) {
+    const { getFastFoodsService } = require('../fastfood/getFastFoods');
+    const views = new Map((await getFastFoodsService(undefined, { ids })).map(v => [String(v.id), v]));
+    for (const [i, o] of list.entries()) {
+      if (!o?.fastFoodId) continue;
+      const view = views.get(String(o.fastFoodId));
+      if (!view) return { code: 'price_changed', message: PRICE_CHANGED, detail: `commande #${i + 1} : boutique ${o.fastFoodId} plus disponible` };
+      const { order: fresh } = repriceOrder(o, view);
+      if (fresh.needsReview) return { code: 'price_changed', message: PRICE_CHANGED, detail: `commande #${i + 1} : plat, prix ou zone/créneau disparus` };
+      if (Math.abs(toNumber(fresh.total) - toNumber(o.total)) > 1) {
+        return { code: 'price_changed', message: PRICE_CHANGED, detail: `commande #${i + 1} : total envoyé ${o.total} ≠ total actuel ${fresh.total}` };
+      }
+    }
+  }
+
   // 1. Course payée = tarif du créneau choisi (régime fastfood, non offerte).
   const { offered } = await resolveOfferedDeliveries(list, { userId, bonusCode });
   for (const [i, o] of list.entries()) {
@@ -81,6 +103,9 @@ exports.precheckSettlement = async ({ orders, userId, bonusCode, payment }) => {
       suggestions = await suggestFixes({ list: withUser, index, offered, ctx: { bonusCode, payment, pricing } });
       merchantNotice = merchantMessage(withUser[index], suggestions);
       await notifyMerchant(withUser[index], suggestions, merchantNotice);
+      // Régime plateforme, prix à jour : c'est le réglage plateforme qui perd
+      // de l'argent, le marchand n'y peut rien. Alerte aux administrateurs.
+      if (suggestions?.shop && isPlatformDelivered(suggestions.shop)) await notifyAdmins(withUser[index], detail);
     } catch (e) {
       console.warn(`[settlementPrecheck] propositions marchand impossibles : ${e.message}`);
     }

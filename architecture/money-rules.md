@@ -122,15 +122,22 @@ et `platformExpressZones` (express).
    en échec (`settlement_failed`) ou marge négative (`negative_margin`).
    Avant tout : refus `delivery_mode_changed` si `order.deliveryBy` (régime vu
    par le client, posé par l'app) ≠ régime effectif actuel (bascule marchand ↔
-   plateforme). Message des deux refus « prix changés » : « Les prix de
+   plateforme), puis `price_changed` si la commande, recalculée sur la vue home
+   actuelle (`repriceCart.repriceOrder`), a un plat/prix/zone disparu ou un
+   total différent (> 1 F). Message des refus « prix changés » : « Les prix de
    livraison de cette boutique viennent de changer… ». Toute réponse 422 porte
    `fastFoodIds` : l'app recharge ces boutiques.
+   **Panier** : à chaque changement de boutique (ou réglage global), les
+   commandes `pendingToBuy` sont recalculées aux prix actuels (plat, extras,
+   boissons, course du créneau, total, `deliveryBy`) et poussées au client
+   (`userOrderUpdated`) ; élément disparu ⇒ `needsReview: true`, prix inchangés.
    Sur `negative_margin`, `precheckSuggestions` calcule (en rejouant le
    règlement simulé) la **course maximale** de la zone/créneau et le **prix
    réel minimum** du plat (règle de la page menu respectée), puis envoie un
    **push au marchand** (« baissez la livraison … à X F, ou passez le plat à
    Y F, sinon contactez l'administrateur »), au plus 1 fois/heure par cas.
-   Régime plateforme : seul « contactez l'administrateur ».
+   Régime plateforme : seul « contactez l'administrateur », et **push aux
+   administrateurs** (`users.is_admin`), 1 fois/heure par cas.
 2. **Après paiement** : pas de règlement ⇒ **aucun crédit** (jamais le total
    client), alerte dans `app_errors`.
 3. **Base** : `order_settlements_margin_chk` et `order_deliveries_margin_chk`

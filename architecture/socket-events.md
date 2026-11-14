@@ -260,3 +260,7 @@ boutiques du home sans refresh — elles sont déjà invisibles côté API. Voir
 ## Récepteurs côté client
 
 Voir la doc frontend : `yaammoo/architecture/socket-events-client.md`.
+
+## Panier recalculé (`repriceCart.service`)
+
+À chaque `fastfoodUpdated` / `fastfoodsHidden` / `fastfoodsChanged`, les commandes `pendingToBuy` des boutiques concernées sont recalculées aux prix actuels, enregistrées, puis émises au client : `userOrderUpdated { data: order }` (room `<userId>`, fiable). `order.needsReview: true` = plat, prix choisi ou zone/créneau disparus (prix laissés tels quels, paiement refusé).
