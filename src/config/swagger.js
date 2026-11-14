@@ -294,17 +294,29 @@ const options = {
             platformDeliveryZones: {
               type: 'array',
               description:
-                "Zones de livraison de la PLATEFORME. Meme forme que `deliveryHours` (periodicZones ET expressZones par creneau). Utilisees seulement quand deliveryBy = 'platform'. " +
-                'EN LECTURE, les zones `expressZones` sont renvoyees TARIFEES : `prix` porte la commission et les frais de retrait puis est arrondi au pas ' +
-                '(`express_price_rounding_step`, toujours vers le haut), et `rawPrice` conserve le montant brut verse au livreur — meme convention que les extras et boissons. ' +
-                'Les `periodicZones` restent BRUTES : elles sont deja fondues dans le prix du plat. Le front doit renvoyer `rawPrice` dans la commande.',
+                "Creneaux PERIODIQUES de la PLATEFORME. Meme forme que `deliveryHours` (periodicZones par creneau). Utilises seulement quand deliveryBy = 'platform'. " +
+                'Les `periodicZones` restent BRUTES : elles sont deja fondues dans le prix du plat.',
               items: { type: 'object' },
+            },
+            platformExpressZones: {
+              type: 'array',
+              description:
+                "Zones EXPRESS de la PLATEFORME, sans heure (migration 073). Utilisees seulement quand deliveryBy = 'platform'. " +
+                'EN LECTURE, elles sont renvoyees TARIFEES : `prix` porte la commission et les frais de retrait puis est arrondi au pas ' +
+                '(`express_price_rounding_step`, toujours vers le haut), et `rawPrice` conserve le montant brut verse au livreur — meme convention que les extras et boissons. ' +
+                'Le front doit renvoyer `rawPrice` dans la commande.',
+              items: { $ref: '#/components/schemas/DeliveryZone' },
             },
             cities: { type: 'array', items: { type: 'string' } },
             deliveryHours: {
               type: 'array',
-              description: 'Créneaux de livraison avec zones et prix (tableau d\'objets).',
+              description: 'Créneaux de livraison PÉRIODIQUE avec zones et prix (tableau d\'objets).',
               items: { $ref: '#/components/schemas/DeliveryHour' },
+            },
+            expressZones: {
+              type: 'array',
+              description: "Zones EXPRESS de la boutique, SANS heure (migration 073) : l'express part dès que la commande est prête, un seul prix par lieu.",
+              items: { $ref: '#/components/schemas/DeliveryZone' },
             },
             driverRatingAvg: { type: 'number' },
             driverRatingCount: { type: 'number' },
@@ -319,8 +331,6 @@ const options = {
             hour: { type: 'string', example: '08:00' },
             periodic: { type: 'boolean' },
             periodicZones: { type: 'array', items: { $ref: '#/components/schemas/DeliveryZone' } },
-            express: { type: 'boolean' },
-            expressZones: { type: 'array', items: { $ref: '#/components/schemas/DeliveryZone' } },
           },
         },
         DeliveryZone: {

@@ -95,12 +95,19 @@ marge est la seule variable d'ajustement.
 - Prix affiché (réseau inconnu) : barème du réseau **le plus cher**. Règlement :
   réseau et agrégateur **réels** du paiement.
 
-## 4. Course : tarif lu dans le CRÉNEAU
+## 4. Course : tarif lu dans le CRÉNEAU (périodique) ou la liste EXPRESS
 
-Un même lieu a un prix par **type** (`periodicZones` / `expressZones`) ET par
-**créneau** (`deliveryHours[].hour`) : Banekane 500 F à 09:12, 100 F à 13:06.
-`zoneDeliveryPrice(source, zone, type, delivery.time)`. Ne jamais prendre le
-premier lieu trouvé dans toutes les heures (bug du 05/11/2026).
+Un même lieu a un prix par **type**, et les deux listes n'ont pas la même forme :
+
+| Type | Où | Prix |
+|---|---|---|
+| **périodique** (`time`) | `deliveryHours[].periodicZones` | par lieu ET par **créneau** : Banekane 500 F à 09:12, 100 F à 13:06 |
+| **express** | `expressZones` (boutique, migration 073) | par lieu, **sans heure** : la course part dès que la commande est prête |
+
+`zoneDeliveryPrice(source, zone, type, delivery.time)` : l'heure ne filtre que
+le périodique. Ne jamais prendre le premier lieu trouvé dans toutes les heures
+(bug du 05/11/2026). Régime plateforme : `platformDeliveryZones` (périodique)
+et `platformExpressZones` (express).
 
 ## 5. Garde-fous en place
 

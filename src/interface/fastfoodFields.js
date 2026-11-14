@@ -40,22 +40,29 @@ exports.FastfoodFields = {
   },
   latitude: { type: 'number', required: false },
   longitude: { type: 'number', required: false },
-  // Créneaux de livraison : objets enrichis décrits par `deliveryHourItem`.
+  // Créneaux de livraison PÉRIODIQUE : objets décrits par `DeliveryHourItemFields`.
   // À l'écriture, `utils/deliveryHoursSanitize.js` ne conserve qu'un créneau
-  // ayant au moins un mode (express|periodic) actif ET pourvu de zones valides.
+  // `periodic` actif ET pourvu de zones valides.
   deliveryHours: {
+    type: 'array',
+    required: false,
+  },
+  // Zones EXPRESS de la boutique (migration 073) : UNE liste, sans heure.
+  // L'express part dès que la commande est prête : un prix par lieu, jamais par
+  // créneau. Zones décrites par `DeliveryZoneFields`, nettoyées à l'écriture.
+  expressZones: {
     type: 'array',
     required: false,
   },
 };
 
-// Sous-champs d'un créneau du format enrichi (`deliveryHours[]`).
+// Sous-champs d'un créneau (`deliveryHours[]`) : livraison PÉRIODIQUE seule.
+// L'express n'est plus porté par les créneaux (migration 073) : il vit dans
+// `expressZones`, au niveau de la boutique.
 exports.DeliveryHourItemFields = {
   hour: { type: 'string', required: true }, // "HH:mm"
-  express: { type: 'bool', required: false }, // livraison immédiate activée
   periodic: { type: 'bool', required: false }, // livraison au créneau activée
-  expressZones: { type: 'array', required: false }, // zones du mode express
-  periodicZones: { type: 'array', required: false }, // zones du mode periodic
+  periodicZones: { type: 'array', required: false }, // zones du créneau
 };
 
 // Sous-champs d'une zone (`expressZones[]` / `periodicZones[]`).

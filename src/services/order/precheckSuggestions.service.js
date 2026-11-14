@@ -23,23 +23,22 @@ const BRUT_SPAN = 3000;
 const NOTIFY_EVERY_MS = 60 * 60 * 1000;
 const lastNotified = new Map();
 
-const ZONE_FIELD = { express: 'expressZones', time: 'periodicZones' };
-
 /** Le lot passe-t-il (toutes les marges >= 0) ? */
 async function passes(list, ctx, fastfoodOverrides) {
   const s = await settleDeliveryService({ orders: list, bonusCode: ctx.bonusCode, payment: ctx.payment, dryRun: true, fastfoodOverrides });
   return !s.error && s.settlements.length === list.length && s.settlements.every(x => toNumber(x.platformMargin) >= 0);
 }
 
-/** Boutique dont la zone (lieu + type + créneau) vaut `price`. */
+/**
+ * Boutique dont la zone vaut `price`. EXPRESS : la liste `expressZones`, sans
+ * heure (migration 073). PÉRIODIQUE : le lieu dans le créneau de la commande.
+ */
 function withZonePrice(shop, d, price) {
-  const field = ZONE_FIELD[d.type];
+  const setPrice = list => (Array.isArray(list) ? list.map(z => (z?.lieu === d.zone ? { ...z, prix: String(price) } : z)) : list);
+  if (d.type === 'express') return { ...shop, expressZones: setPrice(shop.expressZones) };
   const hours = (shop.deliveryHours || []).map(h => {
     if (!h || typeof h !== 'object' || (d.time && h.hour !== d.time)) return h;
-    const lists = field ? [field] : ['periodicZones', 'expressZones'];
-    const copy = { ...h };
-    for (const f of lists) if (Array.isArray(copy[f])) copy[f] = copy[f].map(z => (z?.lieu === d.zone ? { ...z, prix: String(price) } : z));
-    return copy;
+    return { ...h, periodicZones: setPrice(h.periodicZones) };
   });
   return { ...shop, deliveryHours: hours };
 }

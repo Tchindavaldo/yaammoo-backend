@@ -94,7 +94,9 @@ const fastfoodToSupabase = data => {
     'pickupAllowed',
     'cities',
     'deliveryHours',
+    'expressZones',
     'platformDeliveryZones',
+    'platformExpressZones',
     'deliveryBy',
     'driverRatingAvg',
     'driverRatingCount',
@@ -128,10 +130,13 @@ const fastfoodToSupabase = data => {
     pickup_allowed: data.pickupAllowed ?? null,
     cities: data.cities ?? [],
     delivery_hours: data.deliveryHours ?? [],
+    // Zones EXPRESS (migration 073) : une liste par boutique, sans heure.
+    express_zones: data.expressZones ?? [],
     // Qui livre (migration 037) : 'fastfood' (régime historique) ou 'platform'.
     // Décidé par l'admin — jamais par la boutique elle-même.
     delivery_by: data.deliveryBy ?? 'fastfood',
     platform_delivery_zones: data.platformDeliveryZones ?? [],
+    platform_express_zones: data.platformExpressZones ?? [],
     // Boissons de la boutique (migration 062). Voir services/menu/shopDrinks.js.
     drinks: data.drinks ?? [],
     // Position de la boutique (migration 060), posée par le marchand.
@@ -160,8 +165,10 @@ const fastfoodFromSupabase = row => {
     pickupAllowed: row.pickup_allowed ?? false,
     cities: row.cities || [],
     deliveryHours: row.delivery_hours || [],
+    expressZones: row.express_zones || [],
     deliveryBy: row.delivery_by || 'fastfood',
     platformDeliveryZones: row.platform_delivery_zones || [],
+    platformExpressZones: row.platform_express_zones || [],
     drinks: row.drinks || [],
     driverRatingAvg: row.driver_rating_avg != null ? Number(row.driver_rating_avg) : 0,
     driverRatingCount: row.driver_rating_count ?? 0,

@@ -99,17 +99,16 @@
  *                             type: string
  *                           prix:
  *                             type: string
- *                     express:
- *                       type: boolean
- *                     expressZones:
- *                       type: array
- *                       items:
- *                         type: object
- *                         properties:
- *                           lieu:
- *                             type: string
- *                           prix:
- *                             type: string
+ *               expressZones:
+ *                 type: array
+ *                 description: Zones EXPRESS de la boutique, SANS heure (migration 073). Un prix par lieu.
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     lieu:
+ *                       type: string
+ *                     prix:
+ *                       type: string
  *     responses:
  *       200:
  *         description: FastFood successfully updated

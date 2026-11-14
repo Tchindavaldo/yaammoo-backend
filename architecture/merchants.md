@@ -53,12 +53,16 @@ FastFood {
                                // N'exclut PAS la livraison : une boutique qui
                                // ne livre pas ne déclare aucune zone.
   cities: string[]             // Villes où la boutique opère (ex: ["Douala", "Yaoundé"])
-  deliveryHours: DeliveryHour[] // Créneaux avec zones de livraison et prix
+  deliveryHours: DeliveryHour[] // Créneaux de livraison PÉRIODIQUE (zones + prix)
+  // Zones EXPRESS (migration 073) : une liste, SANS heure — l'express part dès
+  // que la commande est prête, un seul prix par lieu.
+  expressZones: Zone[]
   // Qui livre — décidé par l'ADMIN, jamais par la boutique (migration 037).
   deliveryBy: 'fastfood' | 'platform'
-  // Zones de la PLATEFORME, même forme que deliveryHours (periodicZones ET
-  // expressZones). Utilisées seulement quand deliveryBy = 'platform'.
+  // Zones de la PLATEFORME, mêmes formes que deliveryHours / expressZones.
+  // Utilisées seulement quand deliveryBy = 'platform'.
   platformDeliveryZones: DeliveryHour[]
+  platformExpressZones: Zone[]
 
   // Métadonnées
   createdAt: ISO8601
@@ -69,8 +73,8 @@ DeliveryHour {
   hour: string                 // Créneau horaire (ex: "08:00")
   periodic: boolean            // Livraison périodique disponible
   periodicZones: Zone[]        // Zones et prix pour livraison périodique
-  express: boolean             // Livraison express disponible
-  expressZones: Zone[]         // Zones et prix pour livraison express
+  // `express` / `expressZones` : plus portés par le créneau (migration 073),
+  // retirés à l'écriture — voir `expressZones` de la boutique.
 }
 
 Zone {
@@ -159,11 +163,10 @@ MenuItem {
          {
            "hour": "08:00",
            "periodic": true,
-           "periodicZones": [{ "lieu": "Bonanjo", "prix": "500" }],
-           "express": false,
-           "expressZones": []
+           "periodicZones": [{ "lieu": "Bonanjo", "prix": "500" }]
          }
        ],
+       "expressZones": [{ "lieu": "Bonanjo", "prix": "900" }],
        "orderLeadTime": 30,
        "advanceDays": 3,
        "pickupAllowed": false,
@@ -192,16 +195,19 @@ MenuItem {
    donc sans prix — invisibles pour `services/pricing/deliveryPricing.js` qui ne
    compte que les zones.
 
-   `sanitizeDeliveryHours()` ne conserve donc un créneau que s'il a **au moins un
-   mode actif pourvu de zones valides** :
-   - `express: true` **et** `expressZones` contient au moins une zone valide, **ou**
-   - `periodic: true` **et** `periodicZones` contient au moins une zone valide.
+   `sanitizeDeliveryHours()` ne conserve donc un créneau que s'il est
+   **`periodic: true` et pourvu de zones valides** ; `express` / `expressZones`
+   reçus dans un créneau sont retirés (migration 073).
 
-   Un mode désactivé est légitime : une boutique peut ne faire que de l'express.
+   `sanitizeExpressZones()` nettoie la liste `expressZones` de la boutique : zones
+   valides, **un lieu une seule fois** (le premier gardé). Une boutique peut ne
+   faire que de l'express : `deliveryHours` vide, `expressZones` rempli.
+
    Une zone est valide si `lieu` est une string non vide **et** `Number(prix) > 0`
    (le front envoie `prix` en string, ex. `"500"`). Les zones invalides sont aussi
-   purgées des créneaux conservés. Le format legacy (strings `"HH:mm"`) traverse
-   intact : il ne porte aucune zone.
+   purgées. Le format legacy (strings `"HH:mm"`) traverse intact : il ne porte
+   aucune zone. Même nettoyage à la création (`createFastFood.js`) et pour les
+   zones plateforme (route admin `PATCH /fastFood/:id/delivery`).
 
 3. Frontend :
    - Affiche confirmation "Boutique mise à jour"
