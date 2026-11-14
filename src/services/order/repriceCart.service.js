@@ -85,41 +85,68 @@ function repriceOrder(order, view) {
 }
 
 /**
- * @param {string[]|null} ids boutiques modifiées ; null = toutes (réglage global).
- * Ne lève jamais.
+ * Recalcule une liste de commandes `pendingToBuy`, enregistre celles qui
+ * changent. `emit` : pousse `userOrderUpdated` au client (pas utile au GET,
+ * qui renvoie déjà la liste à jour).
+ * @returns {Promise<Map<string,Object>>} id -> commande enregistrée
+ */
+async function repriceOrders(orders, { emit = true } = {}) {
+  const saved = new Map();
+  const byShop = new Map();
+  for (const o of orders) {
+    if (o?.status !== 'pendingToBuy' || !o.fastFoodId) continue;
+    if (!byShop.has(o.fastFoodId)) byShop.set(o.fastFoodId, []);
+    byShop.get(o.fastFoodId).push(o);
+  }
+  if (byShop.size === 0) return saved;
+
+  const { getFastFoodsService } = require('../fastfood/getFastFoods');
+  const views = await getFastFoodsService(undefined, { ids: [...byShop.keys()] });
+  const viewOf = new Map(views.map(v => [String(v.id), v]));
+  const io = emit ? getIO() : null;
+  for (const [shopId, list] of byShop) {
+    const view = viewOf.get(String(shopId)) || null; // boutique masquée/indispo : tout à revoir
+    for (const o of list) {
+      const { order, changed } = view ? repriceOrder(o, view) : { order: { ...o, needsReview: true }, changed: !o.needsReview };
+      if (!changed) continue;
+      const row = await repos.orders.update(o.id, { menu: order.menu, extra: order.extra, drink: order.drink, delivery: order.delivery, total: order.total, deliveryBy: order.deliveryBy, needsReview: order.needsReview }).catch(e => {
+        console.error(`[repriceCart] commande ${o.id} non mise à jour : ${e.message}`);
+        return null;
+      });
+      if (!row) continue;
+      saved.set(String(o.id), row);
+      if (io && o.userId) reliableEmit(io, o.userId, 'userOrderUpdated', { data: row }).catch(e => console.warn(`[repriceCart] emit : ${e.message}`));
+    }
+  }
+  return saved;
+}
+
+/**
+ * Boutiques modifiées (ids) ou toutes (null, réglage global). Ne lève jamais.
  */
 async function repriceCartsForShops(ids) {
   try {
-    const orders = await repos.orders.query({ status: 'pendingToBuy', orderByCreated: null });
     const wanted = ids ? new Set(ids.map(String)) : null;
-    const byShop = new Map();
-    for (const o of orders) {
-      if (!o.fastFoodId || (wanted && !wanted.has(String(o.fastFoodId)))) continue;
-      if (!byShop.has(o.fastFoodId)) byShop.set(o.fastFoodId, []);
-      byShop.get(o.fastFoodId).push(o);
-    }
-    if (byShop.size === 0) return;
-
-    const { getFastFoodsService } = require('../fastfood/getFastFoods');
-    const views = await getFastFoodsService(undefined, { ids: [...byShop.keys()] });
-    const viewOf = new Map(views.map(v => [String(v.id), v]));
-    const io = getIO();
-    for (const [shopId, list] of byShop) {
-      const view = viewOf.get(String(shopId)) || null; // boutique masquée/indispo : tout à revoir
-      for (const o of list) {
-        const { order, changed } = view ? repriceOrder(o, view) : { order: { ...o, needsReview: true }, changed: !o.needsReview };
-        if (!changed) continue;
-        const { id, ...fields } = order;
-        const saved = await repos.orders.update(o.id, { menu: fields.menu, extra: fields.extra, drink: fields.drink, delivery: fields.delivery, total: fields.total, deliveryBy: fields.deliveryBy, needsReview: fields.needsReview }).catch(e => {
-          console.error(`[repriceCart] commande ${o.id} non mise à jour : ${e.message}`);
-          return null;
-        });
-        if (saved && o.userId) reliableEmit(io, o.userId, 'userOrderUpdated', { data: saved }).catch(e => console.warn(`[repriceCart] emit : ${e.message}`));
-      }
-    }
+    const orders = await repos.orders.query({ status: 'pendingToBuy', orderByCreated: null });
+    await repriceOrders(orders.filter(o => !wanted || wanted.has(String(o.fastFoodId))));
   } catch (e) {
     console.error(`[repriceCart] recalcul du panier impossible : ${e.message}`);
   }
 }
 
-module.exports = { repriceCartsForShops, repriceOrder };
+/**
+ * GET des commandes du user : le panier est recalculé AVANT la réponse. Un
+ * socket raté, une app fermée ou une modification faite en base sont ainsi
+ * rattrapés à chaque ouverture / retour au premier plan. Ne lève jamais.
+ */
+async function withRepricedCart(orders) {
+  try {
+    const saved = await repriceOrders(orders, { emit: false });
+    return saved.size ? orders.map(o => saved.get(String(o.id)) || o) : orders;
+  } catch (e) {
+    console.error(`[repriceCart] panier non recalculé au GET : ${e.message}`);
+    return orders;
+  }
+}
+
+module.exports = { repriceCartsForShops, repriceOrder, withRepricedCart };

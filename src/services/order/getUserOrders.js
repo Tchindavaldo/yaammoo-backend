@@ -3,12 +3,13 @@
 // ============================================================================
 const repos = require('../../repositories');
 const { enrichOrdersWithCourse } = require('./enrichOrdersWithCourse');
+const { withRepricedCart } = require('./repriceCart.service');
 
 exports.getUserOrdersService = async userId => {
   try {
     const user = await repos.users.getUserByIdSafe(userId);
     if (!user) throw new Error('user non trouvé');
-    return await enrichOrdersWithCourse(await repos.orders.getByUser(userId));
+    return await enrichOrdersWithCourse(await withRepricedCart(await repos.orders.getByUser(userId)));
   } catch (error) {
     console.error('Erreur dans getUserOrdersService:', error);
     throw new Error(error.message || 'Erreur lors de la récupération des commandes');
