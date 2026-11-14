@@ -97,7 +97,7 @@ router.get('/user/all/:userId', firebaseAuth, authorize(selfFromParam('userId'))
  *     parameters:
  *       - { in: path, name: userId, required: true, schema: { type: string } }
  *       - { in: query, name: fastFoodId, required: true, schema: { type: string } }
- *       - { in: query, name: zone, required: true, schema: { type: string } }
+ *       - { in: query, name: zone, required: false, schema: { type: string }, description: "Absent : renvoie data.departures (départs payés non partis de la boutique)" }
  *       - { in: query, name: type, required: true, schema: { type: string, enum: [time, express] } }
  *       - { in: query, name: date, required: true, schema: { type: string } }
  *       - { in: query, name: time, schema: { type: string }, description: Créneau (périodique seulement) }
