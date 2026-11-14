@@ -449,3 +449,22 @@ réponse porte `ownerReattached: false` — le rattachement se fait à la main.
 - 400 : Cet utilisateur possède déjà une fastfood
 - 404 : Fastfood / Menu non trouvé
 - 400 : Validation échouée (champs manquants ou invalides)
+
+## Stats hero — GET /fastFood/:fastFoodId/stats
+
+`firebaseAuth`, propriétaire seulement (403 sinon). Query : `from`, `to`
+(`YYYY-MM-DD`), `bucket` (`day` | `week` | `month`). Fonction SQL
+`merchant_stats` (migration 070), heure de Douala.
+
+- Commande prise en compte : statut ≠ `pendingToBuy`, non supprimée.
+- `revenue` / `series[].revenue` = Σ `transactions.merchant_credit` de la
+  boutique (jamais le total client). `balance` = `getMerchantBalance`.
+- Statuts : livrées = `delivered`/`finished` avec `delivery.status` vrai ;
+  sur place = idem avec `delivery.status` faux ; en cours = `pending`,
+  `processing`, `delivering` ; annulées = `cancel*`.
+- Nouveau client = 1re commande de la boutique dans le bucket ; sinon revenu.
+- Délais (min) depuis `order_status_history` : préparation = `pending` →
+  `delivering` (ou fin), livraison = `delivering` → fin, total = `pending` → fin.
+- Entonnoir : `shop_impression`, `menu_open`, `add_to_cart` + `checkout_start`,
+  commandes. Classements (top 4) : plats, vues (`menu_open`), clients,
+  livreurs, zones (`order_deliveries.zone`) ; `amount` = Σ total client.
