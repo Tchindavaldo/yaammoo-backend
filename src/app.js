@@ -28,6 +28,7 @@ const bannersRoutes = require('./routes/bannersRoutes');
 const paymentPageRoutes = require('./routes/paymentPageRoutes');
 const staffRoutes = require('./routes/staffRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
+const legalRoutes = require('./routes/legalRoutes');
 
 const app = express();
 
@@ -55,6 +56,7 @@ app.use('/bonusRequest', bonusRequest);
 app.use('/transaction', transactionRoutes);
 app.use('/notification', notificationRoutes);
 app.use('/wallet', walletRoutes);
+app.use('/legal', legalRoutes);
 app.use('/driver', driverRoutes);
 app.use('/rating', ratingRoutes);
 app.use('/settings', settingsRoutes);
