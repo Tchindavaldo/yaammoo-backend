@@ -7,6 +7,8 @@
 // remboursé en entier et les frais réels sont repris au marchand
 // (`orderCancel.service`). Passe par `updateOrders`, donc mêmes sockets,
 // recalcul du panier et traces que l'annulation manuelle.
+// Seulement les commandes payées par pawaPay (les anciennes, d'avant le vrai
+// paiement, ne sont jamais annulées d'office).
 // Tourne toutes les heures ; le délai est relu en base à chaque tour.
 // 0 en base = annulation automatique désactivée.
 // ============================================================================
@@ -14,6 +16,8 @@ const repos = require('../repositories');
 const { getSettings } = require('../services/settings/settings.service');
 const { KEYS } = require('../services/settings/settings.keys');
 const { OPEN_STATUSES } = require('../services/order/paidDeliveryGroups.service');
+
+const { AGGREGATORS } = require('./paymentAggregator');
 
 const EVERY_MS = 3600000;
 let timer = null;
@@ -27,6 +31,10 @@ async function runOnce() {
   for (const o of open) {
     const created = new Date(o.createdAt).getTime();
     if (!Number.isFinite(created) || created > limit) continue;
+    // Seules les commandes réellement payées par pawaPay : les anciennes
+    // (avant l'intégration du paiement) restent telles quelles.
+    const credit = await repos.transactions.findMerchantCreditByOrder(o.id).catch(() => null);
+    if (credit?.aggregator !== AGGREGATORS.PAWAPAY) continue;
     const r = await updateOrders({ id: o.id, status: 'cancelByFastFood', fastFoodId: o.fastFoodId }, o.userId).catch(e => ({ success: false, message: e.message }));
     if (r?.success === false) console.warn(`[orderAutoCancel] ${o.id} non annulée : ${r.message}`);
     else console.log(`[orderAutoCancel] ${o.id} annulée d'office (${days} j sans livraison).`);

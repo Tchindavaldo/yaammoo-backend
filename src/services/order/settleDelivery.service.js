@@ -296,10 +296,13 @@ exports.settleDeliveryService = async ({ orders, bonusCode, payment = null, dryR
       //
       // Sans ce plafond, un plat à 3500 arrondi de 4110 à 4500 versait 619 F au
       // livreur pour une course qui en vaut 250 — la plateforme payait l'écart.
-      // Une seule course par départ, dans les DEUX régimes : en plateforme, une
-      // commande qui ne porte pas la course ne doit rien au livreur (sinon il
-      // était payé une fois par commande du départ).
-      const driverAmount = !amounts.courseBilled ? 0 : platformDelivered ? Math.min(amounts.realPrice, Math.max(0, net - itemsReal - marginDue)) : amounts.realPrice;
+      // Plateforme : le livreur est payé sur CHAQUE commande (voulu, décision du
+      // 14/11/2026 : la zone MAX est fondue dans chaque plat), y compris une
+      // commande qui rejoint un départ déjà payé (groupage). Seule exception :
+      // dans un même panier, une seule commande porte la course.
+      // Fastfood : course versée seulement si elle a été facturée.
+      const sameCartSibling = !amounts.courseBilled && !grouped;
+      const driverAmount = platformDelivered ? (sameCartSibling ? 0 : Math.min(amounts.realPrice, Math.max(0, net - itemsReal - marginDue))) : amounts.courseBilled ? amounts.realPrice : 0;
 
       // ── 1. Le règlement : une ligne par commande, TOUJOURS ────────────────
       let settlementRow = null;

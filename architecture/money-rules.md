@@ -90,8 +90,11 @@ régimes) et `itemsCharged = total − delivery.prix` (la course a été déduit
 montant encaissé). **Groupage** (départ déjà payé et pas encore parti,
 `paidDeliveryGroups`) : la course de la nouvelle commande est **offerte**
 (total = base, `free_reason = 'grouped'`, `courseBilled = false`). Corrigé le 14/11/2026 : avant, `itemsCharged` gardait la
-course (marge tracée gonflée) et, en plateforme, le livreur était dû une fois
-par commande du départ.
+course (marge tracée gonflée).
+**Livreur plateforme : payé sur CHAQUE commande, VOULU** (décision du
+14/11/2026, la zone MAX est fondue dans chaque plat), groupage compris. Seule
+exception : dans un même panier, une seule commande porte la course
+(`driverAmount = 0` pour les autres).
 
 ### Annulation d'une commande payée (détail : [order-cancel.md](./order-cancel.md))
 
@@ -104,7 +107,7 @@ reprise marchand = merchant_debit (solde peut devenir négatif)
 
 Devis client (`GET /order/cancel-quote`) : renvoie aussi `phone`, le numéro qui a
 payé, seul destinataire du remboursement. **Annulation d'office** : commande
-payée non livrée après `settings_app.order_auto_cancel_days` jours (7, migration
+payée **par pawaPay** non livrée après `settings_app.order_auto_cancel_days` jours (anciennes commandes sans vrai paiement : jamais annulées d'office) (7, migration
 076, 0 = désactivé) = annulation par le restaurant (`orderAutoCancelJob`, 1×/h).
 **Dette de remboursement** : solde marchand < 0 alors qu'il a une reprise
 `merchant_debit` ⇒ `settlementPrecheck` refuse toute commande de la boutique
