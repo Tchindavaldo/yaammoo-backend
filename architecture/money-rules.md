@@ -102,6 +102,15 @@ marchand annule (avant livraison): rendu = base ; frais réels débités du marc
 reprise marchand = merchant_debit (solde peut devenir négatif)
 ```
 
+Devis client (`GET /order/cancel-quote`) : renvoie aussi `phone`, le numéro qui a
+payé, seul destinataire du remboursement. **Annulation d'office** : commande
+payée non livrée après `settings_app.order_auto_cancel_days` jours (7, migration
+076, 0 = désactivé) = annulation par le restaurant (`orderAutoCancelJob`, 1×/h).
+**Dette de remboursement** : solde marchand < 0 alors qu'il a une reprise
+`merchant_debit` ⇒ `settlementPrecheck` refuse toute commande de la boutique
+(`merchant_debt`, 422) et pousse au marchand la raison, à chaque tentative
+(`merchantDebtGuard`). Pas de seuil de montant : c'est la cause du négatif.
+
 ## 3. Les frais — ne jamais les confondre
 
 | Frais | Quand | Formule (P = montant payé) |

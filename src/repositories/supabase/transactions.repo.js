@@ -58,6 +58,13 @@ exports.findMerchantCreditByOrder = async orderId => {
   return data ? { aggregator: data.aggregator ?? null, network: data.network ?? null, mwTransactionId: data.mw_transaction_id ?? null } : null;
 };
 
+/** Le marchand a-t-il au moins une reprise d'annulation (`merchant_debit`) ? */
+exports.hasMerchantDebit = async userId => {
+  const { count, error } = await supabase.from(TABLE).select('id', { count: 'exact', head: true }).eq('user_id', userId).eq('type', 'merchant_debit');
+  if (error) throw error;
+  return (count || 0) > 0;
+};
+
 // ===== Portefeuille marchand (solde dérivé + historique) =====
 
 // `platform_transfer` : marge plateforme versee par un admin (platformTransfer.service).

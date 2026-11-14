@@ -39,6 +39,12 @@ exports.precheckSettlement = async ({ orders, userId, bonusCode, payment }) => {
     return shops.get(id);
   };
 
+  // 00. Boutique en dette de remboursement (solde négatif causé par une
+  // annulation remboursée) : elle ne reçoit plus de commande, push au marchand.
+  const { debtRefusal } = require('./merchantDebtGuard.service');
+  const debt = await debtRefusal(list, shopOf);
+  if (debt) return debt;
+
   // 0. Régime de livraison vu par le client (`order.deliveryBy`, posé par l'app
   // à la création de la commande) ≠ régime effectif ACTUEL : la boutique a
   // basculé (marchand <-> plateforme, interrupteur global) depuis. Les prix du

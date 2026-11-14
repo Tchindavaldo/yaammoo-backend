@@ -58,3 +58,12 @@ changés » si le client payait entre-temps).
 
 `GET /order/delivery-group/:userId?fastFoodId&zone&type&date&time` →
 `{ grouped, orderId }` : l'app affiche la course offerte.
+
+## Annulation d'office et dette
+
+- `order_auto_cancel_days` (settings_app, 7 j, migration 076) : `src/utils/orderAutoCancelJob.js`
+  annule (`cancelByFastFood`, via `updateOrders`) toute commande `pending`/`processing`/`finished`
+  plus vieille ; remboursement complet, frais repris au marchand.
+- `src/services/order/merchantDebtGuard.service.js` : solde < 0 avec une reprise `merchant_debit`
+  ⇒ refus `merchant_debt` au précheck + push au marchand à chaque tentative.
+- Le devis renvoie `phone` (numéro payeur, `pending_payments.phone`).

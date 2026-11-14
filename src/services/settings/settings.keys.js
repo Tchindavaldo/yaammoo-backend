@@ -87,6 +87,9 @@ const KEYS = {
   // plateforme est livrée par la plateforme, quel que soit son `delivery_by`.
   // false = chaque boutique suit son propre réglage. Réversible, rien n'est écrasé.
   PLATFORM_DELIVERY_ALL: 'platform_delivery_all',
+  // Migration 076 : jours après lesquels une commande payée que le marchand n'a
+  // pas livrée est annulée d'office (remboursement complet, frais au marchand).
+  ORDER_AUTO_CANCEL_DAYS: 'order_auto_cancel_days',
   // Builds de TEST (migration 051, table `settings_test` depuis la 055, tableau
   // depuis la 056) : versions d'app exactes qui reçoivent les comportements de
   // test (mode volume de `GET /fastFood/all`, paiement gratuit). [] = aucune.
@@ -166,6 +169,7 @@ const KEY_CATEGORY = {
   [KEYS.HIDDEN_FASTFOOD_IDS]: 'app',
   [KEYS.IMAGE_TRASH_RETENTION_DAYS]: 'app',
   [KEYS.PLATFORM_DELIVERY_ALL]: 'app',
+  [KEYS.ORDER_AUTO_CANCEL_DAYS]: 'app',
 
   // test — build de test (sorties de `deployment` par la migration 055)
   [KEYS.TEST_APP_VERSION]: 'test',
@@ -264,6 +268,8 @@ const FALLBACKS = {
   [KEYS.IMAGE_TRASH_RETENTION_DAYS]: 60,
   // Clé absente : chaque boutique garde son régime (aucune bascule implicite).
   [KEYS.PLATFORM_DELIVERY_ALL]: false,
+  // Une semaine (décision du 14/11/2026).
+  [KEYS.ORDER_AUTO_CANCEL_DAYS]: 7,
   // Build de test : repli à « aucune ». Une clé absente ne doit JAMAIS servir
   // des données de test à une vraie app.
   [KEYS.TEST_APP_VERSION]: [],

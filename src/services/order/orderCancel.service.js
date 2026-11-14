@@ -227,8 +227,10 @@ async function cancelPaidOrder(order, status) {
 /** Devis affiché avant confirmation (aucune écriture). */
 async function quoteCancel(order, status) {
   const plan = await planCancel(order, byOf(status));
-  if (plan.none) return { refund: 0, feesKept: 0, paid: 0 };
-  return { refund: plan.amount, feesKept: plan.feesKept, paid: plan.base, courseKept: plan.courseKept, manual: plan.manual };
+  if (plan.none) return { refund: 0, feesKept: 0, paid: 0, phone: null };
+  // Numéro qui a payé : c'est lui qui reçoit le remboursement.
+  const pp = await repos.pendingPayments.getByMwTransactionId(plan.credit.mwTransactionId).catch(() => null);
+  return { refund: plan.amount, feesKept: plan.feesKept, paid: plan.base, courseKept: plan.courseKept, manual: plan.manual, phone: pp?.phone ?? null };
 }
 
 module.exports = { cancelRefusal, cancelPaidOrder, quoteCancel };
