@@ -25,6 +25,8 @@ const toSupabase = s => ({
   withdrawal_billed: s.withdrawalBilled === true,
   platform_margin: s.platformMargin ?? 0,
   delivered: s.delivered !== false,
+  // Colonne de la migration 074 : n'est écrite que si fournie.
+  ...(s.deliveryBy ? { delivery_by: s.deliveryBy } : {}),
 });
 
 const fromSupabase = row =>
@@ -42,6 +44,8 @@ const fromSupabase = row =>
     withdrawalBilled: row.withdrawal_billed === true,
     platformMargin: Number(row.platform_margin),
     delivered: row.delivered !== false,
+    // null = règlement antérieur à la migration 074 (régime non figé).
+    deliveryBy: row.delivery_by ?? null,
     createdAt: row.created_at,
   };
 

@@ -34,6 +34,21 @@ liste à lire, la même que `deliverySource` au contrôle. `GET /fastfood/:id`
 
 ---
 
+## Interrupteur global et régime figé (migration 074)
+
+- `settings_app.platform_delivery_all` (`PATCH /settings/platform_delivery_all`) :
+  `true` = toute boutique AYANT des zones plateforme est livrée par la plateforme ;
+  sans zones plateforme, son marchand livre. `false` = réglage par boutique.
+  Appliqué à la LECTURE (`fastfoods.repo`, `applyRegime`) : `delivery_by` n'est
+  jamais réécrit, `update()` réécrit `deliveryByOwn`. Propagation : TTL du cache
+  des réglages.
+- Le régime est figé dans `order_settlements.delivery_by` au paiement ;
+  `creditMerchant` / `creditDriver` le relisent (repli : boutique, règlements anciens).
+- Zones plateforme en lot : `PATCH /fastfood/delivery` (`fastFoodIds` = sélection,
+  absent = toutes) ; une boutique : `PATCH /fastfood/:id/delivery`.
+
+---
+
 ## Le fondu, en une page
 
 Le prix affiché d'un plat porte la zone périodique **la plus chère** et la marge,

@@ -62,7 +62,8 @@ function buildPatch(body, current) {
   }
 
   // Garde-fou : le régime plateforme n'a aucun sens sans tarif de course.
-  const finalRegime = patch.deliveryBy ?? current?.deliveryBy;
+  // Réglage PROPRE de la boutique (hors interrupteur global, migration 074).
+  const finalRegime = patch.deliveryBy ?? current?.deliveryByOwn ?? current?.deliveryBy;
   const finalZones = patch.platformDeliveryZones ?? current?.platformDeliveryZones;
   const finalExpress = patch.platformExpressZones ?? current?.platformExpressZones;
   if (finalRegime === 'platform' && !hasZones(finalZones, finalExpress)) {
@@ -93,7 +94,8 @@ exports.patchFastFoodDeliveryController = async (req, res) => {
 };
 
 /**
- * PATCH /fastfood/delivery — TOUTES les boutiques.
+ * PATCH /fastfood/delivery — TOUTES les boutiques, ou une SÉLECTION
+ * (`fastFoodIds: [...]` dans le corps ; absent = toutes).
  *
  * Utile pour amorcer un parc entier (poser les mêmes zones plateforme partout)
  * sans toucher 200 boutiques une par une. Chaque boutique est validée
@@ -102,12 +104,18 @@ exports.patchFastFoodDeliveryController = async (req, res) => {
  */
 exports.patchAllFastFoodsDeliveryController = async (req, res) => {
   try {
-    const all = await repos.fastfoods.getAll();
+    const body = req.body || {};
+    if (body.fastFoodIds !== undefined && (!Array.isArray(body.fastFoodIds) || body.fastFoodIds.length === 0)) {
+      return res.status(400).json({ success: false, message: 'fastFoodIds doit être une liste non vide (ou absent pour toutes les boutiques).' });
+    }
+    const wanted = Array.isArray(body.fastFoodIds) ? new Set(body.fastFoodIds.map(String)) : null;
+    const { fastFoodIds, ...fields } = body;
+    const all = (await repos.fastfoods.getAll()).filter(f => !wanted || wanted.has(String(f.id)));
     const updated = [];
     const skipped = [];
 
     for (const fastfood of all || []) {
-      const { patch, error } = buildPatch(req.body || {}, fastfood);
+      const { patch, error } = buildPatch(fields, fastfood);
       if (error) {
         skipped.push({ id: fastfood.id, name: fastfood.name ?? null, reason: error });
         continue;

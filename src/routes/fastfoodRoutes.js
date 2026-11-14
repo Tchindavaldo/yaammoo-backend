@@ -259,7 +259,7 @@ route.get('/search', optionalFirebaseAuth, searchFastfoodController);
  * /fastFood/delivery:
  *   patch:
  *     tags: [FastFood]
- *     summary: Configure la livraison de TOUTES les boutiques (admin)
+ *     summary: Configure la livraison de toutes les boutiques ou d'une selection (admin)
  *     description: >-
  *       Amorce un parc entier sans toucher les boutiques une par une. Chaque
  *       boutique est validee separement : celles qui ne peuvent pas basculer
@@ -272,6 +272,10 @@ route.get('/search', optionalFirebaseAuth, searchFastfoodController);
  *           schema:
  *             type: object
  *             properties:
+ *               fastFoodIds:
+ *                 type: array
+ *                 description: Boutiques visees. Absent = TOUTES les boutiques.
+ *                 items: { type: string }
  *               deliveryBy: { type: string, enum: [fastfood, platform] }
  *               platformDeliveryZones:
  *                 type: array

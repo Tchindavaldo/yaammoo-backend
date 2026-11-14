@@ -474,6 +474,8 @@ function applyDisplayPricing(fastfood, pricing, raw = false) {
   }
   delete out.platformDeliveryZones;
   delete out.platformExpressZones;
+  // Réglage propre de la boutique (interrupteur global) : affaire d'admin.
+  delete out.deliveryByOwn;
   return out;
 }
 

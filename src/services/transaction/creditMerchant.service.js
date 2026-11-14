@@ -73,7 +73,9 @@ exports.creditMerchantForItem = async ({ item, clientUserId, payment = null, ord
   try {
     const settlement = resolvedOrderId ? await repos.orderSettlements.getByOrder(resolvedOrderId) : null;
     if (settlement) {
-      const course = isPlatformDelivered(fastfood) ? 0 : Number(settlement.driverAmount) || 0;
+      // Régime figé au paiement ; à défaut (règlement ancien), celui de la boutique.
+      const platformRegime = settlement.deliveryBy ? settlement.deliveryBy === 'platform' : isPlatformDelivered(fastfood);
+      const course = platformRegime ? 0 : Number(settlement.driverAmount) || 0;
       credited = Math.max(0, (Number(settlement.itemsReal) || 0) + (Number(settlement.withdrawalFee) || 0) + course);
       kioskFee = Math.max(0, Number(settlement.withdrawalFee) || 0);
       console.info(`${logPrefix} règlement → crédit=${credited} (plats=${settlement.itemsReal}, retrait=${settlement.withdrawalFee}, course=${course}, total client=${gross})`);
