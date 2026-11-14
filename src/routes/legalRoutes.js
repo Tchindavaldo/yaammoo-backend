@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const firebaseAuth = require('../middlewares/authMiddleware');
-const { getCurrentLegal, getLegalStatus, acceptLegal } = require('../controllers/legal/legal.controller');
+const { getCurrentLegal, getLegalStatus, acceptLegal, saveMerchantAdhesion } = require('../controllers/legal/legal.controller');
 
 /**
  * @swagger
@@ -42,5 +42,32 @@ router.get('/status', firebaseAuth, getLegalStatus);
  *       409: { description: "legal_outdated : la version envoyée n'est plus la dernière" }
  */
 router.post('/accept', firebaseAuth, acceptLegal);
+
+/**
+ * @swagger
+ * /legal/merchant-adhesion:
+ *   post:
+ *     summary: Formulaire d'adhésion du Marchand (Annexe 3), enregistré à la création de la boutique
+ *     tags: [Legal]
+ *     security: [{ bearerAuth: [] }]
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [fastFoodId, version, representativeRole, address]
+ *             properties:
+ *               fastFoodId: { type: string }
+ *               version: { type: integer }
+ *               representativeRole: { type: string, enum: [gerant, directeur, proprietaire] }
+ *               legalName: { type: string, description: "Dénomination légale, facultative" }
+ *               address: { type: string }
+ *     responses:
+ *       200: { description: Enregistré (vaut aussi acceptation des CGU) }
+ *       400: { description: Qualité ou adresse manquante }
+ *       403: { description: Boutique d'un autre compte }
+ *       409: { description: legal_outdated }
+ */
+router.post('/merchant-adhesion', firebaseAuth, saveMerchantAdhesion);
 
 module.exports = router;

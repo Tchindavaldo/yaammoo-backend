@@ -36,3 +36,20 @@ exports.accept = async ({ userId, version, appVersion }) => {
   if (error) throw error;
   return exports.getLastAcceptance(userId);
 };
+
+/** Formulaire d'adhésion du Marchand (Annexe 3, migration 078), idempotent par boutique et version. */
+exports.saveMerchantAdhesion = async a => {
+  const row = {
+    fastfood_id: a.fastFoodId,
+    user_id: a.userId,
+    version: a.version,
+    representative_name: a.representativeName,
+    representative_role: a.representativeRole,
+    shop_name: a.shopName,
+    legal_name: a.legalName || null,
+    address: a.address,
+    app_version: a.appVersion ?? null,
+  };
+  const { error } = await supabase.from('merchant_adhesions').upsert(row, { onConflict: 'fastfood_id,version', ignoreDuplicates: true });
+  if (error) throw error;
+};

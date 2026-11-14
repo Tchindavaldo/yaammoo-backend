@@ -50,3 +50,34 @@ exports.acceptLegal = async (req, res) => {
     return res.status(500).json({ success: false, message: 'Erreur serveur.', error: error.message });
   }
 };
+
+const ROLES = ['gerant', 'directeur', 'proprietaire'];
+
+/**
+ * POST /legal/merchant-adhesion { fastFoodId, version, representativeRole, legalName?, address }
+ * Annexe 3 : nom et prénom lus sur le compte, nom de la boutique lu en base,
+ * date et heure posées par la base. Vaut aussi acceptation des CGU.
+ */
+exports.saveMerchantAdhesion = async (req, res) => {
+  try {
+    const userId = req.user?.uid;
+    if (!userId) return res.status(401).json({ success: false, message: 'Non authentifié' });
+    const { fastFoodId, representativeRole, legalName } = req.body || {};
+    const version = Number(req.body?.version);
+    const address = String(req.body?.address || '').trim();
+    if (!fastFoodId || !ROLES.includes(representativeRole) || !address) return res.status(400).json({ success: false, message: 'Qualité et adresse de la boutique obligatoires.' });
+    const latest = await repos.legal.getLatest();
+    if (!latest || version !== latest.version) return res.status(409).json({ success: false, code: 'legal_outdated', message: 'Une nouvelle version des conditions est disponible.' });
+    const shop = await repos.fastfoods.getById(fastFoodId);
+    if (!shop || shop.userId !== userId) return res.status(403).json({ success: false, message: 'Boutique introuvable pour ce compte.' });
+    const user = await repos.users.getUserByIdSafe(userId);
+    const representativeName = [user?.infos?.nom, user?.infos?.prenom].filter(Boolean).join(' ').trim() || '-';
+    const appVersion = req.headers['x-app-version'];
+    await repos.legal.saveMerchantAdhesion({ fastFoodId, userId, version, representativeName, representativeRole, shopName: shop.name, legalName: String(legalName || '').trim(), address, appVersion });
+    await repos.legal.accept({ userId, version, appVersion });
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('[legal] merchant-adhesion', error);
+    return res.status(500).json({ success: false, message: 'Erreur serveur.', error: error.message });
+  }
+};
