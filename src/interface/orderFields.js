@@ -25,6 +25,11 @@ exports.OrderFields = {
   // à un `type` fourni par le client. Déclaré ici parce que le validateur refuse
   // tout champ non listé.
   bonusCode: { type: 'string', required: false },
+  // Régime de livraison de la boutique VU par le client à la création de la
+  // commande ('fastfood' | 'platform', champ `deliveryBy` du home). Comparé au
+  // régime actuel avant paiement (settlementPrecheck, `delivery_mode_changed`).
+  // Conservé dans `extra_data`.
+  deliveryBy: { type: 'string', required: false },
   quantity: { type: 'number', required: true },
   userData: {
     type: 'object',
