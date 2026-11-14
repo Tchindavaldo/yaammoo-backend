@@ -1,6 +1,6 @@
 # Régime plateforme : servir à l'app les zones et prix Yaammoo
 
-[ ] DÉCIDÉ le 14/11/2026 : en régime `platform`, l'app ne voit QUE les zones
+[x] (fait le 14/11/2026, applyDisplayPricing, dev) DÉCIDÉ le 14/11/2026 : en régime `platform`, l'app ne voit QUE les zones
     et prix de la plateforme (`platformDeliveryZones` / `platformExpressZones`,
     posés par l'admin via le controller `deliveryConfig`), jamais ceux du marchand
     - `GET /fastfood/all` et `GET /fastfood/:id` : renvoyer ces zones dans
