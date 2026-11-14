@@ -47,10 +47,14 @@ annulation automatique d'une commande non traitée.
 
 Un client qui a déjà payé une commande pour un départ (`deliveryGroupKey`) pas
 encore parti (`pending`, `processing`, `finished`) ne repaie pas la course : la
-nouvelle commande est traitée comme une commande de plus du même panier
-(`validatePaymentAmount` déduit la course, `settleDelivery` règle en
-`courseBilled = false` et reprend le `deliveryGroupId`). Départ en
-`delivering` : course due.
+nouvelle commande porte sa course comme **offerte** (total = base,
+`delivery.prix` gardé). `validatePaymentAmount` l'ajoute aux livraisons
+offertes, `settleDelivery` la règle en `courseBilled = false`,
+`free_reason = 'grouped'` et reprend le `deliveryGroupId` du départ.
+`repriceCart` applique la même règle au panier (course retirée ou remise) ;
+`updateOrders` relance ce recalcul quand un départ est payé, part en
+livraison ou est annulé. Départ en `delivering` : course due (refus « prix
+changés » si le client payait entre-temps).
 
 `GET /order/delivery-group/:userId?fastFoodId&zone&type&date&time` →
-`{ grouped, orderId }` : l'app affiche la course à 0.
+`{ grouped, orderId }` : l'app affiche la course offerte.

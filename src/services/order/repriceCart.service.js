@@ -9,7 +9,7 @@
 //   - extras / boissons cochés : `prix` + `rawPrice` actuels (par nom) ;
 //   - course : tarif de la zone, TYPE + CRÉNEAU choisis (`zoneDeliveryPrice`) ;
 //   - total : plat × qté + extras + boissons + course (sauf course offerte,
-//     reconnue à l'ancien total qui l'excluait) ;
+//     reconnue à l'ancien total qui l'excluait, ou départ déjà payé = groupage) ;
 //   - `deliveryBy` : régime effectif actuel.
 // Puis `userOrderUpdated { data: order }` au client (l'app l'applique).
 //
@@ -22,6 +22,7 @@ const repos = require('../../repositories');
 const { getIO } = require('../../socket');
 const { reliableEmit } = require('../../utils/reliableEmit');
 const { toNumber, zoneDeliveryPrice, collectZones } = require('../pricing/deliveryPricing');
+const { openPaidGroups } = require('./paidDeliveryGroups.service');
 
 const qtyOf = v => Math.max(1, toNumber(v) || 1);
 
@@ -47,11 +48,12 @@ function zoneExists(view, type, zone, time) {
 
 /**
  * Recalcule une commande sur la vue boutique.
+ * `grouped` : la commande rejoint un départ déjà payé (`paidDeliveryGroups`).
  * Plat absent de la vue (indisponible, ou supprimé) : `{ missingMenu: true }`,
  * la commande n'est pas touchée ; l'appelant décide.
  * @returns {{order, changed, missingMenu?}}
  */
-function repriceOrder(order, view) {
+function repriceOrder(order, view, { grouped = false } = {}) {
   const menu = (view?.menus || []).find(m => String(m.id) === String(order.menu?.id));
   if (!menu) return { order, changed: false, missingMenu: true };
 
@@ -89,7 +91,9 @@ function repriceOrder(order, view) {
   // terminée : la course revient dans le total (panier à jour, pas de refus).
   const wasOffered = delivered && oldPrix > 0 && Math.abs(toNumber(order.total) - baseOf(order)) <= 1;
   const stillOffered = !!(order.bonusCode || order.delivery?.bonusCode) || (view?.deliveryOffer?.active === true && view.deliveryOffer.reason === 'campaign');
-  const offered = wasOffered && stillOffered;
+  // Groupage (départ déjà payé, pas encore parti) : course offerte, que le
+  // panier l'ait déjà retirée ou non (le départ a pu être payé après coup).
+  const offered = (wasOffered && stillOffered) || (delivered && grouped);
   let prix = oldPrix;
   if (delivered) {
     const { type, zone, time } = order.delivery;
@@ -141,7 +145,8 @@ async function repriceOrders(orders, { emit = true } = {}) {
     const view = viewOf.get(String(shopId));
     if (!view) continue;
     for (const o of list) {
-      let { order, changed, missingMenu } = repriceOrder(o, view);
+      const grouped = (await openPaidGroups(o.userId, [o]).catch(() => new Map())).size > 0;
+      let { order, changed, missingMenu } = repriceOrder(o, view, { grouped });
       if (missingMenu) {
         // Plat seulement indisponible : panier inchangé. Plat SUPPRIMÉ : à revoir.
         const stillThere = await repos.menus.getById(o.menu?.id).catch(() => true);

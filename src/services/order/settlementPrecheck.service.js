@@ -61,13 +61,16 @@ exports.precheckSettlement = async ({ orders, userId, bonusCode, payment }) => {
   if (ids.length) {
     const { getFastFoodsService } = require('../fastfood/getFastFoods');
     const views = new Map((await getFastFoodsService(undefined, { ids })).map(v => [String(v.id), v]));
+    const { openPaidGroups } = require('./paidDeliveryGroups.service');
+    const { deliveryGroupKey } = require('../pricing/deliveryGroupKey');
+    const paidGroups = await openPaidGroups(userId, list).catch(() => new Map());
     for (const [i, o] of list.entries()) {
       if (!o?.fastFoodId) continue;
       // Boutique fermée / plat indisponible : ce n'est pas un changement de
       // prix, les contrôles de disponibilité existants s'appliquent.
       const view = views.get(String(o.fastFoodId));
       if (!view) continue;
-      const { order: fresh, missingMenu } = repriceOrder(o, view);
+      const { order: fresh, missingMenu } = repriceOrder(o, view, { grouped: paidGroups.has(deliveryGroupKey(o)) });
       if (missingMenu) continue;
       if (fresh.needsReview) return { code: 'price_changed', message: PRICE_CHANGED, detail: `commande #${i + 1} : plat, prix ou zone/créneau disparus` };
       if (Math.abs(toNumber(fresh.total) - toNumber(o.total)) > 1) {

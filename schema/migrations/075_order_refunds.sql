@@ -36,3 +36,9 @@ CREATE TABLE IF NOT EXISTS order_refunds (
 CREATE INDEX IF NOT EXISTS idx_order_refunds_payout ON order_refunds (mw_payout_id);
 CREATE INDEX IF NOT EXISTS idx_order_refunds_group ON order_refunds (delivery_group_id);
 ALTER TABLE order_refunds ENABLE ROW LEVEL SECURITY;
+
+-- Groupage : une commande qui rejoint un départ déjà payé porte sa course
+-- comme offerte, tracée `free_reason = 'grouped'`.
+ALTER TABLE order_deliveries DROP CONSTRAINT IF EXISTS order_deliveries_free_reason_chk;
+ALTER TABLE order_deliveries ADD CONSTRAINT order_deliveries_free_reason_chk
+  CHECK (free_reason IS NULL OR free_reason IN ('bonus', 'campaign', 'grouped'));

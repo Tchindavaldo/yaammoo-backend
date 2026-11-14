@@ -84,11 +84,12 @@ platformMargin = net − itemsReal − driverAmount                          ←
 seulement en régime `fastfood`). Le marchand touche TOUJOURS son prix réel ; la
 marge est la seule variable d'ajustement.
 
-**Course partagée** (panier groupé, ou départ déjà payé et pas encore parti =
-**groupage**, `paidDeliveryGroups`) : une seule course par départ. Les autres
+**Course partagée** (panier groupé) : une seule course par départ. Les autres
 commandes ont `courseBilled = false`, `driverAmount = 0` (dans les DEUX
 régimes) et `itemsCharged = total − delivery.prix` (la course a été déduite du
-montant encaissé). Corrigé le 14/11/2026 : avant, `itemsCharged` gardait la
+montant encaissé). **Groupage** (départ déjà payé et pas encore parti,
+`paidDeliveryGroups`) : la course de la nouvelle commande est **offerte**
+(total = base, `free_reason = 'grouped'`, `courseBilled = false`). Corrigé le 14/11/2026 : avant, `itemsCharged` gardait la
 course (marge tracée gonflée) et, en plateforme, le livreur était dû une fois
 par commande du départ.
 

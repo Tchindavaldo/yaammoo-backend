@@ -182,6 +182,9 @@ exports.settleDeliveryService = async ({ orders, bonusCode, payment = null, dryR
       const unitBrut = rawUnitPriceOf(order);
       const marginPerItem = marginForBrut(unitBrut, pricing);
 
+      // Rejoint un départ déjà payé (groupage) : total = base, comme une
+      // course offerte (cf. validatePaymentAmount), tracé `free_reason = 'grouped'`.
+      const grouped = !!groupKey && paidGroups.has(groupKey);
       const amounts = splitDeliveryAmounts({
         fastfood,
         zone: order.delivery?.zone,
@@ -195,11 +198,11 @@ exports.settleDeliveryService = async ({ orders, bonusCode, payment = null, dryR
         quantity: order.quantity,
         courseBilled,
         delivered,
-        freeReason: orderOffer?.reason ?? null,
+        freeReason: grouped ? 'grouped' : (orderOffer?.reason ?? null),
       });
       const platformDelivered = isPlatformDelivered(fastfood);
       const itemsReal = rawItemsOf(order);
-      prepById.set(order.id, { delivered, ffId, groupKey, fastfood, orderOffer, marginPerItem, amounts, platformDelivered, itemsReal });
+      prepById.set(order.id, { delivered, ffId, groupKey, grouped, fastfood, orderOffer, marginPerItem, amounts, platformDelivered, itemsReal });
     }
 
     // ── Frais de retrait : UNE ponction par BOUTIQUE, pas par commande ──────
@@ -245,17 +248,18 @@ exports.settleDeliveryService = async ({ orders, bonusCode, payment = null, dryR
     }
 
     for (const order of list) {
-      const { delivered, ffId, groupKey, orderOffer, marginPerItem, amounts, platformDelivered, itemsReal } = prepById.get(order.id);
+      const { delivered, ffId, groupKey, grouped, orderOffer, marginPerItem, amounts, platformDelivered, itemsReal } = prepById.get(order.id);
 
       // `order.total` est déjà TTC : les frais y sont inclus, on les EXTRAIT.
       // On redescend la cascade dans l'ordre inverse de sa composition —
       // frais de paiement de l'agrégateur d'abord, frais de retrait ensuite.
-      // Commande qui partage la course d'une autre (panier groupé ou départ
-      // déjà payé) : son total porte `delivery.prix` (forme du panier), mais
-      // `validatePaymentAmount` l'a DÉDUIT du montant encaissé. Ce qui a
-      // réellement été payé pour elle est donc le total SANS la course. Sans
-      // cette déduction, la marge tracée gonflait de la course jamais payée.
-      const courseNotPaid = delivered && !amounts.courseBilled && !orderOffer ? Math.max(0, toNumber(order.delivery?.prix)) : 0;
+      // Commande qui partage la course d'une autre du MÊME panier : son total
+      // porte `delivery.prix` (forme du panier), mais `validatePaymentAmount`
+      // l'a DÉDUIT du montant encaissé. Ce qui a réellement été payé pour elle
+      // est donc le total SANS la course. Sans cette déduction, la marge tracée
+      // gonflait de la course jamais payée. Offerte ou groupage : total = base,
+      // rien à déduire.
+      const courseNotPaid = delivered && !amounts.courseBilled && !orderOffer && !grouped ? Math.max(0, toNumber(order.delivery?.prix)) : 0;
       const itemsCharged = Math.max(0, toNumber(order.total) - courseNotPaid);
       const paymentFee = paymentFee_(itemsCharged, pricing, payment);
       const afterPaymentFee = itemsCharged - paymentFee;

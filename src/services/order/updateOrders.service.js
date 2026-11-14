@@ -279,6 +279,11 @@ exports.updateOrders = async (orders, userId, payment = null) => {
       }
     }
 
+    // Groupage : un départ vient d'être payé, de partir ou d'être annulé →
+    // les paniers de la boutique sont recalculés (course offerte ou remise).
+    const regroupShops = [...new Set(transitions.filter(t => t.newStatus === 'pending' || t.newStatus === 'delivering' || isCancelStatus(t.newStatus)).map(t => t.fastFoodId))];
+    if (regroupShops.length) require('./repriceCart.service').repriceCartsForShops(regroupShops);
+
     let message = updates.some(o => o.status === 'cancelByFastFood') ? 'Commande annulée avec succès' : updates.some(o => o.status === 'cancelByUser') ? 'Commande retirée du panier avec succès' : 'Commande(s) mise(s) à jour avec succès';
 
     let hasRemoval = false;
