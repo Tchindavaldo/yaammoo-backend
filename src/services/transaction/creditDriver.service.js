@@ -52,15 +52,22 @@ exports.creditDriverForOrder = async ({ order }) => {
   // marchand : c'est LUI qui rémunère son livreur, comme il l'entend. Créditer
   // en plus le livreur paierait la course DEUX fois — une fois au marchand, une
   // fois au livreur — et la perte serait pour la plateforme.
-  const fastfood = await repos.fastfoods.getById(order?.fastFoodId).catch(() => null);
-  if (!isPlatformDelivered(fastfood)) return null;
-
   let settlement = null;
   try {
     settlement = await repos.orderSettlements.getByOrder(order?.id);
   } catch (e) {
     console.error(`${logPrefix} règlement non lu — course non versée :`, e.message);
     return null;
+  }
+
+  // Régime FIGÉ au paiement (migration 074) ; à défaut (règlement ancien),
+  // celui de la boutique. Une bascule entre paiement et livraison ne doit pas
+  // payer la course au livreur ET au marchand.
+  if (settlement?.deliveryBy) {
+    if (settlement.deliveryBy !== 'platform') return null;
+  } else {
+    const fastfood = await repos.fastfoods.getById(order?.fastFoodId).catch(() => null);
+    if (!isPlatformDelivered(fastfood)) return null;
   }
 
   const amount = Math.max(0, Number(settlement?.driverAmount) || 0);

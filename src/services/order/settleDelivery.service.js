@@ -289,6 +289,10 @@ exports.settleDeliveryService = async ({ orders, bonusCode, payment = null, dryR
           withdrawalGroupId: withdrawalGroupIdByKey[withdrawalKey] ?? null,
           withdrawalBilled: holdsWithdrawal,
           driverAmount,
+          // Régime FIGÉ au paiement (migration 074) : les crédits versés à la
+          // livraison le relisent ici, pas sur la boutique, qu'un admin ou
+          // l'interrupteur global peut avoir basculée entre-temps.
+          deliveryBy: platformDelivered ? 'platform' : 'fastfood',
           // La MARGE est le résidu, dans les deux régimes : tout ce qui n'est ni
           // le fastfood, ni la course, ni les frais. Elle absorbe donc l'arrondi
           // vers le haut comme la commission prise sur la course.

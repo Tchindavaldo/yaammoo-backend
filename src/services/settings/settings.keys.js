@@ -83,6 +83,10 @@ const KEYS = {
   HIDDEN_FASTFOOD_IDS: 'hidden_fastfood_ids',
   // Corbeille d'images (migration 071) : jours avant effacement du storage.
   IMAGE_TRASH_RETENTION_DAYS: 'image_trash_retention_days',
+  // Interrupteur global (migration 074) : true = toute boutique AYANT des zones
+  // plateforme est livrée par la plateforme, quel que soit son `delivery_by`.
+  // false = chaque boutique suit son propre réglage. Réversible, rien n'est écrasé.
+  PLATFORM_DELIVERY_ALL: 'platform_delivery_all',
   // Builds de TEST (migration 051, table `settings_test` depuis la 055, tableau
   // depuis la 056) : versions d'app exactes qui reçoivent les comportements de
   // test (mode volume de `GET /fastFood/all`, paiement gratuit). [] = aucune.
@@ -161,6 +165,7 @@ const KEY_CATEGORY = {
   [KEYS.FASTFOOD_PURGE_INTERVAL_MS]: 'app',
   [KEYS.HIDDEN_FASTFOOD_IDS]: 'app',
   [KEYS.IMAGE_TRASH_RETENTION_DAYS]: 'app',
+  [KEYS.PLATFORM_DELIVERY_ALL]: 'app',
 
   // test — build de test (sorties de `deployment` par la migration 055)
   [KEYS.TEST_APP_VERSION]: 'test',
@@ -257,6 +262,8 @@ const FALLBACKS = {
   // Corbeille d'images : 60 j (décision du 13/11/2026). Même logique que la
   // rétention boutique : jamais plus court sur clé absente.
   [KEYS.IMAGE_TRASH_RETENTION_DAYS]: 60,
+  // Clé absente : chaque boutique garde son régime (aucune bascule implicite).
+  [KEYS.PLATFORM_DELIVERY_ALL]: false,
   // Build de test : repli à « aucune ». Une clé absente ne doit JAMAIS servir
   // des données de test à une vraie app.
   [KEYS.TEST_APP_VERSION]: [],

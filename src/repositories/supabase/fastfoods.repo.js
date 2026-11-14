@@ -15,6 +15,33 @@ const TABLE = 'fastfoods';
 // `fastfoodDeletion.repo.js`, qui ne filtre pas.
 const alive = qb => qb.is('deleted_at', null);
 
+// ── Régime de livraison EFFECTIF (interrupteur global, migration 074) ────────
+// `platform_delivery_all` (settings_app) = true : toute boutique qui A des zones
+// plateforme est lue en `deliveryBy = 'platform'`, sans rien écrire en base.
+// Une boutique sans zones plateforme reste livrée par son marchand.
+// Appliqué ICI, à la lecture, pour que TOUS les consommateurs (affichage,
+// contrôle du montant, règlement, crédits) voient le même régime.
+// `deliveryByOwn` garde le réglage propre de la boutique (écran admin).
+function hasPlatformZones(ff) {
+  const periodic = Array.isArray(ff?.platformDeliveryZones) && ff.platformDeliveryZones.some(h => h?.periodicZones?.length > 0);
+  return periodic || (Array.isArray(ff?.platformExpressZones) && ff.platformExpressZones.length > 0);
+}
+function applyRegime(ff, all) {
+  if (!ff) return ff;
+  const own = ff.deliveryBy || 'fastfood';
+  const deliveryBy = all && hasPlatformZones(ff) ? 'platform' : own;
+  return { ...ff, deliveryBy, deliveryByOwn: own };
+}
+async function platformAll() {
+  // Require paresseux : settings.service importe les repositories (cycle).
+  return require('../../services/settings/settings.service').getPlatformDeliveryAll();
+}
+const withRegime = async ff => applyRegime(ff, await platformAll());
+const withRegimeList = async list => {
+  const all = await platformAll();
+  return (list || []).map(ff => applyRegime(ff, all));
+};
+
 exports.create = async data => {
   const id = data.id || generateId();
   const payload = m.fastfood.toSupabase({
@@ -24,19 +51,19 @@ exports.create = async data => {
   });
   const { data: row, error } = await supabase.from(TABLE).insert(payload).select().single();
   if (error) throw error;
-  return m.fastfood.fromSupabase(row);
+  return withRegime(m.fastfood.fromSupabase(row));
 };
 
 exports.getById = async id => {
   const { data, error } = await alive(supabase.from(TABLE).select('*').eq('id', id)).maybeSingle();
   if (error) throw error;
-  return m.fastfood.fromSupabase(data);
+  return withRegime(m.fastfood.fromSupabase(data));
 };
 
 exports.getAll = async () => {
   const { data, error } = await alive(supabase.from(TABLE).select('*'));
   if (error) throw error;
-  return (data || []).map(m.fastfood.fromSupabase);
+  return withRegimeList((data || []).map(m.fastfood.fromSupabase));
 };
 
 // ============================================================================
@@ -150,7 +177,7 @@ exports.getPage = async ({ limit = 10, cursor, q } = {}) => {
   return {
     // La jointure interne ramène des `menus` dont on n'a pas l'usage ici (seule
     // leur existence comptait) : on ne les propage pas au mapper.
-    items: page.map(({ menus, ...row }) => m.fastfood.fromSupabase(row)),
+    items: await withRegimeList(page.map(({ menus, ...row }) => m.fastfood.fromSupabase(row))),
     // Le curseur porte sur la dernière boutique RENDUE, ce qui est exact ici :
     // la jointure garantit que toute boutique lue a au moins un menu, donc
     // aucune ne sera écartée ensuite par le service.
@@ -161,18 +188,22 @@ exports.getPage = async ({ limit = 10, cursor, q } = {}) => {
 exports.getByUserId = async userId => {
   const { data, error } = await alive(supabase.from(TABLE).select('*').eq('user_id', userId)).maybeSingle();
   if (error) throw error;
-  return m.fastfood.fromSupabase(data);
+  return withRegime(m.fastfood.fromSupabase(data));
 };
 
 exports.update = async (id, fields) => {
   // Merge en mémoire pour préserver les champs non envoyés
   const existing = await exports.getById(id);
   if (!existing) throw new Error(`Fastfood ${id} introuvable`);
-  const merged = { ...existing, ...fields, id, updatedAt: new Date().toISOString() };
+  // ⚠️ `existing` porte le régime EFFECTIF (interrupteur global) : on réécrit
+  // le réglage PROPRE de la boutique, sinon une simple mise à jour figerait
+  // `delivery_by = 'platform'` en base pendant que l'interrupteur est actif.
+  const { deliveryByOwn, ...stored } = existing;
+  const merged = { ...stored, deliveryBy: deliveryByOwn, ...fields, id, updatedAt: new Date().toISOString() };
   const payload = m.fastfood.toSupabase(merged);
   const { data, error } = await supabase.from(TABLE).update(payload).eq('id', id).select().single();
   if (error) throw error;
-  return m.fastfood.fromSupabase(data);
+  return withRegime(m.fastfood.fromSupabase(data));
 };
 
 // Recherche boutique par nom (option « Devenir livreur »).

@@ -334,7 +334,18 @@ async function getImageTrashRetentionDays() {
   return Number.isFinite(v) && v > 0 ? v : 60;
 }
 
+/** Interrupteur global « tout livré par la plateforme » (migration 074). Ne lève jamais. */
+async function getPlatformDeliveryAll() {
+  try {
+    const s = await getSettings();
+    return s[KEYS.PLATFORM_DELIVERY_ALL] === true;
+  } catch {
+    return false;
+  }
+}
+
 module.exports = {
+  getPlatformDeliveryAll,
   KEYS,
   KEY_CATEGORY,
   categoryOf,

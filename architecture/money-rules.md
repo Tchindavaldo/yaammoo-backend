@@ -48,6 +48,12 @@ Docs détaillées : [pricing.md](./pricing.md), [pricing-fees.md](./pricing-fees
 ### Niveau 1 — Prix AFFICHÉ (avant paiement)
 
 Le régime dépend de `fastfoods.delivery_by` (décidé par l'admin) :
+Le régime **effectif** est lu par `fastfoods.repo` : si `settings_app.platform_delivery_all`
+vaut `true`, toute boutique ayant des zones plateforme est lue en `platform`
+(`fastfoods.delivery_by` n'est jamais réécrit, `deliveryByOwn` garde le réglage
+propre). Le régime est **figé au paiement** dans `order_settlements.delivery_by`
+(migration 074) : les crédits marchand et livreur le relisent, jamais la boutique.
+
 
 | Régime | Base fondue dans le plat | Course |
 |---|---|---|
