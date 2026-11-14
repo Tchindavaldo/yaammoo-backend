@@ -39,7 +39,7 @@ en status `accepted`.
 | GET     | `/driver/my-applications/:userId`     | `getMyApplicationsController` | Demandes envoyées par le user (+ `fastFoodName`, `status`). Relance = re-POST `/driver/apply` |
 | PUT     | `/driver/applications/:applicationId` | `decide`                      | `{ decision: accepted \| refused }`                                                           |
 | DELETE  | `/driver/:driverId?fastFoodId=`       | `removeDriverController`      | Retire le livreur de la boutique (vide `user.driverId` s'il ne sert plus aucune boutique)     |
-| POST    | `/driver/recruit/:fastFoodId`         | `recruitDriverController`     | Le marchand ajoute un livreur : `{ mode: create\|add\|invite, phoneNumber, prenom?, nom?, email?, password? }` (`interface/driverFields.js`) |
+| POST    | `/driver/recruit/:fastFoodId`         | `recruitDriverController`     | Le marchand ajoute un livreur : `{ mode: create\|add\|invite, phoneNumber?, prenom?, nom?, email?, password? }` (`interface/driverFields.js`). `create` : `phoneNumber` requis. `add` / `invite` : `phoneNumber` OU `email` ; le compte est cherché d'abord (numéro, sinon email) → **404** « Cet utilisateur n'existe pas encore… Créez-le » s'il n'existe pas |
 | PUT     | `/driver/invitations/:applicationId`  | `answerInvitationController`  | Le user invité répond `{ decision: accepted\|refused }` (lui seul) |
 | POST    | `/driver/:driverId/rating`            | `rateDriverController`        | Noter un livreur (client livré) — voir [ratings.md](./ratings.md)                             |
 | GET     | `/driver/:driverId/ratings`           | `getDriverRatingsController`  | Liste des avis d'un livreur                                                                   |

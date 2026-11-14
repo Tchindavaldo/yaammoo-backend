@@ -4,7 +4,7 @@
 // Trois modes (POST /driver/recruit/:fastFoodId) :
 //   - create : cree le compte (numero + email + mot de passe) s'il n'existe pas,
 //              puis le livreur est accepte tout de suite ;
-//   - add    : utilisateur existant (par numero), accepte tout de suite ;
+//   - add    : utilisateur existant (par numero OU email), accepte tout de suite ;
 //   - invite : utilisateur existant, ligne `invited` ; il accepte ou refuse
 //              (PUT /driver/invitations/:applicationId).
 // Un compte deja existant recoit toujours une notification (add / invite /
@@ -52,15 +52,25 @@ exports.recruitDriver = async (fastFoodId, data = {}) => {
   if (unknown.length) return ko(400, `Champ(s) inconnu(s) : ${unknown.join(', ')}`);
   if (!MODES.has(data.mode)) return ko(400, 'mode : create | add | invite');
 
+  const create = data.mode === 'create';
+  const email = typeof data.email === 'string' ? data.email.trim() : '';
+  const hasPhone = typeof data.phoneNumber === 'string' && data.phoneNumber.trim() !== '';
+  if (create && !hasPhone) return ko(400, 'phoneNumber est requis pour créer le compte.');
+  if (!create && !hasPhone && !email) return ko(400, 'Indiquez un numéro de téléphone ou un email.');
+
   const { defaultCountryCode } = await settingsService.getOtpSettings();
-  const phoneNumber = normalizePhoneNumber(data.phoneNumber, defaultCountryCode);
-  if (!phoneNumber) return ko(400, `Numéro de téléphone invalide : ${data.phoneNumber}`);
+  const phoneNumber = hasPhone ? normalizePhoneNumber(data.phoneNumber, defaultCountryCode) : null;
+  if (hasPhone && !phoneNumber) return ko(400, `Numéro de téléphone invalide : ${data.phoneNumber}`);
 
   const fastfood = await repos.fastfoods.getById(fastFoodId);
   if (!fastfood) return ko(404, "Cette boutique n'existe pas.");
 
-  const candidates = phoneVariants(phoneNumber, defaultCountryCode);
-  let user = await repos.users.getUserByAnyPhone(candidates);
+  // add / invite : le compte doit exister (numero, sinon email), verifie AVANT tout.
+  const candidates = phoneNumber ? phoneVariants(phoneNumber, defaultCountryCode) : [];
+  let user = candidates.length ? await repos.users.getUserByAnyPhone(candidates) : null;
+  if (!user && !create && email) {
+    user = (await repos.users.getUserByEmail(email.toLowerCase())) || (await repos.users.getUserByEmail(email));
+  }
   let created = false;
   if (!user && data.mode === 'create') {
     if (!data.email || !data.password) return ko(400, 'email et password sont requis pour créer le compte.');
@@ -70,7 +80,10 @@ exports.recruitDriver = async (fastFoodId, data = {}) => {
       return ko(e.code || 500, e.message);
     }
   }
-  if (!user) return ko(404, "Aucun compte n'existe avec ce numéro.");
+  if (!user) {
+    const what = hasPhone ? 'ce numéro' : 'cet email';
+    return ko(404, `Cet utilisateur n'existe pas encore (aucun compte avec ${what}). Créez-le avec « Créer un compte ».`);
+  }
   const userId = uidOf(user);
   if (userId === fastfood.userId) return ko(400, 'Le propriétaire ne peut pas être son propre livreur.');
 

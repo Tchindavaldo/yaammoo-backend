@@ -259,18 +259,18 @@ router.put('/applications/:applicationId', firebaseAuth, authorize(driverApplica
  *         application/json:
  *           schema:
  *             type: object
- *             required: [mode, phoneNumber]
+ *             required: [mode]
  *             properties:
  *               mode: { type: string, enum: [create, add, invite] }
- *               phoneNumber: { type: string }
+ *               phoneNumber: { type: string, description: 'requis pour create ; add / invite : numéro OU email' }
  *               prenom: { type: string }
  *               nom: { type: string }
- *               email: { type: string }
+ *               email: { type: string, description: 'create : identifiant du compte ; add / invite : recherche du compte' }
  *               password: { type: string }
  *     responses:
  *       201: { description: Livreur ajouté ou invitation envoyée }
  *       400: { description: Champ invalide }
- *       404: { description: Aucun compte avec ce numéro (add / invite) }
+ *       404: { description: Utilisateur inexistant (numéro ou email) en add / invite — à créer }
  *       409: { description: Déjà livreur ou déjà invité }
  *
  * /driver/invitations/{applicationId}:
