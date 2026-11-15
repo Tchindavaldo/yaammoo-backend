@@ -189,10 +189,14 @@ exports.getMerchantStats = async (userId, { groupBy = 'day', from, to } = {}) =>
     else totalPayout += amt;
 
     const key = groupKey(row.created_at, groupBy);
-    if (!buckets.has(key)) buckets.set(key, { period: key, payin: 0, payout: 0, net: 0, count: 0 });
+    if (!buckets.has(key)) buckets.set(key, { period: key, payin: 0, payout: 0, net: 0, count: 0, payoutByType: {} });
     const b = buckets.get(key);
     if (isPayin) b.payin += amt;
-    else b.payout += amt;
+    else {
+      b.payout += amt;
+      // Detail des sorties par type (retrait, reprise, frais SMS) : ajout additif.
+      b.payoutByType[row.type] = (b.payoutByType[row.type] || 0) + amt;
+    }
     b.net = b.payin - b.payout;
     b.count += 1;
   }
@@ -208,7 +212,7 @@ exports.getMerchantStats = async (userId, { groupBy = 'day', from, to } = {}) =>
     balances: { mtn, orange }, // les deux soldes (ajout R11, purement additif)
     breakdown, // { mtn|orange: { orders, fees, total } } (ajout additif)
     totals: { payin: totalPayin, payout: totalPayout, net: totalPayin - totalPayout },
-    series, // un bucket par jour/semaine/mois : { period, payin, payout, net, count }
+    series, // un bucket par jour/semaine/mois : { period, payin, payout, net, count, payoutByType }
   };
 };
 
