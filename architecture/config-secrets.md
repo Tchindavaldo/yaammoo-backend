@@ -19,6 +19,7 @@ Gestion centralisée configuration, variables d'environnement, secrets (clés AP
 | `multer.js`            | Upload fichiers (image)                    |
 | `serviceAccountKey.js` | Charger Firebase service account           |
 | `bird.js`              | Secret Bird (OTP) + région/URL déduites    |
+| `whatsapp.js`          | Module WhatsApp : URL, clé API, secret     |
 
 ### `.env` (gitignoré)
 
@@ -57,6 +58,12 @@ SETTINGS_CACHE_TTL_MS=30000
 BIRD_API_KEY=bk_us1_xxxx...              # région et URL déduites de la clé
 # BIRD_REGION=us1                        # optionnel, surcharge la région déduite
 # BIRD_API_URL=https://us1.platform.bird.com  # optionnel, si Bird change de domaine
+
+# Module WhatsApp de rauval-backend (appli « Yaammoo ») — architecture/whatsapp.md
+# Délai des appels en base : settings_app.whatsapp_timeout_ms
+WHATSAPP_MODULE_URL=https://rauval-backend.fly.dev/whatsapp
+WHATSAPP_API_KEY=rvk_...                 # clé x-api-key de l'appli Yaammoo
+WHATSAPP_WEBHOOK_SECRET=whsec_...        # vérifie X-Rauval-Signature des événements reçus
 
 # Payments
 MOBILEWALLET_URL=https://api.mobilewallet.com

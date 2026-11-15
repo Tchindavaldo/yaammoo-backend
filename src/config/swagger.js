@@ -418,6 +418,7 @@ const options = {
     },
   },
   apis: [
+    './src/routes/whatsappWebhookRoutes.js',
     './src/routes/analyticsRoutes.js',
     './src/routes/authRoutes.js',
     './src/routes/userRoutes.js',

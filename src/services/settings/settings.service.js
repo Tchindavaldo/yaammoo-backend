@@ -344,6 +344,13 @@ async function getPlatformDeliveryAll() {
   }
 }
 
+/** Délai max (ms) d'un appel au module WhatsApp de rauval-backend (migration 080). */
+async function getWhatsappTimeoutMs() {
+  const s = await getSettings();
+  const v = Number(s[KEYS.WHATSAPP_TIMEOUT_MS]);
+  return Number.isFinite(v) && v > 0 ? v : 15000;
+}
+
 module.exports = {
   getPlatformDeliveryAll,
   KEYS,
@@ -364,6 +371,7 @@ module.exports = {
   getClientSettings,
   getHiddenFastfoodIds,
   getImageTrashRetentionDays,
+  getWhatsappTimeoutMs,
   getAppVersionGate,
   setSetting,
   invalidate,

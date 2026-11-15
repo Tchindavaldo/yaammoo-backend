@@ -29,9 +29,12 @@ const paymentPageRoutes = require('./routes/paymentPageRoutes');
 const staffRoutes = require('./routes/staffRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
 const legalRoutes = require('./routes/legalRoutes');
+const whatsappWebhookRoutes = require('./routes/whatsappWebhookRoutes');
 
 const app = express();
 
+// Module WhatsApp (rauval-backend) : AVANT express.json, la signature porte sur le corps brut.
+app.use('/whatsapp/webhook', whatsappWebhookRoutes);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cors({ origin: '*', methods: '*', allowedHeaders: '*', credentials: true }));
