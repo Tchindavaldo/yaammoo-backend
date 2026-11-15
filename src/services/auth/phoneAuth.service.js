@@ -59,7 +59,7 @@ const getCooldownRemaining = async (phoneNumber, cooldownSeconds) => {
  * @param {object} params
  * @param {string} params.phoneNumber
  */
-exports.requestPhoneAuth = async ({ phoneNumber, channel }) => {
+exports.requestPhoneAuth = async ({ phoneNumber, channel, userId }) => {
   const { defaultCountryCode, resendCooldownSeconds, expiresInSeconds } = await settingsService.getOtpSettings();
 
   const recipient = normalizePhoneNumber(phoneNumber, defaultCountryCode);
@@ -86,6 +86,7 @@ exports.requestPhoneAuth = async ({ phoneNumber, channel }) => {
   await recordVerificationSent({
     verificationId: sent.data.verificationId,
     phoneNumber: recipient,
+    userId: userId || undefined,
   });
 
   return {

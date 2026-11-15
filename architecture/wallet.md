@@ -334,3 +334,20 @@ validateur `validatePlatformTransfer` ([validateWithdrawal.js](../src/utils/vali
 ## `merchant_debit`
 
 Reprise d'une commande payée annulée (cf. order-cancel.md) : DÉBIT du solde, sur le réseau du paiement. Le solde peut devenir négatif. `extra_data.feesDebit` = frais kiosque repris.
+
+## Numéros de retrait vérifiés (migration 079)
+
+Un retrait (`POST /wallet/withdraw`) n'est accepté que vers un numéro vérifié
+par le compte : sinon 403 `payout_number_unverified`. Vérification par code
+**SMS uniquement** (Bird `channels: ['sms']`) :
+
+- `POST /wallet/payout-number/request { phoneNumber }` : envoi (cooldown et 429
+  `Retry-After` comme `/auth/phone/request`), coût journalisé dans `bird_costs`
+  avec le `userId` du marchand (facturation future des frais OTP) ;
+- `POST /wallet/payout-number/verify { phoneNumber, code }` : 401 si code refusé
+  (`reason`, `attemptsRemaining`), sinon ligne `payout_numbers` (E.164). Aucune
+  connexion ni création de compte ;
+- `GET /wallet/payout-number` : numéros vérifiés du compte.
+
+Service : `services/wallet/payoutNumber.service.js`. Les numéros déjà enregistrés
+avant 079 ne sont pas vérifiés : le marchand les revérifie depuis sa boutique.

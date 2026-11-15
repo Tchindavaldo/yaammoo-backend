@@ -55,6 +55,7 @@ app.use('/fastFood', fastfoodRoutes);
 app.use('/bonusRequest', bonusRequest);
 app.use('/transaction', transactionRoutes);
 app.use('/notification', notificationRoutes);
+app.use('/wallet/payout-number', require('./routes/payoutNumberRoutes'));
 app.use('/wallet', walletRoutes);
 app.use('/legal', legalRoutes);
 app.use('/driver', driverRoutes);

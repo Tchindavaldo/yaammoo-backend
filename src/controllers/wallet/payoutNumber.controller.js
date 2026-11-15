@@ -1,0 +1,45 @@
+// Numéro de retrait (OM / MoMo) : envoi du code par SMS seul, validation,
+// liste des numéros vérifiés. Réponses calquées sur /auth/phone/* (429 + Retry-After,
+// 401 code refusé) pour que l'app réutilise la même étape OTP.
+const repos = require('../../repositories');
+const { requestPayoutNumberCode, verifyPayoutNumberCode } = require('../../services/wallet/payoutNumber.service');
+
+const flatten = r => ({ success: r.success, message: r.message, code: r.code, ...(r.data || {}) });
+
+exports.requestPayoutNumberCodeController = async (req, res) => {
+  try {
+    const phoneNumber = req.body?.phoneNumber || req.body?.phone;
+    if (!phoneNumber) return res.status(400).json({ success: false, message: 'Paramètre phoneNumber manquant' });
+    const r = await requestPayoutNumberCode({ userId: req.user.uid, phoneNumber });
+    if (r.code === 'cooldown') {
+      res.set('Retry-After', String(r.data?.retryAfter ?? 60));
+      return res.status(429).json(flatten(r));
+    }
+    return res.status(r.success ? 200 : 400).json(flatten(r));
+  } catch (error) {
+    console.error('[payout-number] request', error);
+    return res.status(500).json({ success: false, message: 'Erreur serveur.', error: error.message });
+  }
+};
+
+exports.verifyPayoutNumberCodeController = async (req, res) => {
+  try {
+    const phoneNumber = req.body?.phoneNumber || req.body?.phone;
+    const code = req.body?.code || req.body?.otp;
+    if (!phoneNumber || !code) return res.status(400).json({ success: false, message: 'phoneNumber et code requis' });
+    const r = await verifyPayoutNumberCode({ userId: req.user.uid, phoneNumber, code });
+    return res.status(r.success ? 200 : 401).json(flatten(r));
+  } catch (error) {
+    console.error('[payout-number] verify', error);
+    return res.status(500).json({ success: false, message: 'Erreur serveur.', error: error.message });
+  }
+};
+
+exports.listPayoutNumbersController = async (req, res) => {
+  try {
+    return res.status(200).json({ success: true, data: await repos.payoutNumbers.listByUser(req.user.uid) });
+  } catch (error) {
+    console.error('[payout-number] list', error);
+    return res.status(500).json({ success: false, message: 'Erreur serveur.', error: error.message });
+  }
+};

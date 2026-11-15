@@ -17,6 +17,7 @@
 // ============================================================================
 
 const repos = require('../../repositories');
+const { isPayoutNumberVerified } = require('./payoutNumber.service');
 const { getIO } = require('../../socket');
 const { validateWithdrawal } = require('../../utils/validator/validateWithdrawal');
 const { reliableEmit } = require('../../utils/reliableEmit');
@@ -48,6 +49,16 @@ exports.requestWithdrawal = async ({ userId, amount, phone, network, sourceNetwo
       httpStatus: 400,
       code: 'invalid_input',
       message: errors.map(e => `${e.field}: ${e.message}`).join(', '),
+    };
+  }
+
+  // Numéro de retrait vérifié par code SMS (migration 079), sinon refus.
+  if (!(await isPayoutNumberVerified(userId, phone))) {
+    return {
+      success: false,
+      httpStatus: 403,
+      code: 'payout_number_unverified',
+      message: 'Ce numéro de retrait n\'est pas vérifié. Vérifiez-le depuis la page de votre boutique.',
     };
   }
 
