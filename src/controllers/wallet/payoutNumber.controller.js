@@ -10,7 +10,7 @@ const requestCtrl = send => async (req, res) => {
   try {
     const phoneNumber = req.body?.phoneNumber || req.body?.phone;
     if (!phoneNumber) return res.status(400).json({ success: false, message: 'Paramètre phoneNumber manquant' });
-    const r = await send({ userId: req.user.uid, phoneNumber });
+    const r = await send({ userId: req.user.uid, phoneNumber, network: req.body?.network });
     if (r.code === 'cooldown') {
       res.set('Retry-After', String(r.data?.retryAfter ?? 60));
       return res.status(429).json(flatten(r));
@@ -51,6 +51,14 @@ exports.verifyWhatsappNumberCodeController = verifyCtrl(svc.verifyWhatsappNumber
 exports.listWhatsappNumbersController = async (req, res) => {
   try {
     return res.status(200).json({ success: true, data: await repos.verifiedNumbers.listWhatsappByUser(req.user.uid) });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Erreur serveur.', error: error.message });
+  }
+};
+
+exports.payoutNumberFeeController = async (req, res) => {
+  try {
+    return res.status(200).json({ success: true, data: await svc.estimatePayoutNumberFee() });
   } catch (error) {
     return res.status(500).json({ success: false, message: 'Erreur serveur.', error: error.message });
   }

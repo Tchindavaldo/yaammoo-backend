@@ -19,6 +19,8 @@ primary_region = 'ams'
   BACKEND_URL = 'https://yaammoo-backend-dev.fly.dev'
   # Fonctions de test (settings_test) : actives sur CE backend seulement.
   TEST_FEATURES_ENABLED = 'true'
+  # Taux de change public (frais SMS des numeros de retrait, smsFee.service).
+  FX_RATE_URL = 'https://open.er-api.com/v6/latest/USD'
 
 [http_service]
   internal_port = 8080

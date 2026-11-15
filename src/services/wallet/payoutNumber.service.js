@@ -10,8 +10,21 @@ const { recordVerificationCost } = require('../notification/bird/birdCost.servic
 const settingsService = require('../settings/settings.service');
 const { normalizePhoneNumber } = require('../../utils/validator/validatePhoneNumber');
 
-/** Envoie le code par SMS uniquement. */
-exports.requestPayoutNumberCode = ({ userId, phoneNumber }) => requestPhoneAuth({ phoneNumber, channel: 'sms', userId });
+const smsFee = require('./smsFee.service');
+
+/**
+ * Envoie le code par SMS uniquement. Chaque envoi est facturé au marchand au
+ * coût réel Bird (smsFee.service, CGU 12.5 bis), débité du réseau vérifié.
+ */
+exports.requestPayoutNumberCode = async ({ userId, phoneNumber, network }) => {
+  if (!['orange', 'mtn'].includes(network)) return { success: false, message: 'Réseau requis : orange ou mtn' };
+  const r = await requestPhoneAuth({ phoneNumber, channel: 'sms', userId });
+  if (r.success) await smsFee.markPayoutSend(r.data?.verificationId, network);
+  return r;
+};
+
+/** Estimation des frais d'un code, affichée avant l'envoi. */
+exports.estimatePayoutNumberFee = () => smsFee.estimateSmsFee();
 
 /** WhatsApp de la boutique : code envoyé sur WhatsApp UNIQUEMENT (aucun repli SMS). */
 exports.requestWhatsappNumberCode = ({ userId, phoneNumber }) => requestPhoneAuth({ phoneNumber, channel: 'whatsapp', userId });
@@ -48,6 +61,7 @@ async function verifyCode({ userId, phoneNumber, code }, onVerified) {
   if (verificationId) {
     const details = await getVerificationDetails({ verificationId });
     if (details.success) deliveredChannel = (await recordVerificationCost({ verificationId, verification: details.data.raw, verified: true, userId })).deliveredChannel;
+    await smsFee.chargePendingSmsFees(verificationId).catch(e => console.warn(`[PAYOUT-NUMBER] frais SMS : ${e.message}`));
   }
   const refused = await onVerified(userId, recipient, deliveredChannel);
   if (refused) return refused;

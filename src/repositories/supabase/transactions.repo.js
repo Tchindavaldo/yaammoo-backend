@@ -40,7 +40,7 @@ exports.getById = async id => {
 };
 
 exports.getByUser = async userId => {
-  const { data, error } = await supabase.from(TABLE).select('*').eq('user_id', userId).not('type', 'in', '("merchant_credit","driver_credit","platform_transfer","withdrawal","merchant_debit")').order('created_at', { ascending: false });
+  const { data, error } = await supabase.from(TABLE).select('*').eq('user_id', userId).not('type', 'in', '("merchant_credit","driver_credit","platform_transfer","withdrawal","merchant_debit","sms_fee")').order('created_at', { ascending: false });
   if (error) throw error;
   return (data || []).map(m.transaction.fromSupabase);
 };
@@ -70,7 +70,9 @@ exports.hasMerchantDebit = async userId => {
 // `platform_transfer` : marge plateforme versee par un admin (platformTransfer.service).
 // `merchant_debit` : reprise d'une commande annulée (orderCancel.service). DÉBIT :
 // le solde peut devenir négatif (dette reprise sur les gains suivants).
-const WALLET_TYPES = ['merchant_credit', 'driver_credit', 'platform_transfer', 'withdrawal', 'merchant_debit'];
+// `sms_fee` : frais du code SMS de vérification d'un numéro de retrait (smsFee.service,
+// CGU 12.5 bis). DÉBIT : solde négatif possible, ne bloque pas la boutique.
+const WALLET_TYPES = ['merchant_credit', 'driver_credit', 'platform_transfer', 'withdrawal', 'merchant_debit', 'sms_fee'];
 const CREDIT_TYPES = ['merchant_credit', 'driver_credit', 'platform_transfer'];
 const isCredit = type => CREDIT_TYPES.includes(type);
 
@@ -129,8 +131,8 @@ exports.getMerchantBalance = async userId => {
 
 // payin  = gain marchand (merchant_credit, platform_transfer) ; payout = retrait (withdrawal)
 const PAYIN_TYPES = ['merchant_credit', 'platform_transfer'];
-const TYPE_BY_DIRECTION = { payin: PAYIN_TYPES, payout: ['withdrawal', 'merchant_debit'] };
-const directionOf = type => (type === 'withdrawal' || type === 'merchant_debit' ? 'payout' : 'payin');
+const TYPE_BY_DIRECTION = { payin: PAYIN_TYPES, payout: ['withdrawal', 'merchant_debit', 'sms_fee'] };
+const directionOf = type => (['withdrawal', 'merchant_debit', 'sms_fee'].includes(type) ? 'payout' : 'payin');
 
 /**
  * Historique du portefeuille marchand : crédits (payin) + retraits (payout).

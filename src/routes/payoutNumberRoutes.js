@@ -11,7 +11,7 @@ const c = require('../controllers/wallet/payoutNumber.controller');
  *     tags: [Wallet]
  *     security: [{ bearerAuth: [] }]
  *     requestBody:
- *       content: { application/json: { schema: { type: object, required: [phoneNumber], properties: { phoneNumber: { type: string, example: '698087460' } } } } }
+ *       content: { application/json: { schema: { type: object, required: [phoneNumber, network], properties: { phoneNumber: { type: string, example: '698087460' }, network: { type: string, enum: [orange, mtn], description: 'Réseau du numéro : solde débité des frais SMS (coût réel Bird × taux USD->XAF du jour)' } } } } }
  *     responses:
  *       200: { description: "Code envoyé { verificationId, phoneNumber, expiresIn }" }
  *       429: { description: "cooldown (en-tête Retry-After)" }
@@ -42,5 +42,18 @@ router.post('/verify', firebaseAuth, c.verifyPayoutNumberCodeController);
  *     security: [{ bearerAuth: [] }]
  */
 router.get('/', firebaseAuth, c.listPayoutNumbersController);
+
+/**
+ * @swagger
+ * /wallet/payout-number/fee:
+ *   get:
+ *     summary: Estimation des frais d'un code SMS (avant l'envoi)
+ *     description: Moyenne des 50 derniers coûts SMS réels Bird, convertie au taux USD->XAF du jour, arrondie au F supérieur. null si inconnue. Le montant DÉBITÉ est le coût réel de chaque envoi.
+ *     tags: [Wallet]
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       200: { description: "{ amount, currency: 'XAF', rate } ou null" }
+ */
+router.get('/fee', firebaseAuth, c.payoutNumberFeeController);
 
 module.exports = router;

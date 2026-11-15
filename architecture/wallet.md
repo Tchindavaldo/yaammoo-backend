@@ -360,3 +360,30 @@ que les numéros de retrait, mais code sur **WhatsApp uniquement** (`channels:
 Connexion par numéro (`/auth/phone/verify`) : si Bird a livré le code par
 WhatsApp, le numéro est enregistré comme WhatsApp vérifié (`source = 'login'`) ;
 un repli SMS ne vérifie rien. Table `whatsapp_numbers`.
+
+## Frais SMS des numéros de retrait (`sms_fee`, migration 083, CGU 12.5 bis)
+
+Chaque code envoyé par SMS pour vérifier un numéro Orange Money / MTN
+(`POST /wallet/payout-number/request`, `network` obligatoire) est débité au
+marchand :
+
+```
+frais = ⌈ coût Bird réel en USD (delta non encore débité) × taux USD→XAF du jour ⌉
+```
+
+- Transaction `sms_fee` (débit, direction `payout`), sur le solde du réseau
+  vérifié, agrégateur `pawapay`. `extra_data` : `verificationId`, `costUsd`,
+  `usdXafRate`, `phone`.
+- Bird ne connaît le coût qu'après la livraison : débit à la validation du code,
+  sinon par `smsFeeJob` (1×/h) ; les envois jamais validés sont relus chez Bird
+  après 15 min. Un renvoi réutilise le même `verificationId` : seul le delta
+  (`bird_costs.fee_debited_usd`) est débité.
+- Taux : `settings_app.usd_xaf_rate` `{ rate, fetchedAt }`, rafraîchi 1×/jour
+  depuis `FX_RATE_URL` (fly.toml) ; en panne, dernier taux. Sans taux : rien
+  n'est débité, alerte `app_errors` (`sms_fee_no_rate`), rattrapé au passage suivant.
+- Échec d'écriture : `app_errors` `sms_fee_debit_failed`.
+- Le solde peut devenir négatif : ce négatif **ne bloque pas** la boutique
+  (`merchantDebtGuard` ne regarde que `merchant_debit`).
+- Estimation avant l'envoi : `GET /wallet/payout-number/fee` = moyenne des 50
+  derniers coûts SMS réels (par envoi) × taux, ⌈⌉. Le WhatsApp de la boutique
+  (`/whatsapp-number`) n'est pas facturé.

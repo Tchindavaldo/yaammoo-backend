@@ -24,5 +24,6 @@ initMobileWalletSocket();
 startFastfoodPurgeJob();
 require('./utils/orderAutoCancelJob').startOrderAutoCancelJob();
 require('./utils/accountPurgeJob').startAccountPurgeJob();
+require('./utils/smsFeeJob').startSmsFeeJob();
 
 server.listen(PORT, HOST, () => console.log(`Serveur lancé sur http://localhost:${PORT}`));
