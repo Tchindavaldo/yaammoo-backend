@@ -16,7 +16,8 @@ de passerelle avec les marchands qui ne veulent pas de l'app.
 | `WHATSAPP_API_KEY` | clé `x-api-key` de l'appli Yaammoo (montrée une seule fois à la création) |
 | `WHATSAPP_WEBHOOK_SECRET` | secret de relais : vérifie la signature des événements reçus |
 
-Réglage en base : `settings_app.whatsapp_timeout_ms` (15000 par défaut, migration 085).
+Réglages en base : `settings_app.whatsapp_timeout_ms` (15000 par défaut, migration 085),
+`settings_app.whatsapp_reminder_minutes` (10 par défaut, 0 = pas de rappel, migration 087).
 Dans le module, l'URL de relais de l'appli Yaammoo doit pointer sur
 `https://<backend>/whatsapp/webhook` (test ou prod, une seule à la fois).
 
@@ -74,11 +75,25 @@ Code : `services/whatsapp/merchantOrders.service.js`, textes `merchantMessages.j
    action exige le statut précédent (un double clic ne fait pas avancer deux fois) ; numéros
    toujours envoyés au module en `+237…`.
 
+### Templates hors clic (`merchantTemplates.service.js`)
+
+- **Rappel** : commande payée encore `pending` depuis `whatsapp_reminder_minutes` →
+  UN `yam_rappel_commande` (n°, plats, minutes ; boutons Accepter / Refuser, mêmes payloads
+  que `yam_nouvelle_commande`). `utils/whatsappReminderJob.js` (1×/min, jusqu'à 24 h) ;
+  table `wa_order_reminders` (migration 087), ligne prise avant l'envoi.
+- **Livrée depuis l'app** (scan dans l'app, pas « LIVRÉ ») → `yam_commande_livree` (n°, plats).
+- **Hors fenêtre de 24 h** : un suivi (référence `order_<id>`) refusé par Meta avec l'erreur
+  131047 (statut `failed`, `onSendFailed`) → `yam_statut_commande` (n°, plats ; boutons
+  En attente / En cours / Terminée / Livraison en cours / Livrée, payloads `<id>:st_pending|
+  st_processing|st_finished|st_delivering|st_delivered`). La commande avance pas à pas
+  (`updateOrders`) jusqu'au statut déclaré ; « Livrée » s'arrête à « en livraison » (le QR
+  du client valide la remise). Un statut déclaré en retard ne recule rien.
+
 ## À venir
 
-QR dans l'app client (frontend, branche `feature/qr-livraison-whatsapp`), rappel sans réponse (`yam_rappel_commande`),
-`yam_statut_commande` hors fenêtre, `yam_commande_livree`, demande d'annulation :
-`todo/fastfood/feature/whatsapp-commandes-marchand.md` et `todo/user/feature/annulation-sur-demande.md`.
+QR dans l'app client (frontend, branche `feature/qr-livraison-whatsapp`), demande d'annulation,
+`yam_nouveau_message` : `todo/fastfood/feature/whatsapp-commandes-marchand.md` et
+`todo/user/feature/annulation-sur-demande.md`.
 
 ## Fichiers
 
@@ -86,13 +101,20 @@ QR dans l'app client (frontend, branche `feature/qr-livraison-whatsapp`), rappel
 config/whatsapp.js
 routes/whatsappWebhookRoutes.js
 controllers/whatsapp/webhook.controller.js
-services/whatsapp/webhookEvents.service.js     signature, aiguillage, onButton
+services/whatsapp/webhookEvents.service.js     signature, aiguillage, onButton, onText, onSendFailed
 services/whatsapp/whatsappModule.client.js     envoi, accusé de lecture
-services/whatsapp/merchantOrders.service.js    flux marchands (commande, boutons, suivi)
+services/whatsapp/merchantChannel.js           envoi commun (numéro boutique, étape suivante, récap)
+services/whatsapp/merchantOrders.service.js    flux marchands (commande, boutons, suivi, « LIVRÉ »)
+services/whatsapp/merchantTemplates.service.js rappel, livrée depuis l'app, statut hors fenêtre
+services/wallet/orderPayout.service.js         versement automatique à la livraison
+utils/whatsappReminderJob.js                   rappel des commandes sans réponse
+repositories/supabase/waOrderReminders.repo.js
 services/whatsapp/merchantMessages.js          textes des messages marchands
 services/whatsapp/merchantShop.service.js      réglage admin boutique WhatsApp
 controllers/whatsapp/merchantShop.controller.js
 interface/whatsappWebhookFields.js
 utils/validator/validateWhatsappEvent.js
 schema/migrations/085_whatsapp_settings.sql
+schema/migrations/086_order_payout.sql
+schema/migrations/087_whatsapp_order_reminders.sql
 ```

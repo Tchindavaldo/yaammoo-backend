@@ -92,6 +92,8 @@ const KEYS = {
   ORDER_AUTO_CANCEL_DAYS: 'order_auto_cancel_days',
   // Module WhatsApp de rauval-backend (migration 085) : délai max d'un appel.
   WHATSAPP_TIMEOUT_MS: 'whatsapp_timeout_ms',
+  // Migration 087 : minutes sans réponse avant le rappel WhatsApp d'une nouvelle commande.
+  WHATSAPP_REMINDER_MINUTES: 'whatsapp_reminder_minutes',
   // Builds de TEST (migration 051, table `settings_test` depuis la 055, tableau
   // depuis la 056) : versions d'app exactes qui reçoivent les comportements de
   // test (mode volume de `GET /fastFood/all`, paiement gratuit). [] = aucune.
@@ -173,6 +175,7 @@ const KEY_CATEGORY = {
   [KEYS.PLATFORM_DELIVERY_ALL]: 'app',
   [KEYS.ORDER_AUTO_CANCEL_DAYS]: 'app',
   [KEYS.WHATSAPP_TIMEOUT_MS]: 'app',
+  [KEYS.WHATSAPP_REMINDER_MINUTES]: 'app',
 
   // test — build de test (sorties de `deployment` par la migration 055)
   [KEYS.TEST_APP_VERSION]: 'test',
@@ -275,6 +278,8 @@ const FALLBACKS = {
   [KEYS.ORDER_AUTO_CANCEL_DAYS]: 7,
   // Module WhatsApp : 15 s, comme le module lui-même.
   [KEYS.WHATSAPP_TIMEOUT_MS]: 15000,
+  // Rappel d'une nouvelle commande sans réponse : 10 min (exemple du template).
+  [KEYS.WHATSAPP_REMINDER_MINUTES]: 10,
   // Build de test : repli à « aucune ». Une clé absente ne doit JAMAIS servir
   // des données de test à une vraie app.
   [KEYS.TEST_APP_VERSION]: [],

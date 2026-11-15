@@ -9,6 +9,7 @@ const repos = require('../../repositories');
 const wa = require('../whatsapp/whatsappModule.client');
 const { deliveryCodeOf, checkDeliveryCode } = require('./deliveryCode.service');
 const { payOrderToMerchant } = require('../wallet/orderPayout.service');
+const { notifyDelivered } = require('../whatsapp/merchantTemplates.service');
 
 const fail = (httpStatus, message) => ({ success: false, httpStatus, message });
 
@@ -33,10 +34,11 @@ exports.deliveryLinkOf = async orderId => {
 };
 
 /**
- * @param {{ orderId, code, actorUid }} p actorUid = qui valide (marchand, staff, livreur) ;
- *   absent (canal WhatsApp) : le propriétaire de la boutique.
+ * @param {{ orderId, code, actorUid, channel }} p actorUid = qui valide (marchand, staff, livreur) ;
+ *   absent (canal WhatsApp) : le propriétaire de la boutique. channel 'whatsapp' : la réponse
+ *   part en message libre (merchantOrders.service), sinon template yam_commande_livree.
  */
-exports.confirmDelivery = async ({ orderId, code, actorUid }) => {
+exports.confirmDelivery = async ({ orderId, code, actorUid, channel }) => {
   const order = orderId ? await repos.orders.getById(orderId) : null;
   if (!order) return fail(404, 'Commande introuvable');
   if (!checkDeliveryCode(order.id, code)) return fail(400, 'Code de livraison invalide');
@@ -54,5 +56,8 @@ exports.confirmDelivery = async ({ orderId, code, actorUid }) => {
   if (!r?.success) return fail(409, r?.message || 'Validation impossible');
   console.log(`✅ [LIVRAISON] Commande ${order.id} livrée (code validé)`);
   const delivered = await repos.orders.getById(order.id);
+  if (channel !== 'whatsapp' && fastFood?.whatsappOrders === true) {
+    notifyDelivered(delivered || order).catch(e => console.error(`❌ [WHATSAPP] yam_commande_livree ${order.id} : ${e.message}`));
+  }
   return { success: true, message: 'Livraison validée', order: delivered, payout: await payoutOf(delivered || order, fastFood) };
 };

@@ -34,10 +34,10 @@ est sur la plateforme avant que la commande parte.
     - relire `money-rules.md` et `wallet.md` avant ; aucun chiffre de mémoire
 [x] Numéro de retrait d'une boutique WhatsApp : saisi par l'admin à la création
     (pas de code SMS, le marchand n'a pas l'app) : `PUT /fastfood/:id/payout-number`
-[ ] Fenêtre de 24 h fermée → template `yam_statut_commande`
-[ ] Sans réponse au bout de N minutes → template `yam_rappel_commande`
-    (délai dans `settings_app`)
-[ ] Livraison validée → template `yam_commande_livree`
+[x] Fenêtre de 24 h fermée → template `yam_statut_commande` (suivi refusé 131047)
+[x] Sans réponse au bout de N minutes → template `yam_rappel_commande`
+    (`settings_app.whatsapp_reminder_minutes`, 10)
+[x] Livraison validée depuis l'app → template `yam_commande_livree`
 [ ] Demande d'annulation → template `yam_demande_annulation`
     (voir `todo/user/feature/annulation-sur-demande.md`)
 [ ] Message d'un client au marchand → template `yam_nouveau_message` (nom du

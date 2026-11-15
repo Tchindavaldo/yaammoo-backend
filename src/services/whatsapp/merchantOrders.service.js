@@ -1,44 +1,16 @@
 // Flux marchands « boutique WhatsApp » (marchand sans l'app) : nouvelle commande payée
-// (template yam_nouvelle_commande), Accepter / Refuser, puis suivi des statuts par boutons.
+// (template yam_nouvelle_commande), Accepter / Refuser, suivi des statuts par boutons,
+// validation « LIVRÉ » et message du versement. Envoi commun : merchantChannel.js.
 // notifyNewOrders : appelé par services/order/{createOrder,updateOrders.service}.js ;
 // registerMerchantOrderButtons : appelé au démarrage (src/app.js). Doc : architecture/whatsapp.md.
 const repos = require('../../repositories');
-const wa = require('./whatsappModule.client');
 const { onButton, onText } = require('./webhookEvents.service');
-const { getOtpSettings } = require('../settings/settings.service');
-const { normalizePhoneNumber } = require('../../utils/validator/validatePhoneNumber');
 const msg = require('./merchantMessages');
+const { shopNumber, shopPhone, send, sendText, batchesOf, replyRecap } = require('./merchantChannel');
+const { registerMerchantTemplateFlows } = require('./merchantTemplates.service');
 
 // Statut attendu avant chaque action : un double clic ne fait pas avancer deux fois.
 const EXPECTED = { accept: 'pending', refuse: 'pending', finished: 'processing', delivering: 'finished' };
-// Étape suivante proposée après chaque statut, une seule (la machine à états avance d'un cran).
-// « Livrée » ne passe pas par un bouton : c'est le scan du QR code du client qui la valide.
-const NEXT = {
-  processing: { action: 'finished', title: 'Terminée' },
-  finished: { action: 'delivering', title: 'En livraison' },
-};
-
-/** Numéro WhatsApp E.164 de la boutique (null si absent ou invalide). */
-const shopNumber = async fastFood => {
-  if (!fastFood?.whatsappNumber) return null;
-  const { defaultCountryCode } = await getOtpSettings();
-  return normalizePhoneNumber(fastFood.whatsappNumber, defaultCountryCode);
-};
-/** Idem, seulement si la boutique est en mode WhatsApp. */
-const shopPhone = async fastFood => (fastFood?.whatsappOrders ? shopNumber(fastFood) : null);
-
-const send = async (body, what) => {
-  const r = await wa.sendMessage(body);
-  if (!r.ok) console.error(`❌ [WHATSAPP] ${what} vers ${body.to} : ${r.data?.message || `HTTP ${r.status}`}`);
-  return r;
-};
-const sendText = (to, body) => send({ to, type: 'text', text: { body } }, 'Message');
-const sendStep = (to, body, order) => {
-  const next = NEXT[order.status];
-  if (!next) return sendText(to, body);
-  return send({ to, type: 'interactive', reference: `order_${order.id}`, interactive: { kind: 'buttons', body, buttons: [{ id: `${order.id}:${next.action}`, title: next.title }] } }, `Suivi ${order.id}`);
-};
-
 /**
  * Nouvelles commandes payées d'une boutique, vue marchand (`total` = ce qu'il encaisse).
  * Un panier (`groupId`) = un seul message ; sinon un message par commande. Ne lève jamais.
@@ -49,14 +21,8 @@ exports.notifyNewOrders = async (fastFoodId, merchantOrders) => {
     const fastFood = await repos.fastfoods.getById(fastFoodId);
     const to = await shopPhone(fastFood);
     if (!to || !merchantOrders?.length) return;
-    const batches = new Map();
-    for (const o of merchantOrders) {
-      const k = o.groupId ? `g:${o.groupId}:${o.fastFoodId}` : o.id;
-      batches.set(k, [...(batches.get(k) || []), o]);
-    }
-    for (const [k, orders] of batches) {
+    for (const [key, orders] of batchesOf(merchantOrders)) {
       const first = orders[0];
-      const key = orders.length > 1 ? k : first.id;
       const image = first.menu?.images?.[0] || fastFood.image;
       const amount = orders.reduce((s, o) => s + (Number(o.total) || 0), 0);
       await send(
@@ -103,19 +69,13 @@ const handle = action => async ({ ref, event }) => {
 
   // Chargé ici : updateOrders appelle notifyNewOrders (dépendance circulaire sinon).
   const { updateOrders } = require('../order/updateOrders.service');
-  const { toMerchantView } = require('../order/toMerchantView');
   const payload = todo.map(o => ({ id: o.id, fastFoodId: o.fastFoodId, ...(action === 'refuse' ? { status: 'cancelByFastFood' } : {}) }));
   const r = await updateOrders(payload, fastFood.userId);
   if (!r?.success) return sendText(to, `Commande n°${todo.map(msg.ref).join(', ')} : ${r?.message || 'mise à jour impossible'}.`);
 
   if (action === 'refuse') return sendText(to, `Commande n°${todo.map(msg.ref).join(', ')} refusée. Le client sera remboursé.`);
 
-  const fresh = await toMerchantView(await Promise.all(todo.map(o => repos.orders.getById(o.id))));
-  for (const o of fresh) {
-    let body = `${msg.recap(o, o.total)}\nStatut : ${msg.statusLabel(o.status)}`;
-    if (o.status === 'delivering') body += "\n\nÀ la remise, scannez avec l'appareil photo le QR code affiché dans l'app du client, puis envoyez le message qui s'ouvre : la livraison sera validée.";
-    await sendStep(to, body, o);
-  }
+  await replyRecap(to, todo);
 };
 
 // Message prérempli par le QR code du client : « LIVRÉ <orderId> <code> ».
@@ -135,7 +95,7 @@ const onDeliveredText = async event => {
   }
   // Chargé ici : confirmDelivery charge updateOrders, qui charge ce fichier.
   const { confirmDelivery } = require('../order/confirmDelivery.service');
-  const r = await confirmDelivery({ orderId, code });
+  const r = await confirmDelivery({ orderId, code, channel: 'whatsapp' });
   await sendText(event.from, r.success ? `Commande n°${msg.ref(order)} : livraison validée.${payoutLine(r.payout)}` : `Commande n°${msg.ref(order)} : ${r.message}.`);
   return true;
 };
@@ -159,8 +119,10 @@ exports.notifyOrderPayout = async (withdrawal, ok) => {
   await sendText(to, ok ? `Versement reçu : ${withdrawal.amount} FCFA envoyés sur le ${withdrawal.phone} (commande n°${ref}).` : `Le versement de ${withdrawal.amount} FCFA pour la commande n°${ref} a échoué. L'équipe Yaammoo le relance.`);
 };
 
-/** Abonne les boutons des messages marchands (payload `<ref>:<action>`) et la validation « LIVRÉ ». */
+/** Abonne les boutons des messages marchands (payload `<ref>:<action>`), la validation « LIVRÉ »
+ * et les flux par template (rappel, statut hors fenêtre : merchantTemplates.service). */
 exports.registerMerchantOrderButtons = () => {
   for (const action of Object.keys(EXPECTED)) onButton(action, handle(action));
   onText(onDeliveredText);
+  registerMerchantTemplateFlows();
 };

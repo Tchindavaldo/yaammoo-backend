@@ -65,9 +65,18 @@ async function handleMessage(event) {
   return { handled: true };
 }
 
-function handleStatus(event) {
+// Envois refusés par Meta (statut `failed`) : chaque flux abonné essaie ; fn(event) -> true s'il l'a repris.
+const failedHandlers = [];
+
+/** Abonne un flux aux échecs d'envoi (ex. suivi hors fenêtre de 24 h -> template). */
+exports.onSendFailed = fn => {
+  failedHandlers.push(fn);
+};
+
+async function handleStatus(event) {
   if (event.status === 'failed') {
-    console.error(`❌ [WHATSAPP] Échec d'envoi ${event.wamid} vers ${event.to} (réf. ${event.reference || '-'}) : ${event.error?.message || 'inconnu'}`);
+    console.error(`❌ [WHATSAPP] Échec d'envoi ${event.wamid} vers ${event.to} (réf. ${event.reference || '-'}) : ${event.error?.code || ''} ${event.error?.message || 'inconnu'}`);
+    for (const fn of failedHandlers) if (await fn(event)) break;
   }
   return { handled: true };
 }
