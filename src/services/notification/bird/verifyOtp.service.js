@@ -50,7 +50,7 @@ exports.verifyPhoneOtp = async ({ phoneNumber, email, code }) => {
     }
 
     if (email) {
-      to.email_address = email;
+      to.email = email;
     }
 
     const data = await birdClient.post('/v1/verify/verifications/check', {

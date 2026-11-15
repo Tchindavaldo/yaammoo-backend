@@ -45,14 +45,14 @@ exports.sendPhoneOtp = async ({ phoneNumber, email, userId, channel }) => {
     }
 
     if (email) {
-      to.email_address = email;
+      to.email = email;
     }
 
-    // `channel: 'sms'` : SMS seul (`channels` Bird ne fait que restreindre le
+    // `channel: 'sms'` : SMS seul (`options.channels` Bird ne fait que restreindre le
     // plan du pays : pas de WhatsApp, pas de repli). Absent : plan du pays.
     const body = { to };
-    if (channel === 'sms') body.channels = ['sms'];
-    if (channel === 'whatsapp') body.channels = ['whatsapp'];
+    if (channel === 'sms') body.options = { channels: ['sms'] };
+    if (channel === 'whatsapp') body.options = { channels: ['whatsapp'] };
     const data = await birdClient.post('/v1/verify/verifications', body);
 
     // On mémorise l'id de vérification pour que le client n'ait à renvoyer
