@@ -207,35 +207,26 @@ exports.getUserByAnyPhone = async candidates => {
 exports.deleteCascade = async uid => {
   if (!uid) throw new Error('uid requis');
 
-  // Récupérer les fastfoods possédés pour supprimer leurs commandes/menus liés
-  const { data: ffs } = await supabase.from('fastfoods').select('id').eq('user_id', uid);
-  const fastFoodIds = (ffs || []).map(f => f.id);
-
-  // Données liées directement à l'utilisateur
+  // CONSERVATION 10 ANS (CGU, Politique art. 9) : les commandes, transactions,
+  // paiements, règlements, retraits, remboursements, preuves d'acceptation des
+  // CGU, adhésions marchand, numéros de retrait et coûts OTP NE SONT PAS
+  // supprimés. Ils gardent le `user_id` / `fastfood_id` d'origine (pas de clé
+  // étrangère vers users). Seules les données sans obligation légale partent.
   const byUser = [
-    { table: 'orders', col: 'user_id' },
-    { table: 'transactions', col: 'user_id' },
     { table: 'notifications', col: 'user_id' },
     { table: 'bonus_requests', col: 'user_id' },
-    { table: 'pending_payments', col: 'user_id' },
   ];
   for (const { table, col } of byUser) {
     const { error } = await supabase.from(table).delete().eq(col, uid);
     if (error) console.warn(`[users.deleteCascade] ${table}: ${error.message}`);
   }
 
-  // Données liées aux boutiques possédées (commandes reçues, notifs marchand)
-  if (fastFoodIds.length) {
-    for (const table of ['orders', 'notifications']) {
-      const { error } = await supabase.from(table).delete().in('fastfood_id', fastFoodIds);
-      if (error) console.warn(`[users.deleteCascade] ${table}(fastfood): ${error.message}`);
-    }
-    // menus se suppriment en cascade quand on supprime les fastfoods
-    const { error: ffErr } = await supabase.from('fastfoods').delete().eq('user_id', uid);
-    if (ffErr) console.warn(`[users.deleteCascade] fastfoods: ${ffErr.message}`);
-  }
+  // Boutique : suppression DOUCE (deleted_at, migration 047) — elle disparaît
+  // de l'app mais son nom reste lisible depuis les commandes conservées.
+  const { error: ffErr } = await supabase.from('fastfoods').update({ deleted_at: new Date().toISOString() }).eq('user_id', uid).is('deleted_at', null);
+  if (ffErr) console.warn(`[users.deleteCascade] fastfoods: ${ffErr.message}`);
 
-  // Enfin l'utilisateur (user_push_tokens en cascade)
+  // Enfin le profil (push tokens, positions, analytics, support : en cascade).
   const { error } = await supabase.from(TABLE).delete().eq('id', uid);
   if (error) throw error;
   return { uid };

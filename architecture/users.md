@@ -90,8 +90,12 @@ PushToken {
 
 1. Frontend : DELETE `/user/delete-account` (authenticated)
 2. Backend :
-   - Supprime : collections orders, transactions, notifications, menus, fastfoods (via userId/fastFoodId)
-   - Supprime : document users
+   - **Conserve 10 ans** (CGU, Politique art. 9) : orders, transactions, pending_payments,
+     order_settlements, withdrawals, remboursements, legal_acceptances, merchant_adhesions,
+     payout_numbers, bird_costs (gardent leur `user_id` / `fastfood_id`)
+   - Boutique : suppression douce (`fastfoods.deleted_at`), menus gardés
+   - Supprime : notifications, bonus_requests, puis la ligne users (push tokens, positions,
+     analytics, support en cascade)
    - Supprime : Firebase Auth account
 3. Return : `{ uid, deletedAt }`
 
