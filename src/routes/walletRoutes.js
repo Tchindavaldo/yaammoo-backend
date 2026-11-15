@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 
 const firebaseAuth = require('../middlewares/authMiddleware');
-const { getBalanceController, getHistoryController, getStatsController, withdrawController, getWithdrawQuoteController, predictOperatorController, platformTransferController } = require('../controllers/wallet/wallet.controller');
+const { getBalanceController, getHistoryController, getStatsController, withdrawController, getWithdrawQuoteController, predictOperatorController, platformTransferController, platformShareController } = require('../controllers/wallet/wallet.controller');
 const { authorize, adminOnly } = require('../middlewares/staffPermissionMiddleware');
 
 /**
@@ -336,5 +336,25 @@ router.post('/operator/predict', firebaseAuth, predictOperatorController);
  *         description: Transfert déjà en cours sur une des boutiques sources (transfer_in_progress)
  */
 router.post('/admin/platform-transfer', firebaseAuth, authorize(adminOnly), platformTransferController);
+
+/**
+ * @swagger
+ * /wallet/admin/platform-share:
+ *   get:
+ *     summary: Part de la plateforme par réseau (admin)
+ *     description: |
+ *       Par réseau (orange, mtn), portefeuille pawaPay : `margin` (Σ
+ *       order_settlements.platform_margin, commandes annulées exclues),
+ *       `smsFees` (Σ sms_fee), `transferred` (Σ platform_transfer), `share` =
+ *       margin + smsFees − transferred, et `walletsOwed` (Σ des soldes positifs
+ *       des portefeuilles, à laisser sur le compte). Les retraits faits
+ *       directement sur pawaPay ne sont pas connus.
+ *     tags: [Wallet]
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       200: { description: "{ byNetwork: { orange, mtn }, total, excludedCancelledOrders }" }
+ *       403: { description: Réservé aux administrateurs }
+ */
+router.get('/admin/platform-share', firebaseAuth, authorize(adminOnly), platformShareController);
 
 module.exports = router;

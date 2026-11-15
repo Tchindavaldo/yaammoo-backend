@@ -200,3 +200,19 @@ exports.platformTransferController = async (req, res) => {
     return res.status(500).json({ success: false, error: error.message });
   }
 };
+
+/**
+ * GET /wallet/admin/platform-share — part de la plateforme par réseau (admin) :
+ * marges des commandes non annulées + frais SMS − marge versée aux boutiques,
+ * et argent dû aux portefeuilles (à laisser sur le compte). Cf. platformShare.repo.
+ */
+exports.platformShareController = async (req, res) => {
+  try {
+    console.info(`[Wallet] GET /admin/platform-share → admin=${req.user?.uid}`);
+    const data = await repos.platformShare.getPlatformShare();
+    return res.status(200).json({ success: true, data });
+  } catch (error) {
+    console.error(`[Wallet] GET /admin/platform-share ❌ admin=${req.user?.uid}: ${error.message}`);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+};

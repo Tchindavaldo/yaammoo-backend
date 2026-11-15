@@ -387,3 +387,20 @@ frais = ⌈ coût Bird réel en USD (delta non encore débité) × taux USD→XA
 - Estimation avant l'envoi : `GET /wallet/payout-number/fee` = moyenne des 50
   derniers coûts SMS réels (par envoi) × taux, ⌈⌉. Le WhatsApp de la boutique
   (`/whatsapp-number`) n'est pas facturé.
+
+## Part de la plateforme (admin) — `GET /wallet/admin/platform-share`
+
+`platformShare.repo`, par réseau (orange, mtn), portefeuille pawaPay :
+
+```
+margin      = Σ order_settlements.platform_margin (réseau du merchant_credit),
+              commandes annulées (cancelByUser / cancelByFastFood) exclues
+smsFees     = Σ transactions sms_fee
+transferred = Σ transactions platform_transfer (marge versée à une boutique)
+share       = margin + smsFees − transferred
+walletsOwed = Σ des soldes POSITIFS des portefeuilles (marchands, livreurs)
+```
+
+`share` = ce que la plateforme a gagné ; les retraits faits directement sur
+pawaPay (hors app) ne sont pas connus. Montant sûr à retirer d'un réseau =
+solde réel du compte pawaPay − `walletsOwed`.
