@@ -83,7 +83,7 @@ const KEYS = {
   HIDDEN_FASTFOOD_IDS: 'hidden_fastfood_ids',
   // Corbeille d'images (migration 071) : jours avant effacement du storage.
   IMAGE_TRASH_RETENTION_DAYS: 'image_trash_retention_days',
-  // Module WhatsApp de rauval-backend (migration 073) : délai max d'un appel.
+  // Module WhatsApp de rauval-backend (migration 080) : délai max d'un appel.
   WHATSAPP_TIMEOUT_MS: 'whatsapp_timeout_ms',
   // Builds de TEST (migration 051, table `settings_test` depuis la 055, tableau
   // depuis la 056) : versions d'app exactes qui reçoivent les comportements de

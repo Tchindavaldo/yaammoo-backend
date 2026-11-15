@@ -16,7 +16,7 @@ de passerelle avec les marchands qui ne veulent pas de l'app.
 | `WHATSAPP_API_KEY` | clé `x-api-key` de l'appli Yaammoo (montrée une seule fois à la création) |
 | `WHATSAPP_WEBHOOK_SECRET` | secret de relais : vérifie la signature des événements reçus |
 
-Réglage en base : `settings_app.whatsapp_timeout_ms` (15000 par défaut, migration 073).
+Réglage en base : `settings_app.whatsapp_timeout_ms` (15000 par défaut, migration 080).
 Dans le module, l'URL de relais de l'appli Yaammoo doit pointer sur
 `https://<backend>/whatsapp/webhook` (test ou prod, une seule à la fois).
 
@@ -63,5 +63,5 @@ services/whatsapp/webhookEvents.service.js     signature, aiguillage, onButton
 services/whatsapp/whatsappModule.client.js     envoi, accusé de lecture
 interface/whatsappWebhookFields.js
 utils/validator/validateWhatsappEvent.js
-schema/migrations/073_whatsapp_settings.sql
+schema/migrations/080_whatsapp_settings.sql
 ```

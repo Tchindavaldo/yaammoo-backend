@@ -334,7 +334,7 @@ async function getImageTrashRetentionDays() {
   return Number.isFinite(v) && v > 0 ? v : 60;
 }
 
-/** Délai max (ms) d'un appel au module WhatsApp de rauval-backend (migration 073). */
+/** Délai max (ms) d'un appel au module WhatsApp de rauval-backend (migration 080). */
 async function getWhatsappTimeoutMs() {
   const s = await getSettings();
   const v = Number(s[KEYS.WHATSAPP_TIMEOUT_MS]);
