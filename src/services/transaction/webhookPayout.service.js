@@ -20,6 +20,15 @@ const { reliableEmit } = require('../../utils/reliableEmit');
 
 const log = console;
 
+/** Versement automatique d'une commande (kind 'order', orderPayout.service) : message WhatsApp au marchand. */
+const notifyOrderPayout = (withdrawal, ok) => {
+  if (withdrawal.kind !== 'order') return;
+  // Chargé ici : le module WhatsApp n'a rien à faire dans le chargement des paiements.
+  require('../whatsapp/merchantOrders.service')
+    .notifyOrderPayout(withdrawal, ok)
+    .catch(e => log.warn(`[Verdict Payout] message WhatsApp du versement ${withdrawal.id} non envoyé : ${e.message}`));
+};
+
 exports.webhookPayoutVerdict = async (withdrawal, data, source) => {
   const { transaction_id, status } = data;
   const logPrefix = `[Verdict Payout:${source}] tx=${transaction_id} withdrawalId=${withdrawal.id}`;
@@ -77,7 +86,7 @@ exports.webhookPayoutVerdict = async (withdrawal, data, source) => {
       type: 'withdrawal',
       userId,
       amount: amt + fee,
-      name: 'Retrait portefeuille',
+      name: withdrawal.kind === 'order' ? 'Versement commande' : 'Retrait portefeuille',
       payBy: withdrawal.network,
       aggregator: withdrawal.aggregator || null,
       network: withdrawal.sourceNetwork || null,
@@ -92,9 +101,12 @@ exports.webhookPayoutVerdict = async (withdrawal, data, source) => {
       cashAmount: amt - kioskFee,
       kioskFee,
       feesDebit,
+      // Versement automatique : commande versée (migration 086).
+      relatedOrderId: withdrawal.orderId || undefined,
     });
     await repos.withdrawals.updateStatus(withdrawal.id, { status: 'completed' });
     log.info(`${logPrefix} ✓ Retrait confirmé → débit ${amt + fee} (dont frais ${fee}) sur ${withdrawal.sourceNetwork}`);
+    notifyOrderPayout(withdrawal, true);
 
     const { balance, mtn, orange, breakdown } = await repos.transactions.getMerchantBalance(userId);
     await reliableEmit(getIO(), userId, 'wallet.withdrawal', {
@@ -117,6 +129,10 @@ exports.webhookPayoutVerdict = async (withdrawal, data, source) => {
     // failed / cancelled → pas de débit, solde intact
     await repos.withdrawals.updateStatus(withdrawal.id, { status: 'failed', failureReason: data.message || status });
     log.info(`${logPrefix} ✗ Retrait ${status} → aucun débit (solde intact)`);
+    if (withdrawal.kind === 'order') {
+      await repos.appErrors.record({ scope: 'order_payout', code: 'payout_failed', message: `Versement automatique ÉCHOUÉ (${amt} F vers ${withdrawal.phone}) : ${data.message || status}. Relancé au prochain scan, sinon à faire à la main.`, orderId: withdrawal.orderId, userId, fastFoodId: withdrawal.fastFoodId, context: { withdrawalId: withdrawal.id } });
+    }
+    notifyOrderPayout(withdrawal, false);
 
     await reliableEmit(getIO(), userId, 'wallet.withdrawal', {
       withdrawalId: withdrawal.id,

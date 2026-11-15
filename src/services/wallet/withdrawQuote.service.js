@@ -32,6 +32,7 @@ async function crossNetworkRate(network) {
   const key = toBalanceKey(network);
   return Number(pricing?.paymentFees?.pawapay?.payoutReserve?.[key]) || 0;
 }
+exports.crossNetworkRate = crossNetworkRate;
 
 /**
  * Taux interréseau (%) par réseau de RÉCEPTION, pour l'affichage avant saisie

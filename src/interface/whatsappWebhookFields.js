@@ -30,6 +30,11 @@ exports.whatsappOrdersFields = {
   enabled: { type: 'boolean', required: true }, // true : commandes envoyées au marchand sur WhatsApp
 };
 
+/** PUT /fastfood/:fastFoodId/payout-number (admin) : numéro de versement de la boutique WhatsApp. */
+exports.shopPayoutNumberFields = {
+  phoneNumber: { type: 'string', required: true }, // Orange Money ou MTN MoMo, ex. 677087298 ou +237677087298
+};
+
 /** event = 'status' : suivi d'un message envoyé. */
 exports.whatsappStatusEventFields = {
   event: { type: 'string', required: true },

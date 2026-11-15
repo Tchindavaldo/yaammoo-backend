@@ -49,13 +49,14 @@ exports.getByUser = async userId => {
  * Crédit marchand d'une commande, ou null : sert à retrouver l'agrégateur et
  * le réseau qui ont encaissé l'argent (la course livreur est versée plus tard,
  * à la livraison, sur le même solde).
- * @returns {Promise<{aggregator:string|null, network:string|null, mwTransactionId:string|null}|null>}
+ * @returns {Promise<{aggregator:string|null, network:string|null, mwTransactionId:string|null, amount:number, kioskFee:number}|null>}
  */
 exports.findMerchantCreditByOrder = async orderId => {
   if (!orderId) return null;
-  const { data, error } = await supabase.from(TABLE).select('aggregator, network, mw_transaction_id').eq('type', 'merchant_credit').contains('extra_data', { relatedOrderId: orderId }).limit(1).maybeSingle();
+  const { data, error } = await supabase.from(TABLE).select('aggregator, network, mw_transaction_id, amount, extra_data').eq('type', 'merchant_credit').contains('extra_data', { relatedOrderId: orderId }).limit(1).maybeSingle();
   if (error) throw error;
-  return data ? { aggregator: data.aggregator ?? null, network: data.network ?? null, mwTransactionId: data.mw_transaction_id ?? null } : null;
+  // amount / kioskFee : crédit du marchand pour la commande (versement automatique, orderPayout.service).
+  return data ? { aggregator: data.aggregator ?? null, network: data.network ?? null, mwTransactionId: data.mw_transaction_id ?? null, amount: Number(data.amount) || 0, kioskFee: Number(data.extra_data?.kioskFee) || 0 } : null;
 };
 
 /** Le marchand a-t-il au moins une reprise d'annulation (`merchant_debit`) ? */

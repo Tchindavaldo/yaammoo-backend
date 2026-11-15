@@ -332,7 +332,8 @@ const qty = Number(updateData.quantity ?? prevData.quantity) || 1;
 
 ## Validation de livraison par QR code
 
-Le QR code de l'app client ne paie rien : il **prouve la remise**. Code secret de 6
+Le QR code de l'app client **prouve la remise** (boutique WhatsApp : il déclenche aussi le
+versement de la part du marchand, voir la fin de cette section). Code secret de 6
 caractères par commande, calculé (HMAC de l'id avec `DELIVERY_CODE_SECRET`), jamais
 stocké, donc absent des vues marchand (`services/order/deliveryCode.service.js`).
 
@@ -346,7 +347,11 @@ stocké, donc absent des vues marchand (`services/order/deliveryCode.service.js`
 - Les deux canaux passent par `confirmDelivery.service` : code vérifié, statut `delivering`
   exigé (409 sinon), puis `updateOrders` (`delivering → delivered`, crédit livreur inchangé).
   Déjà livrée : `200 alreadyDelivered`.
-- Boutique WhatsApp : versement automatique de la part du marchand à la validation (à venir).
+- Boutique WhatsApp (`whatsappOrders`) : versement automatique de la part du marchand à la
+  validation, quel que soit le canal (`orderPayout.service`, [wallet.md](./wallet.md),
+  « Versement automatique d'une commande »). La réponse porte `payout`
+  (`{ status: pending|skipped|failed, sentAmount, fee, phone, network }`) ; un rescan d'une
+  commande déjà livrée relance un versement échoué. Boutique normale : aucune transaction.
 
 ---
 
