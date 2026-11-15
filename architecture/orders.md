@@ -330,6 +330,26 @@ const qty = Number(updateData.quantity ?? prevData.quantity) || 1;
 
 ---
 
+## Validation de livraison par QR code
+
+Le QR code de l'app client ne paie rien : il **prouve la remise**. Code secret de 6
+caractères par commande, calculé (HMAC de l'id avec `DELIVERY_CODE_SECRET`), jamais
+stocké, donc absent des vues marchand (`services/order/deliveryCode.service.js`).
+
+- `GET /order/:orderId/delivery-code` (client de la commande) → `{ code, text, whatsappLink }`.
+  `whatsappLink` = `https://wa.me/<numéro Yaammoo>?text=LIVRÉ <orderId> <code>` (numéro lu
+  dans le module WhatsApp, `GET /me`). C'est le contenu du QR.
+- Marchand **sans** l'app : il scanne avec l'appareil photo, WhatsApp s'ouvre, il envoie.
+  Accepté seulement depuis le numéro WhatsApp de la boutique (`merchantOrders.service`, `onText`).
+- Marchand ou livreur **avec** l'app : `POST /order/:orderId/confirm-delivery { code }`
+  (boutique avec `orders.deliver`, ou livreur assigné).
+- Les deux canaux passent par `confirmDelivery.service` : code vérifié, statut `delivering`
+  exigé (409 sinon), puis `updateOrders` (`delivering → delivered`, crédit livreur inchangé).
+  Déjà livrée : `200 alreadyDelivered`.
+- Boutique WhatsApp : versement automatique de la part du marchand à la validation (à venir).
+
+---
+
 ## Délégation à un livreur (driver)
 
 **Chemin** : `BACKEND/src/services/order/driverOrders.service.js`

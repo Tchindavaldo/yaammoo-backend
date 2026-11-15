@@ -17,7 +17,8 @@ est sur la plateforme avant que la commande parte.
     montant vue marchand), un message par panier, boutons Accepter / Refuser
 [x] Accepter → `processing` ; Refuser → `cancelByFastFood` (remboursement client)
 [x] Suivi : récapitulatif + UN bouton (étape suivante), confirmation à chaque clic
-[ ] Livraison validée par QR code (décision du 15/11/2026) :
+[~] Livraison validée par QR code (décision du 15/11/2026) — backend fait (code, lien,
+    `confirm-delivery`, « LIVRÉ » WhatsApp) ; restent le versement et le QR dans l'app :
     - le QR ne paie rien, il prouve que la commande est arrivée chez le client
     - code secret par commande ; le QR de l'app client devient un lien wa.me vers
       le numéro Yaammoo, message prérempli « LIVRÉ <code> »

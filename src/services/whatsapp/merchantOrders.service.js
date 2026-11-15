@@ -4,7 +4,7 @@
 // registerMerchantOrderButtons : appelé au démarrage (src/app.js). Doc : architecture/whatsapp.md.
 const repos = require('../../repositories');
 const wa = require('./whatsappModule.client');
-const { onButton } = require('./webhookEvents.service');
+const { onButton, onText } = require('./webhookEvents.service');
 const { getOtpSettings } = require('../settings/settings.service');
 const { normalizePhoneNumber } = require('../../utils/validator/validatePhoneNumber');
 const msg = require('./merchantMessages');
@@ -18,12 +18,14 @@ const NEXT = {
   finished: { action: 'delivering', title: 'En livraison' },
 };
 
-/** Numéro E.164 de la boutique si elle est en mode WhatsApp, sinon null. */
-const shopPhone = async fastFood => {
-  if (!fastFood?.whatsappOrders || !fastFood.whatsappNumber) return null;
+/** Numéro WhatsApp E.164 de la boutique (null si absent ou invalide). */
+const shopNumber = async fastFood => {
+  if (!fastFood?.whatsappNumber) return null;
   const { defaultCountryCode } = await getOtpSettings();
   return normalizePhoneNumber(fastFood.whatsappNumber, defaultCountryCode);
 };
+/** Idem, seulement si la boutique est en mode WhatsApp. */
+const shopPhone = async fastFood => (fastFood?.whatsappOrders ? shopNumber(fastFood) : null);
 
 const send = async (body, what) => {
   const r = await wa.sendMessage(body);
@@ -111,12 +113,35 @@ const handle = action => async ({ ref, event }) => {
   const fresh = await toMerchantView(await Promise.all(todo.map(o => repos.orders.getById(o.id))));
   for (const o of fresh) {
     let body = `${msg.recap(o, o.total)}\nStatut : ${msg.statusLabel(o.status)}`;
-    if (o.status === 'delivering') body += "\n\nÀ la remise, scannez le QR code affiché dans l'app du client pour valider la livraison.";
+    if (o.status === 'delivering') body += "\n\nÀ la remise, scannez avec l'appareil photo le QR code affiché dans l'app du client, puis envoyez le message qui s'ouvre : la livraison sera validée.";
     await sendStep(to, body, o);
   }
 };
 
-/** Abonne les boutons des messages marchands (payload `<ref>:<action>`). */
+// Message prérempli par le QR code du client : « LIVRÉ <orderId> <code> ».
+const DELIVERED_RE = /^\s*LIVR[ÉE]E?\s+(\S+)\s+(\S+)/i;
+
+/** Validation de livraison envoyée depuis le numéro WhatsApp de la boutique. true si c'était ce message. */
+const onDeliveredText = async event => {
+  const match = DELIVERED_RE.exec(event.text || '');
+  if (!match) return false;
+  const [, orderId, code] = match;
+  const order = await repos.orders.getById(orderId);
+  const fastFood = order ? await repos.fastfoods.getById(order.fastFoodId) : null;
+  if (!order || (await shopNumber(fastFood)) !== event.from) {
+    console.warn(`⚠️ [WHATSAPP] « LIVRÉ ${orderId} » de ${event.from} : commande inconnue ou pas le numéro de la boutique`);
+    await sendText(event.from, 'Validation refusée : ce code doit être envoyé depuis le numéro WhatsApp de la boutique qui livre la commande.');
+    return true;
+  }
+  // Chargé ici : confirmDelivery charge updateOrders, qui charge ce fichier.
+  const { confirmDelivery } = require('../order/confirmDelivery.service');
+  const r = await confirmDelivery({ orderId, code });
+  await sendText(event.from, r.success ? `Commande n°${msg.ref(order)} : livraison validée.` : `Commande n°${msg.ref(order)} : ${r.message}.`);
+  return true;
+};
+
+/** Abonne les boutons des messages marchands (payload `<ref>:<action>`) et la validation « LIVRÉ ». */
 exports.registerMerchantOrderButtons = () => {
   for (const action of Object.keys(EXPECTED)) onButton(action, handle(action));
+  onText(onDeliveredText);
 };
