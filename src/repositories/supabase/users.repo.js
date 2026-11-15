@@ -207,27 +207,24 @@ exports.getUserByAnyPhone = async candidates => {
 exports.deleteCascade = async uid => {
   if (!uid) throw new Error('uid requis');
 
-  // CONSERVATION 10 ANS (CGU, Politique art. 9) : les commandes, transactions,
-  // paiements, règlements, retraits, remboursements, preuves d'acceptation des
-  // CGU, adhésions marchand, numéros de retrait et coûts OTP NE SONT PAS
-  // supprimés. Ils gardent le `user_id` / `fastfood_id` d'origine (pas de clé
-  // étrangère vers users). Seules les données sans obligation légale partent.
-  const byUser = [
-    { table: 'notifications', col: 'user_id' },
-    { table: 'bonus_requests', col: 'user_id' },
-  ];
-  for (const { table, col } of byUser) {
-    const { error } = await supabase.from(table).delete().eq(col, uid);
-    if (error) console.warn(`[users.deleteCascade] ${table}: ${error.message}`);
-  }
+  // CONSERVATION (CGU, Politique art. 9) : rien n'est effacé ici sauf la ligne
+  // users (archivée par l'appelant dans account_archives). Commandes,
+  // transactions, paiements, règlements, retraits, preuves CGU, numéros vérifiés,
+  // notifications, demandes de bonus gardent leur `user_id` / `fastfood_id`
+  // jusqu'à l'échéance du compte (10 ans si actif sur >= 1 an, sinon 90 jours),
+  // puis `accountPurgeJob` efface tout.
 
-  // Boutique : suppression DOUCE (deleted_at, migration 047) — elle disparaît
-  // de l'app mais son nom reste lisible depuis les commandes conservées.
-  const { error: ffErr } = await supabase.from('fastfoods').update({ deleted_at: new Date().toISOString() }).eq('user_id', uid).is('deleted_at', null);
+  // Boutique : suppression DOUCE (deleted_at, migration 047) marquée
+  // `deleted_reason = 'account'` (080) : restaurable par le propriétaire et
+  // purgée seulement à l'échéance du compte (accountPurgeJob).
+  const { data: ffs, error: ffErr } = await supabase.from('fastfoods').update({ deleted_at: new Date().toISOString(), deleted_reason: 'account' }).eq('user_id', uid).is('deleted_at', null).select('id');
   if (ffErr) console.warn(`[users.deleteCascade] fastfoods: ${ffErr.message}`);
+
+  // Profil brut, archivé par l'appelant (account_archives) avant suppression.
+  const { data: profile } = await supabase.from(TABLE).select('*').eq('id', uid).maybeSingle();
 
   // Enfin le profil (push tokens, positions, analytics, support : en cascade).
   const { error } = await supabase.from(TABLE).delete().eq('id', uid);
   if (error) throw error;
-  return { uid };
+  return { uid, profile, fastFoodIds: (ffs || []).map(f => f.id) };
 };

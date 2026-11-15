@@ -238,6 +238,12 @@ exports.verifyPhoneAuth = async ({ phoneNumber, code, profile = {} }) => {
   // (inscription e-mail/Google), et c'est celui-là qui porte la session Firebase.
   const authUid = user.uid || user.id || uid;
 
+  // Code livré par WhatsApp : ce numéro est aussi un WhatsApp vérifié du compte
+  // (un repli SMS ne prouve rien pour WhatsApp). Connexion : rien n'est facturé.
+  if (cost.deliveredChannel === 'whatsapp') {
+    await repos.verifiedNumbers.markWhatsapp(authUid, recipient, 'login').catch(e => console.warn(`[PHONE-AUTH] WhatsApp vérifié non enregistré : ${e.message}`));
+  }
+
   // Employé créé par une boutique avant d'avoir un compte : rattachement.
   await linkStaffOnLogin(recipient, defaultCountryCode, authUid);
 

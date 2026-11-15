@@ -21,7 +21,7 @@ const { normalizePhoneNumber } = require('../../../utils/validator/validatePhone
  * @param {string} [params.phoneNumber] Numéro du destinataire (E.164 ou local)
  * @param {string} [params.email]       Adresse e-mail (alternative au numéro)
  * @param {string} [params.userId]      UID utilisateur, pour tracer la demande
- * @param {'sms'} [params.channel]      'sms' = SMS uniquement (sinon WhatsApp puis SMS)
+ * @param {'sms'|'whatsapp'} [params.channel] canal imposé, sans repli (sinon WhatsApp puis SMS)
  * @returns {Promise<{success: boolean, message: string, data?: object}>}
  */
 exports.sendPhoneOtp = async ({ phoneNumber, email, userId, channel }) => {
@@ -52,6 +52,7 @@ exports.sendPhoneOtp = async ({ phoneNumber, email, userId, channel }) => {
     // plan du pays : pas de WhatsApp, pas de repli). Absent : plan du pays.
     const body = { to };
     if (channel === 'sms') body.channels = ['sms'];
+    if (channel === 'whatsapp') body.channels = ['whatsapp'];
     const data = await birdClient.post('/v1/verify/verifications', body);
 
     // On mémorise l'id de vérification pour que le client n'ait à renvoyer

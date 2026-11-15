@@ -89,15 +89,21 @@ PushToken {
 ### Suppression de compte (RGPD)
 
 1. Frontend : DELETE `/user/delete-account` (authenticated)
-2. Backend :
-   - **Conserve 10 ans** (CGU, Politique art. 9) : orders, transactions, pending_payments,
-     order_settlements, withdrawals, remboursements, legal_acceptances, merchant_adhesions,
-     payout_numbers, bird_costs (gardent leur `user_id` / `fastfood_id`)
-   - Boutique : suppression douce (`fastfoods.deleted_at`), menus gardés
-   - Supprime : notifications, bonus_requests, puis la ligne users (push tokens, positions,
-     analytics, support en cascade)
-   - Supprime : Firebase Auth account
-3. Return : `{ uid, deletedAt }`
+2. Backend (`userService.deleteUserAccount`) :
+   - Durée de conservation : **10 ans** si les paiements réels du compte
+     (`order_settlements`, en client ou en boutique) s'étalent sur au moins
+     365 jours, sinon **90 jours**.
+   - `users.deleteCascade` : boutique en suppression douce (`deleted_at`,
+     `deleted_reason = 'account'`, migration 080), ligne users supprimée (push
+     tokens, positions, analytics, support en cascade). Rien d'autre n'est effacé.
+   - Profil brut archivé dans `account_archives` (`retain_until`).
+   - Compte Firebase Auth supprimé.
+3. `accountPurgeJob` (1×/jour) : à `retain_until`, efface toutes les données du
+   compte et de ses boutiques (`accountArchives.purge`). La purge des boutiques
+   supprimées par un admin (047) ignore `deleted_reason = 'account'` (migration 081).
+4. Restauration : `GET /shop-restore` liste les boutiques supprimées avec le
+   compte (même uid, la connexion par numéro le redonne), `POST /shop-restore/:id`
+   les restaure et les rattache (409 si une boutique est déjà active).
 
 ---
 

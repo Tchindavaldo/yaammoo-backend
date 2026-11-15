@@ -351,3 +351,12 @@ par le compte : sinon 403 `payout_number_unverified`. Vérification par code
 
 Service : `services/wallet/payoutNumber.service.js`. Les numéros déjà enregistrés
 avant 079 ne sont pas vérifiés : le marchand les revérifie depuis sa boutique.
+
+## Numéro WhatsApp de la boutique vérifié (migration 080)
+
+`POST /whatsapp-number/request|verify` (+ `GET /whatsapp-number`) : même mécanique
+que les numéros de retrait, mais code sur **WhatsApp uniquement** (`channels:
+['whatsapp']`, aucun repli SMS). Un code livré par un autre canal est refusé.
+Connexion par numéro (`/auth/phone/verify`) : si Bird a livré le code par
+WhatsApp, le numéro est enregistré comme WhatsApp vérifié (`source = 'login'`) ;
+un repli SMS ne vérifie rien. Table `whatsapp_numbers`.

@@ -23,5 +23,6 @@ initMobileWalletSocket();
 // Purge des boutiques supprimées dont la rétention est écoulée (migration 047)
 startFastfoodPurgeJob();
 require('./utils/orderAutoCancelJob').startOrderAutoCancelJob();
+require('./utils/accountPurgeJob').startAccountPurgeJob();
 
 server.listen(PORT, HOST, () => console.log(`Serveur lancé sur http://localhost:${PORT}`));

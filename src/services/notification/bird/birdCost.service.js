@@ -82,7 +82,7 @@ exports.recordVerificationCost = async ({ verificationId, verification, verified
 
     console.log(`[BIRD-COST] ${verificationId} : ${payload.totalCost ?? 'n/a'} ${currencyCode || ''} ` + `via ${payload.deliveredChannel || 'aucun canal'}`.trim());
 
-    return { totalCost: payload.totalCost, currencyCode };
+    return { totalCost: payload.totalCost, currencyCode, deliveredChannel: payload.deliveredChannel };
   } catch (error) {
     console.warn(`⚠️ [BIRD-COST] Enregistrement du coût impossible : ${error.message}`);
     return { totalCost: null, currencyCode: null };

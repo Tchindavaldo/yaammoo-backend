@@ -46,8 +46,15 @@ exports.deleteUserAccount = async uid => {
 
   // Données BD (Supabase) via le repository — cascade géré côté repo
   try {
-    await repos.users.deleteCascade(uid);
-    console.log(`✅ [DELETE-ACCOUNT] Données Supabase supprimées pour ${uid}`);
+    // Durée de conservation : 10 ans si paiements réels étalés sur >= 1 an
+    // (client ou boutique), sinon 90 jours. Calculée AVANT la suppression.
+    const ownShops = await repos.fastfoods.getByUserId(uid).catch(() => null);
+    const span = await repos.accountArchives.paymentSpan(uid, ownShops?.id ? [ownShops.id] : []);
+    const longRetention = !!span && span.last - span.first >= 365 * 86400000;
+    const retainUntil = new Date(Date.now() + (longRetention ? 3652 : 90) * 86400000).toISOString();
+    const { profile, fastFoodIds } = await repos.users.deleteCascade(uid);
+    await repos.accountArchives.save({ uid, userData: profile, fastFoodIds, longRetention, retainUntil });
+    console.log(`✅ [DELETE-ACCOUNT] ${uid} archivé jusqu'au ${retainUntil} (${longRetention ? '10 ans' : '90 jours'})`);
   } catch (err) {
     console.warn(`⚠️  [DELETE-ACCOUNT] Erreur suppression données Supabase: ${err.message}`);
   }

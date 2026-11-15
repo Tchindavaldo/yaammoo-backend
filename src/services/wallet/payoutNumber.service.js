@@ -13,8 +13,21 @@ const { normalizePhoneNumber } = require('../../utils/validator/validatePhoneNum
 /** Envoie le code par SMS uniquement. */
 exports.requestPayoutNumberCode = ({ userId, phoneNumber }) => requestPhoneAuth({ phoneNumber, channel: 'sms', userId });
 
+/** WhatsApp de la boutique : code envoyé sur WhatsApp UNIQUEMENT (aucun repli SMS). */
+exports.requestWhatsappNumberCode = ({ userId, phoneNumber }) => requestPhoneAuth({ phoneNumber, channel: 'whatsapp', userId });
+
 /** Valide le code puis enregistre le numéro comme vérifié pour ce compte. */
-exports.verifyPayoutNumberCode = async ({ userId, phoneNumber, code }) => {
+exports.verifyPayoutNumberCode = args => verifyCode(args, (userId, recipient) => repos.payoutNumbers.markVerified(userId, recipient));
+
+/** Idem pour le WhatsApp ; garde-fou : un code livré par SMS ne vérifie pas un WhatsApp. */
+exports.verifyWhatsappNumberCode = args =>
+  verifyCode(args, async (userId, recipient, deliveredChannel) => {
+    if (deliveredChannel && deliveredChannel !== 'whatsapp') { const m = 'Le code n\'est pas arrivé par WhatsApp. Réessayez avec un numéro WhatsApp.'; return { success: false, message: m, data: { reason: m } }; }
+    await repos.verifiedNumbers.markWhatsapp(userId, recipient, 'otp');
+    return null;
+  });
+
+async function verifyCode({ userId, phoneNumber, code }, onVerified) {
   const { defaultCountryCode } = await settingsService.getOtpSettings();
   const recipient = normalizePhoneNumber(phoneNumber, defaultCountryCode);
   if (!recipient) return { success: false, message: `Numéro de téléphone invalide : ${phoneNumber}` };
@@ -31,13 +44,15 @@ exports.verifyPayoutNumberCode = async ({ userId, phoneNumber, code }) => {
     return { success: false, message: verified.message, data: { reason: verified.data?.reason || null, attemptsRemaining: verified.data?.attemptsRemaining ?? null } };
   }
   verificationId = verificationId || verified.data?.verificationId;
+  let deliveredChannel = null;
   if (verificationId) {
     const details = await getVerificationDetails({ verificationId });
-    if (details.success) await recordVerificationCost({ verificationId, verification: details.data.raw, verified: true, userId });
+    if (details.success) deliveredChannel = (await recordVerificationCost({ verificationId, verification: details.data.raw, verified: true, userId })).deliveredChannel;
   }
-  await repos.payoutNumbers.markVerified(userId, recipient);
+  const refused = await onVerified(userId, recipient, deliveredChannel);
+  if (refused) return refused;
   return { success: true, message: 'Numéro vérifié', data: { phoneNumber: recipient } };
-};
+}
 
 /** true si le numéro de retrait est vérifié pour ce compte. */
 exports.isPayoutNumberVerified = async (userId, phone) => {
