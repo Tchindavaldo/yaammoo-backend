@@ -88,6 +88,10 @@ router.post('/signUp', signUpController);
  *                 type: string
  *                 description: "Numéro local ou E.164. L'indicatif DEFAULT_COUNTRY_CODE est ajouté si absent."
  *                 example: '698087460'
+ *               channel:
+ *                 type: string
+ *                 enum: [sms]
+ *                 description: "'sms' = SMS uniquement (pas de WhatsApp ni de repli), ex. vérification d'un numéro de retrait MTN / Orange Money. Absent = WhatsApp puis SMS."
  *     responses:
  *       200:
  *         description: Code envoyé

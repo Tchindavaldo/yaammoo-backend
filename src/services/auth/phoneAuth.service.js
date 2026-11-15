@@ -59,7 +59,7 @@ const getCooldownRemaining = async (phoneNumber, cooldownSeconds) => {
  * @param {object} params
  * @param {string} params.phoneNumber
  */
-exports.requestPhoneAuth = async ({ phoneNumber }) => {
+exports.requestPhoneAuth = async ({ phoneNumber, channel }) => {
   const { defaultCountryCode, resendCooldownSeconds, expiresInSeconds } = await settingsService.getOtpSettings();
 
   const recipient = normalizePhoneNumber(phoneNumber, defaultCountryCode);
@@ -78,7 +78,7 @@ exports.requestPhoneAuth = async ({ phoneNumber }) => {
     };
   }
 
-  const sent = await sendPhoneOtp({ phoneNumber: recipient });
+  const sent = await sendPhoneOtp({ phoneNumber: recipient, channel });
   if (!sent.success) return sent;
 
   // Trace du coût dès l'envoi : une demande abandonnée est facturée par Bird,

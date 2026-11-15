@@ -8,6 +8,9 @@ exports.phoneAuthRequestFields = {
   phoneNumber: { type: 'string', required: true },
   // Alias tolere pour compat frontend : `phone` vaut `phoneNumber`.
   phone: { type: 'string', required: false },
+  // 'sms' = code envoye par SMS uniquement, sans WhatsApp ni repli.
+  // Absent = plan du pays (WhatsApp puis SMS).
+  channel: { type: 'string', required: false, enum: ['sms'] },
 };
 
 /** POST /auth/phone/verify — validation du code, connexion ou inscription. */

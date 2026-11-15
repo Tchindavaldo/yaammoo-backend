@@ -267,3 +267,11 @@ Les canaux actifs par pays se règlent dans le dashboard Bird : **Verify → Cou
    SMS de trop qu'un utilisateur bloqué.
 4. **Le suivi des coûts ne fait jamais échouer un envoi** — les erreurs y sont
    journalisées, pas propagées.
+
+## Canal imposé : `channel: 'sms'`
+
+`POST /auth/phone/request { phoneNumber, channel: 'sms' }` envoie le code par
+**SMS uniquement** (Bird `channels: ['sms']` : pas de WhatsApp, pas de repli).
+Prévu pour la vérification d'un numéro de retrait MTN / Orange Money. Sans
+`channel`, le plan du pays s'applique (WhatsApp puis SMS). Le coût de chaque
+envoi est journalisé dans `bird_costs` (migration 045), comme pour la connexion.

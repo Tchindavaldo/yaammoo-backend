@@ -20,13 +20,15 @@ const flatten = response => {
 exports.requestPhoneAuthController = async (req, res) => {
   try {
     const { phoneNumber, phone } = req.body;
+    // 'sms' = SMS uniquement (ex. verification d'un numero de retrait MTN / OM).
+    const channel = req.body?.channel === 'sms' ? 'sms' : undefined;
     const target = phoneNumber || phone;
 
     if (!target) {
       return res.status(400).json({ success: false, message: 'Paramètre phoneNumber manquant' });
     }
 
-    const response = await requestPhoneAuth({ phoneNumber: target });
+    const response = await requestPhoneAuth({ phoneNumber: target, channel });
 
     // 429 sur un renvoi trop rapproché : le frontend peut ainsi afficher un
     // compte à rebours au lieu d'un message d'erreur générique.
