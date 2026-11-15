@@ -132,6 +132,9 @@ payée **par pawaPay** non livrée après `settings_app.order_auto_cancel_days` 
   (`platform_withdrawal`, `POST /wallet/admin/platform-withdraw`, même réseau).
   Détail : [wallet.md](./wallet.md).
 - Retrait **même réseau** : **0 F** pour le marchand (réserve déjà prise au dépôt).
+- **Boutique WhatsApp** : à la livraison validée par QR, son crédit de la commande
+  part seul sur son numéro (même réseau 0 F ; interréseau : frais pris sur ce
+  crédit), sans cooldown ([wallet.md](./wallet.md), « Versement automatique »).
 - Le kiosque fait partie du crédit marchand (part « Frais de retrait » du solde).
 - Prix affiché (réseau inconnu) : barème du réseau **le plus cher**. Règlement :
   réseau et agrégateur **réels** du paiement.

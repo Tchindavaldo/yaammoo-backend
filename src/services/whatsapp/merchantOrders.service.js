@@ -136,8 +136,27 @@ const onDeliveredText = async event => {
   // Chargé ici : confirmDelivery charge updateOrders, qui charge ce fichier.
   const { confirmDelivery } = require('../order/confirmDelivery.service');
   const r = await confirmDelivery({ orderId, code });
-  await sendText(event.from, r.success ? `Commande n°${msg.ref(order)} : livraison validée.` : `Commande n°${msg.ref(order)} : ${r.message}.`);
+  await sendText(event.from, r.success ? `Commande n°${msg.ref(order)} : livraison validée.${payoutLine(r.payout)}` : `Commande n°${msg.ref(order)} : ${r.message}.`);
   return true;
+};
+
+/** Ligne « versement » de la réponse à « LIVRÉ » (orderPayout.service). */
+const payoutLine = p => {
+  if (p?.status === 'pending') return `\nVersement de ${p.sentAmount} FCFA en cours vers le ${p.phone}.`;
+  if (p?.status === 'failed') return "\nLe versement n'a pas pu partir : l'équipe Yaammoo s'en occupe.";
+  return '';
+};
+
+/**
+ * Verdict du versement d'une commande (webhookPayout.service, kind 'order') : message au
+ * marchand sur WhatsApp. Best-effort : hors fenêtre de 24 h, Meta refuse et c'est logué.
+ */
+exports.notifyOrderPayout = async (withdrawal, ok) => {
+  const shop = withdrawal.fastFoodId ? await repos.fastfoods.getById(withdrawal.fastFoodId) : null;
+  const to = await shopPhone(shop);
+  if (!to) return;
+  const ref = msg.ref({ id: withdrawal.orderId || '' });
+  await sendText(to, ok ? `Versement reçu : ${withdrawal.amount} FCFA envoyés sur le ${withdrawal.phone} (commande n°${ref}).` : `Le versement de ${withdrawal.amount} FCFA pour la commande n°${ref} a échoué. L'équipe Yaammoo le relance.`);
 };
 
 /** Abonne les boutons des messages marchands (payload `<ref>:<action>`) et la validation « LIVRÉ ». */

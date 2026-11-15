@@ -66,14 +66,17 @@ Code : `services/whatsapp/merchantOrders.service.js`, textes `merchantMessages.j
    livraison (`<id>:delivering`). « Livrée » ne passe pas par un bouton : le marchand scanne le
    QR code du client avec l'appareil photo et envoie « LIVRÉ <orderId> <code> » (accepté depuis
    le numéro de la boutique seulement) → `confirmDelivery.service` ([orders.md](./orders.md),
-   « Validation de livraison par QR code »).
+   « Validation de livraison par QR code »). La validation verse la part du marchand sur son
+   numéro de versement (`PUT /fastfood/:id/payout-number`, admin) ; la réponse dit
+   « Versement de X FCFA en cours vers le … », puis un message au verdict (reçu / échoué)
+   ([wallet.md](./wallet.md), « Versement automatique d'une commande »).
 4. Garde-fous : seul le numéro de la boutique pilote ses commandes (`event.from`) ; chaque
    action exige le statut précédent (un double clic ne fait pas avancer deux fois) ; numéros
    toujours envoyés au module en `+237…`.
 
 ## À venir
 
-Versement automatique à la livraison validée, QR dans l'app client (frontend), rappel sans réponse (`yam_rappel_commande`),
+QR dans l'app client (frontend, branche `feature/qr-livraison-whatsapp`), rappel sans réponse (`yam_rappel_commande`),
 `yam_statut_commande` hors fenêtre, `yam_commande_livree`, demande d'annulation :
 `todo/fastfood/feature/whatsapp-commandes-marchand.md` et `todo/user/feature/annulation-sur-demande.md`.
 

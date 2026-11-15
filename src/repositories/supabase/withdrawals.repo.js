@@ -34,16 +34,26 @@ exports.getById = async id => {
   return m.withdrawal.fromSupabase(data);
 };
 
-/** Dernier retrait (tous statuts) d'un marchand — pour le cooldown. */
+// Les versements automatiques de commande (kind 'order', migration 086) n'entrent
+// ni dans le cooldown ni dans le blocage doublon des retraits manuels.
+
+/** Dernier retrait manuel (tous statuts) d'un marchand — pour le cooldown. */
 exports.getLatestByUser = async userId => {
-  const { data, error } = await supabase.from(TABLE).select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(1).maybeSingle();
+  const { data, error } = await supabase.from(TABLE).select('*').eq('user_id', userId).neq('kind', 'order').order('created_at', { ascending: false }).limit(1).maybeSingle();
   if (error) throw error;
   return m.withdrawal.fromSupabase(data);
 };
 
-/** Retrait en cours (pending) d'un marchand — pour bloquer les doublons. */
+/** Retrait manuel en cours (pending) d'un marchand — pour bloquer les doublons. */
 exports.getPendingByUser = async userId => {
-  const { data, error } = await supabase.from(TABLE).select('*').eq('user_id', userId).eq('status', 'pending').limit(1).maybeSingle();
+  const { data, error } = await supabase.from(TABLE).select('*').eq('user_id', userId).eq('status', 'pending').neq('kind', 'order').limit(1).maybeSingle();
+  if (error) throw error;
+  return m.withdrawal.fromSupabase(data);
+};
+
+/** Versement d'une commande en cours ou réussi (pas échoué) — un seul par commande. */
+exports.getActiveByOrder = async orderId => {
+  const { data, error } = await supabase.from(TABLE).select('*').eq('order_id', orderId).neq('status', 'failed').limit(1).maybeSingle();
   if (error) throw error;
   return m.withdrawal.fromSupabase(data);
 };

@@ -82,7 +82,8 @@ réserve ne suffit plus, le manque sort de `orders`.
 Table `withdrawals` (migrations `004_withdrawals.sql`, `064`) — trace les demandes de retrait :
 `id, user_id, fastfood_id, amount (reçu), phone, network (réception), source_network
 (solde débité), fee (interréseau), aggregator, status (pending|completed|failed),
-mw_payout_id, failure_reason`.
+mw_payout_id, failure_reason, kind (wallet|platform|order), order_id` (migration 086,
+versement automatique d'une commande).
 
 ---
 
@@ -256,7 +257,8 @@ Body : `{ amount, phone, network, sourceNetwork, receiverName?, narration? }`.
    (`data` = le devis) ;
 4. **blocage doublon** : **409 `withdrawal_in_progress`** s'il existe déjà un retrait `pending` ;
 5. **cooldown** : **429 `cooldown`** si moins de `WITHDRAWAL_COOLDOWN_HOURS` (env, défaut 24h)
-   depuis le dernier retrait ;
+   depuis le dernier retrait (les versements automatiques `kind = 'order'` ne comptent
+   ni ici ni au point 4) ;
 6. `receiver_name` : `receiverName` du body → nom marchand (`users`) → `fastfood.name` ;
 7. insère `withdrawals` (`status='pending'`, `source_network`, `fee`, `aggregator`) — **aucun débit** ;
 8. appelle **MobileWallet `/payout`** avec `aggregator` + `source_network`
@@ -279,6 +281,33 @@ Même double canal que les paiements. [webhookMobilewallet.service](../src/servi
   (`status='failed'`).
 
 Variables d'env : `WITHDRAWAL_COOLDOWN_HOURS`, `WITHDRAWAL_CURRENCY` (défaut `XAF`).
+
+---
+
+## Versement automatique d'une commande (boutique WhatsApp, migration 086)
+
+Boutique `whatsappOrders` seulement. À la validation de la livraison par QR (scan
+dans l'app ou « LIVRÉ » sur WhatsApp, `confirmDelivery.service`), la part du
+marchand pour CETTE commande part sur son numéro, sans retrait à demander
+([orderPayout.service.js](../src/services/wallet/orderPayout.service.js)) :
+
+- **montant** = son `merchant_credit` de la commande, tel quel : le départage est
+  déjà fait au paiement (plats réels + frais de retrait + course s'il livre) ;
+- **solde source** = réseau du paiement ; **numéro** = numéro de versement de la
+  boutique (`payout_numbers`, saisi par l'admin : `PUT /fastfood/:id/payout-number`),
+  celui du même réseau d'abord → **0 F** ;
+- **interréseau** (aucun numéro sur le réseau du paiement) : frais MobileWallet pris
+  sur la part de la commande, envoyé + frais = crédit ;
+- **pas de blocage doublon ni de cooldown** : un versement par commande livrée
+  (`withdrawals.kind = 'order'`, `order_id` unique hors échecs). Un versement échoué
+  se relance au scan suivant (`alreadyDelivered`) ;
+- solde source < montant + frais (dette d'annulation) : rien ne part ;
+- verdict par `webhookPayout.service` comme un retrait (débit au succès seulement,
+  transaction `withdrawal` nommée « Versement commande », `relatedOrderId`), plus un
+  message WhatsApp au marchand (reçu / échoué) ;
+- tout échec ou cas non versé est tracé dans `app_errors` (`scope = 'order_payout'`).
+
+Boutique normale : le QR valide seulement la livraison, aucun versement.
 
 ---
 

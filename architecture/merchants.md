@@ -16,6 +16,7 @@ Gestion des fastfoods (boutiques marchand) : création, édition infos boutique,
 | GET     | `/menu/:fastFoodId`                    | `getMenusByFastFood`                 | Récupère tous les menus d'une boutique                                 |
 | GET     | `/fastFood/:fastFoodId/delivery-stats` | `getFastFoodDeliveryStatsController` | Stats auto-livraison du fastFood (scope `self`/`client`, auth requise) |
 | PATCH   | `/fastfood/:fastFoodId/whatsapp-orders` | `patchWhatsappOrdersController`     | **Admin** : boutique WhatsApp `{ enabled }`, commandes envoyées au marchand sur WhatsApp ([whatsapp.md](./whatsapp.md)) |
+| PUT     | `/fastfood/:fastFoodId/payout-number`   | `putShopPayoutNumberController`     | **Admin** : numéro de versement de la boutique WhatsApp `{ phoneNumber }`, sans code SMS ([wallet.md](./wallet.md)) |
 | POST    | `/menu`                                | `createMenu`                         | Ajoute un menu à une boutique                                          |
 | PUT     | `/menu/:id`                            | `updateMenu`                         | Édite un menu                                                          |
 | DELETE  | `/menu/:id`                            | `deleteMenu`                         | Supprime un menu                                                       |

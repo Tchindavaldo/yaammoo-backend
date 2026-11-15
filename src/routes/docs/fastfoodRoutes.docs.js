@@ -1,5 +1,6 @@
 // ============================================================================
-// Doc Swagger de `GET` / `POST /fastFood/{fastFoodId}` (routes dans
+// Doc Swagger de `GET` / `POST /fastFood/{fastFoodId}` et des routes admin de la boutique
+// WhatsApp (`whatsapp-orders`, `payout-number`) (routes dans
 // fastfoodRoutes.js). Sortie du fichier de routes, qui dépassait le plafond R3 ;
 // aucun code ici, lu seulement par swagger-jsdoc (config/swagger.js).
 // ============================================================================
@@ -219,4 +220,71 @@
  *                   $ref: '#/components/schemas/FastFood'
  *       400:
  *         description: Invalid input
+ */
+
+/**
+ * @swagger
+ * /fastfood/{fastFoodId}/whatsapp-orders:
+ *   patch:
+ *     summary: Boutique WhatsApp (admin) - commandes envoyees au marchand sur WhatsApp
+ *     description: |
+ *       Pour un marchand sans l'app. Les commandes payees lui arrivent sur le numero
+ *       `whatsappNumber` de la boutique (template yam_nouvelle_commande, boutons Accepter / Refuser),
+ *       puis le suivi des statuts se fait par boutons. Activer exige un whatsappNumber valide.
+ *     tags: [FastFood]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: fastFoodId
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [enabled]
+ *             properties:
+ *               enabled: { type: boolean }
+ *     responses:
+ *       200: { description: "{ success, message, fastFood: { id, whatsappOrders, whatsappNumber } }" }
+ *       400: { description: enabled manquant, ou boutique sans numero WhatsApp valide }
+ *       403: { description: Reserve aux administrateurs }
+ *       404: { description: Boutique introuvable }
+ */
+
+/**
+ * @swagger
+ * /fastfood/{fastFoodId}/payout-number:
+ *   put:
+ *     summary: Numero de versement d'une boutique WhatsApp (admin)
+ *     description: |
+ *       Saisi par l'admin a la creation de la boutique, sans code SMS : enregistre comme numero
+ *       verifie du proprietaire (payout_numbers). Recoit le versement automatique de chaque
+ *       commande livree (validation par QR), et sert aux retraits de l'app.
+ *       Le reseau (Orange / MTN) est detecte par MobileWallet.
+ *     tags: [FastFood]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: fastFoodId
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [phoneNumber]
+ *             properties:
+ *               phoneNumber: { type: string, example: '677087298' }
+ *     responses:
+ *       200: { description: "{ success, message, payoutNumber: { phoneNumber, network } }" }
+ *       400: { description: Numero invalide, ni Orange ni MTN, ou boutique sans proprietaire }
+ *       403: { description: Reserve aux administrateurs }
+ *       404: { description: Boutique introuvable }
  */

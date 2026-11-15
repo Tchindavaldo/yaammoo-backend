@@ -18,7 +18,8 @@ est sur la plateforme avant que la commande parte.
 [x] Accepter → `processing` ; Refuser → `cancelByFastFood` (remboursement client)
 [x] Suivi : récapitulatif + UN bouton (étape suivante), confirmation à chaque clic
 [~] Livraison validée par QR code (décision du 15/11/2026) — backend fait (code, lien,
-    `confirm-delivery`, « LIVRÉ » WhatsApp) ; restent le versement et le QR dans l'app :
+    `confirm-delivery`, « LIVRÉ » WhatsApp, versement automatique `orderPayout.service`) ;
+    reste le QR dans l'app (branche frontend `feature/qr-livraison-whatsapp`) :
     - le QR ne paie rien, il prouve que la commande est arrivée chez le client
     - code secret par commande ; le QR de l'app client devient un lien wa.me vers
       le numéro Yaammoo, message prérempli « LIVRÉ <code> »
@@ -31,8 +32,8 @@ est sur la plateforme avant que la commande parte.
       quel que soit le canal du scan (WhatsApp ou app)
     - app client : afficher le QR aussi sans livreur assigné (le marchand livre souvent)
     - relire `money-rules.md` et `wallet.md` avant ; aucun chiffre de mémoire
-[ ] Numéro de retrait d'une boutique WhatsApp : saisi par l'admin à la création
-    (pas de code SMS, le marchand n'a pas l'app)
+[x] Numéro de retrait d'une boutique WhatsApp : saisi par l'admin à la création
+    (pas de code SMS, le marchand n'a pas l'app) : `PUT /fastfood/:id/payout-number`
 [ ] Fenêtre de 24 h fermée → template `yam_statut_commande`
 [ ] Sans réponse au bout de N minutes → template `yam_rappel_commande`
     (délai dans `settings_app`)
