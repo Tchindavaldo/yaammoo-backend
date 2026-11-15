@@ -20,6 +20,13 @@ exports.getById = async id => {
   return m.order.fromSupabase(data);
 };
 
+/** Commandes d'un même panier (`group_id`) pour une boutique (flux WhatsApp marchand). */
+exports.getByGroup = async (groupId, fastFoodId) => {
+  const { data, error } = await supabase.from(TABLE).select('*').eq('group_id', groupId).eq('fastfood_id', fastFoodId).is('deleted_at', null);
+  if (error) throw error;
+  return (data || []).map(m.order.fromSupabase);
+};
+
 // Les commandes d'une boutique supprimée par un admin sont en corbeille
 // (`deleted_at`, migration 047) : elles disparaissent des listes marchand,
 // client et livreur sans attendre la purge.

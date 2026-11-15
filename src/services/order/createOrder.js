@@ -19,6 +19,7 @@ const { validateOrder } = require('../../utils/validator/validateOrder');
 const { settleDeliveryService } = require('./settleDelivery.service');
 const { enrichMenuForClient } = require('../menu/enrichMenuForClient');
 const { toMerchantView } = require('./toMerchantView');
+const { notifyNewOrders } = require('../whatsapp/merchantOrders.service');
 
 /**
  * @param {Object} order
@@ -97,12 +98,13 @@ exports.createOrderService = async (order, payment = null) => {
         // Socket temps réel fiable : boutique du marchand se met à jour en live
         // (rejoué au reconnect si le marchand est hors ligne)
         toMerchantView([createdOrder])
-          .then(merchantOrders =>
-            reliableEmit(getIO(), merchantUserId, 'newFastFoodOrders', {
+          .then(merchantOrders => {
+            notifyNewOrders(order.fastFoodId, merchantOrders); // boutique WhatsApp : message au marchand
+            return reliableEmit(getIO(), merchantUserId, 'newFastFoodOrders', {
               message: 'Nouvelle commande',
               data: merchantOrders,
-            })
-          )
+            });
+          })
           .catch(e => console.warn('[createOrder] reliableEmit newFastFoodOrders:', e.message));
 
         await notifyOrderEvent({

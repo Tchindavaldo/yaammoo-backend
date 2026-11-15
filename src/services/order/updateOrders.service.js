@@ -28,6 +28,7 @@ const { settleDeliveryService } = require('./settleDelivery.service');
 const { enrichMenuForClient } = require('../menu/enrichMenuForClient');
 const { generateId } = require('../../repositories/idGen');
 const { cancelRefusal, cancelPaidOrder } = require('./orderCancel.service');
+const { notifyNewOrders } = require('../whatsapp/merchantOrders.service');
 
 const buildTransitionNotif = ({ prevStatus, newStatus, order, merchantUserId }) => {
   const menuName = order.menu?.name || order.menu?.titre || 'Menu';
@@ -302,12 +303,13 @@ exports.updateOrders = async (orders, userId, payment = null) => {
         if (pendingOrders.length > 0) {
           console.info(`[updateOrders] → émission 'newFastFoodOrders' à marchand=${fastfood.userId} (fastFoodId=${fastFoodId}) · ${pendingOrders.length} cmd: ${pendingOrders.map(o => o.id).join(', ')}`);
           toMerchantView(pendingOrders)
-            .then(merchantOrders =>
-              reliableEmit(io, fastfood.userId, 'newFastFoodOrders', {
+            .then(merchantOrders => {
+              notifyNewOrders(fastFoodId, merchantOrders); // boutique WhatsApp : message au marchand
+              return reliableEmit(io, fastfood.userId, 'newFastFoodOrders', {
                 message: pendingOrders.length > 1 ? 'Nouvelles commandes' : 'Nouvelle commande',
                 data: merchantOrders,
-              })
-            )
+              });
+            })
             .catch(e => console.warn('[updateOrders] reliableEmit newFastFoodOrders:', e.message));
           pendingOrders.forEach(order => {
             reliableEmit(io, order.userId, 'userOrderUpdated', { data: order }).catch(e => console.warn('[updateOrders] reliableEmit userOrderUpdated:', e.message));
