@@ -141,7 +141,7 @@ const directionOf = type => (['withdrawal', 'merchant_debit', 'sms_fee'].include
  * @param {{ direction?:'payin'|'payout', from?:string|null, to?:string|null }} opts
  */
 exports.getMerchantHistory = async (userId, { direction, from, to } = {}) => {
-  const types = TYPE_BY_DIRECTION[direction] || [...PAYIN_TYPES, 'withdrawal'];
+  const types = TYPE_BY_DIRECTION[direction] || [...PAYIN_TYPES, 'withdrawal', 'merchant_debit', 'sms_fee'];
 
   let query = supabase.from(TABLE).select('*').eq('user_id', userId).in('type', types).in('aggregator', WALLET_AGGREGATORS);
   if (from) query = query.gte('created_at', from);
@@ -170,7 +170,7 @@ exports.getMerchantStats = async (userId, { groupBy = 'day', from, to } = {}) =>
     .from(TABLE)
     .select('type, amount, created_at')
     .eq('user_id', userId)
-    .in('type', [...PAYIN_TYPES, 'withdrawal', 'merchant_debit'])
+    .in('type', [...PAYIN_TYPES, 'withdrawal', 'merchant_debit', 'sms_fee'])
     .in('aggregator', WALLET_AGGREGATORS);
   if (from) query = query.gte('created_at', from);
   if (to) query = query.lte('created_at', to);

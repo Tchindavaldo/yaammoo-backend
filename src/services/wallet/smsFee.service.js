@@ -15,6 +15,8 @@ const { supabase } = require('../../config/supabase');
 const repos = require('../../repositories');
 const { AGGREGATORS } = require('../../utils/paymentAggregator');
 const { toPayNetwork } = require('../../utils/mobileNetwork');
+const { getIO } = require('../../socket');
+const { reliableEmit } = require('../../utils/reliableEmit');
 
 const RATE_KEY = 'usd_xaf_rate';
 const RATE_URL = process.env.FX_RATE_URL;
@@ -93,6 +95,22 @@ async function chargeRow(row, rate) {
     });
   } catch (e) {
     await repos.appErrors.record({ scope: 'sms_fee', code: 'sms_fee_debit_failed', message: `Frais SMS NON débités (${amount} F) : ${e.message}. À régulariser à la main.`, userId: owner, context: { verificationId: row.id, deltaUsd, rate } });
+    return;
+  }
+  // Débit poussé au portefeuille (soldes absolus, comme un retrait). Non critique.
+  try {
+    const b = await repos.transactions.getMerchantBalance(owner);
+    await reliableEmit(getIO(), owner, 'wallet.debited', {
+      type: 'sms_fee',
+      amount,
+      network: toPayNetwork(row.fee_network),
+      newBalance: b.balance,
+      newBalances: { mtn: b.mtn, orange: b.orange },
+      newBreakdown: b.breakdown,
+      createdAt: new Date().toISOString(),
+    });
+  } catch (e) {
+    console.warn(`[smsFee] émission socket wallet.debited non critique: ${e.message}`);
   }
 }
 
