@@ -121,3 +121,102 @@
  *       404:
  *         description: Boutique introuvable
  */
+
+// --- POST /fastFood (création), sorti de fastfoodRoutes.js ---
+/**
+ * @swagger
+ * /fastFood:
+ *   post:
+ *     summary: Create a new fastfood restaurant
+ *     tags:
+ *       - FastFood
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *               - userId
+ *             properties:
+ *               name:
+ *                 type: string
+ *               userId:
+ *                 type: string
+ *               number:
+ *                 type: string
+ *               momoNumber:
+ *                 type: string
+ *               whatsappNumber:
+ *                 type: string
+ *               openTime:
+ *                 type: string
+ *               closeTime:
+ *                 type: string
+ *               image:
+ *                 type: string
+ *               orderLeadTime:
+ *                 type: number
+ *               advanceDays:
+ *                 type: number
+ *               pickupAllowed:
+ *                 type: boolean
+ *               openDays:
+ *                 type: array
+ *                 description: Jours d'ouverture, 0 (dimanche) à 6 (samedi). [] = indisponible.
+ *                 items:
+ *                   type: integer
+ *                 example: [1, 2, 3, 4, 5, 6]
+ *               isAvailable:
+ *                 type: boolean
+ *                 description: Coupure manuelle (false = indisponible, openDays conservé).
+ *               cities:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               deliveryHours:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     hour:
+ *                       type: string
+ *                     periodic:
+ *                       type: boolean
+ *                     periodicZones:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           lieu:
+ *                             type: string
+ *                           prix:
+ *                             type: string
+ *               expressZones:
+ *                 type: array
+ *                 description: Zones EXPRESS de la boutique, SANS heure (migration 073). Un prix par lieu.
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     lieu:
+ *                       type: string
+ *                     prix:
+ *                       type: string
+ *     responses:
+ *       201:
+ *         description: FastFood successfully created
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   $ref: '#/components/schemas/FastFood'
+ *       400:
+ *         description: Invalid input
+ */

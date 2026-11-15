@@ -236,3 +236,18 @@ curl -s "$B?limit=9999" | jq '.data|length'   # <= 50
 ## Rechargement ciblé `?ids=a,b`
 
 `GET /fastfood/all?ids=a,b` (50 max) renvoie ces seules boutiques, même forme que le home (prix affichés, `deliveryOffer` du user, `distanceKm`), en TABLEAU, sans bannières ni `clientSettings`, jamais en mode volume. Utilisé par l'app sur un refus de paiement (`fastFoodIds` de la réponse 422), pour récupérer l'offre de livraison du user. Les changements faits par l'API arrivent, eux, avec leurs données dans le socket (`fastfoodUpdated`).
+
+## Ville choisie au home (`?city=`, `GET /fastfood/cities`)
+
+- `GET /fastfood/all?limit=&city=<ville>` : seules les boutiques dont `cities`
+  (villes desservies, formulaire boutique) contient la ville
+  (`fastfoods.repo.getPage`, filtre JSONB `cs`). Sans `city` : toutes les villes.
+  Une boutique sans ville renseignée n'apparaît qu'avec « Toutes les villes ».
+  Le mode volume de test est ignoré quand `city` est présent.
+- `GET /fastfood/cities?userCity=&lat=&lng=` (`homeCities.service`) :
+  `{ cities: [{ name, count }], defaultCity, total }`. `count` = boutiques
+  visibles au home desservant la ville. `defaultCity` = ville du client si une
+  boutique la dessert, sinon première ville de la boutique la plus proche
+  (position de la requête ou dernière connue), sinon `null` (toutes les villes).
+  Marchand (en mode client) : `defaultCity` = `merchantCity` = première ville de
+  SA boutique ; l'app ne lui propose pas de choix.

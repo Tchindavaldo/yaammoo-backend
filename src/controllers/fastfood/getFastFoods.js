@@ -17,6 +17,8 @@ exports.getfastfoodController = async (req, res) => {
     const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, MAX_LIMIT) : null;
     const cursor = req.query.cursor || undefined;
     const q = req.query.q || undefined;
+    // `?city=` : ville choisie au home (bottom sheet des villes). Additif.
+    const city = typeof req.query.city === 'string' && req.query.city.trim() ? req.query.city.trim() : undefined;
     // `?ids=a,b` : rechargement ciblé après le signal socket `fastfoodsChanged`.
     // Champ additif : les anciennes apps ne l'envoient pas.
     const ids = typeof req.query.ids === 'string' ? req.query.ids.split(',').map(s => s.trim()).filter(Boolean).slice(0, MAX_LIMIT) : null;
@@ -27,14 +29,14 @@ exports.getfastfoodController = async (req, res) => {
     // `test_fastfood_volume` clones des boutiques réelles, pour éprouver la
     // fluidité du home. Paginé seulement, et jamais sur une recherche (`q`) :
     // elle reste servie par les données réelles.
-    const volumeTest = !ids && limit !== null && !q && (await isTestClient(req));
+    const volumeTest = !ids && limit !== null && !q && !city && (await isTestClient(req));
     let result;
     if (volumeTest) {
       const volume = await getTestFastfoodVolume();
       const imageUrl = await getTestVolumeImageUrl();
       result = await getVolumeTestPage(req.user?.uid, { limit, cursor }, { volume, imageUrl });
     } else {
-      result = await getFastFoodsService(req.user?.uid, ids ? { ids } : limit ? { limit, cursor, q } : undefined);
+      result = await getFastFoodsService(req.user?.uid, ids ? { ids } : limit ? { limit, cursor, q, city } : undefined);
     }
     const paginated = !ids && limit !== null;
     // `distanceKm` : user (query `lat`/`lng`, sinon dernière position connue)

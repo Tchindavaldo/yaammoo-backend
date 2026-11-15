@@ -104,9 +104,10 @@ const encodeCursor = row => Buffer.from(`${row.created_at}|${row.id}`, 'utf8').t
  * @param {number}  opts.limit  taille de page (défaut 10)
  * @param {string}  [opts.cursor] curseur renvoyé par l'appel précédent
  * @param {string}  [opts.q]    recherche par nom (insensible à la casse)
+ * @param {string}  [opts.city] ville desservie (élément de `cities`), choix du home
  * @returns {Promise<{items: Object[], nextCursor: string|null}>}
  */
-exports.getPage = async ({ limit = 10, cursor, q } = {}) => {
+exports.getPage = async ({ limit = 10, cursor, q, city } = {}) => {
   // ⚠️ `!inner` sur `menus` : jointure INTERNE, donc une boutique SANS aucun
   // plat est écartée par la base. Sans ça, une page de 10 pouvait n'en rendre
   // que 2 (le service filtre les boutiques sans menu APRÈS coup) — voire 0, et
@@ -130,6 +131,8 @@ exports.getPage = async ({ limit = 10, cursor, q } = {}) => {
       .order('id', { ascending: false });
     const t = (q || '').trim();
     if (t) qb = qb.ilike('name', `%${t}%`);
+    // Ville choisie au home : boutiques qui la desservent (`cities` JSONB).
+    if (city) qb = qb.filter('cities', 'cs', JSON.stringify([city]));
     return qb;
   };
 

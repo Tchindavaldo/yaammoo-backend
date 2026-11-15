@@ -16,103 +16,7 @@ const optionalFirebaseAuth = require('../middlewares/optionalAuthMiddleware');
 
 const route = express.Router();
 
-/**
- * @swagger
- * /fastFood:
- *   post:
- *     summary: Create a new fastfood restaurant
- *     tags:
- *       - FastFood
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - name
- *               - userId
- *             properties:
- *               name:
- *                 type: string
- *               userId:
- *                 type: string
- *               number:
- *                 type: string
- *               momoNumber:
- *                 type: string
- *               whatsappNumber:
- *                 type: string
- *               openTime:
- *                 type: string
- *               closeTime:
- *                 type: string
- *               image:
- *                 type: string
- *               orderLeadTime:
- *                 type: number
- *               advanceDays:
- *                 type: number
- *               pickupAllowed:
- *                 type: boolean
- *               openDays:
- *                 type: array
- *                 description: Jours d'ouverture, 0 (dimanche) à 6 (samedi). [] = indisponible.
- *                 items:
- *                   type: integer
- *                 example: [1, 2, 3, 4, 5, 6]
- *               isAvailable:
- *                 type: boolean
- *                 description: Coupure manuelle (false = indisponible, openDays conservé).
- *               cities:
- *                 type: array
- *                 items:
- *                   type: string
- *               deliveryHours:
- *                 type: array
- *                 items:
- *                   type: object
- *                   properties:
- *                     hour:
- *                       type: string
- *                     periodic:
- *                       type: boolean
- *                     periodicZones:
- *                       type: array
- *                       items:
- *                         type: object
- *                         properties:
- *                           lieu:
- *                             type: string
- *                           prix:
- *                             type: string
- *               expressZones:
- *                 type: array
- *                 description: Zones EXPRESS de la boutique, SANS heure (migration 073). Un prix par lieu.
- *                 items:
- *                   type: object
- *                   properties:
- *                     lieu:
- *                       type: string
- *                     prix:
- *                       type: string
- *     responses:
- *       201:
- *         description: FastFood successfully created
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 message:
- *                   type: string
- *                 data:
- *                   $ref: '#/components/schemas/FastFood'
- *       400:
- *         description: Invalid input
- */
+// Doc Swagger de `POST /fastFood` : routes/docs/fastfoodRoutes.docs.js (plafond R3).
 route.post('', firebaseAuth, authorize(selfFromBody('userId')), createFastfoodController);
 
 /**
@@ -149,6 +53,10 @@ route.post('', firebaseAuth, authorize(selfFromBody('userId')), createFastfoodCo
  *         name: lng
  *         schema: { type: number }
  *         description: Longitude de l'utilisateur (avec `lat`).
+ *       - in: query
+ *         name: city
+ *         schema: { type: string }
+ *         description: Ville choisie au home (mode paginé) ; seules les boutiques qui la desservent (`cities`). Liste des villes : GET /fastfood/cities.
  *     responses:
  *       200:
  *         description: Liste des boutiques
@@ -189,6 +97,29 @@ route.post('', firebaseAuth, authorize(selfFromBody('userId')), createFastfoodCo
  *                           distanceKm: { type: number, nullable: true, description: "Distance utilisateur → boutique (km). null = position inconnue." }
  */
 route.get('/all', optionalFirebaseAuth, getfastfoodController);
+
+/**
+ * @swagger
+ * /fastfood/cities:
+ *   get:
+ *     summary: Villes du home (bottom sheet de la pilule de localisation)
+ *     description: Villes desservies (`cities`) par au moins une boutique visible au home, avec leur nombre de boutiques, et la ville par défaut du client (sa ville si desservie, sinon la ville de la boutique la plus proche). `GET /fastfood/all?city=` filtre ensuite le home.
+ *     tags: [Fastfood]
+ *     parameters:
+ *       - { in: query, name: userCity, schema: { type: string }, description: Ville du client (géocodage de l'app) }
+ *       - { in: query, name: lat, schema: { type: number } }
+ *       - { in: query, name: lng, schema: { type: number } }
+ *     responses:
+ *       200: { description: "{ cities: [{ name, count }], defaultCity: string|null, total }" }
+ */
+route.get('/cities', optionalFirebaseAuth, async (req, res) => {
+  try {
+    const { getHomeCities } = require('../services/fastfood/homeCities.service');
+    return res.status(200).json({ success: true, data: await getHomeCities({ userId: req.user?.uid, query: req.query }) });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Erreur serveur.', error: error.message });
+  }
+});
 
 // Doc Swagger de GET / POST `/fastFood/{fastFoodId}` : routes/docs/fastfoodRoutes.docs.js.
 
