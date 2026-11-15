@@ -83,6 +83,8 @@ const KEYS = {
   HIDDEN_FASTFOOD_IDS: 'hidden_fastfood_ids',
   // Corbeille d'images (migration 071) : jours avant effacement du storage.
   IMAGE_TRASH_RETENTION_DAYS: 'image_trash_retention_days',
+  // Module WhatsApp de rauval-backend (migration 073) : délai max d'un appel.
+  WHATSAPP_TIMEOUT_MS: 'whatsapp_timeout_ms',
   // Builds de TEST (migration 051, table `settings_test` depuis la 055, tableau
   // depuis la 056) : versions d'app exactes qui reçoivent les comportements de
   // test (mode volume de `GET /fastFood/all`, paiement gratuit). [] = aucune.
@@ -161,6 +163,7 @@ const KEY_CATEGORY = {
   [KEYS.FASTFOOD_PURGE_INTERVAL_MS]: 'app',
   [KEYS.HIDDEN_FASTFOOD_IDS]: 'app',
   [KEYS.IMAGE_TRASH_RETENTION_DAYS]: 'app',
+  [KEYS.WHATSAPP_TIMEOUT_MS]: 'app',
 
   // test — build de test (sorties de `deployment` par la migration 055)
   [KEYS.TEST_APP_VERSION]: 'test',
@@ -257,6 +260,8 @@ const FALLBACKS = {
   // Corbeille d'images : 60 j (décision du 13/11/2026). Même logique que la
   // rétention boutique : jamais plus court sur clé absente.
   [KEYS.IMAGE_TRASH_RETENTION_DAYS]: 60,
+  // Module WhatsApp : 15 s, comme le module lui-même.
+  [KEYS.WHATSAPP_TIMEOUT_MS]: 15000,
   // Build de test : repli à « aucune ». Une clé absente ne doit JAMAIS servir
   // des données de test à une vraie app.
   [KEYS.TEST_APP_VERSION]: [],
