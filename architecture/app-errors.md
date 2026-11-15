@@ -17,6 +17,13 @@ calcul à la main.
 (`src/repositories/supabase/appErrors.repo.js`), best-effort : ne casse jamais
 le flux appelant. Tout nouveau cas d'erreur grave s'y ajoute.
 
+> ⚠️ Jusqu'au 15/11/2026, `repos.appErrors` n'était pas exporté par
+> `repositories/index.js` : chaque `record` levait une TypeError (rien d'écrit,
+> le flux appelant interrompu). Corrigé sur `dev`, à porter en prod.
+
+Scope `order_payout` : versement automatique d'une commande livrée (boutique
+WhatsApp, `wallet/orderPayout.service.js`) non parti ou échoué, à faire à la main.
+
 Lecture des cas ouverts :
 
 ```sql

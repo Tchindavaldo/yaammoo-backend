@@ -25,5 +25,7 @@ startFastfoodPurgeJob();
 require('./utils/orderAutoCancelJob').startOrderAutoCancelJob();
 require('./utils/accountPurgeJob').startAccountPurgeJob();
 require('./utils/smsFeeJob').startSmsFeeJob();
+// Rappel WhatsApp des nouvelles commandes sans réponse (boutique WhatsApp, migration 087)
+require('./utils/whatsappReminderJob').startWhatsappReminderJob();
 
 server.listen(PORT, HOST, () => console.log(`Serveur lancé sur http://localhost:${PORT}`));
