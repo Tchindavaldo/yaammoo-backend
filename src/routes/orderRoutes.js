@@ -9,8 +9,9 @@ const { updateOrdersRankByDate } = require('../controllers/order/updateOrdersRan
 const { getDriverOrders } = require('../controllers/order/getDriverOrders');
 const { getDeliveryGroup } = require('../controllers/order/getDeliveryGroup');
 const { getCancelQuote } = require('../controllers/order/getCancelQuote');
+const { getDeliveryCode, confirmDeliveryController } = require('../controllers/order/deliveryCode.controller');
 const firebaseAuth = require('../middlewares/authMiddleware');
-const { authorize, orderCreate, orderFromBody, ordersFromBody, ordersFromIds, fastfoodFromParam, selfFromParam } = require('../middlewares/staffPermissionMiddleware');
+const { authorize, orderCreate, orderFromBody, ordersFromBody, ordersFromIds, fastfoodFromParam, selfFromParam, orderOwnerFromParam, orderDeliverFromParam } = require('../middlewares/staffPermissionMiddleware');
 
 // Toutes les routes /order exigent le Bearer (elles étaient publiques) — cf. staff.md.
 
@@ -158,6 +159,59 @@ router.get('/cancel-quote/:userId/:orderId', firebaseAuth, authorize(selfFromPar
  *                     $ref: '#/components/schemas/Order'
  */
 router.get('/driver/:driverId', firebaseAuth, authorize(selfFromParam('driverId')), getDriverOrders);
+
+/**
+ * @swagger
+ * /order/{orderId}/delivery-code:
+ *   get:
+ *     summary: Code de livraison de la commande (client) - contenu du QR code
+ *     description: |
+ *       Reserve au client de la commande. `whatsappLink` ouvre une discussion avec le numero
+ *       WhatsApp de Yaammoo, message prerempli « LIVRE <orderId> <code> » : le marchand sans app
+ *       le scanne avec l'appareil photo et l'envoie. Le QR ne paie rien, il prouve la remise.
+ *     tags: [Orders]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: orderId
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: "{ success, code, text, whatsappLink }" }
+ *       403: { description: Pas le client de la commande }
+ */
+router.get('/:orderId/delivery-code', firebaseAuth, authorize(orderOwnerFromParam), getDeliveryCode);
+
+/**
+ * @swagger
+ * /order/{orderId}/confirm-delivery:
+ *   post:
+ *     summary: Valide la remise d'une commande avec le code du client (scan du QR dans l'app)
+ *     description: Boutique (droit orders.deliver) ou livreur assigne. delivering -> delivered.
+ *     tags: [Orders]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: orderId
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [code]
+ *             properties:
+ *               code: { type: string }
+ *     responses:
+ *       200: { description: "{ success, message, order } (alreadyDelivered si deja livree)" }
+ *       400: { description: Code manquant ou invalide }
+ *       409: { description: Commande pas en livraison }
+ */
+router.post('/:orderId/confirm-delivery', firebaseAuth, authorize(orderDeliverFromParam), confirmDeliveryController);
 
 /**
  * @swagger

@@ -114,6 +114,18 @@ exports.ordersFromBody = async req => {
   return orders.map((o, i) => orderCheck(o, list[i].status));
 };
 
+/** GET /order/:orderId/delivery-code : le client de la commande seulement. */
+exports.orderOwnerFromParam = async req => {
+  const order = await repos.orders.getById(req.params.orderId);
+  return order ? [{ selfUids: [order.userId] }] : null;
+};
+
+/** POST /order/:orderId/confirm-delivery : boutique (droit de livrer) ou livreur assigné. */
+exports.orderDeliverFromParam = async req => {
+  const order = await repos.orders.getById(req.params.orderId);
+  return order ? [{ fastFoodId: order.fastFoodId, permission: 'orders.deliver', selfUids: [order.driverId || null] }] : null;
+};
+
 /** PUT /order : assignation livreur (boutique), avance livreur, sinon mise à jour libre. */
 exports.orderFromBody = async req => {
   const order = req.body?.id ? await repos.orders.getById(req.body.id) : null;

@@ -1,6 +1,11 @@
 const { menuFields } = require('./menuFields');
 
 // interfaces/order.js
+/** POST /order/:orderId/confirm-delivery — code lu dans le QR code du client. */
+exports.ConfirmDeliveryFields = {
+  code: { type: 'string', required: true }, // 6 caractères (casse et espaces ignorés)
+};
+
 exports.OrderFields = {
   id: { type: 'string', required: false },
   userId: { type: 'string', required: true },

@@ -20,6 +20,7 @@ Gestion centralisée configuration, variables d'environnement, secrets (clés AP
 | `serviceAccountKey.js` | Charger Firebase service account           |
 | `bird.js`              | Secret Bird (OTP) + région/URL déduites    |
 | `whatsapp.js`          | Module WhatsApp : URL, clé API, secret     |
+| `deliveryCode.js`      | Secret des codes de livraison (QR)         |
 
 ### `.env` (gitignoré)
 
@@ -64,6 +65,10 @@ BIRD_API_KEY=bk_us1_xxxx...              # région et URL déduites de la clé
 WHATSAPP_MODULE_URL=https://rauval-backend.fly.dev/whatsapp
 WHATSAPP_API_KEY=rvk_...                 # clé x-api-key de l'appli Yaammoo
 WHATSAPP_WEBHOOK_SECRET=whsec_...        # vérifie X-Rauval-Signature des événements reçus
+
+# Codes de livraison du QR client (HMAC de l'id de commande) — architecture/orders.md
+# Le changer invalide les QR déjà affichés.
+DELIVERY_CODE_SECRET=...
 
 # Payments
 MOBILEWALLET_URL=https://api.mobilewallet.com

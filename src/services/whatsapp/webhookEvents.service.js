@@ -39,9 +39,20 @@ const parseButton = id => {
   return i > 0 ? { ref: id.slice(0, i), action: id.slice(i + 1) } : null;
 };
 
+// Messages texte : chaque flux abonné essaie à son tour ; fn(event) -> true s'il l'a traité.
+const textHandlers = [];
+
+/** Abonne un flux aux messages texte (ex. « LIVRÉ <id> <code> » du marchand). */
+exports.onText = fn => {
+  textHandlers.push(fn);
+};
+
 async function handleMessage(event) {
   const btn = event.button?.id ? parseButton(event.button.id) : null;
   if (!btn) {
+    if (event.type === 'text' && event.text) {
+      for (const fn of textHandlers) if (await fn(event)) return { handled: true };
+    }
     console.log(`[WHATSAPP] Message ${event.type} de ${event.from} (${event.messageId})`);
     return { handled: false };
   }

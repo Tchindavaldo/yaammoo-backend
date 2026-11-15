@@ -1,5 +1,5 @@
-// Appels sortants vers le module WhatsApp de rauval-backend (envoi, accusé de lecture).
-// Utilisé par les futurs flux marchands (todo/fastfood/feature/whatsapp-commandes-marchand.md).
+// Appels sortants vers le module WhatsApp de rauval-backend (envoi, accusé de lecture, numéro).
+// Utilisé par services/whatsapp/merchantOrders.service.js et services/order/deliveryLink.service.js.
 // Ne lève jamais : renvoie { ok, status, data } ; un échec est journalisé.
 const config = require('../../config/whatsapp');
 const { getWhatsappTimeoutMs } = require('../settings/settings.service');
@@ -36,3 +36,13 @@ exports.sendMessage = body => call('POST', '/messages', body);
 
 /** Coches bleues sur un message reçu (id Rauval ou wamid), `typing` = indicateur de saisie. */
 exports.markRead = (messageId, typing = false) => call('POST', `/messages/${encodeURIComponent(messageId)}/read`, { typing });
+
+// Numéro WhatsApp de l'appli Yaammoo, gardé 1 h : il change seulement quand le module en attribue un autre.
+let myNumber = { phone: null, at: 0 };
+/** Numéro E.164 de l'appli dans le module (ex. +15557624938), null si indisponible. */
+exports.myPhone = async () => {
+  if (myNumber.phone && Date.now() - myNumber.at < 3600e3) return myNumber.phone;
+  const r = await call('GET', '/me');
+  if (r.ok && r.data?.number?.phone) myNumber = { phone: r.data.number.phone, at: Date.now() };
+  return myNumber.phone;
+};
