@@ -444,9 +444,10 @@ L'intervalle est relu à **chaque tour** du job (`setTimeout` réarmé, pas
 
 ### Limite connue — restauration
 
-`restore` ne réattribue **pas** `users.fastfood_id` : entre-temps le propriétaire
-a pu créer une autre boutique, et écraser ce lien lui en ferait perdre une. La
-réponse porte `ownerReattached: false` — le rattachement se fait à la main.
+`restoreFastfoodService` rattache la boutique à son propriétaire
+(`fastfoods.user_id` → `users.fastfood_id`, `ownerReattached: true`). S'il a
+créé une autre boutique entre-temps (ou si son compte n'existe plus), rien
+n'est écrasé : `ownerReattached: false`, rattachement à la main.
 
 ---
 

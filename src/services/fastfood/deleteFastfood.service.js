@@ -122,9 +122,9 @@ exports.deleteFastfoodsService = async ({ fastFoodIds, scopes } = {}) => {
 /**
  * Annule une suppression tant que la purge n'est pas passée.
  *
- * ⚠️ Le lien `users.fastfood_id` n'est PAS rétabli automatiquement (le
- * propriétaire a pu créer une autre boutique entre-temps) : il est renvoyé
- * dans `ownerReattached: false` pour que l'admin le refasse sciemment.
+ * Le lien `users.fastfood_id` est rétabli vers le propriétaire
+ * (`fastfoods.user_id`), sauf s'il a recréé une boutique entre-temps
+ * (`ownerReattached: false`, rattachement à la main).
  */
 exports.restoreFastfoodService = async fastFoodId => {
   if (!fastFoodId) throw new Error('fastFoodId requis.');
@@ -135,7 +135,23 @@ exports.restoreFastfoodService = async fastFoodId => {
   }
 
   const fastfood = await repos.fastfoodDeletion.getByIdIncludingDeleted(fastFoodId);
-  return { fastfood, ownerReattached: false };
+  // Rattachement automatique au propriétaire (fastfoods.user_id, jamais vidé
+  // par la suppression), sauf s'il a recréé une boutique entre-temps.
+  let ownerReattached = false;
+  const ownerId = fastfood?.userId;
+  if (ownerId) {
+    try {
+      const owner = await repos.users.getUserById(ownerId).catch(() => null);
+      const current = await repos.fastfoods.getByUserId(ownerId).catch(() => null);
+      if (owner && (!current || current.id === fastFoodId)) {
+        await repos.users.updateUser(ownerId, { fastFoodId });
+        ownerReattached = true;
+      }
+    } catch (e) {
+      console.warn(`[restoreFastfood] rattachement ${ownerId}: ${e.message}`);
+    }
+  }
+  return { fastfood, ownerReattached };
 };
 
 /**

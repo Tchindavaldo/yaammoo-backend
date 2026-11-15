@@ -47,7 +47,7 @@ exports.restoreFastfoodController = async (req, res) => {
     const data = await restoreFastfoodService(req.params.fastFoodId);
     return res.status(200).json({
       success: true,
-      message: 'Boutique restaurée. Le propriétaire doit être rattaché manuellement si nécessaire.',
+      message: data.ownerReattached ? 'Boutique restaurée et rattachée à son propriétaire.' : 'Boutique restaurée. Propriétaire non rattaché (introuvable ou déjà une autre boutique).',
       data,
     });
   } catch (error) {
