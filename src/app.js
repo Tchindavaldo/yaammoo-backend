@@ -35,6 +35,8 @@ const app = express();
 
 // Module WhatsApp (rauval-backend) : AVANT express.json, la signature porte sur le corps brut.
 app.use('/whatsapp/webhook', whatsappWebhookRoutes);
+// Boutons des messages WhatsApp marchands (Accepter, Refuser, suivi des statuts).
+require('./services/whatsapp/merchantOrders.service').registerMerchantOrderButtons();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cors({ origin: '*', methods: '*', allowedHeaders: '*', credentials: true }));

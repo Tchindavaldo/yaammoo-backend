@@ -9,6 +9,7 @@ const { getFastFoodDeliveryStatsController } = require('../controllers/fastfood/
 const { patchFastFoodDeliveryController, patchAllFastFoodsDeliveryController } = require('../controllers/fastfood/deliveryConfig.controller');
 const { deleteFastfoodsController, restoreFastfoodController, listDeletedFastfoodsController, purgeDeletedFastfoodsController } = require('../controllers/fastfood/deleteFastfood.controller');
 const { getMerchantStatsController } = require('../controllers/fastfood/getMerchantStats');
+const { patchWhatsappOrdersController } = require('../controllers/whatsapp/merchantShop.controller');
 const firebaseAuth = require('../middlewares/authMiddleware');
 const adminGuard = require('../middlewares/adminMiddleware');
 const { requireFastfoodPermission, authorize, selfFromBody } = require('../middlewares/staffPermissionMiddleware');
@@ -264,6 +265,40 @@ route.patch('/delivery', firebaseAuth, adminGuard, patchAllFastFoodsDeliveryCont
  *       404: { description: Boutique introuvable }
  */
 route.patch('/:fastFoodId/delivery', firebaseAuth, adminGuard, patchFastFoodDeliveryController);
+
+/**
+ * @swagger
+ * /fastfood/{fastFoodId}/whatsapp-orders:
+ *   patch:
+ *     summary: Boutique WhatsApp (admin) - commandes envoyees au marchand sur WhatsApp
+ *     description: |
+ *       Pour un marchand sans l'app. Les commandes payees lui arrivent sur le numero
+ *       `whatsappNumber` de la boutique (template yam_nouvelle_commande, boutons Accepter / Refuser),
+ *       puis le suivi des statuts se fait par boutons. Activer exige un whatsappNumber valide.
+ *     tags: [FastFood]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: fastFoodId
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [enabled]
+ *             properties:
+ *               enabled: { type: boolean }
+ *     responses:
+ *       200: { description: "{ success, message, fastFood: { id, whatsappOrders, whatsappNumber } }" }
+ *       400: { description: enabled manquant, ou boutique sans numero WhatsApp valide }
+ *       403: { description: Reserve aux administrateurs }
+ *       404: { description: Boutique introuvable }
+ */
+route.patch('/:fastFoodId/whatsapp-orders', firebaseAuth, adminGuard, patchWhatsappOrdersController);
 
 route.get('/:fastFoodId/delivery-stats', firebaseAuth, getFastFoodDeliveryStatsController);
 

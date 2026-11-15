@@ -25,6 +25,11 @@ exports.whatsappMessageEventFields = {
   raw: { type: 'object', required: false }, // message Meta brut
 };
 
+/** PATCH /fastfood/:fastFoodId/whatsapp-orders (admin) : boutique WhatsApp. */
+exports.whatsappOrdersFields = {
+  enabled: { type: 'boolean', required: true }, // true : commandes envoyées au marchand sur WhatsApp
+};
+
 /** event = 'status' : suivi d'un message envoyé. */
 exports.whatsappStatusEventFields = {
   event: { type: 'string', required: true },

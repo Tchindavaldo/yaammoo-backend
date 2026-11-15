@@ -16,7 +16,7 @@ de passerelle avec les marchands qui ne veulent pas de l'app.
 | `WHATSAPP_API_KEY` | clé `x-api-key` de l'appli Yaammoo (montrée une seule fois à la création) |
 | `WHATSAPP_WEBHOOK_SECRET` | secret de relais : vérifie la signature des événements reçus |
 
-Réglage en base : `settings_app.whatsapp_timeout_ms` (15000 par défaut, migration 080).
+Réglage en base : `settings_app.whatsapp_timeout_ms` (15000 par défaut, migration 085).
 Dans le module, l'URL de relais de l'appli Yaammoo doit pointer sur
 `https://<backend>/whatsapp/webhook` (test ou prod, une seule à la fois).
 
@@ -47,11 +47,33 @@ signature porte sur le corps brut.
    - `status` `failed` : journalisé en erreur.
 4. `200 { success, handled }` ; erreur d'un flux → `500` (le module ne renvoie pas).
 
+## Flux marchands (boutique WhatsApp)
+
+Marchand sans l'app : l'admin crée sa boutique comme les autres, puis
+`PATCH /fastfood/:fastFoodId/whatsapp-orders { enabled }` (admin, exige un
+`whatsappNumber` valide ; stocké dans `fastfoods.extra_data.whatsappOrders`).
+Code : `services/whatsapp/merchantOrders.service.js`, textes `merchantMessages.js`.
+
+1. **Commande payée** (`createOrder`, `updateOrders` `pendingToBuy → pending`, là où part
+   `newFastFoodOrders`) → template `yam_nouvelle_commande` au numéro de la boutique : photo
+   du plat, n° (fin de l'id), plats, livraison, montant **vue marchand** (`toMerchantView`).
+   Un panier (`groupId`) = un message. Boutons : payload `<orderId>:accept|refuse`, ou
+   `g:<groupId>:<fastFoodId>:accept|refuse` pour un panier.
+2. **Accepter** → `updateOrders` (`pending → processing`) ; **Refuser** → `cancelByFastFood`
+   (remboursement du client par `orderCancel.service`, comme dans l'app).
+3. **Suivi** : après chaque étape, message libre (fenêtre de 24 h ouverte par le clic, gratuit)
+   avec le récapitulatif et UN bouton, l'étape suivante : Terminée (`<id>:finished`), puis En
+   livraison (`<id>:delivering`). « Livrée » ne passe pas par un bouton : le scan du QR code
+   du client la valide (à venir, avec le versement automatique au marchand).
+4. Garde-fous : seul le numéro de la boutique pilote ses commandes (`event.from`) ; chaque
+   action exige le statut précédent (un double clic ne fait pas avancer deux fois) ; numéros
+   toujours envoyés au module en `+237…`.
+
 ## À venir
 
-Flux marchands (nouvelle commande, acceptation, suivi des statuts, rappel,
-demande d'annulation) : `todo/fastfood/feature/whatsapp-commandes-marchand.md`
-et `todo/user/feature/annulation-sur-demande.md`.
+QR de livraison + versement automatique, rappel sans réponse (`yam_rappel_commande`),
+`yam_statut_commande` hors fenêtre, `yam_commande_livree`, demande d'annulation :
+`todo/fastfood/feature/whatsapp-commandes-marchand.md` et `todo/user/feature/annulation-sur-demande.md`.
 
 ## Fichiers
 
@@ -61,7 +83,11 @@ routes/whatsappWebhookRoutes.js
 controllers/whatsapp/webhook.controller.js
 services/whatsapp/webhookEvents.service.js     signature, aiguillage, onButton
 services/whatsapp/whatsappModule.client.js     envoi, accusé de lecture
+services/whatsapp/merchantOrders.service.js    flux marchands (commande, boutons, suivi)
+services/whatsapp/merchantMessages.js          textes des messages marchands
+services/whatsapp/merchantShop.service.js      réglage admin boutique WhatsApp
+controllers/whatsapp/merchantShop.controller.js
 interface/whatsappWebhookFields.js
 utils/validator/validateWhatsappEvent.js
-schema/migrations/080_whatsapp_settings.sql
+schema/migrations/085_whatsapp_settings.sql
 ```

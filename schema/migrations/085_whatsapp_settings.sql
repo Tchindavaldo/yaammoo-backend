@@ -1,5 +1,5 @@
 -- ============================================================================
--- 080 — Réglage du module WhatsApp (rauval-backend) dans `settings_app`
+-- 085 — Réglage du module WhatsApp (rauval-backend) dans `settings_app`
 -- ============================================================================
 -- Délai max d'un appel au module (envoi, accusé de lecture). Sans la ligne, le
 -- code retombe sur 15000 (FALLBACKS) : la migration peut suivre le déploiement.

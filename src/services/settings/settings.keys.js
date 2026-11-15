@@ -90,7 +90,7 @@ const KEYS = {
   // Migration 076 : jours après lesquels une commande payée que le marchand n'a
   // pas livrée est annulée d'office (remboursement complet, frais au marchand).
   ORDER_AUTO_CANCEL_DAYS: 'order_auto_cancel_days',
-  // Module WhatsApp de rauval-backend (migration 080) : délai max d'un appel.
+  // Module WhatsApp de rauval-backend (migration 085) : délai max d'un appel.
   WHATSAPP_TIMEOUT_MS: 'whatsapp_timeout_ms',
   // Builds de TEST (migration 051, table `settings_test` depuis la 055, tableau
   // depuis la 056) : versions d'app exactes qui reçoivent les comportements de

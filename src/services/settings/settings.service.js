@@ -344,7 +344,7 @@ async function getPlatformDeliveryAll() {
   }
 }
 
-/** Délai max (ms) d'un appel au module WhatsApp de rauval-backend (migration 080). */
+/** Délai max (ms) d'un appel au module WhatsApp de rauval-backend (migration 085). */
 async function getWhatsappTimeoutMs() {
   const s = await getSettings();
   const v = Number(s[KEYS.WHATSAPP_TIMEOUT_MS]);
