@@ -96,14 +96,26 @@ PushToken {
    - `users.deleteCascade` : boutique en suppression douce (`deleted_at`,
      `deleted_reason = 'account'`, migration 080), ligne users supprimée (push
      tokens, positions, analytics, support en cascade). Rien d'autre n'est effacé.
-   - Profil brut archivé dans `account_archives` (`retain_until`).
+   - Profil brut archivé dans `account_archives` (`retain_until`), avec les
+     identités de connexion lues dans Firebase Auth AVANT sa suppression
+     (`identity_keys`, migration 082 : `email:…`, `phone:…`, `google.com:<sub>`,
+     `apple.com:<sub>`, `utils/authIdentityKeys.js`).
    - Compte Firebase Auth supprimé.
-3. `accountPurgeJob` (1×/jour) : à `retain_until`, efface toutes les données du
-   compte et de ses boutiques (`accountArchives.purge`). La purge des boutiques
+3. `accountPurgeJob` (1×/jour) à `retain_until` :
+   - compte peu actif (90 jours) : `purgePersonal` efface les données
+     personnelles (profil archivé, identités, notifications, menus, numéros
+     vérifiés…) ; commandes, transactions, règlements, retraits restent, et
+     `retain_until` passe à 10 ans après la suppression (`personal_purged`,
+     migration 082). La boutique n'est plus restaurable ;
+   - à 10 ans : `purge` efface tout (argent, boutiques, archive). La purge des boutiques
    supprimées par un admin (047) ignore `deleted_reason = 'account'` (migration 081).
 4. Restauration : `GET /shop-restore` liste les boutiques supprimées avec le
-   compte (même uid, la connexion par numéro le redonne), `POST /shop-restore/:id`
-   les restaure et les rattache (409 si une boutique est déjà active).
+   compte de la même personne : le compte recréé a un nouvel uid, le
+   rapprochement se fait par identités de connexion (une seule en commun suffit,
+   quel que soit le mode de connexion). `POST /shop-restore/:id` restaure,
+   rattache la boutique au nouveau compte (`fastfoods.user_id`) et la retire de
+   l'archive (`fastfood_ids`), donc la purge du compte supprimé ne la touche
+   plus (409 si une boutique est déjà active).
 
 ---
 

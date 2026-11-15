@@ -38,6 +38,7 @@ exports.getUserByPhone = phone => repos.users.getUserByPhone(phone);
 // ⚠️ Firebase Auth reste géré ici (admin.auth) — c'est de l'auth, pas de la BD.
 // ============================================================================
 const { admin } = require('../../config/firebase');
+const { identityKeys: identityKeys_ } = require('../../utils/authIdentityKeys');
 
 exports.deleteUserAccount = async uid => {
   if (!uid) throw new Error('UID requis pour la suppression');
@@ -52,8 +53,9 @@ exports.deleteUserAccount = async uid => {
     const span = await repos.accountArchives.paymentSpan(uid, ownShops?.id ? [ownShops.id] : []);
     const longRetention = !!span && span.last - span.first >= 365 * 86400000;
     const retainUntil = new Date(Date.now() + (longRetention ? 3652 : 90) * 86400000).toISOString();
+    const identityKeys = await identityKeys_(uid);
     const { profile, fastFoodIds } = await repos.users.deleteCascade(uid);
-    await repos.accountArchives.save({ uid, userData: profile, fastFoodIds, longRetention, retainUntil });
+    await repos.accountArchives.save({ uid, userData: profile, fastFoodIds, longRetention, retainUntil, identityKeys });
     console.log(`✅ [DELETE-ACCOUNT] ${uid} archivé jusqu'au ${retainUntil} (${longRetention ? '10 ans' : '90 jours'})`);
   } catch (err) {
     console.warn(`⚠️  [DELETE-ACCOUNT] Erreur suppression données Supabase: ${err.message}`);
