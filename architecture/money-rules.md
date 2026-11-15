@@ -127,6 +127,10 @@ payée **par pawaPay** non livrée après `settings_app.order_auto_cancel_days` 
 | **Interréseau** | le marchand retire vers l'AUTRE réseau | ⌈taux payout pawaPay du réseau de réception × montant⌉, débité **en plus** du solde (devis MobileWallet `/payout/quote` fait foi) |
 | **Frais SMS** (`sms_fee`) | code SMS de vérification d'un numéro de retrait | ⌈coût Bird réel USD × taux USD→XAF du jour⌉, débité du réseau vérifié ; négatif non bloquant ([wallet.md](./wallet.md)) |
 
+- **Part plateforme** (`GET /wallet/admin/platform-share`) : marges des commandes
+  non annulées + frais SMS − versements aux boutiques − retraits admin
+  (`platform_withdrawal`, `POST /wallet/admin/platform-withdraw`, même réseau).
+  Détail : [wallet.md](./wallet.md).
 - Retrait **même réseau** : **0 F** pour le marchand (réserve déjà prise au dépôt).
 - Le kiosque fait partie du crédit marchand (part « Frais de retrait » du solde).
 - Prix affiché (réseau inconnu) : barème du réseau **le plus cher**. Règlement :

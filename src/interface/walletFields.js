@@ -51,3 +51,17 @@ exports.PlatformTransferFields = {
   // Motif libre, gardé pour la traçabilité.
   reason: { type: 'string', required: false },
 };
+
+// POST /wallet/admin/platform-withdraw (admin uniquement)
+// Retire de la part plateforme vers un numéro Mobile Money, SUR LE MÊME RÉSEAU
+// (la réserve de retrait prise au dépôt paie le payout : aucun frais interréseau).
+exports.PlatformWithdrawFields = {
+  // Montant envoyé (FCFA, entier > 0), plafonné à la part disponible du réseau.
+  amount: { type: 'number', required: true },
+  // Numéro qui reçoit l'argent.
+  phone: { type: 'string', required: true },
+  // Réseau de la part débitée ET du numéro de réception.
+  network: { type: 'string', required: true, enum: ['MTN', 'ORANGEMONEY'] },
+  // Motif libre, gardé pour la traçabilité.
+  reason: { type: 'string', required: false },
+};

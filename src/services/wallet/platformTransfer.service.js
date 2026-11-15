@@ -29,6 +29,9 @@ const { WALLET_AGGREGATORS } = require('../../utils/paymentAggregator');
 const { toBalanceKey } = require('../../utils/mobileNetwork');
 
 const TRANSFER_NAME = 'Crédit Yaammoo';
+/** Verrou partagé avec platformWithdraw.service (table platform_transfer_locks). */
+const PLATFORM_LOCK = '__platform__';
+exports.PLATFORM_LOCK = PLATFORM_LOCK;
 
 const fail = (httpStatus, code, message, data) => ({ success: false, httpStatus, code, message, ...(data ? { data } : {}) });
 
@@ -61,13 +64,16 @@ exports.transferPlatformMargin = async ({ toFastFoodId, sources, reason, adminUi
 
   const merged = mergeSources(sources);
   const sourceIds = [...new Set(merged.map(s => s.fastFoodId))];
-  if (!(await repos.platformTransfers.acquireLocks(sourceIds, adminUid))) {
-    return fail(409, 'transfer_in_progress', 'Un transfert est déjà en cours sur une des boutiques sources');
+  // + verrou global PLATFORM_LOCK : un retrait admin et un versement ne
+  // peuvent pas puiser en même temps dans la part plateforme.
+  const lockIds = [...sourceIds, PLATFORM_LOCK];
+  if (!(await repos.platformTransfers.acquireLocks(lockIds, adminUid))) {
+    return fail(409, 'transfer_in_progress', 'Un transfert ou un retrait est déjà en cours sur la marge plateforme');
   }
   try {
     return await runTransfer({ dest, toFastFoodId, merged, reason, adminUid });
   } finally {
-    await repos.platformTransfers.releaseLocks(sourceIds);
+    await repos.platformTransfers.releaseLocks(lockIds);
   }
 };
 
@@ -89,6 +95,18 @@ async function runTransfer({ dest, toFastFoodId, merged, reason, adminUid }) {
     }
     const available = margin.available[toBalanceKey(s.network)];
     if (s.amount > available) refused.push({ fastFoodId: s.fastFoodId, network: s.network, amount: s.amount, available: Math.max(0, available), reason: 'exceeds_available_margin' });
+  }
+  // Plafond GLOBAL : la part disponible de la plateforme sur ce réseau
+  // (gagnée − déjà retirée par l'admin − retraits en cours). Sans lui, une
+  // marge déjà retirée pourrait encore être versée à une boutique.
+  if (!refused.length) {
+    const share = await repos.platformShare.getPlatformShare();
+    const asked = { mtn: 0, orange: 0 };
+    for (const s of merged) asked[toBalanceKey(s.network)] += s.amount;
+    for (const key of ['mtn', 'orange']) {
+      const avail = share.byNetwork[key].available;
+      if (asked[key] > avail) refused.push({ network: key, amount: asked[key], available: Math.max(0, avail), reason: 'exceeds_platform_available' });
+    }
   }
   if (refused.length) {
     console.warn(`[PlatformTransfer] ❌ refusé (admin=${adminUid}, dest=${toFastFoodId}) : ${JSON.stringify(refused)}`);

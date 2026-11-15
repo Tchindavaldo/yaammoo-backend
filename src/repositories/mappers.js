@@ -407,6 +407,8 @@ const withdrawalToSupabase = data => ({
   // Migration 066 : frais kiosque inclus dans `amount` (envoyé au téléphone).
   kiosk_fee: data.kioskFee ?? 0,
   status: data.status ?? 'pending',
+  // Migration 084 : 'wallet' (marchand/livreur) ou 'platform' (part plateforme, admin).
+  kind: data.kind ?? 'wallet',
   mw_payout_id: data.mwPayoutId ?? null,
   failure_reason: data.failureReason ?? null,
   created_at: toIso(data.createdAt),
@@ -426,6 +428,7 @@ const withdrawalFromSupabase = row => {
     fee: row.fee != null ? Number(row.fee) : 0,
     kioskFee: row.kiosk_fee != null ? Number(row.kiosk_fee) : 0,
     status: row.status,
+    kind: row.kind ?? 'wallet',
     mwPayoutId: row.mw_payout_id,
     failureReason: row.failure_reason,
     createdAt: row.created_at,

@@ -9,8 +9,9 @@ const repos = require('../../repositories');
 const { requestWithdrawal } = require('../../services/wallet/withdraw.service');
 const { quoteWithdrawal, crossNetworkRates } = require('../../services/wallet/withdrawQuote.service');
 const { predictOperator } = require('../../services/transaction/mobilewalletService');
-const { validateWithdrawalQuote, validatePlatformTransfer } = require('../../utils/validator/validateWithdrawal');
+const { validateWithdrawalQuote, validatePlatformTransfer, validatePlatformWithdraw } = require('../../utils/validator/validateWithdrawal');
 const { transferPlatformMargin } = require('../../services/wallet/platformTransfer.service');
+const { requestPlatformWithdrawal } = require('../../services/wallet/platformWithdraw.service');
 const { resolvePeriod } = require('../../utils/period');
 const { OUTDATED_WITHDRAW_RESPONSE } = require('../../utils/walletAppVersion');
 const { getAppVersionGate } = require('../../services/settings/settings.service');
@@ -213,6 +214,24 @@ exports.platformShareController = async (req, res) => {
     return res.status(200).json({ success: true, data });
   } catch (error) {
     console.error(`[Wallet] GET /admin/platform-share ❌ admin=${req.user?.uid}: ${error.message}`);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+/**
+ * POST /wallet/admin/platform-withdraw — retire de la part plateforme vers un
+ * numéro Mobile Money du même réseau (admin). Body : { amount, phone, network, reason? }
+ */
+exports.platformWithdrawController = async (req, res) => {
+  try {
+    const errors = validatePlatformWithdraw(req.body);
+    if (errors.length) return res.status(400).json({ success: false, error: 'Validation échouée', errors });
+    const { amount, phone, network, reason } = req.body;
+    const result = await requestPlatformWithdrawal({ adminUid: req.user?.uid, amount, phone, network, reason });
+    if (!result.success) return res.status(result.httpStatus).json({ success: false, code: result.code, message: result.message, ...(result.data ? { data: result.data } : {}) });
+    return res.status(200).json({ success: true, data: result.data });
+  } catch (error) {
+    console.error(`[Wallet] POST /admin/platform-withdraw ❌ admin=${req.user?.uid}: ${error.message}`);
     return res.status(500).json({ success: false, error: error.message });
   }
 };

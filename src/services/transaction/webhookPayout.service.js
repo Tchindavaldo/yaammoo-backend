@@ -42,7 +42,26 @@ exports.webhookPayoutVerdict = async (withdrawal, data, source) => {
   // Frais interréseau (0 si même réseau) : débités EN PLUS du montant reçu.
   const fee = Number(withdrawal.fee) || 0;
 
-  if (status === 'successful') {
+  if (status === 'successful' && withdrawal.kind === 'platform') {
+    // Retrait de la part plateforme (admin) : aucun portefeuille touché, une
+    // transaction `platform_withdrawal` baisse la part disponible (platformShare.repo).
+    await repos.transactions.create({
+      type: 'platform_withdrawal',
+      userId,
+      amount: amt,
+      name: 'Retrait part plateforme',
+      payBy: withdrawal.network,
+      aggregator: withdrawal.aggregator || null,
+      network: withdrawal.sourceNetwork || null,
+      mwTransactionId: transaction_id || null,
+      withdrawalId: withdrawal.id,
+      status: 'completed',
+      phone: withdrawal.phone,
+    });
+    await repos.withdrawals.updateStatus(withdrawal.id, { status: 'completed' });
+    log.info(`${logPrefix} ✓ Retrait plateforme confirmé → ${amt} sur ${withdrawal.sourceNetwork}`);
+    await reliableEmit(getIO(), userId, 'wallet.platformWithdrawal', { withdrawalId: withdrawal.id, amount: amt, status: 'completed', network: withdrawal.sourceNetwork });
+  } else if (status === 'successful') {
     // Découpage du débit : frais (kiosque + interréseau) pris d'abord sur la
     // réserve « frais » du solde source, le manque sur la part « commandes ».
     const kioskFee = Number(withdrawal.kioskFee) || 0;

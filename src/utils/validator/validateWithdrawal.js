@@ -68,3 +68,13 @@ exports.validatePlatformTransfer = (data = {}) => {
   if (data.reason !== undefined && typeof data.reason !== 'string') errors.push({ field: 'reason', message: 'Motif invalide' });
   return errors;
 };
+
+/** Retrait de la part plateforme (admin) : montant + numéro + réseau (même réseau). */
+exports.validatePlatformWithdraw = (data = {}) => {
+  const errors = [];
+  checkAmount(errors, data.amount);
+  checkNetwork(errors, 'network', data.network, 'Réseau');
+  if (!data.phone || typeof data.phone !== 'string') errors.push({ field: 'phone', message: 'Numéro de téléphone requis' });
+  if (data.reason !== undefined && typeof data.reason !== 'string') errors.push({ field: 'reason', message: 'Motif invalide' });
+  return errors;
+};

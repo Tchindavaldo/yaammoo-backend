@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 
 const firebaseAuth = require('../middlewares/authMiddleware');
-const { getBalanceController, getHistoryController, getStatsController, withdrawController, getWithdrawQuoteController, predictOperatorController, platformTransferController, platformShareController } = require('../controllers/wallet/wallet.controller');
+const { getBalanceController, getHistoryController, getStatsController, withdrawController, getWithdrawQuoteController, predictOperatorController, platformTransferController, platformShareController, platformWithdrawController } = require('../controllers/wallet/wallet.controller');
 const { authorize, adminOnly } = require('../middlewares/staffPermissionMiddleware');
 
 /**
@@ -345,16 +345,47 @@ router.post('/admin/platform-transfer', firebaseAuth, authorize(adminOnly), plat
  *     description: |
  *       Par réseau (orange, mtn), portefeuille pawaPay : `margin` (Σ
  *       order_settlements.platform_margin, commandes annulées exclues),
- *       `smsFees` (Σ sms_fee), `transferred` (Σ platform_transfer), `share` =
- *       margin + smsFees − transferred, et `walletsOwed` (Σ des soldes positifs
- *       des portefeuilles, à laisser sur le compte). Les retraits faits
- *       directement sur pawaPay ne sont pas connus.
+ *       `smsFees` (Σ sms_fee), `transferred` (Σ platform_transfer), `earned` =
+ *       margin + smsFees − transferred, `withdrawn` (retraits admin),
+ *       `pendingWithdrawal`, `available` = earned − withdrawn − pending, et `walletsOwed` (Σ des soldes positifs
+ *       des portefeuilles, à laisser sur le compte).
  *     tags: [Wallet]
  *     security: [{ bearerAuth: [] }]
  *     responses:
- *       200: { description: "{ byNetwork: { orange, mtn }, total, excludedCancelledOrders }" }
+ *       200: { description: "{ byNetwork: { orange, mtn }, totalEarned, totalWithdrawn, totalAvailable, excludedCancelledOrders }" }
  *       403: { description: Réservé aux administrateurs }
  */
 router.get('/admin/platform-share', firebaseAuth, authorize(adminOnly), platformShareController);
+
+/**
+ * @swagger
+ * /wallet/admin/platform-withdraw:
+ *   post:
+ *     summary: Retirer de la part plateforme (admin)
+ *     description: |
+ *       Payout MobileWallet vers `phone`, sur le MÊME réseau que la part débitée
+ *       (aucun frais interréseau). Plafond : `available` du réseau
+ *       (GET /wallet/admin/platform-share). Au succès : transaction
+ *       `platform_withdrawal`. Verrou partagé avec platform-transfer.
+ *     tags: [Wallet]
+ *     security: [{ bearerAuth: [] }]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [amount, phone, network]
+ *             properties:
+ *               amount: { type: integer }
+ *               phone: { type: string }
+ *               network: { type: string, enum: [MTN, ORANGEMONEY] }
+ *               reason: { type: string }
+ *     responses:
+ *       200: { description: "{ withdrawalId, amount, network, status: 'pending' }" }
+ *       400: { description: "Validation, ou insufficient_platform_share" }
+ *       409: { description: "Retrait ou versement déjà en cours" }
+ */
+router.post('/admin/platform-withdraw', firebaseAuth, authorize(adminOnly), platformWithdrawController);
 
 module.exports = router;

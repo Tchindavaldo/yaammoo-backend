@@ -65,3 +65,4 @@ exports.updateStatus = async (id, { status, mwPayoutId, failureReason, fee } = {
   if (error) throw error;
   return m.withdrawal.fromSupabase(data);
 };
+

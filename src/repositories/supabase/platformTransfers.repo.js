@@ -8,6 +8,7 @@
 //                            de la boutique payées sur ce réseau (portefeuille)
 //   déjà transférée[réseau] = Σ platform_transfer dont la SOURCE est la boutique
 //   disponible             = gagnée − transférée
+//   Commandes annulées (remboursées) exclues de la marge gagnée.
 //
 // Le réseau d'une commande est celui du paiement, relu sur son crédit marchand
 // (`merchant_credit`, extra_data.relatedOrderId) : `order_settlements` ne le
@@ -39,6 +40,14 @@ exports.getEarnedMarginByNetwork = async fastFoodId => {
   if (!settlements?.length) return earned;
 
   const marginByOrder = new Map(settlements.map(s => [s.order_id, Number(s.platform_margin) || 0]));
+  // Commande annulée = remboursée : la plateforme n'en garde rien, sa marge
+  // n'est pas disponible (même règle que platformShare.repo).
+  for (const ids of chunks([...marginByOrder.keys()])) {
+    const { data: cancelled, error: e1 } = await supabase.from('orders').select('id').in('id', ids).in('status', ['cancelByUser', 'cancelByFastFood']);
+    if (e1) throw e1;
+    for (const o of cancelled || []) marginByOrder.delete(o.id);
+  }
+  if (!marginByOrder.size) return earned;
   // Une commande = un crédit marchand ; on dédoublonne par sécurité.
   const networkByOrder = new Map();
   for (const ids of chunks([...marginByOrder.keys()])) {

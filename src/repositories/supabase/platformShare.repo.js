@@ -9,7 +9,11 @@
 //   fraisSms[réseau]  = Σ transactions `sms_fee` (coût Bird refacturé au marchand)
 //   versé[réseau]     = Σ transactions `platform_transfer` (marge versée à une
 //                       boutique par un admin)
-//   part[réseau]      = marge + fraisSms − versé
+//   gagné[réseau]     = marge + fraisSms − versé
+//   retiré[réseau]    = Σ transactions `platform_withdrawal` (retraits admin
+//                       confirmés, POST /wallet/admin/platform-withdraw)
+//   enCours[réseau]   = retraits admin envoyés, verdict pas encore reçu
+//   disponible        = gagné − retiré − enCours  (plafond d'un retrait / versement)
 //
 //   dûAuxPortefeuilles[réseau] = Σ des soldes POSITIFS des portefeuilles
 //                       (marchands, livreurs) : argent qui doit rester sur le
@@ -18,8 +22,8 @@
 //
 // Le réseau d'une commande est celui de son crédit marchand (`merchant_credit`,
 // extra_data.relatedOrderId), comme dans platformTransfers.repo.
-// ⚠️ Les retraits faits par l'admin directement sur pawaPay (hors app) ne sont
-// pas connus ici : `part` est ce que la plateforme a GAGNÉ, pas ce qui reste.
+// ⚠️ Un retrait fait directement sur pawaPay (hors app) n'est pas connu ici :
+// toujours retirer par la route admin.
 // ============================================================================
 const { supabase } = require('../../config/supabase');
 const { WALLET_AGGREGATORS } = require('../../utils/paymentAggregator');
@@ -108,23 +112,41 @@ async function walletsOwedByNetwork() {
   return owed;
 }
 
+/** Retraits admin en attente de verdict, par réseau source (montant envoyé). */
+async function pendingWithdrawalsByNetwork() {
+  const out = zero();
+  const { data, error } = await supabase.from('withdrawals').select('amount, source_network').eq('kind', 'platform').eq('status', 'pending');
+  if (error) throw error;
+  for (const r of data || []) {
+    const key = toBalanceKey(r.source_network);
+    if (key) out[key] += Number(r.amount) || 0;
+  }
+  return out;
+}
+
 exports.getPlatformShare = async () => {
-  const [{ margin, excludedCancelled }, smsFees, transferred, walletsOwed] = await Promise.all([
+  const [{ margin, excludedCancelled }, smsFees, transferred, withdrawn, pending, walletsOwed] = await Promise.all([
     marginByNetwork(),
     sumTypeByNetwork('sms_fee'),
     sumTypeByNetwork('platform_transfer'),
+    sumTypeByNetwork('platform_withdrawal'),
+    pendingWithdrawalsByNetwork(),
     walletsOwedByNetwork(),
   ]);
   const byNetwork = {};
   for (const key of ['orange', 'mtn']) {
+    const earned = margin[key] + smsFees[key] - transferred[key];
     byNetwork[key] = {
       margin: margin[key],
       smsFees: smsFees[key],
       transferred: transferred[key],
-      share: margin[key] + smsFees[key] - transferred[key],
+      earned,
+      withdrawn: withdrawn[key],
+      pendingWithdrawal: pending[key],
+      available: earned - withdrawn[key] - pending[key],
       walletsOwed: walletsOwed[key],
     };
   }
-  const total = Object.values(byNetwork).reduce((a, n) => a + n.share, 0);
-  return { byNetwork, total, excludedCancelledOrders: excludedCancelled };
+  const sum = f => Object.values(byNetwork).reduce((a, n) => a + n[f], 0);
+  return { byNetwork, totalEarned: sum('earned'), totalWithdrawn: sum('withdrawn'), totalAvailable: sum('available'), excludedCancelledOrders: excludedCancelled };
 };

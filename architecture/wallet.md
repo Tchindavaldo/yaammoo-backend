@@ -393,14 +393,32 @@ frais = ⌈ coût Bird réel en USD (delta non encore débité) × taux USD→XA
 `platformShare.repo`, par réseau (orange, mtn), portefeuille pawaPay :
 
 ```
-margin      = Σ order_settlements.platform_margin (réseau du merchant_credit),
-              commandes annulées (cancelByUser / cancelByFastFood) exclues
-smsFees     = Σ transactions sms_fee
-transferred = Σ transactions platform_transfer (marge versée à une boutique)
-share       = margin + smsFees − transferred
-walletsOwed = Σ des soldes POSITIFS des portefeuilles (marchands, livreurs)
+margin            = Σ order_settlements.platform_margin (réseau du merchant_credit),
+                    commandes annulées (cancelByUser / cancelByFastFood) exclues
+smsFees           = Σ transactions sms_fee
+transferred       = Σ transactions platform_transfer (marge versée à une boutique)
+earned            = margin + smsFees − transferred
+withdrawn         = Σ transactions platform_withdrawal (retraits admin confirmés)
+pendingWithdrawal = retraits admin envoyés, verdict pas encore reçu
+available         = earned − withdrawn − pendingWithdrawal
+walletsOwed       = Σ des soldes POSITIFS des portefeuilles (marchands, livreurs)
 ```
 
-`share` = ce que la plateforme a gagné ; les retraits faits directement sur
-pawaPay (hors app) ne sont pas connus. Montant sûr à retirer d'un réseau =
-solde réel du compte pawaPay − `walletsOwed`.
+Chaque marge est figée par commande au paiement : un changement de réglage ne
+modifie pas les marges passées. Ne jamais retirer directement sur pawaPay (le
+retrait ne serait pas connu) : passer par la route ci-dessous.
+
+## Retrait de la part plateforme (admin) — `POST /wallet/admin/platform-withdraw`
+
+`platformWithdraw.service`. Body `{ amount, phone, network, reason? }`
+(`PlatformWithdrawFields`). Même réseau que la part débitée (aucun frais
+interréseau). Plafond `available`. Ligne `withdrawals` avec `kind = 'platform'`
+(migration 084), payout MobileWallet ; au succès, transaction
+`platform_withdrawal` (aucun portefeuille touché). Verrou global
+`__platform__` (table `platform_transfer_locks`) partagé avec les versements.
+
+## Versement de marge à une boutique — plafonds
+
+`POST /wallet/admin/platform-transfer` : chaque source est plafonnée à la marge
+disponible de SA boutique (commandes annulées exclues), et le total par réseau
+à `available` de la plateforme (une marge déjà retirée ne peut plus être versée).
