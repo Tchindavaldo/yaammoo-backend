@@ -247,7 +247,9 @@ curl -s "$B?limit=9999" | jq '.data|length'   # <= 50
 - `GET /fastfood/cities?userCity=&lat=&lng=` (`homeCities.service`) :
   `{ cities: [{ name, count }], defaultCity, total }`. `count` = boutiques
   visibles au home desservant la ville. `defaultCity` = ville du client si une
-  boutique la dessert, sinon première ville de la boutique la plus proche
-  (position de la requête ou dernière connue), sinon `null` (toutes les villes).
+  boutique la dessert, sinon première ville de la boutique la plus proche,
+  QUELLE QUE SOIT la distance (autre pays compris ; position de la requête ou
+  dernière connue), sinon (pas de position) la ville qui a le plus de boutiques.
+  `null` seulement si aucune boutique n'a de ville renseignée.
   Marchand (en mode client) : `defaultCity` = `merchantCity` = première ville de
   SA boutique ; l'app ne lui propose pas de choix.
