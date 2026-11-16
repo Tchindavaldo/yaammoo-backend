@@ -17,7 +17,7 @@ boutique part sur le numéro Orange Money / MTN MoMo du livreur au scan du QR du
 | Secret Fly | `OPENROUTER_API_URL` | `https://openrouter.ai/api/v1` |
 | Secret Fly | `OPENROUTER_API_KEY` | clé du compte OpenRouter |
 | `settings_app` | `ai_enabled` | `true` = l'agent traite les textes libres (migration : `true`) |
-| `settings_app` | `ai_models` | modèles OpenRouter **essayés dans l'ordre** (paramètre `models`, repli automatique). `[]` = IA coupée. `z-ai/glm-5.3-flash` puis `qwen/qwen3.7-flash` (décision du 16/11/2026 : les moins chers qui lisent les images et appellent des outils) |
+| `settings_app` | `ai_models` | modèles OpenRouter **essayés dans l'ordre** (paramètre `models`, repli automatique). `[]` = IA coupée. `qwen/qwen3.7-flash` puis `z-ai/glm-5.3-flash` (décision du 16/11/2026 : les moins chers qui lisent les images et appellent des outils, le moins cher d'abord ; l'agent envoie surtout des tokens d'entrée) |
 | `settings_app` | `ai_timeout_ms` | délai max d'un appel (30000) |
 | `settings_app` | `ai_conversation_retention_days` | rétention de la conversation (30) |
 | `settings_app` | `ai_history_max_messages` | messages relus à chaque réponse (100) |
@@ -127,7 +127,9 @@ Un livreur est un user rattaché à la boutique (`driver_applications` `accepted
 5. **Remise** : le livreur scanne le QR du client, dans l'app Yaammoo
    (`POST /order/:orderId/confirm-delivery`, livreur assigné) ou avec l'appareil photo :
    WhatsApp s'ouvre avec « LIVRÉ <id> <code secret> », accepté depuis SON numéro
-   ([whatsapp.md](./whatsapp.md)). Les deux passent par `confirmDelivery.service`. La part de la boutique part sur son numéro
+   ([whatsapp.md](./whatsapp.md)). Les deux passent par `confirmDelivery.service`, qui
+   n'accepte que **lui** (son compte ou son numéro) : un autre qui scanne ne valide rien et
+   n'encaisse rien ; la tentative est tracée et signalée à la boutique et au livreur. La part de la boutique part sur son numéro
    OM / MoMo ([wallet.md](./wallet.md), « Versement automatique ») ; boutique et livreur
    sont prévenus du verdict. La boutique reçoit `yam_commande_livree`.
 6. **Messages relayés** : `message_driver` (boutique -> livreur) et `message_shop`

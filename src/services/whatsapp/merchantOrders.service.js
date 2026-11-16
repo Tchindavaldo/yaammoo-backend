@@ -6,9 +6,9 @@
 const repos = require('../../repositories');
 const { onButton, onText } = require('./webhookEvents.service');
 const msg = require('./merchantMessages');
-const { shopNumber, shopPhone, send, sendText, batchesOf, replyRecap } = require('./merchantChannel');
+const { shopPhone, send, sendText, batchesOf, replyRecap } = require('./merchantChannel');
 const { registerMerchantTemplateFlows } = require('./merchantTemplates.service');
-const { driverPhoneOfOrder, nameOf, phoneOfUser } = require('./driver/driverDirectory');
+const { nameOf, phoneOfUser } = require('./driver/driverDirectory');
 
 // Statut attendu avant chaque action : un double clic ne fait pas avancer deux fois.
 const EXPECTED = { accept: 'pending', refuse: 'pending', finished: 'processing', delivering: 'finished' };
@@ -85,29 +85,26 @@ const handle =
 const DELIVERED_RE = /^\s*LIVR[ÉE]E?\s+(\S+)\s+(\S+)/i;
 
 /**
- * Validation de livraison envoyée depuis le numéro WhatsApp de la boutique ou du livreur
- * assigné à la commande (sa part part alors sur le numéro OM / MoMo du livreur,
- * orderPayout.service). true si c'était ce message.
+ * « LIVRÉ <id> <code> » reçu. Seul celui qui livre valide (contrôle dans confirmDelivery.service) :
+ * le livreur assigné depuis SON numéro (sa part part alors sur son numéro OM / MoMo,
+ * orderPayout.service), sinon le numéro de la boutique. true si c'était ce message.
  */
 const onDeliveredText = async event => {
   const match = DELIVERED_RE.exec(event.text || '');
   if (!match) return false;
   const [, orderId, code] = match;
   const order = await repos.orders.getById(orderId);
-  const fastFood = order ? await repos.fastfoods.getById(order.fastFoodId) : null;
-  const fromShop = !!order && (await shopNumber(fastFood)) === event.from;
-  const fromDriver = !!order && !fromShop && (await driverPhoneOfOrder(order)) === event.from;
-  if (!fromShop && !fromDriver) {
-    console.warn(`⚠️ [WHATSAPP] « LIVRÉ ${orderId} » de ${event.from} : commande inconnue, ni la boutique ni son livreur`);
-    await sendText(event.from, 'Validation refusée : ce code doit être envoyé depuis le numéro WhatsApp de la boutique ou du livreur de la commande.');
+  if (!order) {
+    console.warn(`⚠️ [WHATSAPP] « LIVRÉ ${orderId} » de ${event.from} : commande inconnue`);
+    await sendText(event.from, 'Validation refusée : commande inconnue.');
     return true;
   }
   // Chargé ici : confirmDelivery charge updateOrders, qui charge ce fichier.
   const { confirmDelivery } = require('../order/confirmDelivery.service');
-  const r = await confirmDelivery({ orderId, code, channel: 'whatsapp' });
+  const r = await confirmDelivery({ orderId, code, senderPhone: event.from, channel: 'whatsapp' });
   await sendText(event.from, r.success ? `Commande n°${msg.ref(order)} : livraison validée.${payoutLine(r.payout)}` : `Commande n°${msg.ref(order)} : ${r.message}.`);
   // Livrée par le livreur : la boutique est prévenue (template, passe hors fenêtre de 24 h).
-  if (fromDriver && r.success && !r.alreadyDelivered) {
+  if (order.driverId && r.success && !r.alreadyDelivered) {
     const { notifyDelivered } = require('./merchantTemplates.service');
     await notifyDelivered(r.order || order).catch(e => console.error(`❌ [WHATSAPP] yam_commande_livree ${order.id} : ${e.message}`));
   }

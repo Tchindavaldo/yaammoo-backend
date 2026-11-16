@@ -188,7 +188,7 @@ router.get('/:orderId/delivery-code', firebaseAuth, authorize(orderOwnerFromPara
  * /order/{orderId}/confirm-delivery:
  *   post:
  *     summary: Valide la remise d'une commande avec le code du client (scan du QR dans l'app)
- *     description: Boutique (droit orders.deliver) ou livreur assigne. delivering -> delivered.
+ *     description: "Seul celui qui livre : le livreur assigne (son compte) s'il y en a un, sinon la boutique (droit orders.deliver). delivering -> delivered. Code valide envoye par un autre compte : 403, trace app_errors (delivery_code / wrong_sender)."
  *     tags: [Orders]
  *     security:
  *       - bearerAuth: []
@@ -209,6 +209,7 @@ router.get('/:orderId/delivery-code', firebaseAuth, authorize(orderOwnerFromPara
  *     responses:
  *       200: { description: "{ success, message, order } (alreadyDelivered si deja livree)" }
  *       400: { description: Code manquant ou invalide }
+ *       403: { description: Pas celui qui livre cette commande }
  *       409: { description: Commande pas en livraison }
  */
 router.post('/:orderId/confirm-delivery', firebaseAuth, authorize(orderDeliverFromParam), confirmDeliveryController);

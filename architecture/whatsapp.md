@@ -72,7 +72,8 @@ Code : `services/whatsapp/merchantOrders.service.js`, textes `merchantMessages.j
    avec le récapitulatif et UN bouton, l'étape suivante : Terminée (`<id>:finished`), puis En
    livraison (`<id>:delivering`). « Livrée » ne passe pas par un bouton : celui qui livre scanne le
    QR code du client avec l'appareil photo et envoie « LIVRÉ <orderId> <code> » (accepté depuis
-   le numéro de la boutique, ou celui du livreur assigné à la commande) → `confirmDelivery.service`
+   le numéro du livreur assigné à la commande, sinon celui de la boutique ; un code valide
+   envoyé par un autre numéro est refusé et signalé) → `confirmDelivery.service`
    ([orders.md](./orders.md), « Validation de livraison par QR code »). La validation verse la
    part du marchand sur son numéro de versement (`PUT /fastfood/:id/payout-number`, admin), ou
    sur le numéro OM / MoMo du **livreur** si la commande lui est confiée ; la réponse dit

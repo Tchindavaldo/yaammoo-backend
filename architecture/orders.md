@@ -341,10 +341,14 @@ stocké, donc absent des vues marchand (`services/order/deliveryCode.service.js`
   `whatsappLink` = `https://wa.me/<numéro Yaammoo>?text=LIVRÉ <orderId> <code>` (numéro lu
   dans le module WhatsApp, `GET /me`). C'est le contenu du QR.
 - Marchand ou livreur **sans** l'app : il scanne avec l'appareil photo, WhatsApp s'ouvre, il
-  envoie. Accepté seulement depuis le numéro WhatsApp de la boutique ou du livreur assigné à
-  la commande (`merchantOrders.service`, `onText`).
-- Marchand ou livreur **avec** l'app : `POST /order/:orderId/confirm-delivery { code }`
-  (boutique avec `orders.deliver`, ou livreur assigné).
+  envoie (`merchantOrders.service`, `onText`, numéro de l'expéditeur passé en `senderPhone`).
+- Marchand ou livreur **avec** l'app : `POST /order/:orderId/confirm-delivery { code }`.
+- **Seul celui qui livre valide** (décision du 16/11/2026, contrôle dans `confirmDelivery`,
+  quelle que soit la route) : commande confiée à un livreur -> **lui seul** (son compte,
+  `req.user.uid === order.driverId`, ou son numéro WhatsApp) ; sinon la boutique (compte
+  avec `orders.deliver`, ou son numéro WhatsApp). Un code **valide** envoyé par quelqu'un
+  d'autre : `403`, trace `app_errors` (`scope = 'delivery_code'`, `wrong_sender`), alerte
+  WhatsApp à la boutique et au livreur (boutique WhatsApp). Rien n'est validé ni versé.
 - Les deux canaux passent par `confirmDelivery.service` : code vérifié, statut `delivering`
   exigé (409 sinon), puis `updateOrders` (`delivering → delivered`, crédit livreur inchangé).
   Déjà livrée : `200 alreadyDelivered`.
