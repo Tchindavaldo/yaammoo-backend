@@ -18,8 +18,12 @@ de passerelle avec les marchands qui ne veulent pas de l'app.
 
 Réglages en base : `settings_app.whatsapp_timeout_ms` (15000 par défaut, migration 085),
 `settings_app.whatsapp_reminder_minutes` (10 par défaut, 0 = pas de rappel, migration 087).
-Dans le module, l'URL de relais de l'appli Yaammoo doit pointer sur
-`https://<backend>/whatsapp/webhook` (test ou prod, une seule à la fois).
+Test et prod sont indépendants : dans le module, chaque clé API de l'appli Yaammoo a sa
+propre URL de relais (`wa_api_keys.webhook_url`) : « clé initiale » (prod, secret
+`WHATSAPP_API_KEY` de yaammoo-backend) → `https://yaammoo-backend.fly.dev/whatsapp/webhook`,
+« backend de test » (yaammoo-backend-dev) → `https://yaammoo-backend-dev.fly.dev/whatsapp/webhook`.
+Un clic ou un statut revient au backend dont la clé a envoyé le message ; un message libre, à
+celui qui a écrit en dernier à ce contact. Même secret de signature pour les deux.
 
 ## Envoi — `services/whatsapp/whatsappModule.client.js`
 
@@ -44,7 +48,9 @@ signature porte sur le corps brut.
 3. `services/whatsapp/webhookEvents.service.js` :
    - `message` avec bouton : payload `<ref>:<action>` (posé par Yaammoo à l'envoi),
      transmis au flux abonné par `onButton(action, fn)` ; sans flux abonné, journalisé.
-   - `message` sans bouton : journalisé.
+   - `message` sans bouton : `onText` (« LIVRÉ … », puis l'**agent IA** pour tout autre texte
+     d'une boutique, [whatsapp-ai.md](./whatsapp-ai.md)) ; sinon journalisé.
+   - Tout message reçu passe d'abord par `onInbound` (journal de conversation de l'agent IA).
    - `status` `failed` : journalisé en erreur.
 4. `200 { success, handled }` ; erreur d'un flux → `500` (le module ne renvoie pas).
 
@@ -64,14 +70,18 @@ Code : `services/whatsapp/merchantOrders.service.js`, textes `merchantMessages.j
    (remboursement du client par `orderCancel.service`, comme dans l'app).
 3. **Suivi** : après chaque étape, message libre (fenêtre de 24 h ouverte par le clic, gratuit)
    avec le récapitulatif et UN bouton, l'étape suivante : Terminée (`<id>:finished`), puis En
-   livraison (`<id>:delivering`). « Livrée » ne passe pas par un bouton : le marchand scanne le
+   livraison (`<id>:delivering`). « Livrée » ne passe pas par un bouton : celui qui livre scanne le
    QR code du client avec l'appareil photo et envoie « LIVRÉ <orderId> <code> » (accepté depuis
-   le numéro de la boutique seulement) → `confirmDelivery.service` ([orders.md](./orders.md),
-   « Validation de livraison par QR code »). La validation verse la part du marchand sur son
-   numéro de versement (`PUT /fastfood/:id/payout-number`, admin) ; la réponse dit
-   « Versement de X FCFA en cours vers le … », puis un message au verdict (reçu / échoué)
-   ([wallet.md](./wallet.md), « Versement automatique d'une commande »).
-4. Garde-fous : seul le numéro de la boutique pilote ses commandes (`event.from`) ; chaque
+   le numéro du livreur assigné à la commande, sinon celui de la boutique ; un code valide
+   envoyé par un autre numéro est refusé et signalé) → `confirmDelivery.service`
+   ([orders.md](./orders.md), « Validation de livraison par QR code »). La validation verse la
+   part du marchand sur son numéro de versement (`PUT /fastfood/:id/payout-number`, admin), ou
+   sur le numéro OM / MoMo du **livreur** si la commande lui est confiée ; la réponse dit
+   « Versement de X FCFA en cours vers le … », puis un message au verdict (reçu / échoué, à la
+   boutique et au livreur) ([wallet.md](./wallet.md), « Versement automatique d'une commande »).
+   Livrée par le livreur : la boutique reçoit `yam_commande_livree`.
+4. Garde-fous : seul le numéro de la boutique pilote ses commandes (`event.from`), le livreur
+   seulement celles qui lui sont confiées ; chaque
    action exige le statut précédent (un double clic ne fait pas avancer deux fois) ; numéros
    toujours envoyés au module en `+237…`.
 
@@ -89,11 +99,35 @@ Code : `services/whatsapp/merchantOrders.service.js`, textes `merchantMessages.j
   (`updateOrders`) jusqu'au statut déclaré ; « Livrée » s'arrête à « en livraison » (le QR
   du client valide la remise). Un statut déclaré en retard ne recule rien.
 
+### Demande d'annulation (`merchantCancelRequests.service.js`)
+
+Le client d'une boutique WhatsApp demande l'annulation d'une commande en attente
+(`services/order/cancelRequest.service.js`, [order-cancel.md](./order-cancel.md)) :
+message libre au marchand (n°, plats, livraison) avec les boutons « Accepter annulation »
+(`<id>:cancel_ok`) et « Refuser annulation » (`<id>:cancel_no`), référence `cancelreq_<id>`.
+Refusé hors fenêtre de 24 h (131047) -> template `yam_demande_annulation` (bodyParams :
+n°, plats ; boutons « Accepter l'annulation » / « Refuser, déjà commencée », mêmes
+payloads ; variables vérifiées contre le template soumis). Accepter -> `cancelByUser` (client remboursé) ; Refuser ->
+commande maintenue, récapitulatif avec Accepter / Refuser la commande. Demande renvoyée
+par le client sans réponse (`cancel_request_resend_minutes`) : même message, préfixé « Relance ». Seul le numéro de la
+boutique décide ; l'agent IA propose aussi ces deux actions (`cancel_accept`, `cancel_refuse`).
+
+## Agent IA (texte libre du marchand et des livreurs)
+
+Hors boutons et « LIVRÉ », le marchand qui écrit librement est servi par un agent IA
+(OpenRouter) qui voit toute la conversation et ses commandes et propose les actions (avec
+confirmation) : [whatsapp-ai.md](./whatsapp-ai.md). Il confie aussi les commandes aux
+livreurs de la boutique, qui ont leur propre agent (fiche de course, départ en livraison,
+numéro OM / MoMo validé par WhatsApp : « Livreurs » du même fichier). Chaque envoi de
+`merchantChannel.send` est journalisé (`conversationLog.js`).
+
+Aiguillage des textes (`onText`, dans l'ordre) : « LIVRÉ … », agent du marchand (numéro
+de boutique), agent du livreur (numéro de livreur).
+
 ## À venir
 
-QR dans l'app client (frontend, branche `feature/qr-livraison-whatsapp`), demande d'annulation,
-`yam_nouveau_message` : `todo/fastfood/feature/whatsapp-commandes-marchand.md` et
-`todo/user/feature/annulation-sur-demande.md`.
+QR dans l'app client (frontend, branche `feature/qr-livraison-whatsapp`),
+`yam_nouveau_message` : `todo/fastfood/feature/whatsapp-commandes-marchand.md`.
 
 ## Fichiers
 
@@ -103,9 +137,14 @@ routes/whatsappWebhookRoutes.js
 controllers/whatsapp/webhook.controller.js
 services/whatsapp/webhookEvents.service.js     signature, aiguillage, onButton, onText, onSendFailed
 services/whatsapp/whatsappModule.client.js     envoi, accusé de lecture
-services/whatsapp/merchantChannel.js           envoi commun (numéro boutique, étape suivante, récap)
+services/whatsapp/merchantChannel.js           envoi commun (numéro boutique, étape suivante, récap, shopsOfPhone)
+services/whatsapp/conversationLog.js           journal de conversation (agent IA, whatsapp-ai.md)
+services/whatsapp/ai/                          agents IA marchand et livreur (whatsapp-ai.md)
+services/whatsapp/driver/                      livreurs : annuaire, ajout, numéro OM / MoMo, courses (whatsapp-ai.md)
 services/whatsapp/merchantOrders.service.js    flux marchands (commande, boutons, suivi, « LIVRÉ »)
 services/whatsapp/merchantTemplates.service.js rappel, livrée depuis l'app, statut hors fenêtre
+services/whatsapp/merchantCancelRequests.service.js demande d'annulation du client (boutons, template)
+services/order/cancelRequest.service.js        demande d'annulation (création, acceptation, refus)
 services/wallet/orderPayout.service.js         versement automatique à la livraison
 utils/whatsappReminderJob.js                   rappel des commandes sans réponse
 repositories/supabase/waOrderReminders.repo.js
@@ -117,4 +156,7 @@ utils/validator/validateWhatsappEvent.js
 schema/migrations/085_whatsapp_settings.sql
 schema/migrations/086_order_payout.sql
 schema/migrations/087_whatsapp_order_reminders.sql
+schema/migrations/091_cancel_request.sql
+schema/migrations/092_cancel_request_resend.sql
+schema/migrations/093_whatsapp_drivers.sql
 ```

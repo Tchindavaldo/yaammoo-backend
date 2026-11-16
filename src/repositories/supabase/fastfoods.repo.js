@@ -225,6 +225,13 @@ exports.getPage = async ({ limit = 10, cursor, q, city, category, categoryNot = 
   };
 };
 
+/** Boutiques en mode WhatsApp (`extra_data.whatsappOrders = true`) : agent IA, numéro → boutiques. */
+exports.listWhatsappShops = async () => {
+  const { data, error } = await alive(supabase.from(TABLE).select('*').eq('extra_data->>whatsappOrders', 'true'));
+  if (error) throw error;
+  return withRegimeList((data || []).map(m.fastfood.fromSupabase));
+};
+
 exports.getByUserId = async userId => {
   const { data, error } = await alive(supabase.from(TABLE).select('*').eq('user_id', userId)).maybeSingle();
   if (error) throw error;

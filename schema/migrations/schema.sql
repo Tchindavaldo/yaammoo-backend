@@ -1032,5 +1032,48 @@ CREATE TABLE IF NOT EXISTS settings_app (
 ALTER TABLE settings_app ENABLE ROW LEVEL SECURITY;
 
 -- ============================================================================
+-- TABLES: agent IA des boutiques WhatsApp (migrations 090, 091 ; prod le 16/11/2026)
+-- ============================================================================
+-- Historique des conversations (author : merchant | ai | system | driver) et actions
+-- proposées par l'agent, exécutées après confirmation. Détail : architecture/whatsapp-ai.md.
+CREATE TABLE IF NOT EXISTS wa_conversation_messages (
+  id          BIGSERIAL PRIMARY KEY,
+  phone       TEXT NOT NULL,
+  direction   TEXT NOT NULL CHECK (direction IN ('in', 'out')),
+  author      TEXT NOT NULL DEFAULT 'system',
+  kind        TEXT NOT NULL DEFAULT 'text',
+  body        TEXT NOT NULL DEFAULT '',
+  message_id  TEXT,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_wa_conv_phone_created ON wa_conversation_messages (phone, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_wa_conv_created ON wa_conversation_messages (created_at);
+ALTER TABLE wa_conversation_messages ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE IF NOT EXISTS wa_ai_pending_actions (
+  id           TEXT PRIMARY KEY,
+  phone        TEXT NOT NULL,
+  fastfood_id  TEXT NOT NULL,
+  action       TEXT NOT NULL,
+  order_ids    JSONB NOT NULL DEFAULT '[]'::jsonb,
+  summary      TEXT NOT NULL DEFAULT '',
+  status       TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'done', 'cancelled', 'expired')),
+  result       TEXT,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  resolved_at  TIMESTAMPTZ,
+  CONSTRAINT wa_ai_pending_actions_action_check
+    CHECK (action IN ('accept', 'refuse', 'finished', 'delivering', 'cancel_accept', 'cancel_refuse'))
+);
+CREATE INDEX IF NOT EXISTS idx_wa_ai_pending_phone_status ON wa_ai_pending_actions (phone, status);
+ALTER TABLE wa_ai_pending_actions ENABLE ROW LEVEL SECURITY;
+
+-- Migration 093 (prod le 16/11/2026), sur des tables pas encore décrites ici
+-- (voir 079_payout_numbers.sql, 080_whatsapp_numbers_account_archives.sql) :
+--   withdrawals.driver_id TEXT (+ idx_withdrawals_driver) : livreur payé d'une commande ;
+--   whatsapp_numbers.source CHECK IN ('otp', 'login', 'inbound').
+-- Réglages : settings_app ai_*, cancel_request_resend_minutes ; settings_deployment
+-- cancel_request_min_app_version (prod 1.1.6, test 1.1.5), payout_number_whatsapp_min_app_version (1.1.6).
+
+-- ============================================================================
 -- FIN DU SCHEMA
 -- ============================================================================

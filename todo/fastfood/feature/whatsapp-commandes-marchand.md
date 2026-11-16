@@ -38,8 +38,15 @@ est sur la plateforme avant que la commande parte.
 [x] Sans réponse au bout de N minutes → template `yam_rappel_commande`
     (`settings_app.whatsapp_reminder_minutes`, 10)
 [x] Livraison validée depuis l'app → template `yam_commande_livree`
-[ ] Demande d'annulation → template `yam_demande_annulation`
-    (voir `todo/user/feature/annulation-sur-demande.md`)
+[x] Demande d'annulation → message libre + boutons, template `yam_demande_annulation`
+    hors fenêtre (`merchantCancelRequests.service.js` ; variables du template à vérifier)
+[x] Livreurs de la boutique WhatsApp (agent IA livreur, versement sur son OM / MoMo,
+    architecture/whatsapp-ai.md « Livreurs »)
+[ ] Créer chez Meta `yam_livraison_livreur` (boutique, n°, plats, livraison ; bouton
+    « Je pars en livraison ») et `yam_livreur_ajoute` (boutique)
+[x] App 1.1.6 : réponse `verified: true` de `/wallet/payout-number/request`, WhatsApp
+    validé avant OM / MoMo (`payout_number_whatsapp_min_app_version` = 1.1.6)
+[ ] App : mode livreur (nav, commandes, portefeuille)
 [ ] Message d'un client au marchand → template `yam_nouveau_message` (nom du
     client, sujet), sans le contenu ; bouton « Lire le message » (payload
     `<messageId>:read`) : le clic ouvre la fenêtre, le contenu part en message libre

@@ -134,3 +134,13 @@ Index : `(fastfood_id, created_at DESC)`, `(user_id)`, et
   `merchantDriverApplicationDecided`.
 - Réponse à l'invitation : `accepted` → comme une acceptation ; `refused` →
   `refused` ; le marchand est notifié dans les deux cas.
+
+## Livreurs des boutiques WhatsApp (sans app possible)
+
+Pour une boutique WhatsApp, le marchand ajoute ses livreurs et leur confie les commandes
+par l'agent IA, et le livreur échange avec l'IA sur WhatsApp : [whatsapp-ai.md](./whatsapp-ai.md),
+« Livreurs ». Le rattachement reste `driver_applications` `accepted` (ajout =
+`driverRecruit` `add`, compte créé par numéro seul s'il n'existe pas). Un livreur ne livre
+qu'avec un numéro Orange Money / MTN MoMo validé (`payout_numbers`) : la part de la
+boutique y part au scan du QR du client ([wallet.md](./wallet.md)).
+

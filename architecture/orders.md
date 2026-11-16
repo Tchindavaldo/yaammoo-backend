@@ -340,15 +340,25 @@ stocké, donc absent des vues marchand (`services/order/deliveryCode.service.js`
 - `GET /order/:orderId/delivery-code` (client de la commande) → `{ code, text, whatsappLink }`.
   `whatsappLink` = `https://wa.me/<numéro Yaammoo>?text=LIVRÉ <orderId> <code>` (numéro lu
   dans le module WhatsApp, `GET /me`). C'est le contenu du QR.
-- Marchand **sans** l'app : il scanne avec l'appareil photo, WhatsApp s'ouvre, il envoie.
-  Accepté seulement depuis le numéro WhatsApp de la boutique (`merchantOrders.service`, `onText`).
-- Marchand ou livreur **avec** l'app : `POST /order/:orderId/confirm-delivery { code }`
-  (boutique avec `orders.deliver`, ou livreur assigné).
+- Marchand ou livreur **sans** l'app : il scanne avec l'appareil photo, WhatsApp s'ouvre, il
+  envoie (`merchantOrders.service`, `onText`, numéro de l'expéditeur passé en `senderPhone`).
+- Marchand ou livreur **avec** l'app : `POST /order/:orderId/confirm-delivery { code }`.
+- **Seul celui qui livre valide** (décision du 16/11/2026, contrôle dans `confirmDelivery`,
+  quelle que soit la route) : commande confiée à un livreur -> **lui seul** (son compte,
+  `req.user.uid === order.driverId`, ou son numéro WhatsApp) ; sinon la boutique (compte
+  avec `orders.deliver`, ou son numéro WhatsApp). Un code **valide** envoyé par quelqu'un
+  d'autre : `403`, trace `app_errors` (`scope = 'delivery_code'`, `wrong_sender`), alerte
+  WhatsApp à la boutique et au livreur (boutique WhatsApp). Rien n'est validé ni versé.
+- **Boutique WhatsApp : « livrée » uniquement par le QR** (décision du 16/11/2026) :
+  `updateOrders` refuse `delivering -> delivered` sans `viaDeliveryCode` (posé par
+  `confirmDelivery` seul) : bouton d'avance de l'app, `PUT /order` du livreur ou du marchand
+  -> échec « Livraison à valider en scannant le QR code du client. ». Boutiques de l'app :
+  le bouton reste (leur argent est dans le portefeuille, le scan y est facultatif).
 - Les deux canaux passent par `confirmDelivery.service` : code vérifié, statut `delivering`
   exigé (409 sinon), puis `updateOrders` (`delivering → delivered`, crédit livreur inchangé).
   Déjà livrée : `200 alreadyDelivered`.
 - Boutique WhatsApp (`whatsappOrders`) : versement automatique de la part du marchand à la
-  validation, quel que soit le canal (`orderPayout.service`, [wallet.md](./wallet.md),
+  validation (sur le numéro OM / MoMo du livreur si la commande lui est confiée), quel que soit le canal (`orderPayout.service`, [wallet.md](./wallet.md),
   « Versement automatique d'une commande »). La réponse porte `payout`
   (`{ status: pending|skipped|failed, sentAmount, fee, phone, network }`) ; un rescan d'une
   commande déjà livrée relance un versement échoué. Boutique normale : aucune transaction.
@@ -390,6 +400,8 @@ le frontend : le fastFood délègue une commande à un livreur, qui la fait ensu
 - **Avance livreur** (`driverAdvanceStatus`) : autorisée uniquement si `order.status` ∈
   `finished`|`delivering` (sinon **409**), et si `order.driverId === driverId` (sinon **403**).
   Le statut est décidé par la **même machine à états** que le reste — jamais posé en dur.
+  Boutique WhatsApp : `delivering -> delivered` refusé ici, seul le QR du client valide
+  (« Validation de livraison par QR code »).
 - `getDriverOrders(driverId)` → `repos.orders.getByDriver()` → `GET /order/driver/:driverId`.
 - **Socket livreur** : le livreur est un user ; `driverId` = son uid. Il reçoit ses events sur
   sa room `uid` déjà rejointe via `join_user` (comme client/marchand) — pas de `join_driver`.

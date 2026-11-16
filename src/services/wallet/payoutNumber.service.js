@@ -15,10 +15,23 @@ const smsFee = require('./smsFee.service');
 /**
  * Envoie le code par SMS uniquement. Chaque envoi est facturé au marchand au
  * coût réel Bird (smsFee.service, CGU 12.5 bis), débité du réseau vérifié.
+ * `whatsappShortcut` (app >= payout_number_whatsapp_min_app_version, R11) : un numéro
+ * déjà validé sur WhatsApp par ce compte est vérifié tout de suite, sans SMS ni frais
+ * (réponse `verified: true`, migration 093).
  */
-exports.requestPayoutNumberCode = async ({ userId, phoneNumber, network }) => {
+exports.requestPayoutNumberCode = async ({ userId, phoneNumber, network, whatsappShortcut = false, billUserId = null }) => {
   if (!['orange', 'mtn'].includes(network)) return { success: false, message: 'Réseau requis : orange ou mtn' };
-  const r = await requestPhoneAuth({ phoneNumber, channel: 'sms', userId });
+  if (whatsappShortcut) {
+    const { defaultCountryCode } = await settingsService.getOtpSettings();
+    const recipient = normalizePhoneNumber(phoneNumber, defaultCountryCode);
+    const onWhatsapp = recipient && (await repos.payoutNumbers.listWhatsappByUser(userId)).some(n => n.phoneNumber === recipient);
+    if (onWhatsapp) {
+      await repos.payoutNumbers.markVerified(userId, recipient);
+      return { success: true, message: 'Numéro vérifié (déjà validé sur WhatsApp)', data: { verified: true, phoneNumber: recipient } };
+    }
+  }
+  // billUserId : compte débité des frais SMS (livreur WhatsApp : sa boutique, décision du 16/11/2026).
+  const r = await requestPhoneAuth({ phoneNumber, channel: 'sms', userId: billUserId || userId });
   if (r.success) await smsFee.markPayoutSend(r.data?.verificationId, network);
   return r;
 };
@@ -29,18 +42,21 @@ exports.estimatePayoutNumberFee = () => smsFee.estimateSmsFee();
 /** WhatsApp de la boutique : code envoyé sur WhatsApp UNIQUEMENT (aucun repli SMS). */
 exports.requestWhatsappNumberCode = ({ userId, phoneNumber }) => requestPhoneAuth({ phoneNumber, channel: 'whatsapp', userId });
 
-/** Valide le code puis enregistre le numéro comme vérifié pour ce compte. */
+/** Valide le code puis enregistre le numéro comme vérifié pour ce compte (`billUserId` : qui paie le SMS). */
 exports.verifyPayoutNumberCode = args => verifyCode(args, (userId, recipient) => repos.payoutNumbers.markVerified(userId, recipient));
 
 /** Idem pour le WhatsApp ; garde-fou : un code livré par SMS ne vérifie pas un WhatsApp. */
 exports.verifyWhatsappNumberCode = args =>
   verifyCode(args, async (userId, recipient, deliveredChannel) => {
-    if (deliveredChannel && deliveredChannel !== 'whatsapp') { const m = 'Le code n\'est pas arrivé par WhatsApp. Réessayez avec un numéro WhatsApp.'; return { success: false, message: m, data: { reason: m } }; }
+    if (deliveredChannel && deliveredChannel !== 'whatsapp') {
+      const m = "Le code n'est pas arrivé par WhatsApp. Réessayez avec un numéro WhatsApp.";
+      return { success: false, message: m, data: { reason: m } };
+    }
     await repos.verifiedNumbers.markWhatsapp(userId, recipient, 'otp');
     return null;
   });
 
-async function verifyCode({ userId, phoneNumber, code }, onVerified) {
+async function verifyCode({ userId, phoneNumber, code, billUserId = null }, onVerified) {
   const { defaultCountryCode } = await settingsService.getOtpSettings();
   const recipient = normalizePhoneNumber(phoneNumber, defaultCountryCode);
   if (!recipient) return { success: false, message: `Numéro de téléphone invalide : ${phoneNumber}` };
@@ -60,7 +76,7 @@ async function verifyCode({ userId, phoneNumber, code }, onVerified) {
   let deliveredChannel = null;
   if (verificationId) {
     const details = await getVerificationDetails({ verificationId });
-    if (details.success) deliveredChannel = (await recordVerificationCost({ verificationId, verification: details.data.raw, verified: true, userId })).deliveredChannel;
+    if (details.success) deliveredChannel = (await recordVerificationCost({ verificationId, verification: details.data.raw, verified: true, userId: billUserId || userId })).deliveredChannel;
     await smsFee.chargePendingSmsFees(verificationId).catch(e => console.warn(`[PAYOUT-NUMBER] frais SMS : ${e.message}`));
   }
   const refused = await onVerified(userId, recipient, deliveredChannel);
