@@ -106,8 +106,8 @@ Le client d'une boutique WhatsApp demande l'annulation d'une commande en attente
 message libre au marchand (n°, plats, livraison) avec les boutons « Accepter annulation »
 (`<id>:cancel_ok`) et « Refuser annulation » (`<id>:cancel_no`), référence `cancelreq_<id>`.
 Refusé hors fenêtre de 24 h (131047) -> template `yam_demande_annulation` (bodyParams :
-n°, plats ; boutons : mêmes payloads). ⚠️ Variables du template à vérifier dans le module
-(non lisibles depuis ce dépôt). Accepter -> `cancelByUser` (client remboursé) ; Refuser ->
+n°, plats ; boutons « Accepter l'annulation » / « Refuser, déjà commencée », mêmes
+payloads ; variables vérifiées contre le template soumis). Accepter -> `cancelByUser` (client remboursé) ; Refuser ->
 commande maintenue, récapitulatif avec Accepter / Refuser la commande. Demande renvoyée
 par le client sans réponse (`cancel_request_resend_minutes`) : même message, préfixé « Relance ». Seul le numéro de la
 boutique décide ; l'agent IA propose aussi ces deux actions (`cancel_accept`, `cancel_refuse`).
