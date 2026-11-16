@@ -65,9 +65,22 @@ appel**, et refuse seulement les suppressions (`DELETE`, `.remove(`, `DROP`,
    Les `create function` passent par le SQL Editor (collées par l'utilisateur)
    si l'API part en timeout.
 2. Données : seulement celles validées par l'utilisateur (réglages `settings_*`,
-   comptes et soldes de review issus de pawaPay), **une table à la fois**,
-   chaque table validée.
+   comptes, boutique et menus de review), **une table à la fois**, chaque table
+   validée. **Jamais** de commandes, paiements, transactions, retraits ni soldes.
 3. Contrôle : nombre de lignes source = cible, contraintes présentes.
+
+## 4 bis. Test et prod sont SÉPARÉS (OBLIGATOIRE, décision du 16/11/2026)
+
+- Tout ce qui est fait en test **reste en test**, et tout ce qui est fait en prod reste
+  en prod. Aucune donnée d'activité ne passe d'une base à l'autre.
+- **Boutique review** (Apple, `hidden_fastfood_ids`) : présente dans les deux bases
+  (boutique, menus, comptes), mais **aucune commande, aucun paiement, aucune
+  transaction en prod**. Les tests de paiement se font en test.
+- Vécu : la migration du 13/11 avait copié en prod les « soldes de review » (la commande
+  de test `tpmjUK9lsMg8Ta0dy2gM` du 05/11, son crédit, son retrait). Onze jours plus tard,
+  l'annulation d'office l'a annulée : reprise de 320 F au marchand, solde négatif, et
+  remboursement impossible (aucune trace de paiement en prod). Données supprimées le
+  16/11/2026 avec l'accord de l'utilisateur ; elles restent en test.
 
 ## 5. Traçabilité
 

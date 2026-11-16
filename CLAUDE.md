@@ -553,7 +553,10 @@ on identifie une base **par son id de projet**, jamais par son nom.
    - le mod `db-guard` (`claude-mods/`, installé à chaque session par
      `install-db-guard.sh`) met les règles dans le prompt système à chaque
      tour, double le blocage et affiche un bandeau rouge.
-4. **Jamais** de données de prod copiées vers la base de test ou dans le dépôt.
+4. **Jamais** de données de prod copiées vers la base de test ou dans le dépôt, ni de
+   données d'activité de test (commandes, paiements, transactions, retraits, soldes)
+   copiées en prod. Boutique review : boutique, menus et comptes dans les deux bases,
+   **aucune commande ni transaction en prod** (`prod-db-rules.md` §4 bis).
 5. Le jeton d'accès (`claude-rauval-token`, compte admin rauval, membre des
    deux organisations) est un secret réseau de l'environnement cloud, jamais
    dans le code. Il est conservé après la migration : les garde-fous restent.
