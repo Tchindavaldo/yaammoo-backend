@@ -44,8 +44,9 @@ est sur la plateforme avant que la commande parte.
     architecture/whatsapp-ai.md « Livreurs »)
 [ ] Créer chez Meta `yam_livraison_livreur` (boutique, n°, plats, livraison ; bouton
     « Je pars en livraison ») et `yam_livreur_ajoute` (boutique)
-[ ] App : réponse `verified: true` de `/wallet/payout-number/request`, puis baisser
-    `payout_number_whatsapp_min_app_version` ; mode livreur (nav, commandes, portefeuille)
+[x] App 1.1.6 : réponse `verified: true` de `/wallet/payout-number/request`, WhatsApp
+    validé avant OM / MoMo (`payout_number_whatsapp_min_app_version` = 1.1.6)
+[ ] App : mode livreur (nav, commandes, portefeuille)
 [ ] Message d'un client au marchand → template `yam_nouveau_message` (nom du
     client, sujet), sans le contenu ; bouton « Lire le message » (payload
     `<messageId>:read`) : le clic ouvre la fenêtre, le contenu part en message libre

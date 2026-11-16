@@ -391,8 +391,8 @@ Service : `services/wallet/payoutNumber.service.js`. Les numéros déjà enregis
 avant 079 ne sont pas vérifiés : le marchand les revérifie depuis sa boutique.
 
 **Sans code si déjà validé sur WhatsApp** (migration 093, R11) : app >=
-`settings_deployment.payout_number_whatsapp_min_app_version` (999.0.0 tant que l'app ne
-le gère pas) et numéro présent dans `whatsapp_numbers` du compte → `request` le vérifie
+`settings_deployment.payout_number_whatsapp_min_app_version` (1.1.6 : l'app y saute
+l'étape code et impose le WhatsApp avant OM / MoMo) et numéro présent dans `whatsapp_numbers` du compte → `request` le vérifie
 tout de suite, sans SMS ni frais : `200 { verified: true, phoneNumber }`. En dessous du
 seuil : code SMS comme avant. L'app doit donc faire valider le WhatsApp en premier.
 Livreur sans app : il donne son numéro à l'agent IA sur WhatsApp ; celui d'où il écrit
