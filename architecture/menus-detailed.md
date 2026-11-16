@@ -35,6 +35,9 @@ Menu {
   // Identification
   name: string                  // Nom plat (ex: "Poulet Grillé")
   titre: string                 // Titre alternatif (?)
+  category: string | null       // Catégorie libre saisie par le marchand (ex. « Poulet »),
+                                // colonne `menus.category` (migration 088). Filtre du home :
+                                // GET /fastfood/all?category= (cf. fastfood-pagination.md)
   description: string           // Description longue
 
   // Tarification — ⚠️ c'est `prices[]` qui fait foi
@@ -122,6 +125,7 @@ ShopDrink {
    {
      "fastFoodId": "...",
      "name": "Poulet Grillé",
+     "category": "Poulet",
      "prices": [
        { "price": 2500, "description": "Petit" },
        { "price": 3500, "description": "Moyen" }

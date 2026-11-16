@@ -24,6 +24,12 @@ const { buildRatingStats } = require('./fastfoodRatingStats');
 // Plat indisponible : `status: 'unavailable'` ou `disponibilite: false`.
 const isMenuAvailable = m => m.status !== 'unavailable' && m.disponibilite !== false;
 
+// Filtre catégorie (home) : comparaison insensible à la casse, absent = tout.
+const inCategory = category => {
+  const c = typeof category === 'string' ? category.trim().toLowerCase() : '';
+  return m => !c || (typeof m.category === 'string' && m.category.trim().toLowerCase() === c);
+};
+
 /**
  * @param {string} [userId] uid du user courant (auth FACULTATIVE sur cette route).
  *   Fourni, chaque boutique porte l'offre de livraison applicable à CE user.
@@ -34,6 +40,8 @@ const isMenuAvailable = m => m.status !== 'unavailable' && m.disponibilite !== f
  *   pagination.
  * @param {string} [page.cursor] curseur renvoyé par l'appel précédent.
  * @param {string} [page.q] recherche par nom.
+ * @param {string} [page.category] catégorie de plat : seuls les plats de cette
+ *   catégorie sont rendus (filtre du home, migration 088).
  * @param {string[]} [page.ids] boutiques à recharger (tableau, non paginé).
  * @returns {Promise<Object[]|{items: Object[], nextCursor: string|null}>}
  *   Un tableau en mode historique, un objet paginé sinon.
@@ -86,7 +94,7 @@ exports.getFastFoodsService = async (userId, page) => {
     const visible = f => f.available && (!hidden.has(f.id) || (!!userId && f.userId === userId));
     const fastfoodsWithMenus = await Promise.all(
       fastfoods.filter(visible).map(async fastfood => {
-        const menus = (await getMenuService(fastfood.id)).filter(isMenuAvailable);
+        const menus = (await getMenuService(fastfood.id)).filter(isMenuAvailable).filter(inCategory(page?.category));
         // Prix AFFICHÉ pour tout le monde, y compris le propriétaire de la
         // boutique : `/fastfood/all` alimente le HOME, donc un écran d'achat.
         // Un marchand qui commande y est un client comme un autre — lui servir

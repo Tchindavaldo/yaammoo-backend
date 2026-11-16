@@ -19,6 +19,12 @@ exports.getfastfoodController = async (req, res) => {
     const q = req.query.q || undefined;
     // `?city=` : ville choisie au home (bottom sheet des villes). Additif.
     const city = typeof req.query.city === 'string' && req.query.city.trim() ? req.query.city.trim() : undefined;
+    // `?category=` : filtre catégorie du home (plats de cette catégorie seulement,
+    // migration 088). Additif. Jokers et réservés PostgREST retirés (égalité ilike).
+    const category =
+      typeof req.query.category === 'string' && req.query.category.trim()
+        ? req.query.category.replace(/[%_,()*\\]/g, ' ').trim().slice(0, 60) || undefined
+        : undefined;
     // `?ids=a,b` : rechargement ciblé après le signal socket `fastfoodsChanged`.
     // Champ additif : les anciennes apps ne l'envoient pas.
     const ids = typeof req.query.ids === 'string' ? req.query.ids.split(',').map(s => s.trim()).filter(Boolean).slice(0, MAX_LIMIT) : null;
@@ -29,14 +35,14 @@ exports.getfastfoodController = async (req, res) => {
     // `test_fastfood_volume` clones des boutiques réelles, pour éprouver la
     // fluidité du home. Paginé seulement, et jamais sur une recherche (`q`) :
     // elle reste servie par les données réelles.
-    const volumeTest = !ids && limit !== null && !q && !city && (await isTestClient(req));
+    const volumeTest = !ids && limit !== null && !q && !city && !category && (await isTestClient(req));
     let result;
     if (volumeTest) {
       const volume = await getTestFastfoodVolume();
       const imageUrl = await getTestVolumeImageUrl();
       result = await getVolumeTestPage(req.user?.uid, { limit, cursor }, { volume, imageUrl });
     } else {
-      result = await getFastFoodsService(req.user?.uid, ids ? { ids } : limit ? { limit, cursor, q, city } : undefined);
+      result = await getFastFoodsService(req.user?.uid, ids ? { ids } : limit ? { limit, cursor, q, city, category } : undefined);
     }
     const paginated = !ids && limit !== null;
     // `distanceKm` : user (query `lat`/`lng`, sinon dernière position connue)

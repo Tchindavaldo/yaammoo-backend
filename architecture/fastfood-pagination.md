@@ -253,3 +253,13 @@ curl -s "$B?limit=9999" | jq '.data|length'   # <= 50
   `null` seulement si aucune boutique n'a de ville renseignée.
   Marchand (en mode client) : `defaultCity` = `merchantCity` = première ville de
   SA boutique ; l'app ne lui propose pas de choix.
+
+## Catégorie de plat (`?category=`, migration 088)
+
+- `GET /fastfood/all?limit=&category=<catégorie>` : seules les boutiques ayant au
+  moins un plat vivant de cette catégorie (`menus.category`, égalité `ilike` dans
+  la jointure interne de `fastfoods.repo.getPage`), et dans chaque boutique
+  **seuls ces plats** (`inCategory`, `services/fastfood/getFastFoods.js`).
+- Comparaison insensible à la casse ; jokers `%` `_` et réservés PostgREST retirés
+  par le contrôleur. Sans `category` : tous les plats.
+- Le mode volume de test est ignoré quand `category` est présent.

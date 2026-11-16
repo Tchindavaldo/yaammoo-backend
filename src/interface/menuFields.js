@@ -2,6 +2,8 @@ exports.menuFields = {
   id: { type: 'string', required: false },
   fastFoodId: { type: 'string', required: true },
   name: { type: 'string', required: true },
+  // Catégorie libre (ex. « Poulet »), filtre du home (migration 088).
+  category: { type: 'string', required: false },
   createdAt: { type: 'string', required: false },
   updatedAt: { type: 'string', required: false },
   coverImage: { type: 'string', required: true },

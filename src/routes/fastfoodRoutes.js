@@ -58,6 +58,10 @@ route.post('', firebaseAuth, authorize(selfFromBody('userId')), createFastfoodCo
  *         name: city
  *         schema: { type: string }
  *         description: Ville choisie au home (mode paginé) ; seules les boutiques qui la desservent (`cities`). Liste des villes : GET /fastfood/cities.
+ *       - in: query
+ *         name: category
+ *         schema: { type: string }
+ *         description: Catégorie de plat (mode paginé, insensible à la casse) ; seules les boutiques ayant un plat de cette catégorie, et dans chacune seuls ces plats (`menus.category`, migration 088).
  *     responses:
  *       200:
  *         description: Liste des boutiques

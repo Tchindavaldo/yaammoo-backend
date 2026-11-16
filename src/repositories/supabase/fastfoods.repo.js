@@ -105,6 +105,7 @@ const encodeCursor = row => Buffer.from(`${row.created_at}|${row.id}`, 'utf8').t
  * @param {string}  [opts.cursor] curseur renvoyé par l'appel précédent
  * @param {string}  [opts.q]    recherche par nom (insensible à la casse)
  * @param {string}  [opts.city] ville desservie (élément de `cities`), choix du home
+ * @param {string}  [opts.category] catégorie de plat (`menus.category`, insensible à la casse)
  * @returns {Promise<{items: Object[], nextCursor: string|null}>}
  */
 /** Plafond des boutiques retenues par la recherche sur les plats. */
@@ -125,7 +126,7 @@ const shopIdsWithMenuMatching = async term => {
   return [...new Set((data || []).map(r => r.fastfood_id))].slice(0, SEARCH_MENU_SHOPS);
 };
 
-exports.getPage = async ({ limit = 10, cursor, q, city } = {}) => {
+exports.getPage = async ({ limit = 10, cursor, q, city, category } = {}) => {
   // Recherche : nom de la boutique OU nom d'un de ses plats. Caracteres
   // reserves de la syntaxe `or()` PostgREST retires de la saisie.
   const term = (q || '')
@@ -158,6 +159,9 @@ exports.getPage = async ({ limit = 10, cursor, q, city } = {}) => {
     if (term) {
       qb = menuShopIds.length ? qb.or(`name.ilike.%${term}%,id.in.(${menuShopIds.join(',')})`) : qb.ilike('name', `%${term}%`);
     }
+    // Filtre catégorie du home : la jointure interne ne garde que les boutiques
+    // ayant au moins un plat vivant de cette catégorie (migration 088).
+    if (category) qb = qb.ilike('menus.category', category);
     // Ville choisie au home : boutiques qui la desservent (`cities` JSONB).
     if (city) qb = qb.filter('cities', 'cs', JSON.stringify([city]));
     return qb;

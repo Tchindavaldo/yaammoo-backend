@@ -196,7 +196,7 @@ const fastfoodAvailability = row => {
 // ---------------------------------------------------------------------------
 const menuToSupabase = data => {
   const { createdAt, updatedAt, ...rest } = data;
-  const known = ['id', 'fastFoodId', 'titre', 'name', 'prix1', 'prix2', 'prix3', 'optionPrix1', 'optionPrix2', 'optionPrix3', 'image', 'coverImage', 'images', 'disponibilite', 'status', 'stock', 'extra', 'drink', 'ratingAvg', 'ratingCount'];
+  const known = ['id', 'fastFoodId', 'titre', 'name', 'prix1', 'prix2', 'prix3', 'optionPrix1', 'optionPrix2', 'optionPrix3', 'image', 'coverImage', 'images', 'disponibilite', 'status', 'stock', 'extra', 'drink', 'ratingAvg', 'ratingCount', 'category'];
   const extra_data = {};
   for (const k of Object.keys(rest)) {
     if (!known.includes(k)) extra_data[k] = rest[k];
@@ -220,6 +220,8 @@ const menuToSupabase = data => {
     stock: data.stock ?? 0,
     extra: data.extra ?? [],
     drink: data.drink ?? [],
+    // Catégorie libre du plat (migration 088), filtre du home.
+    category: typeof data.category === 'string' && data.category.trim() ? data.category.trim() : null,
     extra_data,
     created_at: toIso(createdAt),
     updated_at: toIso(updatedAt) || toIso(createdAt),
@@ -247,6 +249,7 @@ const menuFromSupabase = row => {
     stock: row.stock ?? 0,
     extra: row.extra || [],
     drink: row.drink || [],
+    category: row.category ?? null,
     ratingAvg: row.rating_avg != null ? Number(row.rating_avg) : 0,
     ratingCount: row.rating_count ?? 0,
     createdAt: row.created_at,
