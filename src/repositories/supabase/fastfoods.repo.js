@@ -79,7 +79,33 @@ const encodeCursor = row => Buffer.from(`${row.created_at}|${row.id}`, 'utf8').t
  * @param {string}  [opts.q]    recherche par nom (insensible à la casse)
  * @returns {Promise<{items: Object[], nextCursor: string|null}>}
  */
+/** Plafond des boutiques retenues par la recherche sur les plats. */
+const SEARCH_MENU_SHOPS = 500;
+
+/**
+ * Ids des boutiques dont au moins un plat vivant correspond a `term`
+ * (`name` ou `titre`, `ilike`). Resolu en base : on ne charge que des ids.
+ */
+const shopIdsWithMenuMatching = async term => {
+  const { data, error } = await supabase
+    .from('menus')
+    .select('fastfood_id')
+    .is('deleted_at', null)
+    .or(`name.ilike.%${term}%,titre.ilike.%${term}%`)
+    .limit(SEARCH_MENU_SHOPS * 4);
+  if (error) throw error;
+  return [...new Set((data || []).map(r => r.fastfood_id))].slice(0, SEARCH_MENU_SHOPS);
+};
+
 exports.getPage = async ({ limit = 10, cursor, q } = {}) => {
+  // Recherche : nom de la boutique OU nom d'un de ses plats. Caracteres
+  // reserves de la syntaxe `or()` PostgREST retires de la saisie.
+  const term = (q || '')
+    .trim()
+    .replace(/[,()%*\\]/g, ' ')
+    .trim();
+  const menuShopIds = term ? await shopIdsWithMenuMatching(term) : [];
+
   // ⚠️ `!inner` sur `menus` : jointure INTERNE, donc une boutique SANS aucun
   // plat est écartée par la base. Sans ça, une page de 10 pouvait n'en rendre
   // que 2 (le service filtre les boutiques sans menu APRÈS coup) — voire 0, et
@@ -101,8 +127,9 @@ exports.getPage = async ({ limit = 10, cursor, q } = {}) => {
       .or('disponibilite.is.null,disponibilite.eq.true', { referencedTable: 'menus' })
       .order('created_at', { ascending: false })
       .order('id', { ascending: false });
-    const t = (q || '').trim();
-    if (t) qb = qb.ilike('name', `%${t}%`);
+    if (term) {
+      qb = menuShopIds.length ? qb.or(`name.ilike.%${term}%,id.in.(${menuShopIds.join(',')})`) : qb.ilike('name', `%${term}%`);
+    }
     return qb;
   };
 

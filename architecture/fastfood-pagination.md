@@ -16,7 +16,7 @@ Pagination **opt-in** — c'est la présence de `limit` qui l'active.
 | *(aucun)* | — | Catalogue complet, `data: []`. **Contrat historique inchangé.** |
 | `limit` | — | Active la pagination. Plafonné à `MAX_LIMIT = 50`. |
 | `cursor` | — | Page suivante. Sa **présence** = « pas la première page ». |
-| `q` | — | Recherche par nom (`ilike`), résolue en base. |
+| `q` | — | Recherche (`ilike`, résolue en base) : nom de la boutique OU nom d'un de ses plats (`menus.name` / `titre`, 500 boutiques max). |
 
 Réponse en mode paginé :
 
