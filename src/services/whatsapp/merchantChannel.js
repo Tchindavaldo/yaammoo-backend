@@ -1,11 +1,13 @@
 // Envoi WhatsApp commun aux flux marchands (boutique WhatsApp) : numéro de la boutique, envoi
 // au module, étape suivante par bouton, récapitulatif après un changement de statut.
-// Utilisé par merchantOrders.service.js et merchantTemplates.service.js. Doc : architecture/whatsapp.md.
+// Utilisé par merchantOrders.service.js, merchantTemplates.service.js et l'agent IA (ai/).
+// Chaque envoi réussi est journalisé (conversationLog.js). Doc : architecture/whatsapp.md.
 const repos = require('../../repositories');
 const wa = require('./whatsappModule.client');
 const { getOtpSettings } = require('../settings/settings.service');
 const { normalizePhoneNumber } = require('../../utils/validator/validatePhoneNumber');
 const msg = require('./merchantMessages');
+const { logOutbound } = require('./conversationLog');
 
 // Étape suivante proposée après chaque statut, une seule (la machine à états avance d'un cran).
 // « Livrée » ne passe pas par un bouton : c'est le scan du QR code du client qui la valide.
@@ -25,12 +27,29 @@ const shopNumber = async fastFood => {
 /** Idem, seulement si la boutique est en mode WhatsApp. */
 const shopPhone = async fastFood => (fastFood?.whatsappOrders ? shopNumber(fastFood) : null);
 
-const send = async (body, what) => {
+// Numéro E.164 -> boutiques WhatsApp qui l'utilisent (agent IA, journal). Gardé 1 min.
+let directory = { byPhone: null, at: 0 };
+/** Boutiques en mode WhatsApp dont le numéro est `phone` (un marchand peut en avoir plusieurs). */
+const shopsOfPhone = async phone => {
+  if (!directory.byPhone || Date.now() - directory.at > 60000) {
+    const byPhone = new Map();
+    for (const ff of await repos.fastfoods.listWhatsappShops()) {
+      const n = await shopNumber(ff);
+      if (n) byPhone.set(n, [...(byPhone.get(n) || []), ff]);
+    }
+    directory = { byPhone, at: Date.now() };
+  }
+  return directory.byPhone.get(phone) || [];
+};
+
+/** Envoi au module + journal de la conversation (`author` : 'system' ou 'ai'). */
+const send = async (body, what, author = 'system') => {
   const r = await wa.sendMessage(body);
   if (!r.ok) console.error(`❌ [WHATSAPP] ${what} vers ${body.to} : ${r.data?.message || `HTTP ${r.status}`}`);
+  else await logOutbound(body, { author, messageId: r.data?.messageId || null });
   return r;
 };
-const sendText = (to, body) => send({ to, type: 'text', text: { body } }, 'Message');
+const sendText = (to, body, author = 'system') => send({ to, type: 'text', text: { body } }, 'Message', author);
 
 /** Message libre + bouton(s) de la suite : Accepter / Refuser (pending) ou l'étape suivante. */
 const sendStep = (to, body, order) => {
@@ -62,4 +81,4 @@ const replyRecap = async (to, orders) => {
   }
 };
 
-module.exports = { NEXT, QR_HINT, shopNumber, shopPhone, send, sendText, sendStep, batchesOf, replyRecap };
+module.exports = { NEXT, QR_HINT, shopNumber, shopPhone, shopsOfPhone, send, sendText, sendStep, batchesOf, replyRecap };

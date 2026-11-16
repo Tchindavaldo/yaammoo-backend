@@ -1,6 +1,7 @@
 // Événements relayés par le module WhatsApp (messages reçus, statuts) : signature et aiguillage.
 // Utilisé par controllers/whatsapp/webhook.controller.js. Un flux marchand s'abonne à une
-// action de bouton avec onButton() (todo/fastfood/feature/whatsapp-commandes-marchand.md).
+// action de bouton avec onButton(), aux textes avec onText(), à tout message reçu avec
+// onInbound() (journal de l'agent IA, architecture/whatsapp-ai.md).
 const crypto = require('crypto');
 const config = require('../../config/whatsapp');
 
@@ -47,7 +48,17 @@ exports.onText = fn => {
   textHandlers.push(fn);
 };
 
+// Observateurs de TOUT message reçu (journal de conversation de l'agent IA), appelés avant
+// l'aiguillage ; fn(event) -> Promise. Une erreur d'observateur n'empêche pas le traitement.
+const inboundObservers = [];
+
+/** Abonne un observateur à chaque message reçu (bouton, texte, média…). */
+exports.onInbound = fn => {
+  inboundObservers.push(fn);
+};
+
 async function handleMessage(event) {
+  for (const fn of inboundObservers) await fn(event).catch(e => console.error(`❌ [WHATSAPP] observateur : ${e.message}`));
   const btn = event.button?.id ? parseButton(event.button.id) : null;
   if (!btn) {
     if (event.type === 'text' && event.text) {

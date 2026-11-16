@@ -29,6 +29,7 @@ const { enrichMenuForClient } = require('../menu/enrichMenuForClient');
 const { generateId } = require('../../repositories/idGen');
 const { cancelRefusal, cancelPaidOrder } = require('./orderCancel.service');
 const { notifyNewOrders } = require('../whatsapp/merchantOrders.service');
+const { requiresCancelRequest, requestCancel, cancelRequestOnTransition } = require('./cancelRequest.service');
 
 const buildTransitionNotif = ({ prevStatus, newStatus, order, merchantUserId }) => {
   const menuName = order.menu?.name || order.menu?.titre || 'Menu';
@@ -68,8 +69,10 @@ const isCancelStatus = s => s === 'cancelByUser' || s === 'cancelByFastFood';
  * @param {string} userId
  * @param {Object} [payment] `{ aggregator, network }` du paiement MobileWallet
  *   qui règle le panier — fixe le barème de frais extrait au règlement.
+ * @param {Object} [opts] `{ fromCancelRequest }` : annulation acceptée par le marchand
+ *   WhatsApp (cancelRequest.service) — pas de nouvelle demande, demande `accepted`.
  */
-exports.updateOrders = async (orders, userId, payment = null) => {
+exports.updateOrders = async (orders, userId, payment = null, opts = {}) => {
   try {
     const io = getIO();
 
@@ -79,6 +82,10 @@ exports.updateOrders = async (orders, userId, payment = null) => {
     console.info(`[updateOrders] ═══ ${updates.length} cmd · userId=${userId} ═══`);
     const groupedByFastFood = {};
     const results = [];
+    // Boutique WhatsApp : annulations client converties en demandes (cancelRequest.service).
+    const cancelRequested = [];
+    // Statut changé entre la lecture et l'écriture (action concurrente) : rien écrit.
+    const conflicts = [];
     const transitions = [];
     const reindexOps = [];
 
@@ -116,6 +123,18 @@ exports.updateOrders = async (orders, userId, payment = null) => {
 
       const prevStatus = prevData.status;
       const prevRank = prevData.rank;
+
+      // Boutique WhatsApp : le client ne peut pas annuler seul une commande payée en
+      // attente, il le DEMANDE au marchand (qui accepte ou refuse sur WhatsApp).
+      if (status === 'cancelByUser' && prevStatus === 'pending' && !opts.fromCancelRequest) {
+        const shop = await repos.fastfoods.getById(prevData.fastFoodId);
+        if (requiresCancelRequest(shop)) {
+          const r = await requestCancel(prevData, shop);
+          if (!r.ok) return { success: false, message: r.message, data: null };
+          cancelRequested.push(r.order);
+          continue;
+        }
+      }
       const deliveryDate = prevData.delivery?.date || new Date().toISOString().split('T')[0];
 
       // Transition autoritaire (état réel en DB)
@@ -159,6 +178,10 @@ exports.updateOrders = async (orders, userId, payment = null) => {
         updatedAt: new Date().toISOString(),
       };
       const fieldsToDelete = [];
+      // Demande d'annulation en attente : réglée par la transition (acceptée, refusée, close).
+      const cancelRequest = cancelRequestOnTransition(prevData, newStatus, opts);
+      if (cancelRequest) setData.cancelRequest = cancelRequest;
+      let stockTaken = null;
 
       // 1) Sortie de file : reindex à scheduler + clear rank
       if (isRankedStatus(prevStatus) && prevStatus !== newStatus && typeof prevRank === 'number') {
@@ -196,6 +219,7 @@ exports.updateOrders = async (orders, userId, payment = null) => {
             }
             const newStock = menu.stock - qty;
             const updatedMenu = await repos.menus.updateStock(menuId, newStock);
+            stockTaken = { menuId, qty };
             // Broadcast CLIENT : prix AFFICHÉ (livraison + marge + frais), pas le brut.
             const clientMenu = await enrichMenuForClient(updatedMenu);
             io.emit('globalMenuUpdated', { message: 'Stock mis à jour', menuId, menu: clientMenu });
@@ -208,12 +232,20 @@ exports.updateOrders = async (orders, userId, payment = null) => {
         // rank sera assigné par assignRank, on ne le met pas dans setData
         delete setData.rank;
         if (fieldsToDelete.length > 0) setData.__delete = fieldsToDelete;
-        await repos.orders.update(id, setData);
-        await assignRank({ fastFoodId, deliveryDate, status: newStatus, orderRef: id });
-      } else {
-        if (fieldsToDelete.length > 0) setData.__delete = fieldsToDelete;
-        await repos.orders.update(id, setData);
+      } else if (fieldsToDelete.length > 0) setData.__delete = fieldsToDelete;
+      // Verrou optimiste : écrit seulement si le statut est encore celui lu plus haut.
+      // Ex. le client annule pendant que le marchand accepte : la seconde action échoue.
+      const written = await repos.orders.update(id, setData, { expectedStatus: prevStatus });
+      if (!written) {
+        console.error(`[updateOrders] ❌ CONFLIT id=${id} — statut changé depuis la lecture (${prevStatus}), rien écrit`);
+        if (stockTaken) {
+          const m = await repos.menus.getById(stockTaken.menuId);
+          if (m && typeof m.stock === 'number') await repos.menus.updateStock(stockTaken.menuId, m.stock + stockTaken.qty);
+        }
+        conflicts.push({ id, status });
+        continue;
       }
+      if (isRankedStatus(newStatus)) await assignRank({ fastFoodId, deliveryDate, status: newStatus, orderRef: id });
 
       const updatedOrder = await repos.orders.getById(id);
       results.push(updatedOrder);
@@ -391,9 +423,17 @@ exports.updateOrders = async (orders, userId, payment = null) => {
       message = 'Nouvelle livraison lancée avec succès';
     }
 
-    console.info(`[updateOrders] ✓ terminé — ${results.map(o => `${o.id}:${o.status}`).join(' | ')}`);
+    if (!results.length && conflicts.length && !cancelRequested.length) {
+      const fresh = await repos.orders.getById(conflicts[0].id);
+      const asked = conflicts[0].status;
+      const refusal = isCancelStatus(asked) && fresh ? (isCancelStatus(fresh.status) ? 'Cette commande est déjà annulée.' : cancelRefusal(fresh.status, asked)) : null;
+      return { success: false, message: refusal || 'La commande vient de changer de statut : rechargez et réessayez.', data: null };
+    }
+    if (cancelRequested.length && !results.length) message = "Demande d'annulation envoyée au restaurant. Vous serez prévenu de sa réponse.";
 
-    return { success: true, message, data: results };
+    console.info(`[updateOrders] ✓ terminé — ${results.map(o => `${o.id}:${o.status}`).join(' | ')}${cancelRequested.length ? ` · demandes d'annulation : ${cancelRequested.map(o => o.id).join(', ')}` : ''}`);
+
+    return { success: true, message, data: results, ...(cancelRequested.length ? { cancelRequested } : {}) };
   } catch (error) {
     console.error(`[updateOrders] ❌ EXCEPTION: ${error.message}`, error.stack);
     return {

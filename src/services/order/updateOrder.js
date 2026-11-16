@@ -51,6 +51,8 @@ exports.updateOrderService = async (orderId, updateData) => {
       const userId = updateData.userId || prevData.userId;
       const result = await updateOrders([payload], userId);
       if (!result.success) return result;
+      // Boutique WhatsApp : annulation convertie en demande au marchand (cancelRequest.service).
+      if (result.cancelRequested?.length) return { success: true, cancelRequested: true, message: result.message, data: result.cancelRequested[0] };
       return { success: true, message: result.message, data: result.data?.[0] || null };
     }
 

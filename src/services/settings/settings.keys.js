@@ -62,6 +62,10 @@ const KEYS = {
   PLATFORM_FREE_DELIVERY_MIN_ITEMS_CAMPAIGN: 'platform_free_delivery_min_items_campaign',
   // Gate de version d'app (migration 042) — écran de mise à jour forcée.
   MIN_APP_VERSION: 'platform_min_app_version',
+  // Migration 091 : version d'app qui affiche l'annulation SUR DEMANDE (boutique
+  // WhatsApp, « En attente de la réponse du marchand »). Sous le seuil : refus 409
+  // portant le message, au lieu d'un succès lu « Commande annulée » (R11).
+  CANCEL_REQUEST_MIN_APP_VERSION: 'cancel_request_min_app_version',
   LATEST_APP_VERSION: 'platform_latest_app_version',
   // Agrégateur de paiement actif (migration 065) : pawapay | digikuntz.
   PAYMENT_AGGREGATOR: 'payment_aggregator',
@@ -94,6 +98,16 @@ const KEYS = {
   WHATSAPP_TIMEOUT_MS: 'whatsapp_timeout_ms',
   // Migration 087 : minutes sans réponse avant le rappel WhatsApp d'une nouvelle commande.
   WHATSAPP_REMINDER_MINUTES: 'whatsapp_reminder_minutes',
+  // Migration 090 : agent IA des boutiques WhatsApp (OpenRouter). Modèles essayés
+  // dans l'ordre (repli), interrupteur, délai d'un appel, rétention des conversations.
+  AI_MODELS: 'ai_models',
+  AI_ENABLED: 'ai_enabled',
+  AI_TIMEOUT_MS: 'ai_timeout_ms',
+  AI_CONVERSATION_RETENTION_DAYS: 'ai_conversation_retention_days',
+  AI_HISTORY_MAX_MESSAGES: 'ai_history_max_messages',
+  // Migration 092 : minutes sans réponse du marchand WhatsApp avant que le client
+  // puisse RENVOYER sa demande d'annulation (cancelRequest.service).
+  CANCEL_REQUEST_RESEND_MINUTES: 'cancel_request_resend_minutes',
   // Builds de TEST (migration 051, table `settings_test` depuis la 055, tableau
   // depuis la 056) : versions d'app exactes qui reçoivent les comportements de
   // test (mode volume de `GET /fastFood/all`, paiement gratuit). [] = aucune.
@@ -163,6 +177,7 @@ const KEY_CATEGORY = {
 
   // deployment — versions d'app et Apple Review
   [KEYS.MIN_APP_VERSION]: 'deployment',
+  [KEYS.CANCEL_REQUEST_MIN_APP_VERSION]: 'deployment',
   [KEYS.LATEST_APP_VERSION]: 'deployment',
   [KEYS.PAYMENT_AGGREGATOR]: 'deployment',
   [KEYS.APPLE_REVIEW_MODE]: 'deployment',
@@ -176,6 +191,12 @@ const KEY_CATEGORY = {
   [KEYS.ORDER_AUTO_CANCEL_DAYS]: 'app',
   [KEYS.WHATSAPP_TIMEOUT_MS]: 'app',
   [KEYS.WHATSAPP_REMINDER_MINUTES]: 'app',
+  [KEYS.AI_MODELS]: 'app',
+  [KEYS.AI_ENABLED]: 'app',
+  [KEYS.AI_TIMEOUT_MS]: 'app',
+  [KEYS.AI_CONVERSATION_RETENTION_DAYS]: 'app',
+  [KEYS.AI_HISTORY_MAX_MESSAGES]: 'app',
+  [KEYS.CANCEL_REQUEST_RESEND_MINUTES]: 'app',
 
   // test — build de test (sorties de `deployment` par la migration 055)
   [KEYS.TEST_APP_VERSION]: 'test',
@@ -254,6 +275,8 @@ const FALLBACKS = {
   // "0.0.0" = jamais bloquant : une clé absente ou illisible ne doit jamais
   // couper l'accès à l'app.
   [KEYS.MIN_APP_VERSION]: '0.0.0',
+  // Clé absente : aucune app n'est supposée gérer la demande (message de repli servi à toutes).
+  [KEYS.CANCEL_REQUEST_MIN_APP_VERSION]: '999.0.0',
   [KEYS.LATEST_APP_VERSION]: '0.0.0',
   // OTP : replis PRUDENTS, dans le sens qui protège la facture Bird. Un
   // cooldown à 0 sur clé absente ouvrirait les renvois en rafale — donc 60 s.
@@ -280,6 +303,13 @@ const FALLBACKS = {
   [KEYS.WHATSAPP_TIMEOUT_MS]: 15000,
   // Rappel d'une nouvelle commande sans réponse : 10 min (exemple du template).
   [KEYS.WHATSAPP_REMINDER_MINUTES]: 10,
+  // IA coupée si la clé manque : aucun message libre envoyé au marchand sans réglage.
+  [KEYS.AI_MODELS]: [],
+  [KEYS.AI_ENABLED]: false,
+  [KEYS.AI_TIMEOUT_MS]: 30000,
+  [KEYS.AI_CONVERSATION_RETENTION_DAYS]: 30,
+  [KEYS.AI_HISTORY_MAX_MESSAGES]: 100,
+  [KEYS.CANCEL_REQUEST_RESEND_MINUTES]: 15,
   // Build de test : repli à « aucune ». Une clé absente ne doit JAMAIS servir
   // des données de test à une vraie app.
   [KEYS.TEST_APP_VERSION]: [],

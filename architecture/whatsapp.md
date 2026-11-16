@@ -48,7 +48,9 @@ signature porte sur le corps brut.
 3. `services/whatsapp/webhookEvents.service.js` :
    - `message` avec bouton : payload `<ref>:<action>` (posé par Yaammoo à l'envoi),
      transmis au flux abonné par `onButton(action, fn)` ; sans flux abonné, journalisé.
-   - `message` sans bouton : journalisé.
+   - `message` sans bouton : `onText` (« LIVRÉ … », puis l'**agent IA** pour tout autre texte
+     d'une boutique, [whatsapp-ai.md](./whatsapp-ai.md)) ; sinon journalisé.
+   - Tout message reçu passe d'abord par `onInbound` (journal de conversation de l'agent IA).
    - `status` `failed` : journalisé en erreur.
 4. `200 { success, handled }` ; erreur d'un flux → `500` (le module ne renvoie pas).
 
@@ -93,11 +95,30 @@ Code : `services/whatsapp/merchantOrders.service.js`, textes `merchantMessages.j
   (`updateOrders`) jusqu'au statut déclaré ; « Livrée » s'arrête à « en livraison » (le QR
   du client valide la remise). Un statut déclaré en retard ne recule rien.
 
+### Demande d'annulation (`merchantCancelRequests.service.js`)
+
+Le client d'une boutique WhatsApp demande l'annulation d'une commande en attente
+(`services/order/cancelRequest.service.js`, [order-cancel.md](./order-cancel.md)) :
+message libre au marchand (n°, plats, livraison) avec les boutons « Accepter annulation »
+(`<id>:cancel_ok`) et « Refuser annulation » (`<id>:cancel_no`), référence `cancelreq_<id>`.
+Refusé hors fenêtre de 24 h (131047) -> template `yam_demande_annulation` (bodyParams :
+n°, plats ; boutons : mêmes payloads). ⚠️ Variables du template à vérifier dans le module
+(non lisibles depuis ce dépôt). Accepter -> `cancelByUser` (client remboursé) ; Refuser ->
+commande maintenue, récapitulatif avec Accepter / Refuser la commande. Demande renvoyée
+par le client sans réponse (`cancel_request_resend_minutes`) : même message, préfixé « Relance ». Seul le numéro de la
+boutique décide ; l'agent IA propose aussi ces deux actions (`cancel_accept`, `cancel_refuse`).
+
+## Agent IA (texte libre du marchand)
+
+Hors boutons et « LIVRÉ », le marchand qui écrit librement est servi par un agent IA
+(OpenRouter) qui voit toute la conversation et ses commandes et propose les actions (avec
+confirmation) : [whatsapp-ai.md](./whatsapp-ai.md). Chaque envoi de
+`merchantChannel.send` est journalisé (`conversationLog.js`).
+
 ## À venir
 
-QR dans l'app client (frontend, branche `feature/qr-livraison-whatsapp`), demande d'annulation,
-`yam_nouveau_message` : `todo/fastfood/feature/whatsapp-commandes-marchand.md` et
-`todo/user/feature/annulation-sur-demande.md`.
+QR dans l'app client (frontend, branche `feature/qr-livraison-whatsapp`),
+`yam_nouveau_message` : `todo/fastfood/feature/whatsapp-commandes-marchand.md`.
 
 ## Fichiers
 
@@ -107,9 +128,13 @@ routes/whatsappWebhookRoutes.js
 controllers/whatsapp/webhook.controller.js
 services/whatsapp/webhookEvents.service.js     signature, aiguillage, onButton, onText, onSendFailed
 services/whatsapp/whatsappModule.client.js     envoi, accusé de lecture
-services/whatsapp/merchantChannel.js           envoi commun (numéro boutique, étape suivante, récap)
+services/whatsapp/merchantChannel.js           envoi commun (numéro boutique, étape suivante, récap, shopsOfPhone)
+services/whatsapp/conversationLog.js           journal de conversation (agent IA, whatsapp-ai.md)
+services/whatsapp/ai/                          agent IA (whatsapp-ai.md)
 services/whatsapp/merchantOrders.service.js    flux marchands (commande, boutons, suivi, « LIVRÉ »)
 services/whatsapp/merchantTemplates.service.js rappel, livrée depuis l'app, statut hors fenêtre
+services/whatsapp/merchantCancelRequests.service.js demande d'annulation du client (boutons, template)
+services/order/cancelRequest.service.js        demande d'annulation (création, acceptation, refus)
 services/wallet/orderPayout.service.js         versement automatique à la livraison
 utils/whatsappReminderJob.js                   rappel des commandes sans réponse
 repositories/supabase/waOrderReminders.repo.js
@@ -121,4 +146,6 @@ utils/validator/validateWhatsappEvent.js
 schema/migrations/085_whatsapp_settings.sql
 schema/migrations/086_order_payout.sql
 schema/migrations/087_whatsapp_order_reminders.sql
+schema/migrations/091_cancel_request.sql
+schema/migrations/092_cancel_request_resend.sql
 ```
