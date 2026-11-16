@@ -116,9 +116,15 @@ const onGo = async ({ ref, event }) => {
   const order = await repos.orders.getById(ref);
   const driver = order?.driverId ? await repos.users.getUserByIdSafe(order.driverId) : null;
   if (!driver || (await dir.phoneOfUser(driver)) !== event.from) return sendText(event.from, 'Cette commande ne vous est pas confiée.');
+  if (!(await dir.hasPayoutNumber(dir.uidOf(driver)))) return sendText(event.from, "Envoyez d'abord votre numéro Orange Money ou MTN MoMo : c'est là qu'arrive la part de la boutique au scan du QR code du client.");
   const { started, lines } = await exports.startDelivery(driver, [order]);
-  const out = [...lines, ...started.map(o => `Commande n°${msg.ref(o)} : livraison en cours. ${text.QR_LINE}`)];
-  if (out.length) await sendText(event.from, out.join('\n\n'));
+  if (lines.length) await sendText(event.from, lines.join('\n'));
+  // Fiche complète (coordonnées du client) : la fenêtre de 24 h est ouverte par le clic,
+  // même quand la course était arrivée par le template yam_livraison_livreur.
+  for (const o of started) {
+    const fresh = await repos.orders.getById(o.id);
+    await sendCard(event.from, fresh || o, (await repos.fastfoods.getById(o.fastFoodId)) || { name: 'Yaammoo' });
+  }
 };
 
 /**

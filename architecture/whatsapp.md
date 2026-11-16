@@ -120,9 +120,8 @@ livreurs de la boutique, qui ont leur propre agent (fiche de course, départ en 
 numéro OM / MoMo validé par WhatsApp : « Livreurs » du même fichier). Chaque envoi de
 `merchantChannel.send` est journalisé (`conversationLog.js`).
 
-Aiguillage des textes (`onText`, dans l'ordre) : « LIVRÉ … », « NUMERO <jeton> »
-(validation d'un numéro de livreur), agent du marchand (numéro de boutique), agent du
-livreur (numéro de livreur).
+Aiguillage des textes (`onText`, dans l'ordre) : « LIVRÉ … », agent du marchand (numéro
+de boutique), agent du livreur (numéro de livreur).
 
 ## À venir
 

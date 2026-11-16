@@ -125,7 +125,7 @@ payée **par pawaPay** non livrée après `settings_app.order_auto_cancel_days` 
 | **Paiement DigiKUNTZ** | tout compris | ⌈`payment_fee_percent` % × P⌉ |
 | **Kiosque** (`withdrawal_fee`) | le marchand retire en **espèces** chez l'agent Orange/MTN | `withdrawal_fee_<réseau>_percent` % × (plats réels + course qu'il livre) + `addend`, ⌈⌉ ; sous `threshold` : `flat` |
 | **Interréseau** | le marchand retire vers l'AUTRE réseau | ⌈taux payout pawaPay du réseau de réception × montant⌉, débité **en plus** du solde (devis MobileWallet `/payout/quote` fait foi) |
-| **Frais SMS** (`sms_fee`) | code SMS de vérification d'un numéro de retrait | ⌈coût Bird réel USD × taux USD→XAF du jour⌉, débité du réseau vérifié ; négatif non bloquant ([wallet.md](./wallet.md)) |
+| **Frais SMS** (`sms_fee`) | code SMS de vérification d'un numéro de retrait | ⌈coût Bird réel USD × taux USD→XAF du jour⌉, débité du réseau vérifié ; négatif non bloquant ; numéro d'un livreur de boutique WhatsApp : débité à sa **boutique** ([wallet.md](./wallet.md)) |
 
 - **Part plateforme** (`GET /wallet/admin/platform-share`) : marges des commandes
   non annulées + frais SMS − versements aux boutiques − retraits admin

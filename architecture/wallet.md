@@ -395,7 +395,9 @@ avant 079 ne sont pas vérifiés : le marchand les revérifie depuis sa boutique
 le gère pas) et numéro présent dans `whatsapp_numbers` du compte → `request` le vérifie
 tout de suite, sans SMS ni frais : `200 { verified: true, phoneNumber }`. En dessous du
 seuil : code SMS comme avant. L'app doit donc faire valider le WhatsApp en premier.
-Livreur sans app : numéro OM / MoMo validé par WhatsApp, sans code
+Livreur sans app : il donne son numéro à l'agent IA sur WhatsApp ; celui d'où il écrit
+est validé sans code, un autre reçoit ce même code SMS, qu'il renvoie à l'agent. Frais SMS
+débités à sa **boutique** (`billUserId` de `requestPayoutNumberCode` / `verifyPayoutNumberCode`)
 ([whatsapp-ai.md](./whatsapp-ai.md), « Livreurs »).
 
 ## Numéro WhatsApp de la boutique vérifié (migration 080)
@@ -405,8 +407,8 @@ que les numéros de retrait, mais code sur **WhatsApp uniquement** (`channels:
 ['whatsapp']`, aucun repli SMS). Un code livré par un autre canal est refusé.
 Connexion par numéro (`/auth/phone/verify`) : si Bird a livré le code par
 WhatsApp, le numéro est enregistré comme WhatsApp vérifié (`source = 'login'`) ;
-un repli SMS ne vérifie rien. Message reçu DU numéro (livreur WhatsApp, « NUMERO <jeton> ») :
-`source = 'inbound'` (migration 093). Table `whatsapp_numbers`.
+un repli SMS ne vérifie rien. Livreur WhatsApp qui donne comme numéro OM / MoMo celui d'où
+il écrit : `source = 'inbound'` (migration 093). Table `whatsapp_numbers`.
 
 ## Frais SMS des numéros de retrait (`sms_fee`, migration 083, CGU 12.5 bis)
 

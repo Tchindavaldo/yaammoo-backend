@@ -52,11 +52,7 @@ exports.welcome = (shopName, payoutReady) =>
     "Vous recevrez ici les commandes à livrer. Répondez à ce numéro pour toute question sur vos livraisons : l'assistant Yaammoo vous répond.",
     payoutReady
       ? ''
-      : "Avant votre première livraison, envoyez votre numéro Orange Money ou MTN MoMo : c'est là qu'arrive la part de la boutique au scan du QR code du client. Si c'est ce numéro WhatsApp, répondez simplement « mon numéro de paiement est celui-ci ».",
+      : "Avant votre première livraison, envoyez votre numéro Orange Money ou MTN MoMo : c'est là qu'arrive la part de la boutique au scan du QR code du client. Si c'est ce numéro WhatsApp, répondez simplement « mon numéro de paiement est celui-ci » ; sinon, envoyez le numéro et renvoyez ici le code reçu par SMS.",
   ]
     .filter(Boolean)
     .join('\n\n');
-
-/** Lien qui valide sans code un numéro OM / MoMo : ouvert sur le téléphone de ce numéro. */
-exports.claimText = token => `NUMERO ${token}`;
-exports.claimInstructions = (phone, link, minutes) => `Pour valider le numéro ${phone}, ouvrez ce lien sur le téléphone qui a WhatsApp avec ce numéro, puis envoyez le message qui s'ouvre (valable ${minutes} min) :\n${link}`;

@@ -27,10 +27,18 @@ exports.definitions = [
     { texte: { type: 'string' }, boutique: { type: 'string', description: 'Nom de la boutique (seulement s’il en sert plusieurs)' } },
     ['texte']
   ),
-  fn('register_payout_number', "Enregistre le numéro Orange Money / MTN MoMo du livreur. Sans numéro : celui d'où il écrit, validé tout de suite. Avec un autre numéro : Yaammoo lui envoie un lien à ouvrir sur le téléphone de ce numéro.", {
-    telephone: { type: 'string', description: "Numéro OM / MoMo s'il est différent de son numéro WhatsApp" },
-  }),
+  fn(
+    'register_payout_number',
+    "Enregistre le numéro Orange Money / MTN MoMo du livreur. Sans numéro : celui d'où il écrit, validé tout de suite. Avec un autre numéro : Yaammoo envoie un code par SMS à ce numéro, que le livreur renvoie ici (verify_payout_number).",
+    {
+      telephone: { type: 'string', description: "Numéro OM / MoMo s'il est différent de son numéro WhatsApp" },
+    }
+  ),
+  fn('verify_payout_number', 'Vérifie le code SMS que le livreur a reçu sur son numéro Orange Money / MTN MoMo, et valide ce numéro.', { telephone: { type: 'string' }, code: { type: 'string' } }, ['telephone', 'code']),
 ];
+
+// Frais du code SMS : à la boutique du livreur (la plus récente s'il en sert plusieurs).
+const billUserOf = ctx => ctx.shops[0]?.userId || null;
 
 const pick = (ctx, list) => {
   const { found, missing } = resolveRefs(list, ctx.orders);
@@ -74,14 +82,21 @@ const handlers = {
   },
 
   register_payout_number: async (ctx, { telephone }) => {
-    const r = await accounts.registerPayoutNumber({ driverUser: ctx.user, fromPhone: ctx.phone, phone: telephone });
+    const r = await accounts.registerPayoutNumber({ driverUser: ctx.user, fromPhone: ctx.phone, phone: telephone, billUserId: billUserOf(ctx) });
     if (!r.ok) return { error: r.message };
-    if (r.verified) {
-      await sendText(ctx.phone, r.message);
-      ctx.payoutReady = true;
-    }
+    await sendText(ctx.phone, r.message);
+    if (r.verified) ctx.payoutReady = true;
     ctx.flags.replied = true;
-    return { ok: true, valide: !!r.verified, info: r.message };
+    return { ok: true, valide: !!r.verified, codeEnvoye: !!r.codeSent, info: r.message };
+  },
+
+  verify_payout_number: async (ctx, { telephone, code }) => {
+    const r = await accounts.verifyPayoutCode({ driverUser: ctx.user, fromPhone: ctx.phone, phone: telephone, code, billUserId: billUserOf(ctx) });
+    if (!r.ok) return { error: r.message };
+    await sendText(ctx.phone, r.message);
+    ctx.payoutReady = true;
+    ctx.flags.replied = true;
+    return { ok: true, valide: true, info: r.message };
   },
 };
 

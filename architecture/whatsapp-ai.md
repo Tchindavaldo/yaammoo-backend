@@ -17,11 +17,10 @@ boutique part sur le numéro Orange Money / MTN MoMo du livreur au scan du QR du
 | Secret Fly | `OPENROUTER_API_URL` | `https://openrouter.ai/api/v1` |
 | Secret Fly | `OPENROUTER_API_KEY` | clé du compte OpenRouter |
 | `settings_app` | `ai_enabled` | `true` = l'agent traite les textes libres (migration : `true`) |
-| `settings_app` | `ai_models` | modèles OpenRouter **essayés dans l'ordre** (paramètre `models`, repli automatique). `[]` = IA coupée. Migration : `anthropic/claude-haiku-5.5`, `google/gemini-3.1-flash-lite`, `deepseek/deepseek-v4.1-flash` |
+| `settings_app` | `ai_models` | modèles OpenRouter **essayés dans l'ordre** (paramètre `models`, repli automatique). `[]` = IA coupée. `z-ai/glm-5.3-flash` puis `qwen/qwen3.7-flash` (décision du 16/11/2026 : les moins chers qui lisent les images et appellent des outils) |
 | `settings_app` | `ai_timeout_ms` | délai max d'un appel (30000) |
 | `settings_app` | `ai_conversation_retention_days` | rétention de la conversation (30) |
 | `settings_app` | `ai_history_max_messages` | messages relus à chaque réponse (100) |
-| `settings_app` | `wa_number_claim_ttl_minutes` | validité du lien qui valide un numéro OM / MoMo de livreur (30, migration 093) |
 
 Tout se change à chaud : `PATCH /settings/<clé>` (ex. `ai_models` = `["…", "…"]`).
 Lecture : `settings.service.getAiSettings()` (IA coupée si `ai_models` est vide ou en cas d'échec).
@@ -108,11 +107,13 @@ Un livreur est un user rattaché à la boutique (`driver_applications` `accepted
    `add`). Message de bienvenue ; hors fenêtre de 24 h, template `yam_livreur_ajoute`
    (boutique).
 2. **Numéro de paiement obligatoire** : un livreur sans numéro OM / MoMo validé
-   (`payout_numbers`) ne peut ni recevoir de commande ni partir en livraison. Validation
-   **sans code**, par WhatsApp : le numéro d'où il écrit (prouvé par WhatsApp), ou un autre
-   numéro prouvé par le lien `wa.me/<Yaammoo>?text=NUMERO <jeton>` ouvert sur le téléphone
-   de ce numéro (`wa_number_claims`, `wa_number_claim_ttl_minutes`, une seule utilisation).
-   Le numéro est aussi noté WhatsApp validé (`whatsapp_numbers.source = 'inbound'`).
+   (`payout_numbers`) ne peut ni recevoir de commande ni partir en livraison. Il donne son
+   numéro à l'agent : celui d'où il écrit est validé **sans code** (WhatsApp le prouve ;
+   noté aussi WhatsApp validé, `whatsapp_numbers.source = 'inbound'`). Un autre numéro reçoit
+   un **code SMS** (`payoutNumber.service`, mêmes envois que `/wallet/payout-number/request`),
+   que le livreur renvoie à l'agent (`verify_payout_number`). Frais du SMS (`sms_fee`) :
+   débités à la **boutique** du livreur (la plus récente s'il en sert plusieurs,
+   `billUserId`), décision du 16/11/2026.
 3. **Affectation** (`assign_driver`, `driverDeliveries.assignOrders`) : commandes acceptées
    (en cours, terminées, en livraison) et livrées à domicile ; `driverOrders.assignDriver`
    (sockets `driverOrderAssigned`, `userOrderUpdated`, `fastFoodOrderUpdated` : l'app est à
@@ -123,8 +124,10 @@ Un livreur est un user rattaché à la boutique (`driver_applications` `accepted
 4. **Départ** : bouton ou agent du livreur (`start_delivery`), **tout de suite**, sans
    confirmation. Seulement ses commandes, acceptées ; avance pas à pas jusqu'à « en
    livraison ». La boutique est prévenue.
-5. **Remise** : le livreur scanne le QR du client, « LIVRÉ <id> <code> » est accepté depuis
-   SON numéro ([whatsapp.md](./whatsapp.md)). La part de la boutique part sur son numéro
+5. **Remise** : le livreur scanne le QR du client, dans l'app Yaammoo
+   (`POST /order/:orderId/confirm-delivery`, livreur assigné) ou avec l'appareil photo :
+   WhatsApp s'ouvre avec « LIVRÉ <id> <code secret> », accepté depuis SON numéro
+   ([whatsapp.md](./whatsapp.md)). Les deux passent par `confirmDelivery.service`. La part de la boutique part sur son numéro
    OM / MoMo ([wallet.md](./wallet.md), « Versement automatique ») ; boutique et livreur
    sont prévenus du verdict. La boutique reçoit `yam_commande_livree`.
 6. **Messages relayés** : `message_driver` (boutique -> livreur) et `message_shop`
@@ -145,7 +148,8 @@ ni le prix payé : `send_order_details` envoie la fiche directement.
 | `send_order_details` | envoie la fiche complète (coordonnées du client comprises) |
 | `start_delivery` | passe les commandes en livraison tout de suite, boutique prévenue |
 | `message_shop` | relaie un message à la boutique |
-| `register_payout_number` | valide son numéro OM / MoMo (celui d'où il écrit, ou lien pour un autre) |
+| `register_payout_number` | son numéro OM / MoMo : celui d'où il écrit validé tout de suite, un autre reçoit un code SMS |
+| `verify_payout_number` | vérifie le code SMS renvoyé et valide le numéro |
 
 ### Templates à créer chez Meta (module rauval-backend)
 
@@ -158,7 +162,7 @@ ni le prix payé : `send_order_details` envoie la fiche directement.
 
 Conversation effacée au-delà de `ai_conversation_retention_days`.
 Propositions ouvertes depuis plus de 24 h → `expired`. Propositions plus vieilles que la
-rétention → effacées. Liens de validation de numéro expirés depuis plus d'un jour → effacés.
+rétention → effacées.
 
 ## Fichiers
 
@@ -177,14 +181,13 @@ services/whatsapp/ai/driverAgent.service.js      texte libre du livreur -> agent
 services/whatsapp/ai/driverPrompt.js             consignes livreur, état
 services/whatsapp/ai/driverTools.js              outils du livreur
 services/whatsapp/driver/driverDirectory.js      numéro -> livreur, livreurs d'une boutique
-services/whatsapp/driver/driverAccounts.service.js  ajout, numéro OM / MoMo (« NUMERO <jeton> »)
+services/whatsapp/driver/driverAccounts.service.js  ajout, numéro OM / MoMo (direct ou code SMS)
 services/whatsapp/driver/driverDeliveries.service.js affectation, fiche, départ, relais
 services/whatsapp/driver/driverMessages.js       textes envoyés au livreur
 utils/whatsappAiPurgeJob.js
 repositories/whatsappMappers.js
 repositories/supabase/waConversations.repo.js
 repositories/supabase/waAiPendingActions.repo.js
-repositories/supabase/waNumberClaims.repo.js
 schema/migrations/090_whatsapp_ai.sql
 schema/migrations/093_whatsapp_drivers.sql
 ```

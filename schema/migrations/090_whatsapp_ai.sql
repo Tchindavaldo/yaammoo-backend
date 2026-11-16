@@ -48,7 +48,7 @@ ALTER TABLE wa_ai_pending_actions ENABLE ROW LEVEL SECURITY;
 
 INSERT INTO settings_app (key, value, description) VALUES
   ('ai_enabled', 'true'::jsonb, 'Agent IA des boutiques WhatsApp : true = les messages libres du marchand sont traités par l''IA (OpenRouter).'),
-  ('ai_models', '["anthropic/claude-haiku-5.5", "google/gemini-3.1-flash-lite", "deepseek/deepseek-v4.1-flash"]'::jsonb, 'Modèles OpenRouter de l''agent IA WhatsApp, essayés dans l''ordre (repli si le premier échoue). [] = IA coupée.'),
+  ('ai_models', '["z-ai/glm-5.3-flash", "qwen/qwen3.7-flash"]'::jsonb, 'Modèles OpenRouter de l''agent IA WhatsApp, essayés dans l''ordre (repli si le premier échoue). [] = IA coupée.'),
   ('ai_timeout_ms', '30000'::jsonb, 'Délai max (ms) d''un appel OpenRouter de l''agent IA WhatsApp.'),
   ('ai_conversation_retention_days', '30'::jsonb, 'Jours de conservation des conversations WhatsApp marchands (agent IA).'),
   ('ai_history_max_messages', '100'::jsonb, 'Nombre max de messages de la conversation relus par l''agent IA à chaque réponse.')

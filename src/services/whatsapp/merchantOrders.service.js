@@ -164,7 +164,7 @@ exports.registerMerchantOrderButtons = () => {
   registerMerchantTemplateFlows();
   // Demande d'annulation du client (boutons Accepter / Refuser l'annulation, template hors fenêtre).
   require('./merchantCancelRequests.service').registerCancelRequestFlows();
-  // Livreurs : « NUMERO <jeton> » (avant les agents), bouton Je pars en livraison, templates.
+  // Livreurs : bouton Je pars en livraison, templates hors fenêtre (bienvenue, course).
   require('./driver/driverAccounts.service').registerDriverAccountFlows();
   require('./driver/driverDeliveries.service').registerDriverDeliveryFlows();
   require('./ai/merchantAgent.service').registerMerchantAgent();

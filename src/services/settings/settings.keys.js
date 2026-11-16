@@ -111,9 +111,6 @@ const KEYS = {
   // Migration 092 : minutes sans réponse du marchand WhatsApp avant que le client
   // puisse RENVOYER sa demande d'annulation (cancelRequest.service).
   CANCEL_REQUEST_RESEND_MINUTES: 'cancel_request_resend_minutes',
-  // Migration 093 : minutes de validité du lien WhatsApp qui valide sans code le
-  // numéro OM / MoMo d'un livreur (wa_number_claims).
-  WA_NUMBER_CLAIM_TTL_MINUTES: 'wa_number_claim_ttl_minutes',
   // Builds de TEST (migration 051, table `settings_test` depuis la 055, tableau
   // depuis la 056) : versions d'app exactes qui reçoivent les comportements de
   // test (mode volume de `GET /fastFood/all`, paiement gratuit). [] = aucune.
@@ -204,7 +201,6 @@ const KEY_CATEGORY = {
   [KEYS.AI_CONVERSATION_RETENTION_DAYS]: 'app',
   [KEYS.AI_HISTORY_MAX_MESSAGES]: 'app',
   [KEYS.CANCEL_REQUEST_RESEND_MINUTES]: 'app',
-  [KEYS.WA_NUMBER_CLAIM_TTL_MINUTES]: 'app',
 
   // test — build de test (sorties de `deployment` par la migration 055)
   [KEYS.TEST_APP_VERSION]: 'test',
@@ -320,7 +316,6 @@ const FALLBACKS = {
   [KEYS.AI_CONVERSATION_RETENTION_DAYS]: 30,
   [KEYS.AI_HISTORY_MAX_MESSAGES]: 100,
   [KEYS.CANCEL_REQUEST_RESEND_MINUTES]: 15,
-  [KEYS.WA_NUMBER_CLAIM_TTL_MINUTES]: 30,
   // Build de test : repli à « aucune ». Une clé absente ne doit JAMAIS servir
   // des données de test à une vraie app.
   [KEYS.TEST_APP_VERSION]: [],

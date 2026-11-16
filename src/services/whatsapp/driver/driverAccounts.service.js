@@ -1,23 +1,22 @@
 // Comptes des livreurs des boutiques WhatsApp. Ajout par le marchand (agent IA) : compte
 // trouvé par numéro, sinon créé (numéro seul, connexion plus tard par code comme
-// /auth/phone), puis rattaché (driverRecruit `add`). Numéro OM / MoMo validé SANS code par
-// WhatsApp : le numéro d'où le livreur écrit (WhatsApp le prouve), ou un autre numéro prouvé
-// par « NUMERO <jeton> » envoyé DEPUIS lui (wa_number_claims, migration 093). Un livreur ne
-// livre qu'avec un numéro validé : c'est là que part la part de la boutique (orderPayout).
+// /auth/phone), puis rattaché (driverRecruit `add`). Numéro OM / MoMo : celui d'où le livreur
+// écrit est validé sans code (WhatsApp le prouve) ; un autre numéro reçoit un code SMS, que
+// le livreur renvoie à l'agent (frais SMS à la boutique, décision du 16/11/2026). Un livreur
+// ne livre qu'avec un numéro validé : c'est là que part la part de la boutique (orderPayout).
 // Doc : architecture/whatsapp-ai.md (« Livreurs »).
 const { admin } = require('../../../config/firebase');
 const repos = require('../../../repositories');
 const mobilewallet = require('../../transaction/mobilewalletService');
-const wa = require('../whatsappModule.client');
-const { onText, onSendFailed } = require('../webhookEvents.service');
-const { getOtpSettings, getSettings, KEYS } = require('../../settings/settings.service');
+const { onSendFailed } = require('../webhookEvents.service');
+const { getOtpSettings } = require('../../settings/settings.service');
+const { toBalanceKey } = require('../../../utils/mobileNetwork');
 const { normalizePhoneNumber, phoneToNumero } = require('../../../utils/validator/validatePhoneNumber');
-const { send, sendText } = require('../merchantChannel');
+const { send } = require('../merchantChannel');
 const dir = require('./driverDirectory');
 const text = require('./driverMessages');
 
 const OUT_OF_WINDOW = 131047;
-const CLAIM_RE = /^\s*NUMERO\s+([A-Z0-9_-]{6,16})\s*$/i;
 
 const toE164 = async phone => {
   const { defaultCountryCode } = await getOtpSettings();
@@ -68,11 +67,6 @@ exports.addDriver = async ({ fastFood, phone, nom, prenom }) => {
   return { ok: true, already: r.code === 409, name: dir.nameOf(user), payoutReady };
 };
 
-const claimTtl = async () => {
-  const v = Number((await getSettings())[KEYS.WA_NUMBER_CLAIM_TTL_MINUTES]);
-  return Number.isFinite(v) && v > 0 ? v : 30;
-};
-
 /** Enregistre le numéro OM / MoMo (E.164) comme validé pour le compte. */
 const markPayout = async (uid, phone) => {
   await repos.payoutNumbers.markVerified(uid, phone);
@@ -81,50 +75,42 @@ const markPayout = async (uid, phone) => {
 
 /**
  * Le livreur donne son numéro OM / MoMo. Absent ou égal au numéro d'où il écrit : validé
- * tout de suite. Autre numéro : lien « NUMERO <jeton> » à envoyer depuis ce numéro.
- * @returns {Promise<{ ok, message, verified?, linkSent? }>}
+ * tout de suite (WhatsApp le prouve), sans SMS. Autre numéro : code SMS (mêmes envois que
+ * /wallet/payout-number/request), facturé à la boutique `billUserId` ; il renvoie le code à
+ * l'agent (verifyPayoutCode).
+ * @returns {Promise<{ ok, message, verified?, codeSent? }>}
  */
-exports.registerPayoutNumber = async ({ driverUser, fromPhone, phone }) => {
+exports.registerPayoutNumber = async ({ driverUser, fromPhone, phone, billUserId }) => {
   const uid = dir.uidOf(driverUser);
   const target = phone ? await toE164(phone) : fromPhone;
   if (!target) return { ok: false, message: `Numéro invalide : ${phone}` };
   const op = await mobilewallet.predictOperator({ phone: target });
-  if (!op.success || !op.network) return { ok: false, message: `Le numéro ${target} n'est ni Orange Money ni MTN MoMo.` };
+  const network = toBalanceKey(op.network);
+  if (!op.success || !network) return { ok: false, message: `Le numéro ${target} n'est ni Orange Money ni MTN MoMo.` };
   if (target === fromPhone) {
     await markPayout(uid, target);
     dir.forgetDriver(fromPhone);
     return { ok: true, verified: true, message: `Numéro ${target} validé : la part de la boutique y arrivera au scan du QR code du client.` };
   }
-  const ttl = await claimTtl();
-  const claim = await repos.waNumberClaims.create({ userId: uid, phone: target, ttlMinutes: ttl });
-  const yam = await wa.myPhone();
-  if (!yam) return { ok: false, message: 'Lien de validation indisponible pour le moment.' };
-  const link = `https://wa.me/${yam.replace(/\D/g, '')}?text=${encodeURIComponent(text.claimText(claim.token))}`;
-  const r = await sendText(fromPhone, text.claimInstructions(target, link, ttl), 'ai');
-  return r.ok ? { ok: true, verified: false, linkSent: true, message: 'Lien de validation envoyé au livreur.' } : { ok: false, message: "L'envoi du lien a échoué." };
+  const { requestPayoutNumberCode } = require('../../wallet/payoutNumber.service');
+  const r = await requestPayoutNumberCode({ userId: uid, phoneNumber: target, network, billUserId });
+  if (r.code === 'cooldown') return { ok: false, message: `Un code vient déjà d'être envoyé au ${target} : réessayez dans ${r.data?.retryAfter ?? 60} s.` };
+  if (!r.success) return { ok: false, message: r.message || "L'envoi du code a échoué." };
+  return { ok: true, verified: false, codeSent: true, message: `Code envoyé par SMS au ${target} : il doit le renvoyer ici.` };
 };
 
-/** « NUMERO <jeton> » reçu : valide le numéro s'il vient bien de lui. true si c'était ce message. */
-const onClaimText = async event => {
-  const match = CLAIM_RE.exec(event.text || '');
-  if (!match) return false;
-  const claim = await repos.waNumberClaims.getByToken(match[1].toUpperCase());
-  if (!claim || claim.usedAt || new Date(claim.expiresAt).getTime() < Date.now()) {
-    await sendText(event.from, "Ce lien a expiré ou a déjà servi : redemandez-en un à l'assistant Yaammoo.");
-    return true;
+/** Code SMS renvoyé par le livreur : valide le numéro OM / MoMo pour son compte. */
+exports.verifyPayoutCode = async ({ driverUser, fromPhone, phone, code, billUserId }) => {
+  const target = await toE164(phone);
+  if (!target) return { ok: false, message: `Numéro invalide : ${phone}` };
+  const { verifyPayoutNumberCode } = require('../../wallet/payoutNumber.service');
+  const r = await verifyPayoutNumberCode({ userId: dir.uidOf(driverUser), phoneNumber: target, code: String(code || '').replace(/\s/g, ''), billUserId });
+  if (!r.success) {
+    const left = r.data?.attemptsRemaining;
+    return { ok: false, message: `Code refusé${left != null ? ` (${left} essai(s) restant(s))` : ''}.` };
   }
-  if (claim.phone !== event.from) {
-    await sendText(event.from, `Ce message doit être envoyé depuis le numéro ${claim.phone}.`);
-    return true;
-  }
-  if (!(await repos.waNumberClaims.markUsed(claim.token))) return true;
-  await markPayout(claim.userId, claim.phone);
-  const user = await repos.users.getUserByIdSafe(claim.userId);
-  const driverPhone = await dir.phoneOfUser(user);
-  if (driverPhone) dir.forgetDriver(driverPhone);
-  await sendText(event.from, `Numéro ${claim.phone} validé pour les versements de ${dir.nameOf(user)}.`);
-  if (driverPhone && driverPhone !== event.from) await sendText(driverPhone, `Votre numéro de paiement ${claim.phone} est validé : la part de la boutique y arrivera au scan du QR code du client.`);
-  return true;
+  dir.forgetDriver(fromPhone);
+  return { ok: true, message: `Numéro ${target} validé : la part de la boutique y arrivera au scan du QR code du client.` };
 };
 
 /** Bienvenue refusée hors fenêtre de 24 h : template yam_livreur_ajoute (boutique). */
@@ -138,6 +124,5 @@ const onFailed = async event => {
 };
 
 exports.registerDriverAccountFlows = () => {
-  onText(onClaimText);
   onSendFailed(onFailed);
 };
