@@ -25,7 +25,7 @@ demande `order.cancelRequest` (dans `extra_data`), envoyée au marchand sur What
 le client annule directement tant que la commande est en attente.
 
 ```
-cancelRequest = { status, requestedAt, resolvedAt?, reason? }
+cancelRequest = { status, requestedAt, sentAt, resendAt, sentCount, resolvedAt?, reason? }
   pending  : demande envoyée, commande toujours `pending`
   accepted : le marchand accepte -> `cancelByUser` (remboursement règle CLIENT ci-dessous)
   refused  : le marchand refuse (reason 'merchant'), ou il accepte la COMMANDE entre-temps
@@ -33,7 +33,11 @@ cancelRequest = { status, requestedAt, resolvedAt?, reason? }
   closed   : la commande est sortie de `pending` autrement (ex. refusée par le restaurant)
 ```
 
-- Sans réponse : la demande reste en attente (pas de délai, décision du 16/11/2026).
+- Sans réponse : la demande reste en attente (jamais annulée d'office, décision du
+  16/11/2026). Passé `resendAt` (`settings_app.cancel_request_resend_minutes`, 15,
+  migration 092), le client peut la **renvoyer** : même `PUT /order cancelByUser`,
+  `sentCount` + 1, nouveau `resendAt`, relance au marchand (« Relance : le client
+  demande… »). Avant `resendAt`, l'appel ne renvoie rien (réponse `cancelRequested`).
 - Client et marchand reçoivent la commande à jour (`userOrderUpdated`,
   `fastFoodOrderUpdated`), le client une push à la décision (`type: 'order_cancel_request'`).
 - Réponse de `PUT /order` : `data.cancelRequested = true`, `data.data` = commande. R11 :

@@ -100,7 +100,8 @@ message libre au marchand (n°, plats, livraison) avec les boutons « Accepter a
 Refusé hors fenêtre de 24 h (131047) -> template `yam_demande_annulation` (bodyParams :
 n°, plats ; boutons : mêmes payloads). ⚠️ Variables du template à vérifier dans le module
 (non lisibles depuis ce dépôt). Accepter -> `cancelByUser` (client remboursé) ; Refuser ->
-commande maintenue, récapitulatif avec Accepter / Refuser la commande. Seul le numéro de la
+commande maintenue, récapitulatif avec Accepter / Refuser la commande. Demande renvoyée
+par le client sans réponse (`cancel_request_resend_minutes`) : même message, préfixé « Relance ». Seul le numéro de la
 boutique décide ; l'agent IA propose aussi ces deux actions (`cancel_accept`, `cancel_refuse`).
 
 ## Agent IA (texte libre du marchand)
@@ -142,4 +143,5 @@ schema/migrations/085_whatsapp_settings.sql
 schema/migrations/086_order_payout.sql
 schema/migrations/087_whatsapp_order_reminders.sql
 schema/migrations/091_cancel_request.sql
+schema/migrations/092_cancel_request_resend.sql
 ```

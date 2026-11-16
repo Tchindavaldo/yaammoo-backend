@@ -21,7 +21,7 @@ exports.notifyCancelRequest = async (order, fastFood) => {
   const to = await shopPhone(fastFood);
   if (!to) return;
   const body = [
-    `Le client demande l'annulation de la commande n°${msg.ref(order)}.`,
+    `${Number(order.cancelRequest?.sentCount) > 1 ? 'Relance : le' : 'Le'} client demande l'annulation de la commande n°${msg.ref(order)}.`,
     `Plats : ${msg.plats(order)}`,
     `Livraison : ${msg.livraison(order)}`,
     '',

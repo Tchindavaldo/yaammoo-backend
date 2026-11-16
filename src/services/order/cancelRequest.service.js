@@ -8,14 +8,16 @@
 // (services/whatsapp/merchantCancelRequests.service.js).
 //
 //   cancelRequest = { status: pending | accepted | refused | closed, requestedAt,
-//                     resolvedAt?, reason? }
+//                     sentAt, resendAt, sentCount, resolvedAt?, reason? }
 //
 // - Accepter  -> `cancelByUser` via updateOrders (remboursement règle CLIENT,
 //               architecture/order-cancel.md) ; demande `accepted`.
 // - Refuser   -> commande maintenue `pending` ; demande `refused` (définitif).
 // - Le marchand accepte la COMMANDE entre-temps -> demande `refused`
 //   (`reason: 'accepted_order'`) ; il la refuse -> `closed` (remboursement complet).
-// Sans réponse : la demande reste en attente (décision du 16/11/2026).
+// Sans réponse : la demande reste en attente (décision du 16/11/2026) ; passé
+// `resendAt` (`settings_app.cancel_request_resend_minutes`, 15), le client peut la
+// RENVOYER (même appel) : nouveau message au marchand.
 // Concurrence : toute écriture exige le statut `pending` (verrou optimiste du repo).
 // Doc : architecture/order-cancel.md (« Annulation sur demande »).
 // ============================================================================
@@ -24,6 +26,14 @@ const { getIO } = require('../../socket');
 const { reliableEmit } = require('../../utils/reliableEmit');
 const { notifyOrderEvent } = require('../notification/helpers/notifyOrderEvent');
 const { shopSender } = require('../notification/helpers/shopSender');
+const { getSettings } = require('../settings/settings.service');
+const { KEYS } = require('../settings/settings.keys');
+
+/** Délai (ms) sans réponse du marchand avant qu'une demande puisse être renvoyée. */
+const resendDelayMs = async () => {
+  const v = Number((await getSettings())[KEYS.CANCEL_REQUEST_RESEND_MINUTES]);
+  return (Number.isFinite(v) && v > 0 ? v : 15) * 60000;
+};
 
 const CHANGED = 'Le restaurant a déjà accepté cette commande : elle ne peut plus être annulée.';
 
@@ -67,14 +77,25 @@ exports.cancelRequestOnTransition = (prevData, newStatus, { fromCancelRequest } 
 
 /**
  * Le client demande l'annulation d'une commande EN ATTENTE d'une boutique WhatsApp.
- * Rien n'est annulé : la demande part au marchand. Idempotent (déjà demandée = ok).
+ * Rien n'est annulé : la demande part au marchand. Déjà en attente : renvoyée au
+ * marchand si `resendAt` est passé, sinon rien (ok).
  * @returns {Promise<{ ok: boolean, order?: object, message?: string }>}
  */
 exports.requestCancel = async (order, fastFood) => {
   const cr = order.cancelRequest;
-  if (cr?.status === 'pending') return { ok: true, order };
   if (cr?.status === 'refused') return { ok: false, message: "Le restaurant a refusé l'annulation : votre commande est maintenue." };
-  const updated = await repos.orders.update(order.id, { cancelRequest: { status: 'pending', requestedAt: new Date().toISOString() } }, { expectedStatus: 'pending' });
+  const delay = await resendDelayMs();
+  const now = Date.now();
+  if (cr?.status === 'pending') {
+    // Anciennes demandes sans `resendAt` : échéance = demande + délai.
+    const due = new Date(cr.resendAt || new Date(new Date(cr.requestedAt).getTime() + delay)).getTime();
+    if (!(now >= due)) return { ok: true, order };
+  }
+  const sentAt = new Date(now).toISOString();
+  const resendAt = new Date(now + delay).toISOString();
+  const cancelRequest =
+    cr?.status === 'pending' ? { ...cr, sentAt, resendAt, sentCount: (Number(cr.sentCount) || 1) + 1 } : { status: 'pending', requestedAt: sentAt, sentAt, resendAt, sentCount: 1 };
+  const updated = await repos.orders.update(order.id, { cancelRequest }, { expectedStatus: 'pending' });
   if (!updated) return { ok: false, message: CHANGED };
   await emitOrder(updated);
   // Chargé ici : le flux WhatsApp charge ce fichier.
