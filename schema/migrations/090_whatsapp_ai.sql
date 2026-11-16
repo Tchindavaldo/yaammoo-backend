@@ -11,8 +11,6 @@
 --  - wa_ai_pending_actions : action proposée par l'agent (accepter, refuser,
 --    avancer un statut), exécutée seulement après confirmation du marchand
 --    (bouton Confirmer ou réponse écrite).
---  - wa_client_messages : message ou question de la boutique au client (push +
---    socket), et sa réponse depuis l'app, relayée au marchand sur WhatsApp.
 --
 -- Réglages (settings_app) : ai_enabled, ai_models (essayés dans l'ordre),
 -- ai_timeout_ms, ai_conversation_retention_days, ai_history_max_messages.
@@ -48,27 +46,10 @@ CREATE TABLE IF NOT EXISTS wa_ai_pending_actions (
 CREATE INDEX IF NOT EXISTS idx_wa_ai_pending_phone_status ON wa_ai_pending_actions (phone, status);
 ALTER TABLE wa_ai_pending_actions ENABLE ROW LEVEL SECURITY;
 
-CREATE TABLE IF NOT EXISTS wa_client_messages (
-  id              TEXT PRIMARY KEY,
-  order_id        TEXT NOT NULL,
-  fastfood_id     TEXT NOT NULL,
-  user_id         TEXT NOT NULL,
-  text            TEXT NOT NULL,
-  expects_answer  BOOLEAN NOT NULL DEFAULT false,
-  answer          TEXT,
-  status          TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'answered', 'closed')),
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-  answered_at     TIMESTAMPTZ
-);
-CREATE INDEX IF NOT EXISTS idx_wa_client_msg_user ON wa_client_messages (user_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_wa_client_msg_order ON wa_client_messages (order_id);
-CREATE INDEX IF NOT EXISTS idx_wa_client_msg_created ON wa_client_messages (created_at);
-ALTER TABLE wa_client_messages ENABLE ROW LEVEL SECURITY;
-
 INSERT INTO settings_app (key, value, description) VALUES
   ('ai_enabled', 'true'::jsonb, 'Agent IA des boutiques WhatsApp : true = les messages libres du marchand sont traités par l''IA (OpenRouter).'),
   ('ai_models', '["anthropic/claude-haiku-5.5", "google/gemini-3.1-flash-lite", "deepseek/deepseek-v4.1-flash"]'::jsonb, 'Modèles OpenRouter de l''agent IA WhatsApp, essayés dans l''ordre (repli si le premier échoue). [] = IA coupée.'),
   ('ai_timeout_ms', '30000'::jsonb, 'Délai max (ms) d''un appel OpenRouter de l''agent IA WhatsApp.'),
-  ('ai_conversation_retention_days', '30'::jsonb, 'Jours de conservation des conversations WhatsApp marchands et des messages boutique → client.'),
+  ('ai_conversation_retention_days', '30'::jsonb, 'Jours de conservation des conversations WhatsApp marchands (agent IA).'),
   ('ai_history_max_messages', '100'::jsonb, 'Nombre max de messages de la conversation relus par l''agent IA à chaque réponse.')
 ON CONFLICT (key) DO NOTHING;

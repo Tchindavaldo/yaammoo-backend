@@ -94,8 +94,8 @@ Code : `services/whatsapp/merchantOrders.service.js`, textes `merchantMessages.j
 ## Agent IA (texte libre du marchand)
 
 Hors boutons et « LIVRÉ », le marchand qui écrit librement est servi par un agent IA
-(OpenRouter) qui voit toute la conversation et ses commandes, propose les actions (avec
-confirmation) et peut écrire au client : [whatsapp-ai.md](./whatsapp-ai.md). Chaque envoi de
+(OpenRouter) qui voit toute la conversation et ses commandes et propose les actions (avec
+confirmation) : [whatsapp-ai.md](./whatsapp-ai.md). Chaque envoi de
 `merchantChannel.send` est journalisé (`conversationLog.js`).
 
 ## À venir

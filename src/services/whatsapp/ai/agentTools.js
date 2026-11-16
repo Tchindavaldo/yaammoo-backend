@@ -3,9 +3,8 @@
 // sans confirmation du marchand (propose_action -> confirm_action ou bouton Confirmer).
 // `ctx` = { phone, shops, orders (vue marchand), views, flags }. Doc : architecture/whatsapp-ai.md.
 const repos = require('../../../repositories');
-const { ACTIVE, resolveRefs, viewOf, when } = require('./agentOrders');
+const { ACTIVE, resolveRefs, viewOf } = require('./agentOrders');
 const pendingActions = require('./pendingActions.service');
-const clientMessages = require('./clientMessages.service');
 
 const fn = (name, description, properties = {}, required = []) => ({
   type: 'function',
@@ -18,7 +17,7 @@ exports.definitions = [
   fn('list_orders', 'Liste les commandes de la boutique (30 derniers jours, vue marchand). Par défaut : les commandes en cours.', {
     statuts: { type: 'array', items: { type: 'string', enum: ['pending', 'processing', 'finished', 'delivering', 'delivered', 'cancelByFastFood', 'cancelByUser'] }, description: 'Filtre de statuts (absent = en cours)' },
   }),
-  fn('get_order', "Détail d'une commande et des messages déjà échangés avec son client.", { ref }, ['ref']),
+  fn('get_order', "Détail d'une commande.", { ref }, ['ref']),
   fn('list_menus', 'Plats de la boutique (nom, catégorie, statut, stock). Sans prix.'),
   fn(
     'propose_action',
@@ -32,8 +31,6 @@ exports.definitions = [
   ),
   fn('confirm_action', "Exécute une proposition en attente que le marchand vient de confirmer PAR ÉCRIT (« oui », « vas-y »…). Yaammoo envoie lui-même le récapitulatif.", { pendingId: { type: 'string' } }, ['pendingId']),
   fn('cancel_action', 'Annule une proposition en attente que le marchand refuse.', { pendingId: { type: 'string' } }, ['pendingId']),
-  fn('ask_client', "Pose une question au client d'une commande (notification dans l'app). Sa réponse arrivera plus tard dans cette conversation.", { ref, question: { type: 'string' } }, ['ref', 'question']),
-  fn('notify_client', "Envoie une information au client d'une commande (notification dans l'app), sans attendre de réponse.", { ref, message: { type: 'string' } }, ['ref', 'message']),
 ];
 
 const shopOf = (ctx, order) => ctx.shops.find(s => s.id === order.fastFoodId);
@@ -49,11 +46,7 @@ const handlers = {
   get_order: async (ctx, { ref: r }) => {
     const order = one(ctx, r);
     if (!order) return notFound(r);
-    const messages = await repos.waClientMessages.listByOrders([order.id]);
-    return {
-      commande: viewOf(order, shopOf(ctx, order)?.name),
-      messagesClient: messages.map(m => ({ id: m.id, envoyeLe: when(m.createdAt), texte: m.text, question: m.expectsAnswer, reponse: m.answer || null, statut: m.status })),
-    };
+    return { commande: viewOf(order, shopOf(ctx, order)?.name) };
   },
 
   list_menus: async ctx => {
@@ -90,22 +83,6 @@ const handlers = {
   cancel_action: async (ctx, { pendingId }) => {
     const r = await pendingActions.cancel(pendingId, ctx.phone);
     return r.ok ? { ok: true, resultat: r.message } : { error: r.message };
-  },
-
-  ask_client: async (ctx, { ref: r, question }) => {
-    const order = one(ctx, r);
-    if (!order) return notFound(r);
-    if (!order.userId) return { error: 'Client inconnu pour cette commande.' };
-    const m = await clientMessages.sendToClient({ order, fastFood: shopOf(ctx, order), text: question, expectsAnswer: true });
-    return { ok: true, messageId: m.id, info: "Question envoyée au client ; sa réponse sera transmise au marchand dès qu'il répond." };
-  },
-
-  notify_client: async (ctx, { ref: r, message }) => {
-    const order = one(ctx, r);
-    if (!order) return notFound(r);
-    if (!order.userId) return { error: 'Client inconnu pour cette commande.' };
-    const m = await clientMessages.sendToClient({ order, fastFood: shopOf(ctx, order), text: message, expectsAnswer: false });
-    return { ok: true, messageId: m.id, info: 'Information envoyée au client.' };
   },
 };
 

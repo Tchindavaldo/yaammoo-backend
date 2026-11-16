@@ -15,7 +15,7 @@ il répond, et il agit par les services existants.
 | `settings_app` | `ai_enabled` | `true` = l'agent traite les textes libres (migration : `true`) |
 | `settings_app` | `ai_models` | modèles OpenRouter **essayés dans l'ordre** (paramètre `models`, repli automatique). `[]` = IA coupée. Migration : `anthropic/claude-haiku-5.5`, `google/gemini-3.1-flash-lite`, `deepseek/deepseek-v4.1-flash` |
 | `settings_app` | `ai_timeout_ms` | délai max d'un appel (30000) |
-| `settings_app` | `ai_conversation_retention_days` | rétention conversation + messages au client (30) |
+| `settings_app` | `ai_conversation_retention_days` | rétention de la conversation (30) |
 | `settings_app` | `ai_history_max_messages` | messages relus à chaque réponse (100) |
 
 Tout se change à chaud : `PATCH /settings/<clé>` (ex. `ai_models` = `["…", "…"]`).
@@ -37,7 +37,7 @@ Lecture : `settings.service.getAiSettings()` (IA coupée si `ai_models` est vide
    précédents dans l'historique).
 3. **Tour de l'agent** : accusé de lecture + « en train d'écrire ». Ensuite, message système
    (consignes de `ai/agentPrompt.js` et état JSON : commandes en cours **vue marchand**,
-   propositions en attente, messages au client), puis l'historique (`in` = user,
+   propositions en attente), puis l'historique (`in` = user,
    `out` = assistant, horodatés, fusionnés par rôle). Boucle modèle → outils (6 tours max),
    puis la réponse finale part en message libre (`author: 'ai'`). Si OpenRouter échoue,
    le marchand reçoit un message de repli qui l'oriente vers les boutons.
@@ -47,16 +47,20 @@ Lecture : `settings.service.getAiSettings()` (IA coupée si `ai_models` est vide
 | Outil | Effet |
 |---|---|
 | `list_orders` | commandes des 30 derniers jours (`orders.query` avec `createdAfter`), vue marchand, sans `pendingToBuy` |
-| `get_order` | détail + messages déjà échangés avec le client |
+| `get_order` | détail d'une commande |
 | `list_menus` | plats (nom, catégorie, statut, stock), **sans prix** |
 | `propose_action` | crée une proposition et envoie les boutons Confirmer / Annuler |
 | `confirm_action` | exécute une proposition confirmée **par écrit** |
 | `cancel_action` | annule une proposition |
-| `ask_client` / `notify_client` | message de la boutique au client (question / information) |
 
 Argent (R22) : l'agent ne voit que `montantMarchandFcfa` (`toMerchantView`, ce que le
 marchand encaisse). Il ne voit jamais le prix client, la marge ni les frais. Les données
 personnelles du client ne sont pas transmises au modèle.
+
+**Pas d'échange avec le client** (décision du 16/11/2026) : l'agent ne contacte pas le
+client et ne donne pas son numéro ; la livraison est suivie dans l'app du livreur. Une
+partie « messages boutique → client » (`/shop-messages`, `wa_client_messages`) a été
+retirée avant mise en prod ; à réimplémenter si le besoin revient.
 
 ## Confirmation obligatoire (`ai/pendingActions.service.js`, table `wa_ai_pending_actions`)
 
@@ -77,23 +81,9 @@ Les statuts sont relus en base et le numéro doit être celui de la boutique. Au
 de 24 h, la proposition expire. Après exécution : compte rendu, puis récapitulatif
 avec le bouton de l'étape suivante (`replyRecap`).
 
-## Messages boutique → client (`ai/clientMessages.service.js`, table `wa_client_messages`)
-
-- Envoi (`ask_client` / `notify_client`) : ligne `{ text, expectsAnswer }`, socket fiable
-  `shop.message { data: ShopMessage }` vers la room `<userId>`, push `type: 'ShopMessage'`,
-  `route: 'shop-message/<id>'`, expéditeur = la boutique (`shopSender`).
-- `GET /shop-messages?orderId=` (Bearer) : messages du client connecté, plus récents d'abord.
-- `POST /shop-messages/:id/answer { answer }` (Bearer, 1000 caractères max ;
-  `interface/shopMessageFields.js`) : `404` si le message n'est pas à lui, `400` s'il n'attend
-  pas de réponse, `409` s'il a déjà répondu. La réponse est relayée au marchand sur WhatsApp
-  (« Réponse du client (commande n°X) à « … » : … ») et poussée par `shop.messageUpdated { data }`.
-
-`ShopMessage` = `{ id, orderId, orderRef, fastFoodId, fastFood: { id, name, image }, userId,
-text, expectsAnswer, answer, status: open|answered|closed, createdAt, answeredAt }`.
-
 ## Rétention (`utils/whatsappAiPurgeJob.js`, 1×/h)
 
-Conversation et messages au client effacés au-delà de `ai_conversation_retention_days`.
+Conversation effacée au-delà de `ai_conversation_retention_days`.
 Propositions ouvertes depuis plus de 24 h → `expired`. Propositions plus vieilles que la
 rétention → effacées.
 
@@ -108,21 +98,15 @@ services/whatsapp/ai/agentPrompt.js              consignes, état, historique
 services/whatsapp/ai/agentTools.js               définitions + exécution des outils
 services/whatsapp/ai/agentOrders.js              commandes vue marchand, résolution des n°
 services/whatsapp/ai/pendingActions.service.js   propositions, boutons Confirmer / Annuler
-services/whatsapp/ai/clientMessages.service.js   messages boutique -> client, réponse
-controllers/whatsapp/shopMessages.controller.js
-routes/shopMessageRoutes.js
-interface/shopMessageFields.js
-utils/validator/validateShopMessage.js
 utils/whatsappAiPurgeJob.js
 repositories/whatsappMappers.js
 repositories/supabase/waConversations.repo.js
 repositories/supabase/waAiPendingActions.repo.js
-repositories/supabase/waClientMessages.repo.js
 schema/migrations/090_whatsapp_ai.sql
 ```
 
 ## À venir
 
-Écran frontend des messages de la boutique (liste + réponse, sockets `shop.message` /
-`shop.messageUpdated`, push `ShopMessage`). Notes vocales et images du marchand : pour
-l'instant journalisées seulement (`[audio]`), pas traitées par l'agent.
+Notes vocales et images du marchand : pour l'instant journalisées seulement (`[audio]`),
+pas traitées par l'agent. Demande d'annulation du client (marchand WhatsApp) :
+`todo/user/feature/annulation-sur-demande.md`.

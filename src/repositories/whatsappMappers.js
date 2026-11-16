@@ -1,7 +1,6 @@
 // ============================================================================
-// Mappers WhatsApp — conversation marchand, actions IA en attente, messages
-// boutique → client (migration 090). Séparés de mappers.js (plafond R3),
-// réexportés par lui.
+// Mappers WhatsApp — conversation marchand, actions IA en attente (migration
+// 090). Séparés de mappers.js (plafond R3), réexportés par lui.
 // ============================================================================
 
 const waMessageFromSupabase = row =>
@@ -52,33 +51,7 @@ const waPendingActionToSupabase = d => ({
   summary: d.summary || '',
 });
 
-const waClientMessageFromSupabase = row =>
-  row
-    ? {
-        id: row.id,
-        orderId: row.order_id,
-        fastFoodId: row.fastfood_id,
-        userId: row.user_id,
-        text: row.text,
-        expectsAnswer: row.expects_answer === true,
-        answer: row.answer,
-        status: row.status,
-        createdAt: row.created_at,
-        answeredAt: row.answered_at,
-      }
-    : null;
-
-const waClientMessageToSupabase = d => ({
-  id: d.id,
-  order_id: d.orderId,
-  fastfood_id: d.fastFoodId,
-  user_id: d.userId,
-  text: d.text,
-  expects_answer: d.expectsAnswer === true,
-});
-
 module.exports = {
   waMessage: { toSupabase: waMessageToSupabase, fromSupabase: waMessageFromSupabase },
   waPendingAction: { toSupabase: waPendingActionToSupabase, fromSupabase: waPendingActionFromSupabase },
-  waClientMessage: { toSupabase: waClientMessageToSupabase, fromSupabase: waClientMessageFromSupabase },
 };

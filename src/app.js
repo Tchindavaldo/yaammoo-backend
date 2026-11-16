@@ -61,10 +61,7 @@ app.use('/bonusRequest', bonusRequest);
 app.use('/transaction', transactionRoutes);
 app.use('/notification', notificationRoutes);
 app.use('/wallet/payout-number', require('./routes/payoutNumberRoutes'));
-app.use('/whatsapp-number', require('./routes/whatsappNumberRoutes'));
-// Messages des boutiques WhatsApp au client (agent IA), réponse depuis l'app.
-app.use('/shop-messages', require('./routes/shopMessageRoutes'));
-app.use('/shop-restore', require('./routes/shopRestoreRoutes'));
+app.use('/whatsapp-number', require('./routes/whatsappNumberRoutes'));app.use('/shop-restore', require('./routes/shopRestoreRoutes'));
 app.use('/wallet', walletRoutes);
 app.use('/legal', legalRoutes);
 app.use('/driver', driverRoutes);

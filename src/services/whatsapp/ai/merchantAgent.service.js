@@ -35,12 +35,11 @@ const buildCtx = async (phone, shops, ai) => {
 /** Messages envoyés au modèle : système (consignes + état) puis historique de la conversation. */
 const buildMessages = async (ctx, ai) => {
   const sinceIso = new Date(Date.now() - ai.retentionDays * 864e5).toISOString();
-  const [history, pending, clientMessages] = await Promise.all([
+  const [history, pending] = await Promise.all([
     repos.waConversations.listByPhone(ctx.phone, { sinceIso, limit: ai.historyMax }),
     repos.waAiPendingActions.openByPhone(ctx.phone),
-    repos.waClientMessages.listByOrders(ctx.orders.map(o => o.id)),
   ]);
-  return [{ role: 'system', content: systemPrompt({ shops: ctx.shops, views: ctx.views, pending, clientMessages }) }, ...historyMessages(history)];
+  return [{ role: 'system', content: systemPrompt({ shops: ctx.shops, views: ctx.views, pending }) }, ...historyMessages(history)];
 };
 
 /** Un message du marchand : boucle modèle / outils, puis réponse finale sur WhatsApp. */
