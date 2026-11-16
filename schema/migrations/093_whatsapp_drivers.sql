@@ -11,6 +11,8 @@
 --  - whatsapp_numbers.source + 'inbound' : numéro prouvé par un message reçu de lui
 --    (le livreur écrit à Yaammoo et donne ce numéro comme numéro OM / MoMo). Un autre
 --    numéro se valide par code SMS (payout_numbers), frais à la boutique.
+--    + 'payout' : WhatsApp validé sans code car déjà validé comme numéro de retrait
+--    (app >= payout_number_whatsapp_min_app_version, le sens inverse aussi).
 --  - wa_conversation_messages.author : 'driver' en plus (texte libre, sans contrainte).
 --  - settings_deployment.payout_number_whatsapp_min_app_version (R11) : version d'app
 --    qui gère `verified: true` sans code (numéro déjà validé sur WhatsApp) : 1.1.6.
@@ -21,7 +23,7 @@ ALTER TABLE withdrawals ADD COLUMN IF NOT EXISTS driver_id TEXT;
 CREATE INDEX IF NOT EXISTS idx_withdrawals_driver ON withdrawals (driver_id) WHERE driver_id IS NOT NULL;
 
 ALTER TABLE whatsapp_numbers DROP CONSTRAINT IF EXISTS whatsapp_numbers_source_check;
-ALTER TABLE whatsapp_numbers ADD CONSTRAINT whatsapp_numbers_source_check CHECK (source IN ('otp', 'login', 'inbound'));
+ALTER TABLE whatsapp_numbers ADD CONSTRAINT whatsapp_numbers_source_check CHECK (source IN ('otp', 'login', 'inbound', 'payout'));
 
 INSERT INTO settings_deployment (key, value, description) VALUES
   ('payout_number_whatsapp_min_app_version', '"1.1.6"'::jsonb, 'Version d''app qui gère un numéro de retrait validé sans code SMS (déjà validé sur WhatsApp, réponse verified: true). En dessous : code SMS comme avant.')

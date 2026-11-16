@@ -13,7 +13,7 @@ const c = require('../controllers/wallet/payoutNumber.controller');
  *     requestBody:
  *       content: { application/json: { schema: { type: object, required: [phoneNumber], properties: { phoneNumber: { type: string } } } } }
  *     responses:
- *       200: { description: Code envoyé }
+ *       200: { description: "Code envoyé. App >= payout_number_whatsapp_min_app_version (header x-app-version) et numéro déjà validé comme numéro de retrait par ce compte : { verified: true, phoneNumber }, aucun code." }
  *       429: { description: "cooldown (Retry-After)" }
  * /whatsapp-number/verify:
  *   post:
@@ -27,7 +27,7 @@ const c = require('../controllers/wallet/payoutNumber.controller');
  *       401: { description: Code refusé }
  * /whatsapp-number:
  *   get:
- *     summary: Numéros WhatsApp vérifiés du compte (source otp ou login)
+ *     summary: Numéros WhatsApp vérifiés du compte (source otp, login, inbound ou payout)
  *     tags: [Fastfood]
  *     security: [{ bearerAuth: [] }]
  */

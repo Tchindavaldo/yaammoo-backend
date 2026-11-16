@@ -394,7 +394,10 @@ avant 079 ne sont pas vérifiés : le marchand les revérifie depuis sa boutique
 `settings_deployment.payout_number_whatsapp_min_app_version` (1.1.6 : l'app y saute
 l'étape code et impose le WhatsApp avant OM / MoMo) et numéro présent dans `whatsapp_numbers` du compte → `request` le vérifie
 tout de suite, sans SMS ni frais : `200 { verified: true, phoneNumber }`. En dessous du
-seuil : code SMS comme avant. L'app doit donc faire valider le WhatsApp en premier.
+seuil : code SMS comme avant. L'app impose donc le WhatsApp en premier (création,
+modification de la boutique, retrait). **Sens inverse** : `POST /whatsapp-number/request`
+sur un numéro déjà validé comme numéro de retrait du compte → WhatsApp vérifié sans code
+(`verified: true`, `whatsapp_numbers.source = 'payout'`), même seuil de version.
 Livreur sans app : il donne son numéro à l'agent IA sur WhatsApp ; celui d'où il écrit
 est validé sans code, un autre reçoit ce même code SMS, qu'il renvoie à l'agent. Frais SMS
 débités à sa **boutique** (`billUserId` de `requestPayoutNumberCode` / `verifyPayoutNumberCode`)
