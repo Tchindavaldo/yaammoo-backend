@@ -4,6 +4,7 @@
 
 const apn = require('@parse/node-apn');
 const path = require('path');
+const { soundFor } = require('../helpers/notificationSound');
 
 let provider = null;
 
@@ -47,7 +48,8 @@ const sendApnsPush = async ({ tokens, title, body, data = {}, imageUrl, sender }
 
   const notification = new apn.Notification();
   notification.alert = { title, body };
-  notification.sound = 'default';
+  // Fichier embarque dans l'app ; absent (ancienne app) : son systeme.
+  notification.sound = soundFor(data.type).iosSound;
   notification.topic = bundleId;
   notification.payload = {
     ...data,

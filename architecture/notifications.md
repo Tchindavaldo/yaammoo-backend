@@ -136,6 +136,25 @@ message de la boutique : logo à gauche, icône de l'app en pastille.
   push en notification classique, sans l'image.
 - Sans `sender` : envoi inchangé.
 
+### Sons personnalisés (`helpers/notificationSound.js`)
+
+`soundFor(data.type)` → `{ channelId, androidSound, iosSound }`, appliqué par
+les trois envois (FCM, APNs, Expo). Fichiers `yaammoo_<clé>.wav` embarqués
+dans l'app (plugin `expo-notifications` → `sounds`), un canal Android
+`yaammoo_<clé>` par son, créé par l'app au démarrage.
+
+| Clé | Types |
+|---|---|
+| `order` | `order_new`, `driver_application` |
+| `alert` | `order_cancel_by_user`, `order_cancel_by_merchant`, `pricing_alert`, `driver_removed` |
+| `message` | `Support` |
+| `success` (défaut) | tout le reste : statuts, livraison, rang, bonus, annonces boutique, retraits |
+
+- **App sans les fichiers** (version d'avant) : iOS joue le son système ;
+  Android range la notification dans son canal par défaut, son système.
+- ⚠️ Le son d'un canal Android est figé à sa création : changer un son =
+  nouveau nom de fichier ET nouveau `channelId` (ex. `yaammoo_order_v2`).
+
 ### Icône Android (`android.notification.icon`)
 
 ⚠️ Le payload FCM doit référencer **`notification_icon`**, jamais `ic_launcher`.

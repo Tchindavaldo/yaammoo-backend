@@ -1,3 +1,5 @@
+const { soundFor } = require('../helpers/notificationSound');
+
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 
 const sendExpoPushNotification = async ({ token, title, body, data = {} }) => {
@@ -6,9 +8,9 @@ const sendExpoPushNotification = async ({ token, title, body, data = {} }) => {
     title,
     body,
     data,
-    sound: 'default',
+    sound: soundFor(data.type).iosSound,
     priority: 'high',
-    channelId: 'high_priority_channel',
+    channelId: soundFor(data.type).channelId,
   };
 
   try {

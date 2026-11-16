@@ -5,6 +5,7 @@
 const { admin } = require('../../../config/firebase');
 const sendExpoPushNotification = require('./sendExpoPushNotification.service');
 const sendApnsPush = require('../APNS/sendApnsPush.service');
+const { soundFor } = require('../helpers/notificationSound');
 
 /**
  * Signature acceptée :
@@ -58,8 +59,6 @@ const sendPushNotification = async ({ token, tokens, apnsTokens, title, body, da
   return { success: true, ...results };
 };
 
-const ANDROID_CHANNEL = 'high_priority_channel';
-
 /**
  * Message FCM d'une boutique expéditrice : DATA SEULES, sans bloc
  * `notification`. Avec ce bloc, Android affiche lui-même la notification app
@@ -79,7 +78,7 @@ const conversationMessage = ({ token, title, body, data, imageUrl, sender }) => 
     ...data,
     title: title || '',
     message: body || '',
-    channelId: ANDROID_CHANNEL,
+    channelId: soundFor(data.type).channelId,
     senderId: sender.id,
     senderName: sender.name,
     senderImageUrl: sender.imageUrl,
@@ -110,23 +109,27 @@ const sendSingleToken = async ({ token, title, body, data = {}, imageUrl, sender
   console.log(`\nFCM NATIVE → ${shortToken}`);
   console.log(`   Title: "${title}" | Body: "${body}"`);
 
-  const message = sender ? conversationMessage({ token, title, body, data, imageUrl, sender }) : {
-    token,
-    notification: imageUrl ? { title, body, imageUrl } : { title, body },
-    android: {
-      notification: {
-        channelId: ANDROID_CHANNEL,
-        // `notification_icon` (silhouette blanche generee par expo-notifications),
-        // PAS `ic_launcher` : Android ne garde que l'alpha de l'icone de notif, et
-        // ic_launcher etant opaque partout, elle s'affichait en rond gris uni des
-        // que l'app etait fermee (app ouverte, c'est le JS qui affiche et prend
-        // deja le bon drawable).
-        icon: 'notification_icon',
-        sound: 'default',
-      },
-    },
-    data,
-  };
+  const message = sender
+    ? conversationMessage({ token, title, body, data, imageUrl, sender })
+    : {
+        token,
+        notification: imageUrl ? { title, body, imageUrl } : { title, body },
+        android: {
+          notification: {
+            // Canal + son par type (helpers/notificationSound.js). Une app sans ce
+            // canal affiche la notif dans le canal par defaut, son systeme.
+            channelId: soundFor(data.type).channelId,
+            // `notification_icon` (silhouette blanche generee par expo-notifications),
+            // PAS `ic_launcher` : Android ne garde que l'alpha de l'icone de notif, et
+            // ic_launcher etant opaque partout, elle s'affichait en rond gris uni des
+            // que l'app etait fermee (app ouverte, c'est le JS qui affiche et prend
+            // deja le bon drawable).
+            icon: 'notification_icon',
+            sound: soundFor(data.type).androidSound,
+          },
+        },
+        data,
+      };
 
   try {
     const response = await admin.messaging().send(message);
