@@ -49,7 +49,8 @@ const sendPushNotification = async ({ token, tokens, apnsTokens, title, body, da
     fcmResults.forEach((r, idx) => {
       if (!r.success && r.error) {
         const msg = r.error || '';
-        if (msg.includes('registration-token-not-registered') || msg.includes('Requested entity was not found') || msg.includes('invalid-registration-token')) {
+        // FCM v1 renvoie souvent juste « NotRegistered » (app desinstallee).
+        if (msg.includes('registration-token-not-registered') || msg.includes('NotRegistered') || msg.includes('Requested entity was not found') || msg.includes('invalid-registration-token')) {
           results.tokensToDelete.push(fcmList[idx]);
         }
       }
@@ -137,7 +138,7 @@ const sendSingleToken = async ({ token, title, body, data = {}, imageUrl, sender
     return { success: true, response };
   } catch (error) {
     console.log(`   ❌ FCM FAIL → ${error.message}`);
-    return { success: false, error: error.message };
+    return { success: false, error: `${error.code || ''} ${error.message}` };
   }
 };
 
