@@ -11,8 +11,6 @@ const { assignDriver, driverAdvanceStatus } = require('./driverOrders.service');
 const { reliableEmit } = require('../../utils/reliableEmit');
 const { emitBonusStats } = require('../bonus/emitBonusStats');
 
-const RANKED_STATUSES = new Set(['pending', 'processing']);
-const RANK_IMPACTING = new Set(['pendingToBuy', 'pending', 'processing', 'cancelByUser', 'cancelByFastFood']);
 
 exports.updateOrderService = async (orderId, updateData) => {
   if (!orderId) return { success: false, message: 'ID de la commande est requis' };
@@ -38,10 +36,13 @@ exports.updateOrderService = async (orderId, updateData) => {
       return assignDriver(orderId, updateData.driverId, prevData);
     }
 
-    // Si transition impactant le rank, on délègue à updateOrders pour cohérence
-    const isRankedTransition = newStatus && newStatus !== prevStatus && (RANKED_STATUSES.has(prevStatus) || RANK_IMPACTING.has(newStatus));
+    // Tout changement de statut passe par updateOrders (machine à états) :
+    // rank, notifications push (« En livraison », « Livrée »…), crédit livreur.
+    // Avant, seules les transitions touchant le rank y passaient : finished →
+    // delivering faisait un update brut, sans notification au client.
+    const isStatusChange = newStatus && newStatus !== prevStatus;
 
-    if (isRankedTransition) {
+    if (isStatusChange) {
       const payload = {
         ...updateData,
         id: orderId,

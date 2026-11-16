@@ -40,7 +40,7 @@ BACKEND/src/
 | GET     | `/order/user/all/:userId`                | `getUsersOrders`          | Commandes d'un client                                             |
 | GET     | `/order/driver/:driverId`                | `getDriverOrders`         | Commandes assignées à un livreur                                  |
 | POST    | `/order`                                 | `createOrder`             | Créer une commande                                                |
-| PUT     | `/order`                                 | `updateOrder`             | Mettre à jour une commande (champs libres)                        |
+| PUT     | `/order`                                 | `updateOrder`             | Mettre à jour une commande (champs libres). Tout changement de `status` est délégué à `updateOrders` (machine à états : rank, notifications, crédit livreur) |
 | PUT     | `/order/tabs/:userId`                    | `updateOrdersConstroller` | Passer N commandes au statut suivant                              |
 | PUT     | `/order/update-field`                    | `updateOrdersField`       | Mettre à jour un champ sur N commandes                            |
 | PUT     | `/order/update-rank-by-date/:fastFoodId` | `updateOrdersRankByDate`  | Re-rank admin par date                                            |
