@@ -126,5 +126,7 @@ exports.registerMerchantOrderButtons = () => {
   for (const action of Object.keys(EXPECTED)) onButton(action, handle(action));
   onText(onDeliveredText);
   registerMerchantTemplateFlows();
+  // Demande d'annulation du client (boutons Accepter / Refuser l'annulation, template hors fenêtre).
+  require('./merchantCancelRequests.service').registerCancelRequestFlows();
   require('./ai/merchantAgent.service').registerMerchantAgent();
 };

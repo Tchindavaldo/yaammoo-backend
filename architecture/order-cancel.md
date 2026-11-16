@@ -10,6 +10,37 @@
 Un retrait du panier (`pendingToBuy` → `cancelByUser`) n'a rien coûté : aucun
 remboursement. Une commande déjà annulée, en livraison ou livrée : refus.
 
+**Concurrence** (verrou optimiste, `orders.repo.update(id, fields, { expectedStatus })`) :
+`updateOrders` n'écrit que si le statut en base est encore celui qu'il a lu. Le client
+annule pendant que le marchand accepte : la première écriture passe, la seconde est
+refusée (« Le restaurant a déjà accepté cette commande… », ou « La commande vient de
+changer de statut »). Le stock pris par une écriture refusée est rendu.
+
+### Annulation sur demande (boutique WhatsApp, `services/order/cancelRequest.service.js`)
+
+Boutique `whatsappOrders` : le marchand n'a pas l'app, il doit pouvoir suivre. Un
+`cancelByUser` du client sur une commande `pending` **n'annule pas** : il crée une
+demande `order.cancelRequest` (dans `extra_data`), envoyée au marchand sur WhatsApp
+([whatsapp.md](./whatsapp.md), « Demande d'annulation »). Boutique normale : inchangé,
+le client annule directement tant que la commande est en attente.
+
+```
+cancelRequest = { status, requestedAt, resolvedAt?, reason? }
+  pending  : demande envoyée, commande toujours `pending`
+  accepted : le marchand accepte -> `cancelByUser` (remboursement règle CLIENT ci-dessous)
+  refused  : le marchand refuse (reason 'merchant'), ou il accepte la COMMANDE entre-temps
+             (reason 'accepted_order') ; définitif, plus de nouvelle demande
+  closed   : la commande est sortie de `pending` autrement (ex. refusée par le restaurant)
+```
+
+- Sans réponse : la demande reste en attente (pas de délai, décision du 16/11/2026).
+- Client et marchand reçoivent la commande à jour (`userOrderUpdated`,
+  `fastFoodOrderUpdated`), le client une push à la décision (`type: 'order_cancel_request'`).
+- Réponse de `PUT /order` : `data.cancelRequested = true`, `data.data` = commande. R11 :
+  une app sous `settings_deployment.cancel_request_min_app_version` (1.1.5, migration 091)
+  reçoit `409 { code: 'cancel_requested', message }` : sans cela elle lirait le succès comme
+  « Commande annulée ».
+
 ### Calcul (tout est relu en base : règlement, crédit marchand, course)
 
 ```

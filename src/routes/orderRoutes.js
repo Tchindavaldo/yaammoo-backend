@@ -347,9 +347,18 @@ router.post('', firebaseAuth, authorize(orderCreate), createOrder);
  *             properties:
  *               id:
  *                 type: string
+ *               fastFoodId:
+ *                 type: string
  *               status:
  *                 type: string
- *                 enum: [pending, confirmed, preparing, ready, delivering, finished, delivered, cancelled]
+ *                 description: >-
+ *                   Statut demandé. La machine à états fait foi (statut lu en base) :
+ *                   hors annulation, la commande avance d'un cran. `cancelByUser` (client,
+ *                   commande `pending` seulement) ; `cancelByFastFood` (restaurant, avant
+ *                   la livraison). Boutique WhatsApp : `cancelByUser` sur une commande
+ *                   `pending` n'annule pas, il crée une DEMANDE au marchand
+ *                   (`order.cancelRequest`, architecture/order-cancel.md).
+ *                 enum: [pending, processing, finished, delivering, delivered, cancelByUser, cancelByFastFood]
  *               driverId:
  *                 type: string
  *                 description: >-
@@ -358,28 +367,33 @@ router.post('', firebaseAuth, authorize(orderCreate), createOrder);
  *                   (event driverOrderAssigned). Si elle l'est déjà → le livreur fait
  *                   avancer la commande via la machine à états (finished→delivering→delivered,
  *                   event driverOrderUpdated).
- *               items:
- *                 type: array
- *                 items:
- *                   type: object
- *               totalPrice:
- *                 type: number
  *     responses:
  *       200:
- *         description: Order successfully updated
+ *         description: >-
+ *           Commande mise à jour. `data` = résultat du service. Demande d'annulation
+ *           (boutique WhatsApp) : `data.cancelRequested = true`, `data.data.cancelRequest.status = 'pending'`.
  *         content:
  *           application/json:
  *             schema:
  *               type: object
  *               properties:
- *                 success:
- *                   type: boolean
  *                 message:
  *                   type: string
+ *                   example: success.
  *                 data:
- *                   $ref: '#/components/schemas/Order'
- *       404:
- *         description: Order not found
+ *                   type: object
+ *                   properties:
+ *                     success: { type: boolean }
+ *                     message: { type: string }
+ *                     cancelRequested: { type: boolean, description: "true = demande d'annulation envoyée au marchand WhatsApp, rien n'est annulé" }
+ *                     data:
+ *                       $ref: '#/components/schemas/Order'
+ *       400:
+ *         description: Transition refusée (ex. « Le restaurant a déjà accepté cette commande »), ou statut changé entre-temps (action concurrente)
+ *       409:
+ *         description: >-
+ *           `code: cancel_requested` — app sous `cancel_request_min_app_version` (R11) : la
+ *           demande d'annulation est bien envoyée au marchand, le message l'explique.
  */
 router.put('', firebaseAuth, authorize(orderFromBody), updateOrder);
 

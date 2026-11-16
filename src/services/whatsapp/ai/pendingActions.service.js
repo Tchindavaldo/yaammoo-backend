@@ -1,5 +1,6 @@
 // Actions proposées par l'agent IA au marchand WhatsApp (table wa_ai_pending_actions,
-// migration 090) : accepter, refuser, passer en « terminée » ou « en livraison ».
+// migrations 090 / 091) : accepter, refuser, passer en « terminée » ou « en livraison »,
+// accepter ou refuser la demande d'annulation du client (merchantCancelRequests.service).
 // RIEN ne change sans confirmation : l'agent propose (message + boutons Confirmer /
 // Annuler), le marchand clique ou répond par écrit (l'agent appelle alors confirm_action).
 // L'exécution passe par les services existants (updateOrders ; refus = cancelByFastFood,
@@ -14,7 +15,15 @@ const { shopPhone, send, sendText, replyRecap } = require('../merchantChannel');
 const RANK = { pending: 0, processing: 1, finished: 2, delivering: 3 };
 // Statut visé par chaque action. « Livrée » n'en fait pas partie : seul le QR du client la valide.
 const TARGET = { accept: 'processing', finished: 'finished', delivering: 'delivering' };
-const LABEL = { accept: 'Accepter', refuse: 'Refuser', finished: 'Passer en « terminée »', delivering: 'Passer en « livraison en cours »' };
+const LABEL = {
+  accept: 'Accepter',
+  refuse: 'Refuser',
+  finished: 'Passer en « terminée »',
+  delivering: 'Passer en « livraison en cours »',
+  cancel_accept: "Accepter l'annulation demandée par le client",
+  cancel_refuse: "Refuser l'annulation demandée par le client",
+};
+const CANCEL_REQUEST = ['cancel_accept', 'cancel_refuse'];
 // Une proposition non confirmée sous 24 h n'est plus exécutable (la fenêtre WhatsApp est close).
 const MAX_AGE_MS = 24 * 3600e3;
 
@@ -23,6 +32,10 @@ exports.ACTIONS = Object.keys(LABEL);
 /** null si l'action est possible sur la commande, sinon la raison. */
 exports.blockerOf = (action, order) => {
   if (!(order.status in RANK)) return `déjà ${msg.statusLabel(order.status)}`;
+  if (CANCEL_REQUEST.includes(action)) {
+    if (order.cancelRequest?.status !== 'pending') return "pas de demande d'annulation en attente";
+    return order.status === 'pending' ? null : `déjà ${msg.statusLabel(order.status)}`;
+  }
   if (action === 'accept' || action === 'refuse') return order.status === 'pending' ? null : `déjà ${msg.statusLabel(order.status)}`;
   return RANK[order.status] < RANK[TARGET[action]] ? null : `déjà ${msg.statusLabel(order.status)}`;
 };
@@ -76,10 +89,18 @@ const apply = async (pending, fastFood, to) => {
   const orders = (await Promise.all(pending.orderIds.map(id => repos.orders.getById(id)))).filter(o => o && o.fastFoodId === fastFood.id);
   const lines = [];
   const done = [];
+  const reports = [];
   for (const o of orders) {
     const blocker = exports.blockerOf(pending.action, o);
     if (blocker) {
       lines.push(`Commande n°${msg.ref(o)} : ${blocker}.`);
+      continue;
+    }
+    if (CANCEL_REQUEST.includes(pending.action)) {
+      // Même chemin que les boutons Accepter / Refuser l'annulation (messages au marchand inclus).
+      const flow = require('../merchantCancelRequests.service');
+      const r = await (pending.action === 'cancel_accept' ? flow.acceptFromMerchant(o, to) : flow.refuseFromMerchant(o, to));
+      reports.push(r.message);
       continue;
     }
     if (pending.action === 'refuse') {
@@ -95,7 +116,7 @@ const apply = async (pending, fastFood, to) => {
   if (lines.length) await sendText(to, lines.join('\n'));
   // Récapitulatif + bouton de l'étape suivante, comme après un clic sur le suivi.
   if (done.length) await replyRecap(to, done);
-  return [...lines, ...done.map(o => `Commande n°${msg.ref(o)} : ${msg.statusLabel(TARGET[pending.action])}.`)].join(' ') || 'Aucune commande à mettre à jour.';
+  return [...lines, ...reports, ...done.map(o => `Commande n°${msg.ref(o)} : ${msg.statusLabel(TARGET[pending.action])}.`)].join(' ') || 'Aucune commande à mettre à jour.';
 };
 
 /**

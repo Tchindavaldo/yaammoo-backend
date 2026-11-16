@@ -29,6 +29,9 @@ const viewOf = (o, shopName) => ({
   montantMarchandFcfa: Math.round(Number(o.total) || 0),
   passeeLe: when(o.createdAt),
   ...(o.groupId ? { panier: String(o.groupId).slice(-6).toUpperCase() } : {}),
+  // Demande d'annulation du client (boutique WhatsApp, cancelRequest.service).
+  ...(o.cancelRequest?.status === 'pending' ? { demandeAnnulation: 'en attente de la réponse du marchand' } : {}),
+  ...(o.cancelRequest?.status === 'refused' ? { demandeAnnulation: 'refusée' } : {}),
 });
 
 /**

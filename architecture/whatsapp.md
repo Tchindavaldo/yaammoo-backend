@@ -91,6 +91,18 @@ Code : `services/whatsapp/merchantOrders.service.js`, textes `merchantMessages.j
   (`updateOrders`) jusqu'au statut déclaré ; « Livrée » s'arrête à « en livraison » (le QR
   du client valide la remise). Un statut déclaré en retard ne recule rien.
 
+### Demande d'annulation (`merchantCancelRequests.service.js`)
+
+Le client d'une boutique WhatsApp demande l'annulation d'une commande en attente
+(`services/order/cancelRequest.service.js`, [order-cancel.md](./order-cancel.md)) :
+message libre au marchand (n°, plats, livraison) avec les boutons « Accepter annulation »
+(`<id>:cancel_ok`) et « Refuser annulation » (`<id>:cancel_no`), référence `cancelreq_<id>`.
+Refusé hors fenêtre de 24 h (131047) -> template `yam_demande_annulation` (bodyParams :
+n°, plats ; boutons : mêmes payloads). ⚠️ Variables du template à vérifier dans le module
+(non lisibles depuis ce dépôt). Accepter -> `cancelByUser` (client remboursé) ; Refuser ->
+commande maintenue, récapitulatif avec Accepter / Refuser la commande. Seul le numéro de la
+boutique décide ; l'agent IA propose aussi ces deux actions (`cancel_accept`, `cancel_refuse`).
+
 ## Agent IA (texte libre du marchand)
 
 Hors boutons et « LIVRÉ », le marchand qui écrit librement est servi par un agent IA
@@ -100,9 +112,8 @@ confirmation) : [whatsapp-ai.md](./whatsapp-ai.md). Chaque envoi de
 
 ## À venir
 
-QR dans l'app client (frontend, branche `feature/qr-livraison-whatsapp`), demande d'annulation,
-`yam_nouveau_message` : `todo/fastfood/feature/whatsapp-commandes-marchand.md` et
-`todo/user/feature/annulation-sur-demande.md`.
+QR dans l'app client (frontend, branche `feature/qr-livraison-whatsapp`),
+`yam_nouveau_message` : `todo/fastfood/feature/whatsapp-commandes-marchand.md`.
 
 ## Fichiers
 
@@ -117,6 +128,8 @@ services/whatsapp/conversationLog.js           journal de conversation (agent IA
 services/whatsapp/ai/                          agent IA (whatsapp-ai.md)
 services/whatsapp/merchantOrders.service.js    flux marchands (commande, boutons, suivi, « LIVRÉ »)
 services/whatsapp/merchantTemplates.service.js rappel, livrée depuis l'app, statut hors fenêtre
+services/whatsapp/merchantCancelRequests.service.js demande d'annulation du client (boutons, template)
+services/order/cancelRequest.service.js        demande d'annulation (création, acceptation, refus)
 services/wallet/orderPayout.service.js         versement automatique à la livraison
 utils/whatsappReminderJob.js                   rappel des commandes sans réponse
 repositories/supabase/waOrderReminders.repo.js
@@ -128,4 +141,5 @@ utils/validator/validateWhatsappEvent.js
 schema/migrations/085_whatsapp_settings.sql
 schema/migrations/086_order_payout.sql
 schema/migrations/087_whatsapp_order_reminders.sql
+schema/migrations/091_cancel_request.sql
 ```

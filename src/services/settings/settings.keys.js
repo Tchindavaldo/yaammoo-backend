@@ -62,6 +62,10 @@ const KEYS = {
   PLATFORM_FREE_DELIVERY_MIN_ITEMS_CAMPAIGN: 'platform_free_delivery_min_items_campaign',
   // Gate de version d'app (migration 042) — écran de mise à jour forcée.
   MIN_APP_VERSION: 'platform_min_app_version',
+  // Migration 091 : version d'app qui affiche l'annulation SUR DEMANDE (boutique
+  // WhatsApp, « En attente de la réponse du marchand »). Sous le seuil : refus 409
+  // portant le message, au lieu d'un succès lu « Commande annulée » (R11).
+  CANCEL_REQUEST_MIN_APP_VERSION: 'cancel_request_min_app_version',
   LATEST_APP_VERSION: 'platform_latest_app_version',
   // Agrégateur de paiement actif (migration 065) : pawapay | digikuntz.
   PAYMENT_AGGREGATOR: 'payment_aggregator',
@@ -170,6 +174,7 @@ const KEY_CATEGORY = {
 
   // deployment — versions d'app et Apple Review
   [KEYS.MIN_APP_VERSION]: 'deployment',
+  [KEYS.CANCEL_REQUEST_MIN_APP_VERSION]: 'deployment',
   [KEYS.LATEST_APP_VERSION]: 'deployment',
   [KEYS.PAYMENT_AGGREGATOR]: 'deployment',
   [KEYS.APPLE_REVIEW_MODE]: 'deployment',
@@ -266,6 +271,8 @@ const FALLBACKS = {
   // "0.0.0" = jamais bloquant : une clé absente ou illisible ne doit jamais
   // couper l'accès à l'app.
   [KEYS.MIN_APP_VERSION]: '0.0.0',
+  // Clé absente : aucune app n'est supposée gérer la demande (message de repli servi à toutes).
+  [KEYS.CANCEL_REQUEST_MIN_APP_VERSION]: '999.0.0',
   [KEYS.LATEST_APP_VERSION]: '0.0.0',
   // OTP : replis PRUDENTS, dans le sens qui protège la facture Bird. Un
   // cooldown à 0 sur clé absente ouvrirait les renvois en rafale — donc 60 s.

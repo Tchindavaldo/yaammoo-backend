@@ -72,6 +72,10 @@ Aucun statut ne change sans l'accord du marchand.
 | `refuse` | `pending` | `updateOrders` `cancelByFastFood` (client remboursé, comme le bouton Refuser) |
 | `finished` | rang < `finished` | `updateOrders` pas à pas jusqu'à `finished` |
 | `delivering` | rang < `delivering` | pas à pas jusqu'à `delivering` |
+| `cancel_accept` | `pending` + demande d'annulation en attente | comme le bouton « Accepter annulation » (`cancelByUser`, client remboursé) |
+| `cancel_refuse` | idem | comme « Refuser annulation » (commande maintenue) |
+
+Contrainte `action` de `wa_ai_pending_actions` élargie à ces deux actions par la migration 091.
 
 « Livrée » est exclu : seul le QR du client la valide. Une proposition porte sur UNE
 boutique. Boutons `<id>:ai_yes` / `<id>:ai_no` ; une réponse écrite (« oui ») conduit
@@ -108,5 +112,4 @@ schema/migrations/090_whatsapp_ai.sql
 ## À venir
 
 Notes vocales et images du marchand : pour l'instant journalisées seulement (`[audio]`),
-pas traitées par l'agent. Demande d'annulation du client (marchand WhatsApp) :
-`todo/user/feature/annulation-sur-demande.md`.
+pas traitées par l'agent.

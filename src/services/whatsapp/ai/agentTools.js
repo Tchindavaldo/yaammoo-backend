@@ -21,7 +21,7 @@ exports.definitions = [
   fn('list_menus', 'Plats de la boutique (nom, catégorie, statut, stock). Sans prix.'),
   fn(
     'propose_action',
-    "Propose au marchand une action sur des commandes d'UNE boutique. Envoie lui-même le message avec les boutons Confirmer / Annuler ; RIEN n'est modifié avant sa confirmation. accept = accepter (en attente), refuse = refuser (en attente ; client remboursé), finished = passer en « terminée », delivering = passer en « livraison en cours » (les étapes intermédiaires sont faites dans l'ordre).",
+    "Propose au marchand une action sur des commandes d'UNE boutique. Envoie lui-même le message avec les boutons Confirmer / Annuler ; RIEN n'est modifié avant sa confirmation. accept = accepter (en attente), refuse = refuser (en attente ; client remboursé), finished = passer en « terminée », delivering = passer en « livraison en cours » (les étapes intermédiaires sont faites dans l'ordre), cancel_accept / cancel_refuse = accepter / refuser la demande d'annulation du client (commande en attente avec demandeAnnulation).",
     {
       action: { type: 'string', enum: pendingActions.ACTIONS },
       refs,

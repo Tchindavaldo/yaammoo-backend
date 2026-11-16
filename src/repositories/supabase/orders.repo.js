@@ -131,9 +131,15 @@ exports.createWithStockCheck = async order => {
   };
 };
 
-exports.update = async (id, fields) => {
+/**
+ * Mise à jour d'une commande. `expectedStatus` (option) : écriture SEULEMENT si le
+ * statut en base est encore celui-là (verrou optimiste) ; sinon renvoie null. Deux
+ * actions concurrentes (client qui annule, marchand qui accepte) : une seule passe.
+ */
+exports.update = async (id, fields, { expectedStatus } = {}) => {
   const existing = await exports.getById(id);
   if (!existing) throw new Error(`Commande ${id} introuvable`);
+  if (expectedStatus && existing.status !== expectedStatus) return null;
   const merged = { ...existing, ...fields, id, updatedAt: new Date().toISOString() };
   const payload = m.order.toSupabase(merged);
   // delete des champs : si fields explicitement à null, on les set null
@@ -148,9 +154,15 @@ exports.update = async (id, fields) => {
       payload[snake] = null;
     }
   }
-  const { data, error } = await supabase.from(TABLE).update(payload).eq('id', id).select().single();
+  let q = supabase.from(TABLE).update(payload).eq('id', id);
+  if (expectedStatus) q = q.eq('status', expectedStatus);
+  const { data, error } = await q.select();
   if (error) throw error;
-  return m.order.fromSupabase(data);
+  if (!data?.length) {
+    if (expectedStatus) return null;
+    throw new Error(`Commande ${id} introuvable`);
+  }
+  return m.order.fromSupabase(data[0]);
 };
 
 exports.delete = async id => {
