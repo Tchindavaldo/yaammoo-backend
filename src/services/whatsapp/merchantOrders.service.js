@@ -8,6 +8,7 @@ const { onButton, onText } = require('./webhookEvents.service');
 const msg = require('./merchantMessages');
 const { shopNumber, shopPhone, send, sendText, batchesOf, replyRecap } = require('./merchantChannel');
 const { registerMerchantTemplateFlows } = require('./merchantTemplates.service');
+const { driverPhoneOfOrder, nameOf, phoneOfUser } = require('./driver/driverDirectory');
 
 // Statut attendu avant chaque action : un double clic ne fait pas avancer deux fois.
 const EXPECTED = { accept: 'pending', refuse: 'pending', finished: 'processing', delivering: 'finished' };
@@ -56,47 +57,60 @@ const ordersOf = async ref => {
   return order ? [order] : [];
 };
 
-const handle = action => async ({ ref, event }) => {
-  const orders = await ordersOf(ref);
-  if (!orders.length) return console.warn(`⚠️ [WHATSAPP] Bouton ${action} : commande ${ref} introuvable`);
-  const fastFood = await repos.fastfoods.getById(orders[0].fastFoodId);
-  const to = await shopPhone(fastFood);
-  // Seul le numéro WhatsApp de la boutique pilote ses commandes.
-  if (!to || to !== event.from) return console.warn(`⚠️ [WHATSAPP] Bouton ${action} sur ${ref} depuis ${event.from} : pas le numéro de la boutique`);
+const handle =
+  action =>
+  async ({ ref, event }) => {
+    const orders = await ordersOf(ref);
+    if (!orders.length) return console.warn(`⚠️ [WHATSAPP] Bouton ${action} : commande ${ref} introuvable`);
+    const fastFood = await repos.fastfoods.getById(orders[0].fastFoodId);
+    const to = await shopPhone(fastFood);
+    // Seul le numéro WhatsApp de la boutique pilote ses commandes.
+    if (!to || to !== event.from) return console.warn(`⚠️ [WHATSAPP] Bouton ${action} sur ${ref} depuis ${event.from} : pas le numéro de la boutique`);
 
-  const todo = orders.filter(o => o.status === EXPECTED[action]);
-  if (!todo.length) return sendText(to, orders.map(o => `Commande n°${msg.ref(o)} : déjà ${msg.statusLabel(o.status)}.`).join('\n'));
+    const todo = orders.filter(o => o.status === EXPECTED[action]);
+    if (!todo.length) return sendText(to, orders.map(o => `Commande n°${msg.ref(o)} : déjà ${msg.statusLabel(o.status)}.`).join('\n'));
 
-  // Chargé ici : updateOrders appelle notifyNewOrders (dépendance circulaire sinon).
-  const { updateOrders } = require('../order/updateOrders.service');
-  const payload = todo.map(o => ({ id: o.id, fastFoodId: o.fastFoodId, ...(action === 'refuse' ? { status: 'cancelByFastFood' } : {}) }));
-  const r = await updateOrders(payload, fastFood.userId);
-  if (!r?.success) return sendText(to, `Commande n°${todo.map(msg.ref).join(', ')} : ${r?.message || 'mise à jour impossible'}.`);
+    // Chargé ici : updateOrders appelle notifyNewOrders (dépendance circulaire sinon).
+    const { updateOrders } = require('../order/updateOrders.service');
+    const payload = todo.map(o => ({ id: o.id, fastFoodId: o.fastFoodId, ...(action === 'refuse' ? { status: 'cancelByFastFood' } : {}) }));
+    const r = await updateOrders(payload, fastFood.userId);
+    if (!r?.success) return sendText(to, `Commande n°${todo.map(msg.ref).join(', ')} : ${r?.message || 'mise à jour impossible'}.`);
 
-  if (action === 'refuse') return sendText(to, `Commande n°${todo.map(msg.ref).join(', ')} refusée. Le client sera remboursé.`);
+    if (action === 'refuse') return sendText(to, `Commande n°${todo.map(msg.ref).join(', ')} refusée. Le client sera remboursé.`);
 
-  await replyRecap(to, todo);
-};
+    await replyRecap(to, todo);
+  };
 
 // Message prérempli par le QR code du client : « LIVRÉ <orderId> <code> ».
 const DELIVERED_RE = /^\s*LIVR[ÉE]E?\s+(\S+)\s+(\S+)/i;
 
-/** Validation de livraison envoyée depuis le numéro WhatsApp de la boutique. true si c'était ce message. */
+/**
+ * Validation de livraison envoyée depuis le numéro WhatsApp de la boutique ou du livreur
+ * assigné à la commande (sa part part alors sur le numéro OM / MoMo du livreur,
+ * orderPayout.service). true si c'était ce message.
+ */
 const onDeliveredText = async event => {
   const match = DELIVERED_RE.exec(event.text || '');
   if (!match) return false;
   const [, orderId, code] = match;
   const order = await repos.orders.getById(orderId);
   const fastFood = order ? await repos.fastfoods.getById(order.fastFoodId) : null;
-  if (!order || (await shopNumber(fastFood)) !== event.from) {
-    console.warn(`⚠️ [WHATSAPP] « LIVRÉ ${orderId} » de ${event.from} : commande inconnue ou pas le numéro de la boutique`);
-    await sendText(event.from, 'Validation refusée : ce code doit être envoyé depuis le numéro WhatsApp de la boutique qui livre la commande.');
+  const fromShop = !!order && (await shopNumber(fastFood)) === event.from;
+  const fromDriver = !!order && !fromShop && (await driverPhoneOfOrder(order)) === event.from;
+  if (!fromShop && !fromDriver) {
+    console.warn(`⚠️ [WHATSAPP] « LIVRÉ ${orderId} » de ${event.from} : commande inconnue, ni la boutique ni son livreur`);
+    await sendText(event.from, 'Validation refusée : ce code doit être envoyé depuis le numéro WhatsApp de la boutique ou du livreur de la commande.');
     return true;
   }
   // Chargé ici : confirmDelivery charge updateOrders, qui charge ce fichier.
   const { confirmDelivery } = require('../order/confirmDelivery.service');
   const r = await confirmDelivery({ orderId, code, channel: 'whatsapp' });
   await sendText(event.from, r.success ? `Commande n°${msg.ref(order)} : livraison validée.${payoutLine(r.payout)}` : `Commande n°${msg.ref(order)} : ${r.message}.`);
+  // Livrée par le livreur : la boutique est prévenue (template, passe hors fenêtre de 24 h).
+  if (fromDriver && r.success && !r.alreadyDelivered) {
+    const { notifyDelivered } = require('./merchantTemplates.service');
+    await notifyDelivered(r.order || order).catch(e => console.error(`❌ [WHATSAPP] yam_commande_livree ${order.id} : ${e.message}`));
+  }
   return true;
 };
 
@@ -114,19 +128,45 @@ const payoutLine = p => {
 exports.notifyOrderPayout = async (withdrawal, ok) => {
   const shop = withdrawal.fastFoodId ? await repos.fastfoods.getById(withdrawal.fastFoodId) : null;
   const to = await shopPhone(shop);
-  if (!to) return;
   const ref = msg.ref({ id: withdrawal.orderId || '' });
-  await sendText(to, ok ? `Versement reçu : ${withdrawal.amount} FCFA envoyés sur le ${withdrawal.phone} (commande n°${ref}).` : `Le versement de ${withdrawal.amount} FCFA pour la commande n°${ref} a échoué. L'équipe Yaammoo le relance.`);
+  if (!withdrawal.driverId) {
+    if (to) await sendText(to, ok ? `Versement reçu : ${withdrawal.amount} FCFA envoyés sur le ${withdrawal.phone} (commande n°${ref}).` : `Le versement de ${withdrawal.amount} FCFA pour la commande n°${ref} a échoué. L'équipe Yaammoo le relance.`);
+    return;
+  }
+  // Versé au livreur (boutique WhatsApp) : la boutique ET le livreur sont prévenus.
+  const driver = await repos.users.getUserByIdSafe(withdrawal.driverId);
+  const name = nameOf(driver);
+  const driverTo = await phoneOfUser(driver);
+  if (to) {
+    await sendText(
+      to,
+      ok
+        ? `Le livreur ${name} a reçu ${withdrawal.amount} FCFA sur le ${withdrawal.phone} pour la commande n°${ref} : c'est votre part, il doit vous la remettre.`
+        : `Le versement de ${withdrawal.amount} FCFA au livreur ${name} pour la commande n°${ref} a échoué. L'équipe Yaammoo le relance.`
+    );
+  }
+  if (driverTo) {
+    await sendText(
+      driverTo,
+      ok
+        ? `Vous avez reçu ${withdrawal.amount} FCFA sur le ${withdrawal.phone} pour la commande n°${ref} : c'est la part de la boutique ${shop?.name || ''}, à lui remettre.`
+        : `Le versement de ${withdrawal.amount} FCFA pour la commande n°${ref} a échoué. Rescannez le QR code du client pour le relancer, sinon l'équipe Yaammoo s'en occupe.`
+    );
+  }
 };
 
 /** Abonne les boutons des messages marchands (payload `<ref>:<action>`), la validation « LIVRÉ »,
- * les flux par template (rappel, statut hors fenêtre : merchantTemplates.service), puis l'agent IA
- * (ai/merchantAgent.service : journal, boutons Confirmer / Annuler, texte libre — en DERNIER). */
+ * les flux par template (rappel, statut hors fenêtre : merchantTemplates.service), les flux
+ * livreurs (driver/), puis les agents IA (marchand, puis livreur — en DERNIER). */
 exports.registerMerchantOrderButtons = () => {
   for (const action of Object.keys(EXPECTED)) onButton(action, handle(action));
   onText(onDeliveredText);
   registerMerchantTemplateFlows();
   // Demande d'annulation du client (boutons Accepter / Refuser l'annulation, template hors fenêtre).
   require('./merchantCancelRequests.service').registerCancelRequestFlows();
+  // Livreurs : « NUMERO <jeton> » (avant les agents), bouton Je pars en livraison, templates.
+  require('./driver/driverAccounts.service').registerDriverAccountFlows();
+  require('./driver/driverDeliveries.service').registerDriverDeliveryFlows();
   require('./ai/merchantAgent.service').registerMerchantAgent();
+  require('./ai/driverAgent.service').registerDriverAgent();
 };

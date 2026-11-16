@@ -1,15 +1,13 @@
-// Outils (function calling) de l'agent IA WhatsApp : définitions envoyées au modèle et
-// exécution. Chaque outil passe par les services existants ; aucune écriture de statut
-// sans confirmation du marchand (propose_action -> confirm_action ou bouton Confirmer).
+// Outils (function calling) de l'agent IA du MARCHAND WhatsApp : définitions envoyées au
+// modèle et exécution. Chaque outil passe par les services existants ; aucune écriture de
+// statut sans confirmation du marchand (propose_action -> confirm_action ou bouton Confirmer).
+// Livreurs (lister, ajouter, confier, message) : merchantDriverTools.js.
 // `ctx` = { phone, shops, orders (vue marchand), views, flags }. Doc : architecture/whatsapp-ai.md.
 const repos = require('../../../repositories');
 const { ACTIVE, resolveRefs, viewOf } = require('./agentOrders');
 const pendingActions = require('./pendingActions.service');
-
-const fn = (name, description, properties = {}, required = []) => ({
-  type: 'function',
-  function: { name, description, parameters: { type: 'object', properties, required, additionalProperties: false } },
-});
+const { fn, runTool } = require('./agentLoop');
+const driverTools = require('./merchantDriverTools');
 const refs = { type: 'array', items: { type: 'string' }, description: 'Numéros de commande (6 caractères, ex. A1B2C3) ou ids complets' };
 const ref = { type: 'string', description: 'Numéro de commande (6 caractères, ex. A1B2C3) ou id complet' };
 
@@ -29,8 +27,9 @@ exports.definitions = [
     },
     ['action', 'refs', 'message']
   ),
-  fn('confirm_action', "Exécute une proposition en attente que le marchand vient de confirmer PAR ÉCRIT (« oui », « vas-y »…). Yaammoo envoie lui-même le récapitulatif.", { pendingId: { type: 'string' } }, ['pendingId']),
+  fn('confirm_action', 'Exécute une proposition en attente que le marchand vient de confirmer PAR ÉCRIT (« oui », « vas-y »…). Yaammoo envoie lui-même le récapitulatif.', { pendingId: { type: 'string' } }, ['pendingId']),
   fn('cancel_action', 'Annule une proposition en attente que le marchand refuse.', { pendingId: { type: 'string' } }, ['pendingId']),
+  ...driverTools.definitions,
 ];
 
 const shopOf = (ctx, order) => ctx.shops.find(s => s.id === order.fastFoodId);
@@ -67,14 +66,14 @@ const handlers = {
     const blocked = found.map(o => [o, pendingActions.blockerOf(action, o)]).filter(([, b]) => b);
     if (blocked.length) return { error: 'Action impossible sur certaines commandes.', details: blocked.map(([o, b]) => `n°${viewOf(o).ref} : ${b}`) };
     const { pending, sent } = await pendingActions.propose({ phone: ctx.phone, fastFood: shopOf(ctx, found[0]), action, orders: found, message });
-    if (sent) ctx.flags.sentToMerchant = true;
+    if (sent) ctx.flags.replied = true;
     return sent ? { ok: true, pendingId: pending.id, info: 'Demande de confirmation envoyée au marchand avec les boutons.' } : { error: "L'envoi de la demande de confirmation a échoué." };
   },
 
   confirm_action: async (ctx, { pendingId }) => {
     const r = await pendingActions.execute(pendingId, ctx.phone);
     if (r.ok) {
-      ctx.flags.sentToMerchant = true;
+      ctx.flags.replied = true;
       await ctx.reload(); // statuts changés : les outils suivants relisent la base
     }
     return r.ok ? { ok: true, resultat: r.message, info: 'Récapitulatif déjà envoyé au marchand.' } : { error: r.message };
@@ -87,19 +86,4 @@ const handlers = {
 };
 
 /** Exécute un appel d'outil du modèle. Renvoie toujours un objet (erreur comprise). */
-exports.run = async (ctx, name, rawArgs) => {
-  const handler = handlers[name];
-  if (!handler) return { error: `Outil inconnu : ${name}` };
-  let args = {};
-  try {
-    args = typeof rawArgs === 'string' && rawArgs.trim() ? JSON.parse(rawArgs) : rawArgs || {};
-  } catch {
-    return { error: 'Arguments JSON invalides.' };
-  }
-  try {
-    return await handler(ctx, args);
-  } catch (e) {
-    console.error(`❌ [AI] outil ${name} : ${e.message}`);
-    return { error: `Échec de l'outil ${name}.` };
-  }
-};
+exports.run = (ctx, name, rawArgs) => runTool({ ...handlers, ...driverTools.handlers }, ctx, name, rawArgs);

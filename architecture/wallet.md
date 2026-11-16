@@ -296,6 +296,12 @@ marchand pour CETTE commande part sur son numéro, sans retrait à demander
 - **solde source** = réseau du paiement ; **numéro** = numéro de versement de la
   boutique (`payout_numbers`, saisi par l'admin : `PUT /fastfood/:id/payout-number`),
   celui du même réseau d'abord → **0 F** ;
+- **commande confiée à un livreur** (`order.driverId`, migration 093, décision du
+  16/11/2026) : numéro OM / MoMo validé **du livreur** (même choix de réseau), jamais celui
+  de la boutique en repli. Le livreur remet la part à la boutique. Le débit reste sur le
+  solde de la boutique ; `withdrawals.driver_id` garde le livreur (suivi de ce que chaque
+  livreur a reçu). Livreur sans numéro : rien ne part, `app_errors`
+  `driver_payout_number_missing` (un livreur ne livre qu'avec un numéro validé) ;
 - **interréseau** (aucun numéro sur le réseau du paiement) : frais MobileWallet pris
   sur la part de la commande, envoyé + frais = crédit ;
 - **pas de blocage doublon ni de cooldown** : un versement par commande livrée
@@ -304,7 +310,7 @@ marchand pour CETTE commande part sur son numéro, sans retrait à demander
 - solde source < montant + frais (dette d'annulation) : rien ne part ;
 - verdict par `webhookPayout.service` comme un retrait (débit au succès seulement,
   transaction `withdrawal` nommée « Versement commande », `relatedOrderId`), plus un
-  message WhatsApp au marchand (reçu / échoué) ;
+  message WhatsApp au marchand (reçu / échoué), et au livreur quand il l'a reçu ;
 - tout échec ou cas non versé est tracé dans `app_errors` (`scope = 'order_payout'`).
 
 Boutique normale : le QR valide seulement la livraison, aucun versement.
@@ -384,6 +390,14 @@ par le compte : sinon 403 `payout_number_unverified`. Vérification par code
 Service : `services/wallet/payoutNumber.service.js`. Les numéros déjà enregistrés
 avant 079 ne sont pas vérifiés : le marchand les revérifie depuis sa boutique.
 
+**Sans code si déjà validé sur WhatsApp** (migration 093, R11) : app >=
+`settings_deployment.payout_number_whatsapp_min_app_version` (999.0.0 tant que l'app ne
+le gère pas) et numéro présent dans `whatsapp_numbers` du compte → `request` le vérifie
+tout de suite, sans SMS ni frais : `200 { verified: true, phoneNumber }`. En dessous du
+seuil : code SMS comme avant. L'app doit donc faire valider le WhatsApp en premier.
+Livreur sans app : numéro OM / MoMo validé par WhatsApp, sans code
+([whatsapp-ai.md](./whatsapp-ai.md), « Livreurs »).
+
 ## Numéro WhatsApp de la boutique vérifié (migration 080)
 
 `POST /whatsapp-number/request|verify` (+ `GET /whatsapp-number`) : même mécanique
@@ -391,7 +405,8 @@ que les numéros de retrait, mais code sur **WhatsApp uniquement** (`channels:
 ['whatsapp']`, aucun repli SMS). Un code livré par un autre canal est refusé.
 Connexion par numéro (`/auth/phone/verify`) : si Bird a livré le code par
 WhatsApp, le numéro est enregistré comme WhatsApp vérifié (`source = 'login'`) ;
-un repli SMS ne vérifie rien. Table `whatsapp_numbers`.
+un repli SMS ne vérifie rien. Message reçu DU numéro (livreur WhatsApp, « NUMERO <jeton> ») :
+`source = 'inbound'` (migration 093). Table `whatsapp_numbers`.
 
 ## Frais SMS des numéros de retrait (`sms_fee`, migration 083, CGU 12.5 bis)
 

@@ -340,15 +340,16 @@ stocké, donc absent des vues marchand (`services/order/deliveryCode.service.js`
 - `GET /order/:orderId/delivery-code` (client de la commande) → `{ code, text, whatsappLink }`.
   `whatsappLink` = `https://wa.me/<numéro Yaammoo>?text=LIVRÉ <orderId> <code>` (numéro lu
   dans le module WhatsApp, `GET /me`). C'est le contenu du QR.
-- Marchand **sans** l'app : il scanne avec l'appareil photo, WhatsApp s'ouvre, il envoie.
-  Accepté seulement depuis le numéro WhatsApp de la boutique (`merchantOrders.service`, `onText`).
+- Marchand ou livreur **sans** l'app : il scanne avec l'appareil photo, WhatsApp s'ouvre, il
+  envoie. Accepté seulement depuis le numéro WhatsApp de la boutique ou du livreur assigné à
+  la commande (`merchantOrders.service`, `onText`).
 - Marchand ou livreur **avec** l'app : `POST /order/:orderId/confirm-delivery { code }`
   (boutique avec `orders.deliver`, ou livreur assigné).
 - Les deux canaux passent par `confirmDelivery.service` : code vérifié, statut `delivering`
   exigé (409 sinon), puis `updateOrders` (`delivering → delivered`, crédit livreur inchangé).
   Déjà livrée : `200 alreadyDelivered`.
 - Boutique WhatsApp (`whatsappOrders`) : versement automatique de la part du marchand à la
-  validation, quel que soit le canal (`orderPayout.service`, [wallet.md](./wallet.md),
+  validation (sur le numéro OM / MoMo du livreur si la commande lui est confiée), quel que soit le canal (`orderPayout.service`, [wallet.md](./wallet.md),
   « Versement automatique d'une commande »). La réponse porte `payout`
   (`{ status: pending|skipped|failed, sentAmount, fee, phone, network }`) ; un rescan d'une
   commande déjà livrée relance un versement échoué. Boutique normale : aucune transaction.

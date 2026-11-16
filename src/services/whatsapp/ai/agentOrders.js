@@ -17,8 +17,8 @@ const when = iso => {
   return Number.isNaN(d.getTime()) ? '' : fmt.format(d);
 };
 
-/** Commande -> objet lu par le modèle (aucune donnée personnelle du client). */
-const viewOf = (o, shopName) => ({
+/** Commande -> objet lu par le modèle (aucune donnée personnelle du client). `drivers` : uid -> nom. */
+const viewOf = (o, shopName, drivers = {}) => ({
   ref: msg.ref(o),
   id: o.id,
   boutique: shopName,
@@ -29,6 +29,7 @@ const viewOf = (o, shopName) => ({
   montantMarchandFcfa: Math.round(Number(o.total) || 0),
   passeeLe: when(o.createdAt),
   ...(o.groupId ? { panier: String(o.groupId).slice(-6).toUpperCase() } : {}),
+  ...(o.driverId ? { livreur: drivers[o.driverId] || 'un livreur' } : {}),
   // Demande d'annulation du client (boutique WhatsApp, cancelRequest.service).
   ...(o.cancelRequest?.status === 'pending' ? { demandeAnnulation: 'en attente de la réponse du marchand' } : {}),
   ...(o.cancelRequest?.status === 'refused' ? { demandeAnnulation: 'refusée' } : {}),
@@ -46,11 +47,40 @@ exports.loadShopOrders = async (shops, days) => {
   for (const shop of shops) {
     const orders = await repos.orders.query({ fastFoodId: shop.id, status: MERCHANT_STATUSES, createdAfter });
     const merchant = orders.length ? await toMerchantView(orders) : [];
+    const drivers = await driverNames(merchant.filter(o => ACTIVE.includes(o.status)));
     for (const o of merchant) {
       raw.push(o);
-      views.push(viewOf(o, shop.name));
+      views.push(viewOf(o, shop.name, drivers));
     }
   }
+  return { raw, views };
+};
+
+/** uid -> nom des livreurs assignés aux commandes. */
+const driverNames = async orders => {
+  const { nameOf } = require('../driver/driverDirectory');
+  const out = {};
+  for (const id of new Set(orders.map(o => o.driverId).filter(Boolean))) out[id] = nameOf(await repos.users.getUserByIdSafe(id));
+  return out;
+};
+
+/**
+ * Commandes confiées au livreur `uid` dans ses boutiques WhatsApp, depuis `days` jours.
+ * raw = commandes telles quelles (fiche du livreur) ; views = pour le modèle, avec la part
+ * de la boutique (vue marchand) et SANS coordonnées du client.
+ */
+exports.loadDriverOrders = async (uid, shops, days) => {
+  const { toMerchantView } = require('../../order/toMerchantView');
+  const since = Date.now() - days * 864e5;
+  const byId = new Map(shops.map(s => [s.id, s]));
+  const raw = (await repos.orders.getByDriver(uid)).filter(o => byId.has(o.fastFoodId) && MERCHANT_STATUSES.includes(o.status) && new Date(o.createdAt).getTime() >= since);
+  const merchant = raw.length ? await toMerchantView(raw.map(o => ({ ...o }))) : [];
+  const amount = new Map(merchant.map(o => [o.id, Math.round(Number(o.total) || 0)]));
+  const views = raw.map(o => {
+    // montantMarchandFcfa de viewOf est ici le total CLIENT (commande brute) : jamais montré.
+    const { montantMarchandFcfa, livreur, ...v } = viewOf(o, byId.get(o.fastFoodId)?.name);
+    return { ...v, partBoutiqueFcfa: amount.get(o.id) ?? null };
+  });
   return { raw, views };
 };
 

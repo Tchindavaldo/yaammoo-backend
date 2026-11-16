@@ -71,6 +71,9 @@ const isCancelStatus = s => s === 'cancelByUser' || s === 'cancelByFastFood';
  *   qui règle le panier — fixe le barème de frais extrait au règlement.
  * @param {Object} [opts] `{ fromCancelRequest }` : annulation acceptée par le marchand
  *   WhatsApp (cancelRequest.service) — pas de nouvelle demande, demande `accepted`.
+ *   `{ expectedStatus }` : avance seulement depuis ce statut (sinon conflit, rien écrit).
+ *   Une avance pas à pas (agent IA, livreur WhatsApp) ne saute ainsi jamais une étape
+ *   quand deux actions se croisent (ex. delivering -> delivered sans QR).
  */
 exports.updateOrders = async (orders, userId, payment = null, opts = {}) => {
   try {
@@ -123,6 +126,11 @@ exports.updateOrders = async (orders, userId, payment = null, opts = {}) => {
 
       const prevStatus = prevData.status;
       const prevRank = prevData.rank;
+      if (opts.expectedStatus && prevStatus !== opts.expectedStatus) {
+        console.error(`[updateOrders] ❌ CONFLIT id=${id} — statut ${prevStatus} au lieu de ${opts.expectedStatus}, rien écrit`);
+        conflicts.push({ id, status });
+        continue;
+      }
 
       // Boutique WhatsApp : le client ne peut pas annuler seul une commande payée en
       // attente, il le DEMANDE au marchand (qui accepte ou refuse sur WhatsApp).

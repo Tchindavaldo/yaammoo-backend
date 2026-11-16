@@ -196,7 +196,29 @@ const fastfoodAvailability = row => {
 // ---------------------------------------------------------------------------
 const menuToSupabase = data => {
   const { createdAt, updatedAt, ...rest } = data;
-  const known = ['id', 'fastFoodId', 'titre', 'name', 'prix1', 'prix2', 'prix3', 'optionPrix1', 'optionPrix2', 'optionPrix3', 'image', 'coverImage', 'images', 'disponibilite', 'status', 'stock', 'extra', 'drink', 'ratingAvg', 'ratingCount', 'category'];
+  const known = [
+    'id',
+    'fastFoodId',
+    'titre',
+    'name',
+    'prix1',
+    'prix2',
+    'prix3',
+    'optionPrix1',
+    'optionPrix2',
+    'optionPrix3',
+    'image',
+    'coverImage',
+    'images',
+    'disponibilite',
+    'status',
+    'stock',
+    'extra',
+    'drink',
+    'ratingAvg',
+    'ratingCount',
+    'category',
+  ];
   const extra_data = {};
   for (const k of Object.keys(rest)) {
     if (!known.includes(k)) extra_data[k] = rest[k];
@@ -414,6 +436,8 @@ const withdrawalToSupabase = data => ({
   // Migration 086 : 'order' (versement automatique d'une commande, boutique WhatsApp).
   kind: data.kind ?? 'wallet',
   order_id: data.orderId ?? null,
+  // Migration 093 : livreur qui a reçu le versement de la commande (boutique WhatsApp).
+  driver_id: data.driverId ?? null,
   mw_payout_id: data.mwPayoutId ?? null,
   failure_reason: data.failureReason ?? null,
   created_at: toIso(data.createdAt),
@@ -435,6 +459,7 @@ const withdrawalFromSupabase = row => {
     status: row.status,
     kind: row.kind ?? 'wallet',
     orderId: row.order_id ?? null,
+    driverId: row.driver_id ?? null,
     mwPayoutId: row.mw_payout_id,
     failureReason: row.failure_reason,
     createdAt: row.created_at,

@@ -7,7 +7,10 @@
 //   - montant = crédit du marchand pour CETTE commande (merchant_credit, déjà net :
 //     plats réels + frais de retrait + course s'il livre, cf. money-rules.md) ;
 //   - solde source = réseau du paiement ; numéro = numéro de versement de la boutique
-//     (payout_numbers), de préférence sur le même réseau (0 F) ;
+//     (payout_numbers), de préférence sur le même réseau (0 F). Commande confiée à un
+//     livreur (`order.driverId`) : numéro OM / MoMo validé DU LIVREUR (décision du
+//     16/11/2026), qui remet la part à la boutique ; le débit reste sur le solde de la
+//     boutique, `withdrawals.driver_id` garde le livreur (migration 093) ;
 //   - interréseau : frais pris sur la part de la commande (envoyé + frais = crédit) ;
 //   - pas de blocage doublon ni de délai : un versement par commande livrée
 //     (withdrawals.order_id, migration 086). Un versement échoué se relance au scan suivant.
@@ -24,7 +27,7 @@ const { crossNetworkRate } = require('./withdrawQuote.service');
 
 const skipped = (code, message) => ({ status: 'skipped', code, message });
 
-/** Numéro de versement de la boutique : même réseau que le solde source d'abord. */
+/** Numéro de versement du compte (boutique ou livreur) : même réseau que le solde source d'abord. */
 async function pickPayoutNumber(userId, sourceNetwork, aggregator) {
   let other = null;
   for (const n of await repos.payoutNumbers.listByUser(userId)) {
@@ -72,6 +75,10 @@ exports.payOrderToMerchant = async (order, fastFood) => {
   };
 
   if (!userId) return failed('owner_missing', 'propriétaire de la boutique introuvable.');
+  // Livreur assigné : la part part sur SON numéro (jamais sur celui de la boutique en repli).
+  const driverId = order.driverId || null;
+  const driver = driverId ? await repos.users.getUserByIdSafe(driverId) : null;
+  if (driverId && !driver) return failed('driver_missing', `livreur ${driverId} introuvable.`);
   if (await repos.withdrawals.getActiveByOrder(order.id)) return skipped('already_paid', 'Versement déjà fait pour cette commande');
 
   const credit = await repos.transactions.findMerchantCreditByOrder(order.id);
@@ -82,7 +89,8 @@ exports.payOrderToMerchant = async (order, fastFood) => {
   }
   const aggregator = credit.aggregator;
 
-  const target = await pickPayoutNumber(userId, sourceNetwork, aggregator);
+  const target = await pickPayoutNumber(driverId || userId, sourceNetwork, aggregator);
+  if (!target && driverId) return failed('driver_payout_number_missing', `aucun numéro Orange / MTN validé pour le livreur ${driverId}.`, { credit });
   if (!target) return failed('payout_number_missing', 'aucun numéro de versement Orange / MTN enregistré pour la boutique.', { credit });
 
   const amounts = await amountsOf(credit, target.network, sourceNetwork, aggregator);
@@ -101,6 +109,7 @@ exports.payOrderToMerchant = async (order, fastFood) => {
       userId,
       fastFoodId: ctx.fastFoodId,
       orderId: order.id,
+      driverId,
       kind: 'order',
       amount: sentAmount,
       kioskFee: Math.min(credit.kioskFee, sentAmount),
@@ -122,7 +131,7 @@ exports.payOrderToMerchant = async (order, fastFood) => {
     network: target.network,
     sourceNetwork,
     phone: target.phone,
-    receiverName: fastFood.name || 'Marchand yaammoo',
+    receiverName: driver ? [driver.infos?.prenom, driver.infos?.nom].filter(Boolean).join(' ') || 'Livreur yaammoo' : fastFood.name || 'Marchand yaammoo',
     narration: `Commande ${order.id.slice(-6).toUpperCase()}`,
     withdrawalId: withdrawal.id,
     aggregator,
@@ -134,7 +143,7 @@ exports.payOrderToMerchant = async (order, fastFood) => {
 
   const finalFee = target.network === sourceNetwork ? 0 : Number.isFinite(mw.fee) ? mw.fee : fee;
   await repos.withdrawals.updateStatus(withdrawal.id, { mwPayoutId: mw.transaction_id, fee: finalFee });
-  console.log(`✅ [VERSEMENT] Commande ${order.id} : ${sentAmount} F vers ${target.phone} (${sourceNetwork}→${target.network}, frais ${finalFee})`);
+  console.log(`✅ [VERSEMENT] Commande ${order.id} : ${sentAmount} F vers ${target.phone}${driverId ? ` (livreur ${driverId})` : ''} (${sourceNetwork}→${target.network}, frais ${finalFee})`);
 
   try {
     await reliableEmit(getIO(), userId, 'wallet.withdrawal', {
@@ -149,6 +158,7 @@ exports.payOrderToMerchant = async (order, fastFood) => {
       network: target.network,
       sourceNetwork,
       relatedOrderId: order.id,
+      driverId,
       mwTransactionId: mw.transaction_id,
       createdAt: withdrawal.createdAt,
     });
@@ -156,5 +166,5 @@ exports.payOrderToMerchant = async (order, fastFood) => {
     console.warn('[VERSEMENT] émission socket non critique:', e.message);
   }
 
-  return { status: 'pending', sentAmount, fee: finalFee, phone: target.phone, network: target.network };
+  return { status: 'pending', sentAmount, fee: finalFee, phone: target.phone, network: target.network, driverId };
 };

@@ -66,6 +66,9 @@ const KEYS = {
   // WhatsApp, « En attente de la réponse du marchand »). Sous le seuil : refus 409
   // portant le message, au lieu d'un succès lu « Commande annulée » (R11).
   CANCEL_REQUEST_MIN_APP_VERSION: 'cancel_request_min_app_version',
+  // Migration 093 : version d'app qui gère un numéro de retrait validé SANS code SMS
+  // (déjà validé sur WhatsApp, réponse `verified: true`). Sous le seuil : code SMS (R11).
+  PAYOUT_NUMBER_WHATSAPP_MIN_APP_VERSION: 'payout_number_whatsapp_min_app_version',
   LATEST_APP_VERSION: 'platform_latest_app_version',
   // Agrégateur de paiement actif (migration 065) : pawapay | digikuntz.
   PAYMENT_AGGREGATOR: 'payment_aggregator',
@@ -108,6 +111,9 @@ const KEYS = {
   // Migration 092 : minutes sans réponse du marchand WhatsApp avant que le client
   // puisse RENVOYER sa demande d'annulation (cancelRequest.service).
   CANCEL_REQUEST_RESEND_MINUTES: 'cancel_request_resend_minutes',
+  // Migration 093 : minutes de validité du lien WhatsApp qui valide sans code le
+  // numéro OM / MoMo d'un livreur (wa_number_claims).
+  WA_NUMBER_CLAIM_TTL_MINUTES: 'wa_number_claim_ttl_minutes',
   // Builds de TEST (migration 051, table `settings_test` depuis la 055, tableau
   // depuis la 056) : versions d'app exactes qui reçoivent les comportements de
   // test (mode volume de `GET /fastFood/all`, paiement gratuit). [] = aucune.
@@ -178,6 +184,7 @@ const KEY_CATEGORY = {
   // deployment — versions d'app et Apple Review
   [KEYS.MIN_APP_VERSION]: 'deployment',
   [KEYS.CANCEL_REQUEST_MIN_APP_VERSION]: 'deployment',
+  [KEYS.PAYOUT_NUMBER_WHATSAPP_MIN_APP_VERSION]: 'deployment',
   [KEYS.LATEST_APP_VERSION]: 'deployment',
   [KEYS.PAYMENT_AGGREGATOR]: 'deployment',
   [KEYS.APPLE_REVIEW_MODE]: 'deployment',
@@ -197,6 +204,7 @@ const KEY_CATEGORY = {
   [KEYS.AI_CONVERSATION_RETENTION_DAYS]: 'app',
   [KEYS.AI_HISTORY_MAX_MESSAGES]: 'app',
   [KEYS.CANCEL_REQUEST_RESEND_MINUTES]: 'app',
+  [KEYS.WA_NUMBER_CLAIM_TTL_MINUTES]: 'app',
 
   // test — build de test (sorties de `deployment` par la migration 055)
   [KEYS.TEST_APP_VERSION]: 'test',
@@ -277,6 +285,8 @@ const FALLBACKS = {
   [KEYS.MIN_APP_VERSION]: '0.0.0',
   // Clé absente : aucune app n'est supposée gérer la demande (message de repli servi à toutes).
   [KEYS.CANCEL_REQUEST_MIN_APP_VERSION]: '999.0.0',
+  // Clé absente : code SMS pour tous (comportement des apps actuelles).
+  [KEYS.PAYOUT_NUMBER_WHATSAPP_MIN_APP_VERSION]: '999.0.0',
   [KEYS.LATEST_APP_VERSION]: '0.0.0',
   // OTP : replis PRUDENTS, dans le sens qui protège la facture Bird. Un
   // cooldown à 0 sur clé absente ouvrirait les renvois en rafale — donc 60 s.
@@ -310,6 +320,7 @@ const FALLBACKS = {
   [KEYS.AI_CONVERSATION_RETENTION_DAYS]: 30,
   [KEYS.AI_HISTORY_MAX_MESSAGES]: 100,
   [KEYS.CANCEL_REQUEST_RESEND_MINUTES]: 15,
+  [KEYS.WA_NUMBER_CLAIM_TTL_MINUTES]: 30,
   // Build de test : repli à « aucune ». Une clé absente ne doit JAMAIS servir
   // des données de test à une vraie app.
   [KEYS.TEST_APP_VERSION]: [],

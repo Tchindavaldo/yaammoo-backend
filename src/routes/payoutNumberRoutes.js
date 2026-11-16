@@ -13,7 +13,7 @@ const c = require('../controllers/wallet/payoutNumber.controller');
  *     requestBody:
  *       content: { application/json: { schema: { type: object, required: [phoneNumber, network], properties: { phoneNumber: { type: string, example: '698087460' }, network: { type: string, enum: [orange, mtn], description: 'Réseau du numéro : solde débité des frais SMS (coût réel Bird × taux USD->XAF du jour)' } } } } }
  *     responses:
- *       200: { description: "Code envoyé { verificationId, phoneNumber, expiresIn }" }
+ *       200: { description: "Code envoyé { verificationId, phoneNumber, expiresIn }. App >= payout_number_whatsapp_min_app_version (header x-app-version) et numéro déjà validé sur WhatsApp par ce compte : { verified: true, phoneNumber }, aucun SMS ni frais." }
  *       429: { description: "cooldown (en-tête Retry-After)" }
  */
 router.post('/request', firebaseAuth, c.requestPayoutNumberCodeController);

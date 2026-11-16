@@ -82,23 +82,27 @@ const onFailed = async event => {
 };
 
 /** Le marchand déclare un statut : la commande avance pas à pas (updateOrders) jusqu'à lui. */
-const handleStatus = (action, target) => async ({ ref, event }) => {
-  const order = await repos.orders.getById(ref);
-  if (!order) return console.warn(`⚠️ [WHATSAPP] Bouton ${action} : commande ${ref} introuvable`);
-  const fastFood = await repos.fastfoods.getById(order.fastFoodId);
-  const to = await shopPhone(fastFood);
-  if (!to || to !== event.from) return console.warn(`⚠️ [WHATSAPP] Bouton ${action} sur ${ref} depuis ${event.from} : pas le numéro de la boutique`);
-  if (!(order.status in RANK)) return sendText(to, `Commande n°${msg.ref(order)} : déjà ${msg.statusLabel(order.status)}.`);
+const handleStatus =
+  (action, target) =>
+  async ({ ref, event }) => {
+    const order = await repos.orders.getById(ref);
+    if (!order) return console.warn(`⚠️ [WHATSAPP] Bouton ${action} : commande ${ref} introuvable`);
+    const fastFood = await repos.fastfoods.getById(order.fastFoodId);
+    const to = await shopPhone(fastFood);
+    if (!to || to !== event.from) return console.warn(`⚠️ [WHATSAPP] Bouton ${action} sur ${ref} depuis ${event.from} : pas le numéro de la boutique`);
+    if (!(order.status in RANK)) return sendText(to, `Commande n°${msg.ref(order)} : déjà ${msg.statusLabel(order.status)}.`);
 
-  // Chargé ici : updateOrders appelle notifyNewOrders (dépendance circulaire sinon).
-  const { updateOrders } = require('../order/updateOrders.service');
-  for (let step = RANK[order.status]; step < RANK[target]; step += 1) {
-    const r = await updateOrders([{ id: order.id, fastFoodId: order.fastFoodId }], fastFood.userId);
-    if (!r?.success) return sendText(to, `Commande n°${msg.ref(order)} : ${r?.message || 'mise à jour impossible'}.`);
-  }
-  // En livraison : le récapitulatif rappelle de scanner le QR du client (« Livrée »).
-  await replyRecap(to, [order]);
-};
+    // Chargé ici : updateOrders appelle notifyNewOrders (dépendance circulaire sinon).
+    const { updateOrders } = require('../order/updateOrders.service');
+    const statuses = Object.keys(RANK);
+    for (let step = RANK[order.status]; step < RANK[target]; step += 1) {
+      // expectedStatus : un double clic ne fait jamais passer « livrée » sans le QR du client.
+      const r = await updateOrders([{ id: order.id, fastFoodId: order.fastFoodId }], fastFood.userId, null, { expectedStatus: statuses[step] });
+      if (!r?.success) return sendText(to, `Commande n°${msg.ref(order)} : ${r?.message || 'mise à jour impossible'}.`);
+    }
+    // En livraison : le récapitulatif rappelle de scanner le QR du client (« Livrée »).
+    await replyRecap(to, [order]);
+  };
 
 exports.registerMerchantTemplateFlows = () => {
   for (const [action, target] of STATUS_BUTTONS) onButton(action, handleStatus(action, target));

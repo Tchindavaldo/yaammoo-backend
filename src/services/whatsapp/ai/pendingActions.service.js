@@ -77,8 +77,10 @@ exports.propose = async ({ phone, fastFood, action, orders, message }) => {
 const advance = async (order, target, fastFood) => {
   // Chargé ici : updateOrders appelle notifyNewOrders (dépendance circulaire sinon).
   const { updateOrders } = require('../../order/updateOrders.service');
+  const statuses = Object.keys(RANK);
   for (let step = RANK[order.status]; step < RANK[target]; step += 1) {
-    const r = await updateOrders([{ id: order.id, fastFoodId: order.fastFoodId }], fastFood.userId);
+    // expectedStatus : une action croisée (bouton, livreur) ne fait jamais sauter d'étape.
+    const r = await updateOrders([{ id: order.id, fastFoodId: order.fastFoodId }], fastFood.userId, null, { expectedStatus: statuses[step] });
     if (!r?.success) return r?.message || 'mise à jour impossible';
   }
   return null;

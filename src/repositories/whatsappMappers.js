@@ -1,6 +1,7 @@
 // ============================================================================
-// Mappers WhatsApp — conversation marchand, actions IA en attente (migration
-// 090). Séparés de mappers.js (plafond R3), réexportés par lui.
+// Mappers WhatsApp — conversation (marchand, livreur), actions IA en attente
+// (migration 090), liens de validation d'un numéro OM / MoMo (migration 093).
+// Séparés de mappers.js (plafond R3), réexportés par lui.
 // ============================================================================
 
 const waMessageFromSupabase = row =>
@@ -51,7 +52,21 @@ const waPendingActionToSupabase = d => ({
   summary: d.summary || '',
 });
 
+const waNumberClaimFromSupabase = row =>
+  row
+    ? {
+        token: row.token,
+        userId: row.user_id,
+        phone: row.phone,
+        purpose: row.purpose,
+        createdAt: row.created_at,
+        expiresAt: row.expires_at,
+        usedAt: row.used_at,
+      }
+    : null;
+
 module.exports = {
+  waNumberClaim: { fromSupabase: waNumberClaimFromSupabase },
   waMessage: { toSupabase: waMessageToSupabase, fromSupabase: waMessageFromSupabase },
   waPendingAction: { toSupabase: waPendingActionToSupabase, fromSupabase: waPendingActionFromSupabase },
 };

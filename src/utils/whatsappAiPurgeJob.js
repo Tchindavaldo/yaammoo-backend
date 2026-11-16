@@ -5,7 +5,9 @@
 //   - efface la conversation (wa_conversation_messages) plus vieille que
 //     `ai_conversation_retention_days` (settings_app, 30 par défaut) ;
 //   - expire les propositions de l'agent non confirmées depuis 24 h et efface les
-//     propositions plus vieilles que la rétention.
+//     propositions plus vieilles que la rétention ;
+//   - efface les liens de validation de numéro (wa_number_claims, migration 093)
+//     expirés depuis plus d'un jour.
 // Démarré par src/server.js. Doc : architecture/whatsapp-ai.md.
 // ============================================================================
 const repos = require('../repositories');
@@ -20,6 +22,7 @@ async function runOnce() {
   const before = new Date(Date.now() - retentionDays * 864e5).toISOString();
   const removed = await repos.waConversations.purgeBefore(before);
   await repos.waAiPendingActions.expireAndPurge(new Date(Date.now() - PENDING_MAX_AGE_MS).toISOString(), before);
+  await repos.waNumberClaims.purgeExpired();
   if (removed) console.log(`[whatsappAiPurge] ${removed} message(s) de conversation effacé(s) (> ${retentionDays} j)`);
 }
 
