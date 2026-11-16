@@ -93,7 +93,7 @@ exports.confirmDelivery = async ({ orderId, code, actorUid, senderPhone, channel
 
   // Chargé ici : updateOrders -> merchantOrders -> confirmDelivery (dépendance circulaire sinon).
   const { updateOrders } = require('./updateOrders.service');
-  const r = await updateOrders([{ id: order.id, fastFoodId: order.fastFoodId }], actorUid || fastFood?.userId, null, { expectedStatus: 'delivering' });
+  const r = await updateOrders([{ id: order.id, fastFoodId: order.fastFoodId }], actorUid || fastFood?.userId, null, { expectedStatus: 'delivering', viaDeliveryCode: true });
   if (!r?.success) return fail(409, r?.message || 'Validation impossible');
   console.log(`✅ [LIVRAISON] Commande ${order.id} livrée (code validé)`);
   const delivered = await repos.orders.getById(order.id);

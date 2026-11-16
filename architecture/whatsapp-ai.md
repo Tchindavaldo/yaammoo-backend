@@ -129,7 +129,9 @@ Un livreur est un user rattaché à la boutique (`driver_applications` `accepted
    WhatsApp s'ouvre avec « LIVRÉ <id> <code secret> », accepté depuis SON numéro
    ([whatsapp.md](./whatsapp.md)). Les deux passent par `confirmDelivery.service`, qui
    n'accepte que **lui** (son compte ou son numéro) : un autre qui scanne ne valide rien et
-   n'encaisse rien ; la tentative est tracée et signalée à la boutique et au livreur. La part de la boutique part sur son numéro
+   n'encaisse rien ; la tentative est tracée et signalée à la boutique et au livreur. Pour une
+   boutique WhatsApp, aucun autre chemin ne passe une commande en « livrée » (bouton
+   d'avance de l'app refusé, [orders.md](./orders.md)). La part de la boutique part sur son numéro
    OM / MoMo ([wallet.md](./wallet.md), « Versement automatique ») ; boutique et livreur
    sont prévenus du verdict. La boutique reçoit `yam_commande_livree`.
 6. **Messages relayés** : `message_driver` (boutique -> livreur) et `message_shop`

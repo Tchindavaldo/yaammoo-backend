@@ -349,6 +349,11 @@ stocké, donc absent des vues marchand (`services/order/deliveryCode.service.js`
   avec `orders.deliver`, ou son numéro WhatsApp). Un code **valide** envoyé par quelqu'un
   d'autre : `403`, trace `app_errors` (`scope = 'delivery_code'`, `wrong_sender`), alerte
   WhatsApp à la boutique et au livreur (boutique WhatsApp). Rien n'est validé ni versé.
+- **Boutique WhatsApp : « livrée » uniquement par le QR** (décision du 16/11/2026) :
+  `updateOrders` refuse `delivering -> delivered` sans `viaDeliveryCode` (posé par
+  `confirmDelivery` seul) : bouton d'avance de l'app, `PUT /order` du livreur ou du marchand
+  -> échec « Livraison à valider en scannant le QR code du client. ». Boutiques de l'app :
+  le bouton reste (leur argent est dans le portefeuille, le scan y est facultatif).
 - Les deux canaux passent par `confirmDelivery.service` : code vérifié, statut `delivering`
   exigé (409 sinon), puis `updateOrders` (`delivering → delivered`, crédit livreur inchangé).
   Déjà livrée : `200 alreadyDelivered`.
@@ -395,6 +400,8 @@ le frontend : le fastFood délègue une commande à un livreur, qui la fait ensu
 - **Avance livreur** (`driverAdvanceStatus`) : autorisée uniquement si `order.status` ∈
   `finished`|`delivering` (sinon **409**), et si `order.driverId === driverId` (sinon **403**).
   Le statut est décidé par la **même machine à états** que le reste — jamais posé en dur.
+  Boutique WhatsApp : `delivering -> delivered` refusé ici, seul le QR du client valide
+  (« Validation de livraison par QR code »).
 - `getDriverOrders(driverId)` → `repos.orders.getByDriver()` → `GET /order/driver/:driverId`.
 - **Socket livreur** : le livreur est un user ; `driverId` = son uid. Il reçoit ses events sur
   sa room `uid` déjà rejointe via `join_user` (comme client/marchand) — pas de `join_driver`.

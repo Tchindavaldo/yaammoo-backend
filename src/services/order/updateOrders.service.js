@@ -72,6 +72,8 @@ const isCancelStatus = s => s === 'cancelByUser' || s === 'cancelByFastFood';
  * @param {Object} [opts] `{ fromCancelRequest }` : annulation acceptée par le marchand
  *   WhatsApp (cancelRequest.service) — pas de nouvelle demande, demande `accepted`.
  *   `{ expectedStatus }` : avance seulement depuis ce statut (sinon conflit, rien écrit).
+ *   `{ viaDeliveryCode }` : posé par confirmDelivery seul ; boutique WhatsApp, delivering ->
+ *   delivered refusé sans lui.
  *   Une avance pas à pas (agent IA, livreur WhatsApp) ne saute ainsi jamais une étape
  *   quand deux actions se croisent (ex. delivering -> delivered sans QR).
  */
@@ -175,6 +177,17 @@ exports.updateOrders = async (orders, userId, payment = null, opts = {}) => {
             break;
           default:
             newStatus = prevStatus;
+        }
+      }
+
+      // Boutique WhatsApp : « livrée » vient SEULEMENT du QR du client (confirmDelivery, qui
+      // vérifie que c'est bien celui qui livre et verse la part). Bouton d'avance de l'app,
+      // livreur ou marchand : refusé (décision du 16/11/2026). Boutiques de l'app : inchangé.
+      if (prevStatus === 'delivering' && newStatus === 'delivered' && !opts.viaDeliveryCode) {
+        const shop = await repos.fastfoods.getById(prevData.fastFoodId);
+        if (shop?.whatsappOrders === true) {
+          console.error(`[updateOrders] ❌ ABANDON id=${id} — boutique WhatsApp : « livrée » seulement par le QR du client`);
+          return { success: false, message: 'Livraison à valider en scannant le QR code du client.', data: null };
         }
       }
 
