@@ -145,10 +145,10 @@ dans l'app (plugin `expo-notifications` → `sounds`), un canal Android
 
 | Clé | Types |
 |---|---|
-| `order` | `order_new`, `driver_application` |
+| `order` | `order_new`, `order_status`, `order_delivering`, `driver_application` |
 | `alert` | `order_cancel_by_user`, `order_cancel_by_merchant`, `pricing_alert`, `driver_removed` |
 | `message` | `Support` |
-| `success` (défaut) | tout le reste : statuts, livraison, rang, bonus, annonces boutique, retraits |
+| `success` (défaut) | tout le reste : paiement réussi, rang, bonus, annonces boutique, retraits |
 
 - **App sans les fichiers** (version d'avant) : iOS joue le son système ;
   Android range la notification dans son canal par défaut, son système.

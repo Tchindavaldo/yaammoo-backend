@@ -9,6 +9,8 @@
 
 const SOUND_BY_TYPE = {
   order_new: 'order',
+  order_status: 'order',
+  order_delivering: 'order',
   driver_application: 'order',
   order_cancel_by_user: 'alert',
   order_cancel_by_merchant: 'alert',
@@ -17,7 +19,7 @@ const SOUND_BY_TYPE = {
   Support: 'message',
 };
 
-/** Son par defaut : paiement reussi, statuts, bonus, annonces, rang. */
+/** Son par defaut : paiement reussi, bonus, annonces, rang. */
 const DEFAULT_SOUND = 'success';
 
 /**
