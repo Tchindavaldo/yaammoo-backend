@@ -262,4 +262,7 @@ curl -s "$B?limit=9999" | jq '.data|length'   # <= 50
   **seuls ces plats** (`inCategory`, `services/fastfood/getFastFoods.js`).
 - Comparaison insensible à la casse ; jokers `%` `_` et réservés PostgREST retirés
   par le contrôleur. Sans `category` : tous les plats.
-- Le mode volume de test est ignoré quand `category` est présent.
+- `?categoryNot=a,b` (tab « Autre ») : plats sans catégorie OU hors de la liste
+  (`or(category.is.null, and(category.not.ilike...))` sur la jointure, puis
+  `inCategory` côté service).
+- Le mode volume de test est ignoré quand `category` ou `categoryNot` est présent.

@@ -62,6 +62,10 @@ route.post('', firebaseAuth, authorize(selfFromBody('userId')), createFastfoodCo
  *         name: category
  *         schema: { type: string }
  *         description: Catégorie de plat (mode paginé, insensible à la casse) ; seules les boutiques ayant un plat de cette catégorie, et dans chacune seuls ces plats (`menus.category`, migration 088).
+ *       - in: query
+ *         name: categoryNot
+ *         schema: { type: string }
+ *         description: Tab « Autre » (mode paginé) — liste séparée par des virgules ; seuls les plats sans catégorie ou hors de cette liste.
  *     responses:
  *       200:
  *         description: Liste des boutiques

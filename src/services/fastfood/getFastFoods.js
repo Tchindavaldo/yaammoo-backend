@@ -25,9 +25,12 @@ const { buildRatingStats } = require('./fastfoodRatingStats');
 const isMenuAvailable = m => m.status !== 'unavailable' && m.disponibilite !== false;
 
 // Filtre catégorie (home) : comparaison insensible à la casse, absent = tout.
-const inCategory = category => {
+// `categoryNot` (tab « Autre ») : plats sans catégorie ou hors de la liste.
+const inCategory = (category, categoryNot = []) => {
   const c = typeof category === 'string' ? category.trim().toLowerCase() : '';
-  return m => !c || (typeof m.category === 'string' && m.category.trim().toLowerCase() === c);
+  const not = new Set(categoryNot.map(x => x.trim().toLowerCase()));
+  const cat = m => (typeof m.category === 'string' ? m.category.trim().toLowerCase() : '');
+  return m => (!c || cat(m) === c) && (!not.size || !not.has(cat(m)));
 };
 
 /**
@@ -94,7 +97,7 @@ exports.getFastFoodsService = async (userId, page) => {
     const visible = f => f.available && (!hidden.has(f.id) || (!!userId && f.userId === userId));
     const fastfoodsWithMenus = await Promise.all(
       fastfoods.filter(visible).map(async fastfood => {
-        const menus = (await getMenuService(fastfood.id)).filter(isMenuAvailable).filter(inCategory(page?.category));
+        const menus = (await getMenuService(fastfood.id)).filter(isMenuAvailable).filter(inCategory(page?.category, page?.categoryNot));
         // Prix AFFICHÉ pour tout le monde, y compris le propriétaire de la
         // boutique : `/fastfood/all` alimente le HOME, donc un écran d'achat.
         // Un marchand qui commande y est un client comme un autre — lui servir

@@ -106,6 +106,7 @@ const encodeCursor = row => Buffer.from(`${row.created_at}|${row.id}`, 'utf8').t
  * @param {string}  [opts.q]    recherche par nom (insensible à la casse)
  * @param {string}  [opts.city] ville desservie (élément de `cities`), choix du home
  * @param {string}  [opts.category] catégorie de plat (`menus.category`, insensible à la casse)
+ * @param {string[]} [opts.categoryNot] tab « Autre » : plats sans catégorie ou hors de cette liste
  * @returns {Promise<{items: Object[], nextCursor: string|null}>}
  */
 /** Plafond des boutiques retenues par la recherche sur les plats. */
@@ -126,7 +127,7 @@ const shopIdsWithMenuMatching = async term => {
   return [...new Set((data || []).map(r => r.fastfood_id))].slice(0, SEARCH_MENU_SHOPS);
 };
 
-exports.getPage = async ({ limit = 10, cursor, q, city, category } = {}) => {
+exports.getPage = async ({ limit = 10, cursor, q, city, category, categoryNot = [] } = {}) => {
   // Recherche : nom de la boutique OU nom d'un de ses plats. Caracteres
   // reserves de la syntaxe `or()` PostgREST retires de la saisie.
   const term = (q || '')
@@ -162,6 +163,11 @@ exports.getPage = async ({ limit = 10, cursor, q, city, category } = {}) => {
     // Filtre catégorie du home : la jointure interne ne garde que les boutiques
     // ayant au moins un plat vivant de cette catégorie (migration 088).
     if (category) qb = qb.ilike('menus.category', category);
+    // Tab « Autre » : au moins un plat sans catégorie ou hors de la liste.
+    if (categoryNot.length) {
+      const not = categoryNot.map(c => `category.not.ilike.${c}`).join(',');
+      qb = qb.or(`category.is.null,and(${not})`, { referencedTable: 'menus' });
+    }
     // Ville choisie au home : boutiques qui la desservent (`cities` JSONB).
     if (city) qb = qb.filter('cities', 'cs', JSON.stringify([city]));
     return qb;

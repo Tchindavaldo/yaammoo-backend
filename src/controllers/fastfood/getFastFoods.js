@@ -25,6 +25,16 @@ exports.getfastfoodController = async (req, res) => {
       typeof req.query.category === 'string' && req.query.category.trim()
         ? req.query.category.replace(/[%_,()*\\]/g, ' ').trim().slice(0, 60) || undefined
         : undefined;
+    // `?categoryNot=a,b` : tab « Autre » du home = plats SANS categorie ou hors
+    // de cette liste. Memes nettoyages que `category`.
+    const categoryNot =
+      typeof req.query.categoryNot === 'string'
+        ? req.query.categoryNot
+            .split(',')
+            .map(s => s.replace(/[%_,()*\\.]/g, ' ').trim().slice(0, 60))
+            .filter(Boolean)
+            .slice(0, 20)
+        : [];
     // `?ids=a,b` : rechargement ciblé après le signal socket `fastfoodsChanged`.
     // Champ additif : les anciennes apps ne l'envoient pas.
     const ids = typeof req.query.ids === 'string' ? req.query.ids.split(',').map(s => s.trim()).filter(Boolean).slice(0, MAX_LIMIT) : null;
@@ -35,14 +45,14 @@ exports.getfastfoodController = async (req, res) => {
     // `test_fastfood_volume` clones des boutiques réelles, pour éprouver la
     // fluidité du home. Paginé seulement, et jamais sur une recherche (`q`) :
     // elle reste servie par les données réelles.
-    const volumeTest = !ids && limit !== null && !q && !city && !category && (await isTestClient(req));
+    const volumeTest = !ids && limit !== null && !q && !city && !category && !categoryNot.length && (await isTestClient(req));
     let result;
     if (volumeTest) {
       const volume = await getTestFastfoodVolume();
       const imageUrl = await getTestVolumeImageUrl();
       result = await getVolumeTestPage(req.user?.uid, { limit, cursor }, { volume, imageUrl });
     } else {
-      result = await getFastFoodsService(req.user?.uid, ids ? { ids } : limit ? { limit, cursor, q, city, category } : undefined);
+      result = await getFastFoodsService(req.user?.uid, ids ? { ids } : limit ? { limit, cursor, q, city, category, categoryNot } : undefined);
     }
     const paginated = !ids && limit !== null;
     // `distanceKm` : user (query `lat`/`lng`, sinon dernière position connue)
