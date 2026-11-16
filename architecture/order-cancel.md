@@ -41,7 +41,7 @@ cancelRequest = { status, requestedAt, sentAt, resendAt, sentCount, resolvedAt?,
 - Client et marchand reçoivent la commande à jour (`userOrderUpdated`,
   `fastFoodOrderUpdated`), le client une push à la décision (`type: 'order_cancel_request'`).
 - Réponse de `PUT /order` : `data.cancelRequested = true`, `data.data` = commande. R11 :
-  une app sous `settings_deployment.cancel_request_min_app_version` (1.1.5, migration 091)
+  une app sous `settings_deployment.cancel_request_min_app_version` (migration 091 : test 1.1.5, servie par OTA ; prod 1.1.6, l'app 1.1.5 des stores ne la gère pas)
   reçoit `409 { code: 'cancel_requested', message }` : sans cela elle lirait le succès comme
   « Commande annulée ».
 
