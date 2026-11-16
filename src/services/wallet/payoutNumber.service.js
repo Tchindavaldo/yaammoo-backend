@@ -39,24 +39,8 @@ exports.requestPayoutNumberCode = async ({ userId, phoneNumber, network, whatsap
 /** Estimation des frais d'un code, affichée avant l'envoi. */
 exports.estimatePayoutNumberFee = () => smsFee.estimateSmsFee();
 
-/**
- * WhatsApp de la boutique : code envoyé sur WhatsApp UNIQUEMENT (aucun repli SMS).
- * `whatsappShortcut` (app >= payout_number_whatsapp_min_app_version, R11) : numéro déjà
- * validé comme numéro de retrait par ce compte -> WhatsApp vérifié tout de suite, sans code
- * (`verified: true`, source 'payout', migration 093). Sens inverse de requestPayoutNumberCode.
- */
-exports.requestWhatsappNumberCode = async ({ userId, phoneNumber, whatsappShortcut = false }) => {
-  if (whatsappShortcut) {
-    const { defaultCountryCode } = await settingsService.getOtpSettings();
-    const recipient = normalizePhoneNumber(phoneNumber, defaultCountryCode);
-    const isPayout = recipient && (await repos.payoutNumbers.listByUser(userId)).some(n => n.phoneNumber === recipient);
-    if (isPayout) {
-      await repos.payoutNumbers.markWhatsapp(userId, recipient, 'payout');
-      return { success: true, message: 'Numéro WhatsApp vérifié (déjà validé comme numéro de retrait)', data: { verified: true, phoneNumber: recipient } };
-    }
-  }
-  return requestPhoneAuth({ phoneNumber, channel: 'whatsapp', userId });
-};
+/** WhatsApp de la boutique : code envoyé sur WhatsApp UNIQUEMENT (aucun repli SMS). */
+exports.requestWhatsappNumberCode = ({ userId, phoneNumber }) => requestPhoneAuth({ phoneNumber, channel: 'whatsapp', userId });
 
 /** Valide le code puis enregistre le numéro comme vérifié pour ce compte (`billUserId` : qui paie le SMS). */
 exports.verifyPayoutNumberCode = args => verifyCode(args, (userId, recipient) => repos.payoutNumbers.markVerified(userId, recipient));
