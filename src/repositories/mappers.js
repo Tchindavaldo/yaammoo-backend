@@ -458,4 +458,6 @@ module.exports = {
   ...require('./bonusMappers'),
   ...require('./contentMappers'),
   ...require('./staffMappers'),
+  // Conversation WhatsApp marchand, actions IA, messages boutique → client (migration 090).
+  ...require('./whatsappMappers'),
 };

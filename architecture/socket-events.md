@@ -45,6 +45,7 @@ Socket.io est fire-and-forget : un event émis pendant que l'utilisateur est hor
 | `bonus.redeemed`                                                  | `services/bonus/applyDeliveryBonus.service.js`                              | client                    |
 | `bonus.armed` / `bonus.disarmed`                                  | `services/bonus/armBonus.service.js`                                        | client                    |
 | `support.message`                                                 | `services/support/emitSupportMessage.js`                                    | client + marchand         |
+| `shop.message` / `shop.messageUpdated`                            | `services/whatsapp/ai/clientMessages.service.js` (`{ data: ShopMessage }`, [whatsapp-ai.md](./whatsapp-ai.md)) | client |
 
 > Les broadcasts catalogue (`globalMenu*`) restent **fire-and-forget** : le front recharge le
 > catalogue (GET) à la reconnexion plutôt que de rejouer des events à tous. Les events de file

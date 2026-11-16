@@ -27,5 +27,7 @@ require('./utils/accountPurgeJob').startAccountPurgeJob();
 require('./utils/smsFeeJob').startSmsFeeJob();
 // Rappel WhatsApp des nouvelles commandes sans réponse (boutique WhatsApp, migration 087)
 require('./utils/whatsappReminderJob').startWhatsappReminderJob();
+// Rétention des conversations de l'agent IA WhatsApp (migration 090)
+require('./utils/whatsappAiPurgeJob').startWhatsappAiPurgeJob();
 
 server.listen(PORT, HOST, () => console.log(`Serveur lancé sur http://localhost:${PORT}`));

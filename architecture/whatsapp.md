@@ -44,7 +44,9 @@ signature porte sur le corps brut.
 3. `services/whatsapp/webhookEvents.service.js` :
    - `message` avec bouton : payload `<ref>:<action>` (posé par Yaammoo à l'envoi),
      transmis au flux abonné par `onButton(action, fn)` ; sans flux abonné, journalisé.
-   - `message` sans bouton : journalisé.
+   - `message` sans bouton : `onText` (« LIVRÉ … », puis l'**agent IA** pour tout autre texte
+     d'une boutique, [whatsapp-ai.md](./whatsapp-ai.md)) ; sinon journalisé.
+   - Tout message reçu passe d'abord par `onInbound` (journal de conversation de l'agent IA).
    - `status` `failed` : journalisé en erreur.
 4. `200 { success, handled }` ; erreur d'un flux → `500` (le module ne renvoie pas).
 
@@ -89,6 +91,13 @@ Code : `services/whatsapp/merchantOrders.service.js`, textes `merchantMessages.j
   (`updateOrders`) jusqu'au statut déclaré ; « Livrée » s'arrête à « en livraison » (le QR
   du client valide la remise). Un statut déclaré en retard ne recule rien.
 
+## Agent IA (texte libre du marchand)
+
+Hors boutons et « LIVRÉ », le marchand qui écrit librement est servi par un agent IA
+(OpenRouter) qui voit toute la conversation et ses commandes, propose les actions (avec
+confirmation) et peut écrire au client : [whatsapp-ai.md](./whatsapp-ai.md). Chaque envoi de
+`merchantChannel.send` est journalisé (`conversationLog.js`).
+
 ## À venir
 
 QR dans l'app client (frontend, branche `feature/qr-livraison-whatsapp`), demande d'annulation,
@@ -103,7 +112,9 @@ routes/whatsappWebhookRoutes.js
 controllers/whatsapp/webhook.controller.js
 services/whatsapp/webhookEvents.service.js     signature, aiguillage, onButton, onText, onSendFailed
 services/whatsapp/whatsappModule.client.js     envoi, accusé de lecture
-services/whatsapp/merchantChannel.js           envoi commun (numéro boutique, étape suivante, récap)
+services/whatsapp/merchantChannel.js           envoi commun (numéro boutique, étape suivante, récap, shopsOfPhone)
+services/whatsapp/conversationLog.js           journal de conversation (agent IA, whatsapp-ai.md)
+services/whatsapp/ai/                          agent IA (whatsapp-ai.md)
 services/whatsapp/merchantOrders.service.js    flux marchands (commande, boutons, suivi, « LIVRÉ »)
 services/whatsapp/merchantTemplates.service.js rappel, livrée depuis l'app, statut hors fenêtre
 services/wallet/orderPayout.service.js         versement automatique à la livraison

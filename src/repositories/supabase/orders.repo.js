@@ -64,9 +64,11 @@ exports.getLightByDriverAndStatus = async (driverId, status) => {
 /**
  * Query flexible (équivalent du repo Firestore).
  */
-exports.query = async ({ fastFoodId, userId, status, orderByCreated = 'desc' } = {}) => {
+exports.query = async ({ fastFoodId, userId, status, createdAfter, orderByCreated = 'desc' } = {}) => {
   let q = alive(supabase.from(TABLE).select('*'));
   if (fastFoodId) q = q.eq('fastfood_id', fastFoodId);
+  // ISO : seulement les commandes créées depuis (agent IA WhatsApp : 30 derniers jours).
+  if (createdAfter) q = q.gte('created_at', createdAfter);
   if (userId) q = q.eq('user_id', userId);
   if (status) {
     if (Array.isArray(status)) q = q.in('status', status);

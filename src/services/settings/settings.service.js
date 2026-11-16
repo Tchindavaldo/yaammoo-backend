@@ -351,7 +351,28 @@ async function getWhatsappTimeoutMs() {
   return Number.isFinite(v) && v > 0 ? v : 15000;
 }
 
+/** Réglages de l'agent IA WhatsApp (migration 090). Ne lève jamais : IA coupée en cas d'échec. */
+async function getAiSettings() {
+  try {
+    const s = await getSettings();
+    const models = Array.isArray(s[KEYS.AI_MODELS]) ? s[KEYS.AI_MODELS].filter(m => typeof m === 'string' && m) : [];
+    const timeoutMs = Number(s[KEYS.AI_TIMEOUT_MS]);
+    const retentionDays = Number(s[KEYS.AI_CONVERSATION_RETENTION_DAYS]);
+    const historyMax = Number(s[KEYS.AI_HISTORY_MAX_MESSAGES]);
+    return {
+      enabled: s[KEYS.AI_ENABLED] === true && models.length > 0,
+      models,
+      timeoutMs: Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 30000,
+      retentionDays: Number.isFinite(retentionDays) && retentionDays > 0 ? retentionDays : 30,
+      historyMax: Number.isFinite(historyMax) && historyMax > 0 ? Math.floor(historyMax) : 100,
+    };
+  } catch {
+    return { enabled: false, models: [], timeoutMs: 30000, retentionDays: 30, historyMax: 100 };
+  }
+}
+
 module.exports = {
+  getAiSettings,
   getPlatformDeliveryAll,
   KEYS,
   KEY_CATEGORY,

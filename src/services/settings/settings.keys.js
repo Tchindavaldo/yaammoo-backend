@@ -94,6 +94,13 @@ const KEYS = {
   WHATSAPP_TIMEOUT_MS: 'whatsapp_timeout_ms',
   // Migration 087 : minutes sans réponse avant le rappel WhatsApp d'une nouvelle commande.
   WHATSAPP_REMINDER_MINUTES: 'whatsapp_reminder_minutes',
+  // Migration 090 : agent IA des boutiques WhatsApp (OpenRouter). Modèles essayés
+  // dans l'ordre (repli), interrupteur, délai d'un appel, rétention des conversations.
+  AI_MODELS: 'ai_models',
+  AI_ENABLED: 'ai_enabled',
+  AI_TIMEOUT_MS: 'ai_timeout_ms',
+  AI_CONVERSATION_RETENTION_DAYS: 'ai_conversation_retention_days',
+  AI_HISTORY_MAX_MESSAGES: 'ai_history_max_messages',
   // Builds de TEST (migration 051, table `settings_test` depuis la 055, tableau
   // depuis la 056) : versions d'app exactes qui reçoivent les comportements de
   // test (mode volume de `GET /fastFood/all`, paiement gratuit). [] = aucune.
@@ -176,6 +183,11 @@ const KEY_CATEGORY = {
   [KEYS.ORDER_AUTO_CANCEL_DAYS]: 'app',
   [KEYS.WHATSAPP_TIMEOUT_MS]: 'app',
   [KEYS.WHATSAPP_REMINDER_MINUTES]: 'app',
+  [KEYS.AI_MODELS]: 'app',
+  [KEYS.AI_ENABLED]: 'app',
+  [KEYS.AI_TIMEOUT_MS]: 'app',
+  [KEYS.AI_CONVERSATION_RETENTION_DAYS]: 'app',
+  [KEYS.AI_HISTORY_MAX_MESSAGES]: 'app',
 
   // test — build de test (sorties de `deployment` par la migration 055)
   [KEYS.TEST_APP_VERSION]: 'test',
@@ -280,6 +292,12 @@ const FALLBACKS = {
   [KEYS.WHATSAPP_TIMEOUT_MS]: 15000,
   // Rappel d'une nouvelle commande sans réponse : 10 min (exemple du template).
   [KEYS.WHATSAPP_REMINDER_MINUTES]: 10,
+  // IA coupée si la clé manque : aucun message libre envoyé au marchand sans réglage.
+  [KEYS.AI_MODELS]: [],
+  [KEYS.AI_ENABLED]: false,
+  [KEYS.AI_TIMEOUT_MS]: 30000,
+  [KEYS.AI_CONVERSATION_RETENTION_DAYS]: 30,
+  [KEYS.AI_HISTORY_MAX_MESSAGES]: 100,
   // Build de test : repli à « aucune ». Une clé absente ne doit JAMAIS servir
   // des données de test à une vraie app.
   [KEYS.TEST_APP_VERSION]: [],

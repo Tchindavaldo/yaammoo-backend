@@ -119,10 +119,12 @@ exports.notifyOrderPayout = async (withdrawal, ok) => {
   await sendText(to, ok ? `Versement reçu : ${withdrawal.amount} FCFA envoyés sur le ${withdrawal.phone} (commande n°${ref}).` : `Le versement de ${withdrawal.amount} FCFA pour la commande n°${ref} a échoué. L'équipe Yaammoo le relance.`);
 };
 
-/** Abonne les boutons des messages marchands (payload `<ref>:<action>`), la validation « LIVRÉ »
- * et les flux par template (rappel, statut hors fenêtre : merchantTemplates.service). */
+/** Abonne les boutons des messages marchands (payload `<ref>:<action>`), la validation « LIVRÉ »,
+ * les flux par template (rappel, statut hors fenêtre : merchantTemplates.service), puis l'agent IA
+ * (ai/merchantAgent.service : journal, boutons Confirmer / Annuler, texte libre — en DERNIER). */
 exports.registerMerchantOrderButtons = () => {
   for (const action of Object.keys(EXPECTED)) onButton(action, handle(action));
   onText(onDeliveredText);
   registerMerchantTemplateFlows();
+  require('./ai/merchantAgent.service').registerMerchantAgent();
 };
