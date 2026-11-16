@@ -18,8 +18,12 @@ de passerelle avec les marchands qui ne veulent pas de l'app.
 
 Réglages en base : `settings_app.whatsapp_timeout_ms` (15000 par défaut, migration 085),
 `settings_app.whatsapp_reminder_minutes` (10 par défaut, 0 = pas de rappel, migration 087).
-Dans le module, l'URL de relais de l'appli Yaammoo doit pointer sur
-`https://<backend>/whatsapp/webhook` (test ou prod, une seule à la fois).
+Test et prod sont indépendants : dans le module, chaque clé API de l'appli Yaammoo a sa
+propre URL de relais (`wa_api_keys.webhook_url`) : « clé initiale » (prod, secret
+`WHATSAPP_API_KEY` de yaammoo-backend) → `https://yaammoo-backend.fly.dev/whatsapp/webhook`,
+« backend de test » (yaammoo-backend-dev) → `https://yaammoo-backend-dev.fly.dev/whatsapp/webhook`.
+Un clic ou un statut revient au backend dont la clé a envoyé le message ; un message libre, à
+celui qui a écrit en dernier à ce contact. Même secret de signature pour les deux.
 
 ## Envoi — `services/whatsapp/whatsappModule.client.js`
 
