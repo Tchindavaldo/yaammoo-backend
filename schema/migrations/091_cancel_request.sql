@@ -8,6 +8,8 @@
 --  - cancel_request_min_app_version (settings_deployment, R11) : version d'app qui
 --    affiche « En attente de la réponse du marchand ». Sous le seuil : refus 409
 --    portant le message (au lieu d'un succès lu « Commande annulée »).
+--    Valeur : 1.1.5 en test (OTA), 1.1.6 en PROD (appliquée le 16/11/2026 : l'app 1.1.5
+--    des stores ne gère pas la demande).
 --  - wa_ai_pending_actions : l'agent IA peut aussi proposer d'accepter / refuser
 --    la demande (actions cancel_accept, cancel_refuse).
 -- Idempotente.
