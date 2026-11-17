@@ -29,6 +29,7 @@ const paymentPageRoutes = require('./routes/paymentPageRoutes');
 const staffRoutes = require('./routes/staffRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
 const legalRoutes = require('./routes/legalRoutes');
+const citiesRoutes = require('./routes/citiesRoutes');
 const whatsappWebhookRoutes = require('./routes/whatsappWebhookRoutes');
 
 const app = express();
@@ -64,6 +65,7 @@ app.use('/wallet/payout-number', require('./routes/payoutNumberRoutes'));
 app.use('/whatsapp-number', require('./routes/whatsappNumberRoutes'));app.use('/shop-restore', require('./routes/shopRestoreRoutes'));
 app.use('/wallet', walletRoutes);
 app.use('/legal', legalRoutes);
+app.use('/cities', citiesRoutes);
 app.use('/driver', driverRoutes);
 app.use('/rating', ratingRoutes);
 app.use('/settings', settingsRoutes);

@@ -275,3 +275,20 @@ exports.getMerchantStats = async (fastFoodId, from, to, bucket) => {
   if (error) throw error;
   return data;
 };
+
+/**
+ * Renommage d'une ville (PATCH /cities/:id) : remplace l'ancien nom par le
+ * nouveau dans `cities` de chaque boutique qui le dessert. Renvoie les ids touches.
+ */
+exports.renameCity = async (oldName, newName) => {
+  const { data, error } = await supabase.from('fastfoods').select('id, cities').filter('cities', 'cs', JSON.stringify([oldName]));
+  if (error) throw error;
+  const ids = [];
+  for (const row of data || []) {
+    const cities = [...new Set((row.cities || []).map(c => (c === oldName ? newName : c)))];
+    const { error: e } = await supabase.from('fastfoods').update({ cities }).eq('id', row.id);
+    if (e) throw e;
+    ids.push(row.id);
+  }
+  return ids;
+};
