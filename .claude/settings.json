@@ -95,6 +95,17 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/ask-merge-before-stop.sh\"",
+            "timeout": 10
+          }
+        ]
+      }
     ]
   },
   "extraKnownMarketplaces": {
