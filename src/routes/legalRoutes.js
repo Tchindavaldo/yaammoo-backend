@@ -55,13 +55,13 @@ router.post('/accept', firebaseAuth, acceptLegal);
  *         application/json:
  *           schema:
  *             type: object
- *             required: [fastFoodId, version, representativeRole, address]
+ *             required: [fastFoodId, version, representativeRole]
  *             properties:
  *               fastFoodId: { type: string }
  *               version: { type: integer }
- *               representativeRole: { type: string, enum: [gerant, directeur, proprietaire] }
+ *               representativeRole: { type: string, description: "texte libre (suggestions : gerant, directeur, proprietaire)" }
  *               legalName: { type: string, description: "Dénomination légale, facultative" }
- *               address: { type: string }
+ *               address: { type: string, description: "facultatif : position GPS de la boutique sinon ses villes" }
  *     responses:
  *       200: { description: Enregistré (vaut aussi acceptation des CGU) }
  *       400: { description: Qualité ou adresse manquante }

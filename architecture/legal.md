@@ -6,7 +6,7 @@ frontend `legal/conditions-et-confidentialite.md`.
 | Route | Auth | Rôle |
 |---|---|---|
 | `GET /legal/current` | non | dernière version (texte complet) |
-| `GET /legal/status` | oui | `{ latestVersion, publishedAt, acceptedVersion, acceptedAt, mustAccept }` |
+| `GET /legal/status` | oui | `{ latestVersion, publishedAt, acceptedVersion, acceptedAt, mustAccept, merchantAdhesionPending }` |
 | `POST /legal/accept` `{ version }` | oui | preuve d'acceptation (`legal_acceptances`, idempotent) ; 409 `legal_outdated` si ce n'est plus la dernière |
 
 `mustAccept` : jamais accepté, ou une version `requires_acceptance = true`
@@ -21,9 +21,13 @@ Fichiers : `routes/legalRoutes.js`, `controllers/legal/legal.controller.js`,
 
 ## Formulaire d'adhésion du Marchand (Annexe 3, migration 078)
 
-`POST /legal/merchant-adhesion` (firebaseAuth), appelé par l'app juste après
-`POST /fastFood`, case cochée : `{ fastFoodId, version, representativeRole
-(gerant|directeur|proprietaire), legalName?, address }`. Le backend lit le nom
+`POST /legal/merchant-adhesion` (firebaseAuth), envoyé par le bottom sheet
+obligatoire de l'accueil, affiché après la création de la boutique tant que
+`GET /legal/status` renvoie `merchantAdhesionPending` (id de la boutique du compte
+sans ligne `merchant_adhesions`, décision du 17/11/2026) : `{ fastFoodId, version,
+representativeRole (texte libre, suggestions gérant / directeur / propriétaire,
+migration 095), legalName?, address? }`. Adresse absente : position GPS de la
+boutique, sinon ses villes. Réponse : `data` = nouveau statut. Le backend lit le nom
 et le prénom sur le compte et le nom de la boutique en base, enregistre une
 ligne `merchant_adhesions` (une par boutique et version, date posée par la base,
 secteur « restauration et vente de produits alimentaires ») et l'acceptation des

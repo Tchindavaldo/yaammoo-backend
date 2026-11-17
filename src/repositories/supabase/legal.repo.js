@@ -6,8 +6,7 @@
 // ============================================================================
 const { supabase } = require('../../config/supabase');
 
-const docFromRow = r =>
-  r ? { version: r.version, title: r.title, content: r.content, requiresAcceptance: !!r.requires_acceptance, publishedAt: r.published_at } : null;
+const docFromRow = r => (r ? { version: r.version, title: r.title, content: r.content, requiresAcceptance: !!r.requires_acceptance, publishedAt: r.published_at } : null);
 
 /** Dernière version publiée (texte complet). */
 exports.getLatest = async () => {
@@ -52,4 +51,11 @@ exports.saveMerchantAdhesion = async a => {
   };
   const { error } = await supabase.from('merchant_adhesions').upsert(row, { onConflict: 'fastfood_id,version', ignoreDuplicates: true });
   if (error) throw error;
+};
+
+/** La boutique a-t-elle deja un formulaire d'adhesion (toute version) ? */
+exports.hasMerchantAdhesion = async fastFoodId => {
+  const { count, error } = await supabase.from('merchant_adhesions').select('fastfood_id', { count: 'exact', head: true }).eq('fastfood_id', fastFoodId);
+  if (error) throw error;
+  return count > 0;
 };
