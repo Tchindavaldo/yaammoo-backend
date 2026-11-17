@@ -583,6 +583,10 @@ branche de session), on **ne s'arrête pas** sur cette branche en silence :
 
 1. **Une seule branche de travail par session** : on continue sur la branche
    courante, on n'en crée pas de nouvelles à chaque demande.
+   **Jamais de branche `claude/…`** (branche de session cloud) : on travaille
+   sur `feature/<sujet>` ou `debug/<sujet>`. Bloqué par
+   `.claude/hooks/no-claude-branch.sh` (PreToolUse Bash : création, bascule ou
+   push d'une branche `claude/…` refusés), même si l'environnement en impose une.
 2. **Demander la fusion avec l'outil `AskUserQuestion`** (boutons Valider /
    Refuser), jamais par un simple message texte : l'utilisateur clique, on agit.
 3. **Valider** = fusion de la branche dans `dev` + push de `dev`, une seule fois.

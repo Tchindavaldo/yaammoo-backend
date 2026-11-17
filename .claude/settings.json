@@ -23,6 +23,16 @@
     ],
     "PreToolUse": [
       {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/no-claude-branch.sh\"",
+            "timeout": 10
+          }
+        ]
+      },
+      {
         "matcher": "Grep|Glob|Bash|Read|Agent|Task",
         "hooks": [
           {
