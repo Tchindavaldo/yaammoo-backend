@@ -79,7 +79,9 @@ L'agent gère les commandes **en cours** ; il ne lit pas l'historique, pour ne p
 de tokens sans besoin (une boutique à 100 commandes par jour en a environ 3 000 sur
 30 jours). À chaque message, le backend ne charge que les commandes en cours
 (`agentOrders.loadShopOrders` / `loadDriverOrders`). Le modèle en voit d'office les
-`ai_orders_page_size` (20) plus récentes et leur nombre total ; les autres par
+`ai_orders_page_size` (20) plus récentes, et leur nombre total réparti par jour de
+livraison prévu (`delivery.date`, sinon jour de la commande) : aujourd'hui, à venir,
+passées non traitées (jour dépassé, toujours en cours) ; les autres par
 `list_orders` / `list_my_orders`, 20 par page, la suite seulement sur demande. Sur
 demande aussi : une commande par son numéro, même ancienne (`get_order`, litige), et le
 bilan d'un jour (`day_summary` : quelques lignes au lieu de la liste). Liste des commandes

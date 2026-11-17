@@ -54,7 +54,10 @@ const merchantViews = async (orders, shops) => {
  * Commandes en cours des boutiques, chargées d'office.
  * @returns {Promise<{ raw: object[], views: object[] }>} raw = commandes (vue marchand), views = pour le modèle
  */
-exports.loadShopOrders = async shops => merchantViews(await loadActive({ fastFoodIds: shops.map(s => s.id) }), shops);
+exports.loadShopOrders = async shops => {
+  const orders = await loadActive({ fastFoodIds: shops.map(s => s.id) });
+  return { ...(await merchantViews(orders, shops)), counts: activeCounts(orders) };
+};
 
 /** uid -> nom des livreurs assignés aux commandes. */
 const driverNames = async orders => {
@@ -82,9 +85,36 @@ const driverViews = async (raw, shops) => {
 };
 
 /** Commandes en cours confiées au livreur `uid` dans ses boutiques WhatsApp, chargées d'office. */
-exports.loadDriverOrders = async (uid, shops) => driverViews(await loadActive({ fastFoodIds: shops.map(s => s.id), driverId: uid }), shops);
+exports.loadDriverOrders = async (uid, shops) => {
+  const orders = await loadActive({ fastFoodIds: shops.map(s => s.id), driverId: uid });
+  return { ...(await driverViews(orders, shops)), counts: activeCounts(orders) };
+};
 
 const dayFmt = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
+
+/** Jour de livraison prévu (AAAA-MM-JJ) : `delivery.date`, sinon le jour de la commande (Douala). */
+const deliveryDay = o => {
+  const d = String(o.delivery?.date || '').slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+  const t = new Date(o.createdAt);
+  return Number.isNaN(t.getTime()) ? null : dayFmt.format(t);
+};
+
+/**
+ * Commandes en cours réparties par jour de livraison prévu : aujourd'hui, à venir, et
+ * passées non traitées (jour dépassé, toujours en cours). Remis au modèle avec le total.
+ */
+const activeCounts = orders => {
+  const today = dayFmt.format(new Date());
+  const c = { total: orders.length, aujourdhui: 0, aVenir: 0, passeesNonTraitees: 0 };
+  for (const o of orders) {
+    const d = deliveryDay(o);
+    if (!d || d === today) c.aujourdhui += 1;
+    else if (d > today) c.aVenir += 1;
+    else c.passeesNonTraitees += 1;
+  }
+  return c;
+};
 /** `jour` valide (AAAA-MM-JJ) sinon aujourd'hui à Douala ; bornes ISO de ce jour (UTC+1, sans heure d'été). */
 const dayBounds = jour => {
   const d = /^\d{4}-\d{2}-\d{2}$/.test(String(jour || '')) && !Number.isNaN(Date.parse(`${jour}T00:00:00+01:00`)) ? jour : dayFmt.format(new Date());

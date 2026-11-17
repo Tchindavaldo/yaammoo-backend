@@ -22,11 +22,12 @@ const FALLBACK = "Je n'ai pas pu traiter votre message pour le moment. Utilisez 
 
 /** Contexte d'un tour : boutiques, commandes en cours (vue marchand), rechargeable après une action. */
 const buildCtx = async (phone, shops, ai) => {
-  const ctx = { phone, shops, orders: [], views: [], flags: {}, pageSize: ai.ordersPageSize };
+  const ctx = { phone, shops, orders: [], views: [], counts: null, flags: {}, pageSize: ai.ordersPageSize };
   ctx.reload = async () => {
-    const { raw, views } = await loadShopOrders(shops);
+    const { raw, views, counts } = await loadShopOrders(shops);
     ctx.orders = raw;
     ctx.views = views;
+    ctx.counts = counts;
   };
   await ctx.reload();
   return ctx;
@@ -36,7 +37,7 @@ const buildCtx = async (phone, shops, ai) => {
 const buildMessages = async (ctx, ai) => {
   const sinceIso = new Date(Date.now() - ai.retentionDays * 864e5).toISOString();
   const [history, pending] = await Promise.all([repos.waConversations.listByPhone(ctx.phone, { sinceIso, limit: ai.historyMax }), repos.waAiPendingActions.openByPhone(ctx.phone)]);
-  return [{ role: 'system', content: systemPrompt({ shops: ctx.shops, views: ctx.views, pending, pageSize: ctx.pageSize }) }, ...historyMessages(history)];
+  return [{ role: 'system', content: systemPrompt({ shops: ctx.shops, views: ctx.views, counts: ctx.counts, pending, pageSize: ctx.pageSize }) }, ...historyMessages(history)];
 };
 
 /** Un message du marchand : boucle modèle / outils, puis réponse finale sur WhatsApp. */
