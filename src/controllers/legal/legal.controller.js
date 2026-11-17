@@ -14,6 +14,8 @@ async function statusOf(userId) {
   return { latestVersion: latest?.version ?? null, publishedAt: latest?.publishedAt ?? null, acceptedVersion: last?.version ?? null, acceptedAt: last?.acceptedAt ?? null, mustAccept, merchantAdhesionPending };
 }
 
+const ROLES = ['gerant', 'directeur', 'proprietaire'];
+
 /** Adresse de l'Annexe 3 : celle envoyee, sinon la position GPS de la boutique, sinon ses villes. */
 function shopAddress(shop, sent) {
   const given = String(sent || '').trim();
@@ -63,7 +65,7 @@ exports.acceptLegal = async (req, res) => {
 };
 
 /**
- * POST /legal/merchant-adhesion { fastFoodId, version, representativeRole (texte libre), legalName?, address? }
+ * POST /legal/merchant-adhesion { fastFoodId, version, representativeRole (gerant|directeur|proprietaire), legalName?, address? }
  * Adresse absente : position GPS de la boutique, sinon ses villes.
  * Annexe 3 : nom et prénom lus sur le compte, nom de la boutique lu en base,
  * date et heure posées par la base. Vaut aussi acceptation des CGU.
@@ -74,10 +76,8 @@ exports.saveMerchantAdhesion = async (req, res) => {
     if (!userId) return res.status(401).json({ success: false, message: 'Non authentifié' });
     const { fastFoodId, legalName } = req.body || {};
     const version = Number(req.body?.version);
-    const representativeRole = String(req.body?.representativeRole || '')
-      .trim()
-      .slice(0, 60);
-    if (!fastFoodId || !representativeRole) return res.status(400).json({ success: false, message: 'Qualité du représentant obligatoire.' });
+    const representativeRole = req.body?.representativeRole;
+    if (!fastFoodId || !ROLES.includes(representativeRole)) return res.status(400).json({ success: false, message: 'Qualité du représentant obligatoire (gérant, directeur ou propriétaire).' });
     const latest = await repos.legal.getLatest();
     if (!latest || version !== latest.version) return res.status(409).json({ success: false, code: 'legal_outdated', message: 'Une nouvelle version des conditions est disponible.' });
     const shop = await repos.fastfoods.getById(fastFoodId);

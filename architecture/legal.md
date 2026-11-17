@@ -25,8 +25,7 @@ Fichiers : `routes/legalRoutes.js`, `controllers/legal/legal.controller.js`,
 obligatoire de l'accueil, affiché après la création de la boutique tant que
 `GET /legal/status` renvoie `merchantAdhesionPending` (id de la boutique du compte
 sans ligne `merchant_adhesions`, décision du 17/11/2026) : `{ fastFoodId, version,
-representativeRole (texte libre, suggestions gérant / directeur / propriétaire,
-migration 095), legalName?, address? }`. Adresse absente : position GPS de la
+representativeRole (gerant|directeur|proprietaire), legalName?, address? }`. Adresse absente : position GPS de la
 boutique, sinon ses villes. Réponse : `data` = nouveau statut. Le backend lit le nom
 et le prénom sur le compte et le nom de la boutique en base, enregistre une
 ligne `merchant_adhesions` (une par boutique et version, date posée par la base,

@@ -59,7 +59,7 @@ router.post('/accept', firebaseAuth, acceptLegal);
  *             properties:
  *               fastFoodId: { type: string }
  *               version: { type: integer }
- *               representativeRole: { type: string, description: "texte libre (suggestions : gerant, directeur, proprietaire)" }
+ *               representativeRole: { type: string, enum: [gerant, directeur, proprietaire] }
  *               legalName: { type: string, description: "Dénomination légale, facultative" }
  *               address: { type: string, description: "facultatif : position GPS de la boutique sinon ses villes" }
  *     responses:
