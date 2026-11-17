@@ -1715,6 +1715,7 @@ ALTER TABLE wa_ai_pending_actions ENABLE ROW LEVEL SECURITY;
 -- Réglages : settings_app ai_*, cancel_request_resend_minutes ; settings_deployment
 -- cancel_request_min_app_version (prod 1.1.6, test 1.1.5), payout_number_whatsapp_min_app_version (1.1.6).
 -- Migration 094 (prod le 17/11/2026) : settings_app ai_orders_page_size (20), aucune table.
+-- Migration 095 (prod le 17/11/2026) : table cities (330 villes de livraison, communes du Cameroun), cf. 095_cities.sql et architecture/cities.md.
 
 -- ============================================================================
 -- FIN DU SCHEMA
