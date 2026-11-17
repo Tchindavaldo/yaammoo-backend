@@ -25,3 +25,11 @@ exports.record = async e => {
     console.error(`[appErrors] ❌ journal non écrit (${e.scope}/${e.code}) : ${err.message}`);
   }
 };
+
+/** true si une alerte (scope, code) existe déjà pour cette commande (évite d'en écrire une par heure). */
+exports.existsForOrder = async (scope, code, orderId) => {
+  if (!orderId) return false;
+  const { count, error } = await supabase.from('app_errors').select('id', { count: 'exact', head: true }).eq('scope', scope).eq('code', code).eq('order_id', orderId);
+  if (error) throw error;
+  return (count || 0) > 0;
+};

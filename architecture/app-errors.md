@@ -24,6 +24,11 @@ le flux appelant. Tout nouveau cas d'erreur grave s'y ajoute.
 Scope `order_payout` : versement automatique d'une commande livrée (boutique
 WhatsApp, `wallet/orderPayout.service.js`) non parti ou échoué, à faire à la main.
 
+Scope `order_cancel`, code `auto_cancel_no_payment_trace` : commande non livrée après
+`order_auto_cancel_days` jours, **pas** annulée d'office car sa trace de paiement
+(`pending_payments`, numéro du payeur) manque (`utils/orderAutoCancelJob.js`). Une alerte
+par commande (`existsForOrder`). L'admin vérifie le paiement avant toute annulation.
+
 Lecture des cas ouverts :
 
 ```sql
