@@ -107,7 +107,9 @@ reprise marchand = merchant_debit (solde peut devenir négatif)
 
 Devis client (`GET /order/cancel-quote`) : renvoie aussi `phone`, le numéro qui a
 payé, seul destinataire du remboursement. **Annulation d'office** : commande
-payée **par pawaPay** non livrée après `settings_app.order_auto_cancel_days` jours (anciennes commandes sans vrai paiement : jamais annulées d'office) (7, migration
+payée **par pawaPay** non livrée après `settings_app.order_auto_cancel_days` jours (anciennes commandes sans vrai paiement, commandes sans trace de paiement
+`pending_payments` donc irremboursables, boutiques masquées : jamais annulées d'office ;
+sans trace : alerte `app_errors`) (7, migration
 076, 0 = désactivé) = annulation par le restaurant (`orderAutoCancelJob`, 1×/h).
 **Dette de remboursement** : solde marchand < 0 alors qu'il a une reprise
 `merchant_debit` ⇒ `settlementPrecheck` refuse toute commande de la boutique

@@ -98,7 +98,11 @@ changés » si le client payait entre-temps).
 
 - `order_auto_cancel_days` (settings_app, 7 j, migration 076) : `src/utils/orderAutoCancelJob.js`
   annule (`cancelByFastFood`, via `updateOrders`) toute commande `pending`/`processing`/`finished`
-  plus vieille ; remboursement complet, frais repris au marchand.
+  plus vieille ; remboursement complet, frais repris au marchand. Garde-fous (17/11/2026) :
+  jamais une boutique masquée (`hidden_fastfood_ids`, boutique review), jamais une commande
+  sans trace de paiement avec numéro du payeur (`pending_payments.phone`) : client
+  irremboursable, donc alerte `app_errors` `auto_cancel_no_payment_trace` (une par commande)
+  et commande laissée telle quelle.
 - `src/services/order/merchantDebtGuard.service.js` : solde < 0 avec une reprise `merchant_debit`
   ⇒ refus `merchant_debt` au précheck + push au marchand à chaque tentative.
 - Le devis renvoie `phone` (numéro payeur, `pending_payments.phone`).
