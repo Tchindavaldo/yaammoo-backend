@@ -35,8 +35,12 @@ CREATE TABLE IF NOT EXISTS users (
   cmd             JSONB DEFAULT '[]'::jsonb,
   extra_data      JSONB DEFAULT '{}'::jsonb,
   created_at      TIMESTAMPTZ DEFAULT NOW(),
-  updated_at      TIMESTAMPTZ DEFAULT NOW()
+  updated_at      TIMESTAMPTZ DEFAULT NOW(),
+  driver_rating_avg NUMERIC(3,2) NOT NULL DEFAULT 0,   -- migration 011
+  driver_rating_count INTEGER NOT NULL DEFAULT 0   -- migration 011
 );
+CREATE INDEX IF NOT EXISTS idx_users_extra_driver ON users ((extra_data ->> 'driverId'));
+CREATE INDEX IF NOT EXISTS idx_users_is_admin ON users (is_admin) WHERE is_admin = true;
 
 CREATE INDEX IF NOT EXISTS idx_users_uid ON users(uid);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
@@ -84,7 +88,7 @@ CREATE TABLE IF NOT EXISTS fastfoods (
   image             TEXT,
   order_lead_time   INTEGER,
   advance_days      INTEGER DEFAULT 0,
-  pickup_only       BOOLEAN DEFAULT FALSE,
+  pickup_allowed    BOOLEAN DEFAULT FALSE,   -- migration 025 (ex pickup_only, sens inversé)
   cities            JSONB DEFAULT '[]'::jsonb,
   delivery_hours    JSONB DEFAULT '[]'::jsonb,
   extra_data        JSONB DEFAULT '{}'::jsonb,
@@ -94,8 +98,23 @@ CREATE TABLE IF NOT EXISTS fastfoods (
   -- ici, puis réellement effacée après la rétention. Toutes les lectures
   -- courantes filtrent `deleted_at IS NULL`.
   deleted_at        TIMESTAMPTZ,
+  driver_rating_avg NUMERIC(3,2) NOT NULL DEFAULT 0,   -- migration 012
+  driver_rating_count INTEGER NOT NULL DEFAULT 0,   -- migration 012
+  delivery_by       TEXT NOT NULL DEFAULT 'fastfood',   -- migration 037, lu via settings_app.platform_delivery_all 074
+  platform_delivery_zones JSONB DEFAULT '[]'::jsonb,   -- migration 037, 073
+  open_days         SMALLINT[] NOT NULL DEFAULT '{0,1,2,3,4,5,6}'::smallint[],   -- migration 049
+  is_available      BOOLEAN NOT NULL DEFAULT TRUE,   -- migration 049
+  broadcast_plan    TEXT NOT NULL DEFAULT 'free',   -- migration 053
+  latitude          DOUBLE PRECISION,   -- migration 054
+  longitude         DOUBLE PRECISION,   -- migration 054
+  drinks            JSONB NOT NULL DEFAULT '[]'::jsonb,   -- migration 062
+  express_zones     JSONB DEFAULT '[]'::jsonb,   -- migration 073
+  platform_express_zones JSONB DEFAULT '[]'::jsonb,   -- migration 073
+  deleted_reason    TEXT,   -- migration 080
+  CONSTRAINT fastfoods_delivery_by_chk CHECK (delivery_by IN ('fastfood', 'platform')),
   CONSTRAINT fastfoods_user_unique UNIQUE (user_id)
 );
+CREATE INDEX IF NOT EXISTS idx_fastfoods_delivery_by_platform ON fastfoods (delivery_by) WHERE delivery_by = 'platform';
 
 CREATE INDEX IF NOT EXISTS idx_fastfoods_user_id ON fastfoods(user_id);
 CREATE INDEX IF NOT EXISTS idx_fastfoods_alive ON fastfoods(id) WHERE deleted_at IS NULL;
@@ -128,8 +147,12 @@ CREATE TABLE IF NOT EXISTS menus (
   extra_data      JSONB DEFAULT '{}'::jsonb,
   created_at      TIMESTAMPTZ DEFAULT NOW(),
   updated_at      TIMESTAMPTZ DEFAULT NOW(),
-  deleted_at      TIMESTAMPTZ   -- soft delete (migration 047)
+  deleted_at      TIMESTAMPTZ,  -- soft delete (migration 047)
+  rating_avg        NUMERIC(3,2) NOT NULL DEFAULT 0,   -- migration 011
+  rating_count      INTEGER NOT NULL DEFAULT 0,   -- migration 011
+  category          TEXT   -- migration 088
 );
+CREATE INDEX IF NOT EXISTS menus_category_lower_idx ON menus (lower(category)) WHERE deleted_at IS NULL;
 
 CREATE INDEX IF NOT EXISTS idx_menus_fastfood ON menus(fastfood_id);
 CREATE INDEX IF NOT EXISTS idx_menus_fastfood_created ON menus(fastfood_id, created_at DESC);
@@ -166,8 +189,11 @@ CREATE TABLE IF NOT EXISTS orders (
   extra_data        JSONB DEFAULT '{}'::jsonb,
   created_at        TIMESTAMPTZ DEFAULT NOW(),
   updated_at        TIMESTAMPTZ DEFAULT NOW(),
-  deleted_at        TIMESTAMPTZ   -- soft delete (migration 047)
+  deleted_at        TIMESTAMPTZ,  -- soft delete (migration 047)
+  user_data         JSONB DEFAULT '{}'::jsonb,   -- migration 007
+  selected_price_index INTEGER   -- migration 007
 );
+CREATE INDEX IF NOT EXISTS idx_orders_driver_status ON orders (driver_id, status) WHERE driver_id IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_orders_alive ON orders(fastfood_id) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_orders_fastfood_created ON orders(fastfood_id, created_at DESC);
@@ -250,6 +276,8 @@ CREATE TABLE IF NOT EXISTS bonus (
   extra_data     JSONB DEFAULT '{}'::jsonb,
   created_at     TIMESTAMPTZ DEFAULT NOW(),
   deleted_at     TIMESTAMPTZ,  -- soft delete (migration 047)
+  flyer_url         TEXT,   -- migration 031
+  claim_delay_hours INTEGER NOT NULL DEFAULT 0,   -- migration 031
   -- Nom d'affichage toujours requis : boutique, ou PLATFORM_NAME si
   -- fastfood_id IS NULL (bonus plateforme).
   CONSTRAINT bonus_fastfood_name_chk CHECK (fastfood_name IS NOT NULL AND fastfood_name <> '')
@@ -866,8 +894,14 @@ CREATE TABLE IF NOT EXISTS order_settlements (
   delivered       BOOLEAN NOT NULL DEFAULT TRUE,
   created_at      TIMESTAMPTZ DEFAULT NOW(),
   -- Une gratuité fait renoncer à un gain, elle ne crée pas une dépense.
+  withdrawal_fee    NUMERIC(12,2) NOT NULL DEFAULT 0,   -- migration 037
+  driver_amount     NUMERIC(12,2) NOT NULL DEFAULT 0,   -- migration 037
+  withdrawal_group_id TEXT,   -- migration 037
+  withdrawal_billed BOOLEAN NOT NULL DEFAULT FALSE,   -- migration 037
+  delivery_by       TEXT,   -- migration 074, régime figé au paiement
   CONSTRAINT order_settlements_margin_chk CHECK (platform_margin >= 0)
 );
+CREATE INDEX IF NOT EXISTS idx_order_settlements_withdrawal_group ON order_settlements (withdrawal_group_id) WHERE withdrawal_group_id IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_order_settlements_fastfood
   ON order_settlements(fastfood_id, created_at);
@@ -968,8 +1002,13 @@ CREATE TABLE IF NOT EXISTS bird_costs (
   send_count           INTEGER DEFAULT 1,
   sent_at              TIMESTAMPTZ DEFAULT NOW(),
   last_sent_at         TIMESTAMPTZ DEFAULT NOW(),
-  resolved_at          TIMESTAMPTZ
+  resolved_at          TIMESTAMPTZ,
+  fee_purpose       TEXT,   -- migration 083
+  fee_network       TEXT,   -- migration 083
+  fee_debited_usd   NUMERIC(12,4) DEFAULT 0,   -- migration 083
+  fee_debited_xaf   INTEGER DEFAULT 0   -- migration 083
 );
+CREATE INDEX IF NOT EXISTS idx_bird_costs_fee_purpose ON bird_costs (fee_purpose) WHERE fee_purpose IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_bird_costs_sent_at ON bird_costs(sent_at);
 CREATE INDEX IF NOT EXISTS idx_bird_costs_phone_number ON bird_costs(phone_number);
@@ -1032,6 +1071,610 @@ CREATE TABLE IF NOT EXISTS settings_app (
 ALTER TABLE settings_app ENABLE ROW LEVEL SECURITY;
 
 -- ============================================================================
+-- TABLES ajoutées par les migrations (001 → 087), relevées sur la base réelle
+-- ============================================================================
+-- Colonnes, contraintes, index et RLS recopiés tels quels depuis le catalogue
+-- Postgres de la base de test (16/11/2026), même schéma que la prod. Le commentaire
+-- de chaque table donne la migration d'origine : la lire pour le détail métier.
+-- Les fonctions SQL (create_order, soft_delete_fastfood…) restent dans leurs migrations.
+
+-- ============================================================================
+-- TABLE: transaction_settlements (migration 001, 001_transaction_settlements.sql)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS transaction_settlements (
+  id BIGSERIAL,
+  transaction_id VARCHAR(255) NOT NULL,
+  settled_by VARCHAR(20) NOT NULL,
+  status VARCHAR(50) NOT NULL,
+  settled_at TIMESTAMPTZ DEFAULT now(),
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  CONSTRAINT transaction_settlements_pkey PRIMARY KEY (id),
+  CONSTRAINT transaction_settlements_transaction_id_key UNIQUE (transaction_id),
+  CONSTRAINT transaction_settlements_settled_by_check CHECK (((settled_by)::text = ANY ((ARRAY['socket'::character varying, 'webhook'::character varying])::text[])))
+);
+CREATE INDEX IF NOT EXISTS idx_transaction_settlements_settled_by ON transaction_settlements (settled_by);
+CREATE INDEX IF NOT EXISTS idx_transaction_settlements_tx_id ON transaction_settlements (transaction_id);
+ALTER TABLE transaction_settlements ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================================
+-- TABLE: pending_payments (migration 002, 002_pending_payments.sql)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS pending_payments (
+  mw_transaction_id VARCHAR(255),
+  user_id VARCHAR(255) NOT NULL,
+  order_id VARCHAR(255),
+  fastfood_id VARCHAR(255),
+  items JSONB,
+  order_ctx JSONB,
+  amount NUMERIC,
+  network VARCHAR(50),
+  phone VARCHAR(50),
+  email VARCHAR(255),
+  status VARCHAR(20) NOT NULL DEFAULT 'pending'::character varying,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  payment_ref VARCHAR(255) NOT NULL,
+  aggregator TEXT,
+  CONSTRAINT pending_payments_pkey PRIMARY KEY (payment_ref)
+);
+CREATE INDEX IF NOT EXISTS idx_pending_payments_created_at ON pending_payments (created_at);
+CREATE INDEX IF NOT EXISTS idx_pending_payments_mw_tx ON pending_payments (mw_transaction_id);
+CREATE INDEX IF NOT EXISTS idx_pending_payments_user_id ON pending_payments (user_id);
+ALTER TABLE pending_payments ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================================
+-- TABLE: withdrawals (migration 004, 004_withdrawals.sql)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS withdrawals (
+  id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  fastfood_id TEXT,
+  amount NUMERIC(12,2) NOT NULL,
+  phone TEXT,
+  network TEXT,
+  status TEXT NOT NULL DEFAULT 'pending'::text,
+  mw_payout_id TEXT,
+  failure_reason TEXT,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  aggregator TEXT,
+  source_network TEXT,
+  fee NUMERIC(12,2) NOT NULL DEFAULT 0,
+  kiosk_fee NUMERIC NOT NULL DEFAULT 0,
+  kind TEXT NOT NULL DEFAULT 'wallet'::text,
+  order_id TEXT,
+  driver_id TEXT,
+  CONSTRAINT withdrawals_pkey PRIMARY KEY (id)
+);
+CREATE INDEX IF NOT EXISTS idx_withdrawals_driver ON withdrawals (driver_id) WHERE (driver_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_withdrawals_user ON withdrawals (user_id);
+CREATE INDEX IF NOT EXISTS withdrawals_kind_status_idx ON withdrawals (kind, status);
+CREATE UNIQUE INDEX IF NOT EXISTS withdrawals_order_payout_uniq ON withdrawals (order_id) WHERE ((order_id IS NOT NULL) AND (status <> 'failed'::text));
+ALTER TABLE withdrawals ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================================
+-- TABLE: outbox_events (migration 005, 005_outbox_events.sql)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS outbox_events (
+  id BIGSERIAL,
+  user_id TEXT NOT NULL,
+  event TEXT NOT NULL,
+  payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+  delivered_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT outbox_events_pkey PRIMARY KEY (id)
+);
+CREATE INDEX IF NOT EXISTS idx_outbox_created_at ON outbox_events (created_at);
+CREATE INDEX IF NOT EXISTS idx_outbox_user_undelivered ON outbox_events (user_id, created_at) WHERE (delivered_at IS NULL);
+ALTER TABLE outbox_events ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================================
+-- TABLE: ratings (migration 011, 011_ratings.sql)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS ratings (
+  id TEXT NOT NULL,
+  target_type TEXT NOT NULL,
+  target_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  order_id TEXT,
+  value INTEGER NOT NULL,
+  comment TEXT,
+  extra_data JSONB DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  CONSTRAINT ratings_pkey PRIMARY KEY (id),
+  CONSTRAINT ratings_value_check CHECK (((value >= 1) AND (value <= 5)))
+);
+CREATE INDEX IF NOT EXISTS idx_ratings_target ON ratings (target_type, target_id, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_ratings_target_user ON ratings (target_type, target_id, user_id);
+ALTER TABLE ratings ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================================
+-- TABLE: bonus_flyer_downloads (migration 031, 031_bonus_status_view_flyer.sql)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS bonus_flyer_downloads (
+  id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  bonus_id TEXT NOT NULL,
+  downloaded_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_downloaded_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  download_count INTEGER NOT NULL DEFAULT 1,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  proof_uploaded_at TIMESTAMPTZ,
+  proof_video_url TEXT,
+  CONSTRAINT bonus_flyer_downloads_pkey PRIMARY KEY (id)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS bonus_flyer_downloads_user_bonus_idx ON bonus_flyer_downloads (user_id, bonus_id);
+CREATE INDEX IF NOT EXISTS idx_bonus_flyer_downloads_open ON bonus_flyer_downloads (user_id, bonus_id) WHERE (proof_uploaded_at IS NULL);
+ALTER TABLE bonus_flyer_downloads ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================================
+-- TABLE: support_threads (migration 034, 034_support_threads.sql)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS support_threads (
+  id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  fastfood_id TEXT,
+  topic TEXT NOT NULL,
+  title TEXT NOT NULL DEFAULT ''::text,
+  status TEXT NOT NULL DEFAULT 'open'::text,
+  unread_count INTEGER NOT NULL DEFAULT 0,
+  support_unread_count INTEGER NOT NULL DEFAULT 0,
+  last_message TEXT NOT NULL DEFAULT ''::text,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  deleted_at TIMESTAMPTZ,
+  CONSTRAINT support_threads_pkey PRIMARY KEY (id),
+  CONSTRAINT support_threads_fastfood_id_fkey FOREIGN KEY (fastfood_id) REFERENCES fastfoods(id) ON DELETE SET NULL,
+  CONSTRAINT support_threads_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_support_threads_fastfood ON support_threads (fastfood_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_support_threads_user ON support_threads (user_id, updated_at DESC);
+ALTER TABLE support_threads ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================================
+-- TABLE: support_messages (migration 034, 034_support_threads.sql)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS support_messages (
+  id TEXT NOT NULL,
+  thread_id TEXT NOT NULL,
+  author TEXT NOT NULL,
+  text TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT support_messages_pkey PRIMARY KEY (id),
+  CONSTRAINT support_messages_thread_id_fkey FOREIGN KEY (thread_id) REFERENCES support_threads(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_support_messages_thread ON support_messages (thread_id, created_at);
+ALTER TABLE support_messages ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================================
+-- TABLE: banners (migration 044, 044_banners.sql)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS banners (
+  id TEXT NOT NULL,
+  title TEXT,
+  image_url TEXT NOT NULL,
+  type TEXT NOT NULL DEFAULT 'none'::text,
+  target_id TEXT,
+  active BOOLEAN NOT NULL DEFAULT true,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  CONSTRAINT banners_pkey PRIMARY KEY (id),
+  CONSTRAINT banners_type_check CHECK ((type = ANY (ARRAY['bonus'::text, 'none'::text])))
+);
+CREATE INDEX IF NOT EXISTS idx_banners_active_order ON banners (active, sort_order);
+ALTER TABLE banners ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================================
+-- TABLE: staff_roles (migration 050, 050_fastfood_staff.sql)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS staff_roles (
+  id TEXT NOT NULL,
+  fastfood_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  permissions TEXT[] NOT NULL DEFAULT '{}'::text[],
+  created_by TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT staff_roles_pkey PRIMARY KEY (id),
+  CONSTRAINT staff_roles_fastfood_id_fkey FOREIGN KEY (fastfood_id) REFERENCES fastfoods(id) ON DELETE CASCADE
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_staff_roles_name ON staff_roles (fastfood_id, lower(name));
+ALTER TABLE staff_roles ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================================
+-- TABLE: staff_members (migration 050, 050_fastfood_staff.sql)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS staff_members (
+  id TEXT NOT NULL,
+  fastfood_id TEXT NOT NULL,
+  role_id TEXT NOT NULL,
+  phone_number TEXT NOT NULL,
+  user_id TEXT,
+  nom TEXT,
+  prenom TEXT,
+  active BOOLEAN NOT NULL DEFAULT true,
+  created_by TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT staff_members_pkey PRIMARY KEY (id),
+  CONSTRAINT staff_members_fastfood_id_fkey FOREIGN KEY (fastfood_id) REFERENCES fastfoods(id) ON DELETE CASCADE,
+  CONSTRAINT staff_members_role_id_fkey FOREIGN KEY (role_id) REFERENCES staff_roles(id) ON DELETE RESTRICT
+);
+CREATE INDEX IF NOT EXISTS idx_staff_members_phone ON staff_members (phone_number);
+CREATE INDEX IF NOT EXISTS idx_staff_members_user ON staff_members (user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_staff_members_phone ON staff_members (fastfood_id, phone_number);
+ALTER TABLE staff_members ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================================
+-- TABLE: fastfood_broadcasts (migration 053, 053_fastfood_broadcasts.sql)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS fastfood_broadcasts (
+  id TEXT NOT NULL,
+  fastfood_id TEXT NOT NULL,
+  sender_uid TEXT NOT NULL,
+  title TEXT NOT NULL,
+  body TEXT,
+  image_url TEXT,
+  audience TEXT NOT NULL,
+  audience_city TEXT,
+  plan TEXT NOT NULL,
+  recipients_count INTEGER NOT NULL DEFAULT 0,
+  pushed_count INTEGER NOT NULL DEFAULT 0,
+  sent_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT fastfood_broadcasts_pkey PRIMARY KEY (id),
+  CONSTRAINT fastfood_broadcasts_fastfood_id_fkey FOREIGN KEY (fastfood_id) REFERENCES fastfoods(id) ON DELETE CASCADE,
+  CONSTRAINT fastfood_broadcasts_audience_chk CHECK ((audience = ANY (ARRAY['customers'::text, 'city'::text, 'all'::text]))),
+  CONSTRAINT fastfood_broadcasts_city_chk CHECK (((audience <> 'city'::text) OR (audience_city IS NOT NULL)))
+);
+CREATE INDEX IF NOT EXISTS idx_fastfood_broadcasts_sent ON fastfood_broadcasts (fastfood_id, sent_at DESC);
+ALTER TABLE fastfood_broadcasts ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================================
+-- TABLE: settings_notification (migration 053, 053_fastfood_broadcasts.sql)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS settings_notification (
+  key TEXT NOT NULL,
+  value JSONB NOT NULL,
+  description TEXT,
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  CONSTRAINT settings_notification_pkey PRIMARY KEY (key)
+);
+ALTER TABLE settings_notification ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================================
+-- TABLE: user_locations (migration 054, 054_user_locations.sql)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS user_locations (
+  id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  latitude DOUBLE PRECISION NOT NULL,
+  longitude DOUBLE PRECISION NOT NULL,
+  accuracy DOUBLE PRECISION,
+  altitude DOUBLE PRECISION,
+  speed DOUBLE PRECISION,
+  heading DOUBLE PRECISION,
+  city TEXT,
+  subregion TEXT,
+  region TEXT,
+  district TEXT,
+  street TEXT,
+  street_number TEXT,
+  place_name TEXT,
+  formatted_address TEXT,
+  postal_code TEXT,
+  country TEXT,
+  iso_country_code TEXT,
+  timezone TEXT,
+  source TEXT NOT NULL,
+  platform TEXT,
+  captured_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  CONSTRAINT user_locations_pkey PRIMARY KEY (id),
+  CONSTRAINT user_locations_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT user_locations_source_chk CHECK ((source = ANY (ARRAY['login'::text, 'app_open'::text, 'foreground'::text, 'background'::text])))
+);
+CREATE INDEX IF NOT EXISTS idx_user_locations_city ON user_locations (lower(city));
+CREATE INDEX IF NOT EXISTS idx_user_locations_user ON user_locations (user_id, captured_at DESC);
+CREATE INDEX IF NOT EXISTS idx_user_locations_user_city ON user_locations (user_id, captured_at DESC) WHERE (city IS NOT NULL);
+ALTER TABLE user_locations ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================================
+-- TABLE: settings_client (migration 055, 055_settings_client_and_test.sql)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS settings_client (
+  key TEXT NOT NULL,
+  value JSONB NOT NULL,
+  description TEXT,
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  CONSTRAINT settings_client_pkey PRIMARY KEY (key)
+);
+ALTER TABLE settings_client ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================================
+-- TABLE: settings_test (migration 055, 055_settings_client_and_test.sql)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS settings_test (
+  key TEXT NOT NULL,
+  value JSONB NOT NULL,
+  description TEXT,
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  CONSTRAINT settings_test_pkey PRIMARY KEY (key)
+);
+ALTER TABLE settings_test ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================================
+-- TABLE: driver_positions (migration 060, 060_geolocation_tracking.sql)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS driver_positions (
+  driver_id TEXT NOT NULL,
+  latitude DOUBLE PRECISION NOT NULL,
+  longitude DOUBLE PRECISION NOT NULL,
+  accuracy DOUBLE PRECISION,
+  speed DOUBLE PRECISION,
+  heading DOUBLE PRECISION,
+  captured_at TIMESTAMPTZ NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  CONSTRAINT driver_positions_pkey PRIMARY KEY (driver_id),
+  CONSTRAINT driver_positions_driver_id_fkey FOREIGN KEY (driver_id) REFERENCES users(id) ON DELETE CASCADE
+);
+ALTER TABLE driver_positions ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================================
+-- TABLE: analytics_connections (migration 061, 061_analytics.sql)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS analytics_connections (
+  id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  socket_id TEXT,
+  server_id TEXT,
+  app_version TEXT,
+  platform TEXT,
+  connected_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  disconnected_at TIMESTAMPTZ,
+  CONSTRAINT analytics_connections_pkey PRIMARY KEY (id),
+  CONSTRAINT analytics_connections_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_analytics_connections_at ON analytics_connections (connected_at DESC);
+CREATE INDEX IF NOT EXISTS idx_analytics_connections_open ON analytics_connections (server_id) WHERE (disconnected_at IS NULL);
+CREATE INDEX IF NOT EXISTS idx_analytics_connections_user ON analytics_connections (user_id, connected_at DESC);
+ALTER TABLE analytics_connections ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================================
+-- TABLE: analytics_events (migration 061, 061_analytics.sql)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS analytics_events (
+  id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  session_id TEXT,
+  type TEXT NOT NULL,
+  fastfood_id TEXT,
+  menu_id TEXT,
+  banner_id TEXT,
+  data JSONB NOT NULL DEFAULT '{}'::jsonb,
+  occurred_at TIMESTAMPTZ NOT NULL,
+  received_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT analytics_events_pkey PRIMARY KEY (id),
+  CONSTRAINT analytics_events_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_analytics_events_fastfood ON analytics_events (fastfood_id, type) WHERE (fastfood_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_analytics_events_session ON analytics_events (session_id);
+CREATE INDEX IF NOT EXISTS idx_analytics_events_type ON analytics_events (type, occurred_at DESC);
+CREATE INDEX IF NOT EXISTS idx_analytics_events_user ON analytics_events (user_id, occurred_at DESC);
+ALTER TABLE analytics_events ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================================
+-- TABLE: analytics_sessions (migration 061, 061_analytics.sql)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS analytics_sessions (
+  id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  started_at TIMESTAMPTZ NOT NULL,
+  last_activity_at TIMESTAMPTZ NOT NULL,
+  ended_at TIMESTAMPTZ,
+  duration_ms BIGINT NOT NULL DEFAULT 0,
+  app_version TEXT,
+  platform TEXT,
+  os_version TEXT,
+  device_model TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT analytics_sessions_pkey PRIMARY KEY (id),
+  CONSTRAINT analytics_sessions_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_analytics_sessions_at ON analytics_sessions (started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_analytics_sessions_user ON analytics_sessions (user_id, started_at DESC);
+ALTER TABLE analytics_sessions ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================================
+-- TABLE: platform_transfer_locks (migration 067, 067_platform_transfer_locks.sql)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS platform_transfer_locks (
+  source_fastfood_id TEXT NOT NULL,
+  admin_uid TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT platform_transfer_locks_pkey PRIMARY KEY (source_fastfood_id)
+);
+ALTER TABLE platform_transfer_locks ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================================
+-- TABLE: app_errors (migration 068, 068_app_errors.sql)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS app_errors (
+  id BIGSERIAL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  scope TEXT NOT NULL,
+  code TEXT NOT NULL,
+  message TEXT NOT NULL,
+  order_id TEXT,
+  user_id TEXT,
+  fastfood_id TEXT,
+  context JSONB NOT NULL DEFAULT '{}'::jsonb,
+  resolved BOOLEAN NOT NULL DEFAULT false,
+  resolved_at TIMESTAMPTZ,
+  resolved_note TEXT,
+  CONSTRAINT app_errors_pkey PRIMARY KEY (id)
+);
+CREATE INDEX IF NOT EXISTS app_errors_order_idx ON app_errors (order_id);
+CREATE INDEX IF NOT EXISTS app_errors_unresolved_idx ON app_errors (created_at DESC) WHERE (resolved = false);
+ALTER TABLE app_errors ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================================
+-- TABLE: order_status_history (migration 069, 069_order_status_history.sql)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS order_status_history (
+  id BIGSERIAL,
+  order_id TEXT NOT NULL,
+  fastfood_id TEXT NOT NULL,
+  from_status TEXT,
+  to_status TEXT NOT NULL,
+  changed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT order_status_history_pkey PRIMARY KEY (id),
+  CONSTRAINT order_status_history_order_id_fkey FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_order_status_history_order ON order_status_history (order_id, changed_at);
+CREATE INDEX IF NOT EXISTS idx_order_status_history_shop ON order_status_history (fastfood_id, changed_at);
+ALTER TABLE order_status_history ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================================
+-- TABLE: order_refunds (migration 075, 075_order_refunds.sql)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS order_refunds (
+  id TEXT NOT NULL,
+  order_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  fastfood_id TEXT,
+  cancelled_by TEXT NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'order'::text,
+  paid NUMERIC NOT NULL,
+  fees_kept NUMERIC NOT NULL DEFAULT 0,
+  amount NUMERIC NOT NULL,
+  merchant_debit NUMERIC NOT NULL DEFAULT 0,
+  course_kept NUMERIC NOT NULL DEFAULT 0,
+  course_released BOOLEAN NOT NULL DEFAULT false,
+  delivery_group_id TEXT,
+  phone TEXT,
+  network TEXT,
+  aggregator TEXT,
+  status TEXT NOT NULL DEFAULT 'pending'::text,
+  mw_payout_id TEXT,
+  failure_reason TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT order_refunds_pkey PRIMARY KEY (id),
+  CONSTRAINT order_refunds_order_kind_uniq UNIQUE (order_id, kind)
+);
+CREATE INDEX IF NOT EXISTS idx_order_refunds_group ON order_refunds (delivery_group_id);
+CREATE INDEX IF NOT EXISTS idx_order_refunds_payout ON order_refunds (mw_payout_id);
+ALTER TABLE order_refunds ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================================
+-- TABLE: legal_documents (migration 077, 077_legal_documents.sql)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS legal_documents (
+  version INTEGER NOT NULL,
+  title TEXT NOT NULL,
+  content TEXT NOT NULL,
+  requires_acceptance BOOLEAN NOT NULL DEFAULT false,
+  published_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT legal_documents_pkey PRIMARY KEY (version)
+);
+ALTER TABLE legal_documents ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================================
+-- TABLE: legal_acceptances (migration 077, 077_legal_documents.sql)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS legal_acceptances (
+  id BIGSERIAL,
+  user_id TEXT NOT NULL,
+  version INTEGER NOT NULL,
+  accepted_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  app_version TEXT,
+  CONSTRAINT legal_acceptances_pkey PRIMARY KEY (id),
+  CONSTRAINT legal_acceptances_user_id_version_key UNIQUE (user_id, version),
+  CONSTRAINT legal_acceptances_version_fkey FOREIGN KEY (version) REFERENCES legal_documents(version)
+);
+CREATE INDEX IF NOT EXISTS legal_acceptances_user_idx ON legal_acceptances (user_id, version DESC);
+ALTER TABLE legal_acceptances ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================================
+-- TABLE: merchant_adhesions (migration 078, 078_merchant_adhesions.sql)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS merchant_adhesions (
+  id BIGSERIAL,
+  fastfood_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  version INTEGER NOT NULL,
+  representative_name TEXT NOT NULL,
+  representative_role TEXT NOT NULL,
+  shop_name TEXT NOT NULL,
+  legal_name TEXT,
+  address TEXT NOT NULL,
+  sector TEXT NOT NULL DEFAULT 'restauration et vente de produits alimentaires'::text,
+  app_version TEXT,
+  accepted_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT merchant_adhesions_pkey PRIMARY KEY (id),
+  CONSTRAINT merchant_adhesions_fastfood_id_version_key UNIQUE (fastfood_id, version),
+  CONSTRAINT merchant_adhesions_version_fkey FOREIGN KEY (version) REFERENCES legal_documents(version),
+  CONSTRAINT merchant_adhesions_representative_role_check CHECK ((representative_role = ANY (ARRAY['gerant'::text, 'directeur'::text, 'proprietaire'::text])))
+);
+CREATE INDEX IF NOT EXISTS merchant_adhesions_user_idx ON merchant_adhesions (user_id);
+ALTER TABLE merchant_adhesions ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================================
+-- TABLE: payout_numbers (migration 079, 079_payout_numbers.sql)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS payout_numbers (
+  user_id TEXT NOT NULL,
+  phone_number TEXT NOT NULL,
+  verified_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT payout_numbers_pkey PRIMARY KEY (user_id, phone_number)
+);
+ALTER TABLE payout_numbers ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================================
+-- TABLE: account_archives (migration 080, 080_whatsapp_numbers_account_archives.sql)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS account_archives (
+  uid TEXT NOT NULL,
+  user_data JSONB NOT NULL,
+  fastfood_ids TEXT[] NOT NULL DEFAULT '{}'::text[],
+  long_retention BOOLEAN NOT NULL,
+  deleted_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  retain_until TIMESTAMPTZ NOT NULL,
+  identity_keys TEXT[] DEFAULT '{}'::text[],
+  personal_purged BOOLEAN DEFAULT false,
+  CONSTRAINT account_archives_pkey PRIMARY KEY (uid)
+);
+CREATE INDEX IF NOT EXISTS account_archives_retain_idx ON account_archives (retain_until);
+CREATE INDEX IF NOT EXISTS idx_account_archives_identity_keys ON account_archives USING gin (identity_keys);
+ALTER TABLE account_archives ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================================
+-- TABLE: whatsapp_numbers (migration 080, 080_whatsapp_numbers_account_archives.sql)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS whatsapp_numbers (
+  user_id TEXT NOT NULL,
+  phone_number TEXT NOT NULL,
+  source TEXT NOT NULL,
+  verified_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT whatsapp_numbers_pkey PRIMARY KEY (user_id, phone_number),
+  CONSTRAINT whatsapp_numbers_source_check CHECK ((source = ANY (ARRAY['otp'::text, 'login'::text, 'inbound'::text])))
+);
+ALTER TABLE whatsapp_numbers ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================================
+-- TABLE: wa_order_reminders (migration 087, 087_whatsapp_order_reminders.sql)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS wa_order_reminders (
+  order_id TEXT NOT NULL,
+  sent_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT wa_order_reminders_pkey PRIMARY KEY (order_id)
+);
+ALTER TABLE wa_order_reminders ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================================
 -- TABLES: agent IA des boutiques WhatsApp (migrations 090, 091 ; prod le 16/11/2026)
 -- ============================================================================
 -- Historique des conversations (author : merchant | ai | system | driver) et actions
@@ -1067,10 +1710,8 @@ CREATE TABLE IF NOT EXISTS wa_ai_pending_actions (
 CREATE INDEX IF NOT EXISTS idx_wa_ai_pending_phone_status ON wa_ai_pending_actions (phone, status);
 ALTER TABLE wa_ai_pending_actions ENABLE ROW LEVEL SECURITY;
 
--- Migration 093 (prod le 16/11/2026), sur des tables pas encore décrites ici
--- (voir 079_payout_numbers.sql, 080_whatsapp_numbers_account_archives.sql) :
---   withdrawals.driver_id TEXT (+ idx_withdrawals_driver) : livreur payé d'une commande ;
---   whatsapp_numbers.source CHECK IN ('otp', 'login', 'inbound').
+-- Migration 093 (prod le 16/11/2026) : withdrawals.driver_id (livreur payé d'une
+-- commande) et whatsapp_numbers.source ('otp', 'login', 'inbound'), décrits plus haut.
 -- Réglages : settings_app ai_*, cancel_request_resend_minutes ; settings_deployment
 -- cancel_request_min_app_version (prod 1.1.6, test 1.1.5), payout_number_whatsapp_min_app_version (1.1.6).
 

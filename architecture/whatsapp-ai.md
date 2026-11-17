@@ -182,6 +182,7 @@ services/whatsapp/ai/merchantDriverTools.js      outils du marchand (livreurs)
 services/whatsapp/ai/agentOrders.js              commandes vue marchand / livreur, résolution des n°
 services/whatsapp/ai/pendingActions.service.js   propositions, boutons Confirmer / Annuler
 services/whatsapp/ai/driverAgent.service.js      texte libre du livreur -> agent
+services/whatsapp/ai/voiceNotes.js               note vocale (marchand, livreur) -> « écrivez »
 services/whatsapp/ai/driverPrompt.js             consignes livreur, état
 services/whatsapp/ai/driverTools.js              outils du livreur
 services/whatsapp/driver/driverDirectory.js      numéro -> livreur, livreurs d'une boutique
@@ -198,6 +199,14 @@ schema/migrations/093_whatsapp_drivers.sql
 
 ## À venir
 
-Notes vocales et images du marchand et du livreur : pour l'instant journalisées seulement
-(`[audio]`), pas traitées par l'agent. Mode livreur dans l'app (barre de navigation,
-commandes, portefeuille, home du marchand aux textes près) : chantier frontend suivant.
+Images du marchand et du livreur : journalisées seulement (`[image]`), pas envoyées au
+modèle (les modèles actuels les lisent : à brancher si besoin). Transcription des notes
+vocales : seulement si les marchands en envoient beaucoup (modèle audio le moins cher vu le
+17/11/2026 : `qwen/qwen3.8-omni-flash`).
+
+## Notes vocales
+
+Les modèles de l'agent ne lisent pas l'audio. Une note vocale (`audio` / `voice`) d'un numéro
+de boutique WhatsApp ou d'un livreur reçoit tout de suite, sans appel au modèle : « Merci
+d'écrire votre message : les notes vocales ne sont pas lues. » (`ai/voiceNotes.js`, abonné
+par `onMedia` dans `webhookEvents.service`, IA active seulement). La note reste journalisée.
