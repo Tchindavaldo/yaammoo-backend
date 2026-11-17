@@ -6,7 +6,7 @@
 // prend que ce qu'ils ne prennent pas. Le livreur a son propre agent (driverAgent.service).
 // Enregistré par merchantOrders.registerMerchantOrderButtons. Doc : architecture/whatsapp-ai.md.
 const repos = require('../../../repositories');
-const { onText, onInbound } = require('../webhookEvents.service');
+const { onText, onInbound, onMedia } = require('../webhookEvents.service');
 const { getAiSettings } = require('../../settings/settings.service');
 const wa = require('../whatsappModule.client');
 const { shopsOfPhone } = require('../merchantChannel');
@@ -16,6 +16,7 @@ const { systemPrompt, historyMessages } = require('./agentPrompt');
 const tools = require('./agentTools');
 const { converse, enqueue } = require('./agentLoop');
 const { registerAiButtons } = require('./pendingActions.service');
+const { onVoiceNote } = require('./voiceNotes');
 
 const FALLBACK = "Je n'ai pas pu traiter votre message pour le moment. Utilisez les boutons des messages de commande, ou réessayez dans un instant.";
 
@@ -59,9 +60,10 @@ const onMerchantText = async event => {
   return true;
 };
 
-/** Journal de conversation, boutons Confirmer / Annuler, puis l'agent (avant celui du livreur). */
+/** Journal de conversation, boutons Confirmer / Annuler, l'agent (avant celui du livreur), notes vocales. */
 exports.registerMerchantAgent = () => {
   onInbound(logInbound);
   registerAiButtons();
   onText(onMerchantText);
+  onMedia(onVoiceNote); // note vocale du marchand ou du livreur : « écrivez » (voiceNotes.js)
 };
