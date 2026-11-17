@@ -61,6 +61,12 @@ exports.fn = (name, description, properties = {}, required = []) => ({
   function: { name, description, parameters: { type: 'object', properties, required, additionalProperties: false } },
 });
 
+// Paramètres des listes de commandes en cours (list_orders, list_my_orders).
+exports.searchParams = {
+  statuts: { type: 'array', items: { type: 'string', enum: ['pending', 'processing', 'finished', 'delivering'] }, description: 'Filtre parmi les statuts en cours (absent = tous les en cours)' },
+  page: { type: 'integer', description: 'Page (1 par défaut)' },
+};
+
 // Un message à la fois par numéro : les réponses gardent l'ordre de la conversation.
 // Plusieurs messages envoyés d'affilée : seul le DERNIER déclenche une réponse (il voit
 // les précédents dans l'historique), les autres sont sautés.

@@ -21,6 +21,7 @@ boutique part sur le numéro Orange Money / MTN MoMo du livreur au scan du QR du
 | `settings_app` | `ai_timeout_ms` | délai max d'un appel (30000) |
 | `settings_app` | `ai_conversation_retention_days` | rétention de la conversation (30) |
 | `settings_app` | `ai_history_max_messages` | messages relus à chaque réponse (100) |
+| `settings_app` | `ai_orders_page_size` | commandes en cours montrées d'office au modèle, et commandes par page de `list_orders` / `list_my_orders` (20, migration 094) |
 
 Tout se change à chaud : `PATCH /settings/<clé>` (ex. `ai_models` = `["…", "…"]`).
 Lecture : `settings.service.getAiSettings()` (IA coupée si `ai_models` est vide ou en cas d'échec).
@@ -40,8 +41,9 @@ Lecture : `settings.service.getAiSettings()` (IA coupée si `ai_models` est vide
    arrivent pendant une réponse, seul le dernier en déclenche une autre (il voit les
    précédents dans l'historique).
 3. **Tour de l'agent** (boucle commune `ai/agentLoop.js`) : accusé de lecture + « en train d'écrire ». Ensuite, message système
-   (consignes de `ai/agentPrompt.js` et état JSON : commandes en cours **vue marchand**,
-   propositions en attente), puis l'historique (`in` = user,
+   (consignes de `ai/agentPrompt.js` et état JSON : les `ai_orders_page_size` commandes en
+   cours les plus récentes **vue marchand** et leur nombre total, propositions en attente),
+   puis l'historique (`in` = user,
    `out` = assistant, horodatés, fusionnés par rôle). Boucle modèle → outils (6 tours max),
    puis la réponse finale part en message libre (`author: 'ai'`). Si OpenRouter échoue,
    le marchand reçoit un message de repli qui l'oriente vers les boutons.
@@ -50,8 +52,9 @@ Lecture : `settings.service.getAiSettings()` (IA coupée si `ai_models` est vide
 
 | Outil | Effet |
 |---|---|
-| `list_orders` | commandes des 30 derniers jours (`orders.query` avec `createdAfter`), vue marchand, sans `pendingToBuy` |
-| `get_order` | détail d'une commande |
+| `list_orders` | commandes **en cours** seulement (`orders.searchForAgent`), filtre de statuts en cours, `page` ; `ai_orders_page_size` par page, `pageSuivante` ; vue marchand |
+| `get_order` | détail d'une commande : parmi celles chargées, sinon cherchée en base par son n° (`orders.findByIdSuffix`), sans limite de date (litige, vérification) |
+| `day_summary` | bilan d'un jour (aujourd'hui par défaut) : nombre de commandes passées ce jour-là par statut, somme vue marchand des livrées (`montantMarchandLivreesFcfa`) |
 | `list_menus` | plats (nom, catégorie, statut, stock), **sans prix** |
 | `propose_action` | crée une proposition et envoie les boutons Confirmer / Annuler |
 | `confirm_action` | exécute une proposition confirmée **par écrit** |
@@ -69,6 +72,20 @@ personnelles du client ne sont pas transmises au modèle.
 client et ne donne pas son numéro au marchand ; seul le livreur reçoit les coordonnées du
 client, sur sa fiche. Une partie « messages boutique → client » (`/shop-messages`,
 `wa_client_messages`) a été retirée avant mise en prod ; à réimplémenter si le besoin revient.
+
+## Commandes vues par l'agent (décision du 17/11/2026)
+
+L'agent gère les commandes **en cours** ; il ne lit pas l'historique, pour ne pas dépenser
+de tokens sans besoin (une boutique à 100 commandes par jour en a environ 3 000 sur
+30 jours). À chaque message, le backend ne charge que les commandes en cours
+(`agentOrders.loadShopOrders` / `loadDriverOrders`). Le modèle en voit d'office les
+`ai_orders_page_size` (20) plus récentes et leur nombre total ; les autres par
+`list_orders` / `list_my_orders`, 20 par page, la suite seulement sur demande. Sur
+demande aussi : une commande par son numéro, même ancienne (`get_order`, litige), et le
+bilan d'un jour (`day_summary` : quelques lignes au lieu de la liste). Liste des commandes
+livrées ou annulées, historique, export : **pas sur WhatsApp**, l'agent renvoie vers
+l'application Yaammoo. La conversation garde 30 jours (`ai_conversation_retention_days`),
+au plus 100 messages relus.
 
 ## Confirmation obligatoire (`ai/pendingActions.service.js`, table `wa_ai_pending_actions`)
 
@@ -142,13 +159,13 @@ Un livreur est un user rattaché à la boutique (`driver_applications` `accepted
 
 Texte libre d'un numéro de livreur d'une boutique WhatsApp (pas d'un numéro de boutique,
 qui reste à l'agent du marchand). Même boucle et même journal que le marchand ; consignes
-`ai/driverPrompt.js`. Le modèle voit les commandes confiées (`agentOrders.loadDriverOrders` :
+`ai/driverPrompt.js`. Le modèle voit les commandes confiées en cours (`agentOrders.loadDriverOrders`, même règle que le marchand :
 statut, plats, zone et créneau, `partBoutiqueFcfa`), **jamais** les coordonnées du client
 ni le prix payé : `send_order_details` envoie la fiche directement.
 
 | Outil (`ai/driverTools.js`) | Effet |
 |---|---|
-| `list_my_orders` | commandes confiées (30 jours), en cours par défaut |
+| `list_my_orders` | commandes confiées **en cours**, par pages (comme `list_orders`) |
 | `send_order_details` | envoie la fiche complète (coordonnées du client comprises) |
 | `start_delivery` | passe les commandes en livraison tout de suite, boutique prévenue |
 | `message_shop` | relaie un message à la boutique |
@@ -195,9 +212,13 @@ repositories/supabase/waConversations.repo.js
 repositories/supabase/waAiPendingActions.repo.js
 schema/migrations/090_whatsapp_ai.sql
 schema/migrations/093_whatsapp_drivers.sql
+schema/migrations/094_ai_orders_page_size.sql
 ```
 
 ## À venir
+
+L'IA prend le relais quand une action fixe échoue (« LIVRÉ » au code faux, commande
+inconnue…) : tâche `todo/fastfood/feature/ia-relais-echec-action-fixe.md`.
 
 Images du marchand et du livreur : journalisées seulement (`[image]`), pas envoyées au
 modèle (les modèles actuels les lisent : à brancher si besoin). Transcription des notes

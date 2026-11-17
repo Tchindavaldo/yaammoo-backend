@@ -81,6 +81,40 @@ exports.query = async ({ fastFoodId, userId, status, createdAfter, orderByCreate
 };
 
 /**
+ * Recherche de l'agent IA WhatsApp : commandes de boutiques (`fastFoodIds`), éventuellement
+ * d'un livreur, filtrées par statut et période, plus récentes d'abord. `limit` absent = tout.
+ * @returns {Promise<{ orders: object[], hasMore: boolean }>}
+ */
+exports.searchForAgent = async ({ fastFoodIds, driverId, status, createdAfter, createdBefore, limit, offset = 0 } = {}) => {
+  if (!fastFoodIds?.length) return { orders: [], hasMore: false };
+  let q = alive(supabase.from(TABLE).select('*')).in('fastfood_id', fastFoodIds);
+  if (driverId) q = q.eq('driver_id', driverId);
+  if (status?.length) q = q.in('status', status);
+  if (createdAfter) q = q.gte('created_at', createdAfter);
+  if (createdBefore) q = q.lt('created_at', createdBefore);
+  q = q.order('created_at', { ascending: false });
+  // Une ligne de plus que la page : dit s'il y a une page suivante.
+  if (limit) q = q.range(offset, offset + limit);
+  const { data, error } = await q;
+  if (error) throw error;
+  const rows = (data || []).map(m.order.fromSupabase);
+  return limit ? { orders: rows.slice(0, limit), hasMore: rows.length > limit } : { orders: rows, hasMore: false };
+};
+
+/** Commandes de boutiques dont l'id finit par `suffix` (n° à 6 caractères écrit par le marchand). */
+exports.findByIdSuffix = async (fastFoodIds, suffix) => {
+  const s = String(suffix || '').replace(/[^A-Za-z0-9_-]/g, '');
+  if (!fastFoodIds?.length || !s) return [];
+  const { data, error } = await alive(supabase.from(TABLE).select('*'))
+    .in('fastfood_id', fastFoodIds)
+    .ilike('id', `%${s.replace(/_/g, '\\_')}`)
+    .order('created_at', { ascending: false })
+    .limit(5);
+  if (error) throw error;
+  return (data || []).map(m.order.fromSupabase);
+};
+
+/**
  * Création atomique de commande avec stock check + ranking.
  * Reproduit exactement la logique de createOrder.js Firestore.
  * @returns {Promise<{order?: object, error?: string}>}

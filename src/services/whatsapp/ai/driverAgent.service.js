@@ -20,9 +20,9 @@ const FALLBACK = "Je n'ai pas pu traiter votre message pour le moment. Utilisez 
 
 const buildCtx = async (phone, driver, ai) => {
   const uid = dir.uidOf(driver.user);
-  const ctx = { phone, user: driver.user, uid, shops: driver.shops, orders: [], views: [], payoutReady: await dir.hasPayoutNumber(uid), flags: {} };
+  const ctx = { phone, user: driver.user, uid, shops: driver.shops, orders: [], views: [], payoutReady: await dir.hasPayoutNumber(uid), flags: {}, pageSize: ai.ordersPageSize };
   ctx.reload = async () => {
-    const { raw, views } = await loadDriverOrders(uid, driver.shops, ai.retentionDays);
+    const { raw, views } = await loadDriverOrders(uid, driver.shops);
     ctx.orders = raw;
     ctx.views = views;
   };
@@ -35,7 +35,7 @@ const runAgent = async (event, driver, ai) => {
   const ctx = await buildCtx(event.from, driver, ai);
   const sinceIso = new Date(Date.now() - ai.retentionDays * 864e5).toISOString();
   const history = await repos.waConversations.listByPhone(ctx.phone, { sinceIso, limit: ai.historyMax });
-  const system = driverSystemPrompt({ name: dir.nameOf(ctx.user), shops: ctx.shops, views: ctx.views, payoutReady: ctx.payoutReady });
+  const system = driverSystemPrompt({ name: dir.nameOf(ctx.user), shops: ctx.shops, views: ctx.views, payoutReady: ctx.payoutReady, pageSize: ctx.pageSize });
   await converse({ event, ctx, messages: [{ role: 'system', content: system }, ...historyMessages(history)], tools, ai, fallback: FALLBACK });
 };
 
