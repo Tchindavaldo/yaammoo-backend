@@ -1,7 +1,7 @@
 // Événements relayés par le module WhatsApp (messages reçus, statuts) : signature et aiguillage.
 // Utilisé par controllers/whatsapp/webhook.controller.js. Un flux marchand s'abonne à une
-// action de bouton avec onButton(), aux textes avec onText(), à tout message reçu avec
-// onInbound() (journal de l'agent IA, architecture/whatsapp-ai.md).
+// action de bouton avec onButton(), aux textes avec onText(), aux médias avec onMedia(), à
+// tout message reçu avec onInbound() (journal de l'agent IA, architecture/whatsapp-ai.md).
 const crypto = require('crypto');
 const config = require('../../config/whatsapp');
 
@@ -48,6 +48,14 @@ exports.onText = fn => {
   textHandlers.push(fn);
 };
 
+// Messages non texte (note vocale, image…) : même principe que onText.
+const mediaHandlers = [];
+
+/** Abonne un flux aux messages non texte (ex. réponse fixe à une note vocale). */
+exports.onMedia = fn => {
+  mediaHandlers.push(fn);
+};
+
 // Observateurs de TOUT message reçu (journal de conversation de l'agent IA), appelés avant
 // l'aiguillage ; fn(event) -> Promise. Une erreur d'observateur n'empêche pas le traitement.
 const inboundObservers = [];
@@ -63,6 +71,8 @@ async function handleMessage(event) {
   if (!btn) {
     if (event.type === 'text' && event.text) {
       for (const fn of textHandlers) if (await fn(event)) return { handled: true };
+    } else if (event.type !== 'text') {
+      for (const fn of mediaHandlers) if (await fn(event)) return { handled: true };
     }
     console.log(`[WHATSAPP] Message ${event.type} de ${event.from} (${event.messageId})`);
     return { handled: false };
