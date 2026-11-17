@@ -61,6 +61,13 @@ exports.fn = (name, description, properties = {}, required = []) => ({
   function: { name, description, parameters: { type: 'object', properties, required, additionalProperties: false } },
 });
 
+// Filtres de recherche de commandes en base (list_orders, list_my_orders).
+exports.searchParams = {
+  depuis: { type: 'string', description: 'Date de début incluse, AAAA-MM-JJ (commandes passées ce jour-là ou après)' },
+  jusquAu: { type: 'string', description: 'Date de fin incluse, AAAA-MM-JJ' },
+  page: { type: 'integer', description: 'Page (1 par défaut)' },
+};
+
 // Un message à la fois par numéro : les réponses gardent l'ordre de la conversation.
 // Plusieurs messages envoyés d'affilée : seul le DERNIER déclenche une réponse (il voit
 // les précédents dans l'historique), les autres sont sautés.

@@ -359,15 +359,20 @@ async function getAiSettings() {
     const timeoutMs = Number(s[KEYS.AI_TIMEOUT_MS]);
     const retentionDays = Number(s[KEYS.AI_CONVERSATION_RETENTION_DAYS]);
     const historyMax = Number(s[KEYS.AI_HISTORY_MAX_MESSAGES]);
+    const ordersWindowDays = Number(s[KEYS.AI_ORDERS_WINDOW_DAYS]);
+    const ordersPageSize = Number(s[KEYS.AI_ORDERS_PAGE_SIZE]);
     return {
       enabled: s[KEYS.AI_ENABLED] === true && models.length > 0,
       models,
       timeoutMs: Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 30000,
       retentionDays: Number.isFinite(retentionDays) && retentionDays > 0 ? retentionDays : 30,
       historyMax: Number.isFinite(historyMax) && historyMax > 0 ? Math.floor(historyMax) : 100,
+      // Commandes terminées remises d'office au modèle (migration 094) ; en cours : toutes.
+      ordersWindowDays: Number.isFinite(ordersWindowDays) && ordersWindowDays > 0 ? ordersWindowDays : 3,
+      ordersPageSize: Number.isFinite(ordersPageSize) && ordersPageSize > 0 ? Math.floor(ordersPageSize) : 20,
     };
   } catch {
-    return { enabled: false, models: [], timeoutMs: 30000, retentionDays: 30, historyMax: 100 };
+    return { enabled: false, models: [], timeoutMs: 30000, retentionDays: 30, historyMax: 100, ordersWindowDays: 3, ordersPageSize: 20 };
   }
 }
 

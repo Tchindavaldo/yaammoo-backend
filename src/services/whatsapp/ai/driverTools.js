@@ -3,8 +3,8 @@
 // coordonnées du client ne passent jamais par le modèle : send_order_details envoie la
 // fiche directement. `ctx` = { phone, user, uid, shops, orders, views, payoutReady, flags }.
 // Doc : architecture/whatsapp-ai.md (« Livreurs »).
-const { resolveRefs } = require('./agentOrders');
-const { fn, runTool } = require('./agentLoop');
+const { resolveRefs, searchOrders } = require('./agentOrders');
+const { fn, runTool, searchParams } = require('./agentLoop');
 const { shopPhone, sendText } = require('../merchantChannel');
 const deliveries = require('../driver/driverDeliveries.service');
 const accounts = require('../driver/driverAccounts.service');
@@ -13,11 +13,11 @@ const text = require('../driver/driverMessages');
 const dir = require('../driver/driverDirectory');
 
 const refs = { type: 'array', items: { type: 'string' }, description: 'Numéros de commande (6 caractères, ex. A1B2C3) ou ids complets' };
-const ACTIVE = ['pending', 'processing', 'finished', 'delivering'];
 
 exports.definitions = [
-  fn('list_my_orders', 'Commandes confiées au livreur (30 derniers jours). Par défaut : celles en cours.', {
+  fn('list_my_orders', "Cherche dans la base les commandes confiées au livreur, SANS limite de date, plus récentes d'abord, par pages. Par défaut : celles en cours. Si pageSuivante = true, rappelle avec page + 1.", {
     statuts: { type: 'array', items: { type: 'string', enum: ['pending', 'processing', 'finished', 'delivering', 'delivered', 'cancelByFastFood', 'cancelByUser'] } },
+    ...searchParams,
   }),
   fn('send_order_details', 'Envoie au livreur la fiche complète des commandes : adresse (lien carte), nom et téléphone du client, note, part de la boutique.', { refs }, ['refs']),
   fn('start_delivery', 'Le livreur part avec ces commandes : elles passent en « livraison en cours » tout de suite, et la boutique est prévenue.', { refs }, ['refs']),
@@ -47,9 +47,9 @@ const pick = (ctx, list) => {
 };
 
 const handlers = {
-  list_my_orders: async (ctx, { statuts }) => {
-    const wanted = statuts?.length ? statuts : ACTIVE;
-    return { commandes: ctx.views.filter(v => wanted.includes(v.statut)) };
+  list_my_orders: async (ctx, { statuts, depuis, jusquAu, page }) => {
+    const r = await searchOrders({ shops: ctx.shops, driverId: ctx.uid, statuts, depuis, jusquAu, page, pageSize: ctx.pageSize });
+    return { commandes: r.views, page: r.page, pageSuivante: r.pageSuivante };
   },
 
   send_order_details: async (ctx, { refs: list }) => {
