@@ -20,11 +20,11 @@ const { onVoiceNote } = require('./voiceNotes');
 
 const FALLBACK = "Je n'ai pas pu traiter votre message pour le moment. Utilisez les boutons des messages de commande, ou réessayez dans un instant.";
 
-/** Contexte d'un tour : boutiques, commandes chargées d'office (vue marchand), rechargeable après une action. */
+/** Contexte d'un tour : boutiques, commandes en cours (vue marchand), rechargeable après une action. */
 const buildCtx = async (phone, shops, ai) => {
   const ctx = { phone, shops, orders: [], views: [], flags: {}, pageSize: ai.ordersPageSize };
   ctx.reload = async () => {
-    const { raw, views } = await loadShopOrders(shops, ai.ordersWindowDays);
+    const { raw, views } = await loadShopOrders(shops);
     ctx.orders = raw;
     ctx.views = views;
   };

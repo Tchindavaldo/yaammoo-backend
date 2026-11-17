@@ -22,7 +22,7 @@ const buildCtx = async (phone, driver, ai) => {
   const uid = dir.uidOf(driver.user);
   const ctx = { phone, user: driver.user, uid, shops: driver.shops, orders: [], views: [], payoutReady: await dir.hasPayoutNumber(uid), flags: {}, pageSize: ai.ordersPageSize };
   ctx.reload = async () => {
-    const { raw, views } = await loadDriverOrders(uid, driver.shops, ai.ordersWindowDays);
+    const { raw, views } = await loadDriverOrders(uid, driver.shops);
     ctx.orders = raw;
     ctx.views = views;
   };

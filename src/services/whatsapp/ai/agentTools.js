@@ -4,7 +4,7 @@
 // Livreurs (lister, ajouter, confier, message) : merchantDriverTools.js.
 // `ctx` = { phone, shops, orders (vue marchand), views, flags }. Doc : architecture/whatsapp-ai.md.
 const repos = require('../../../repositories');
-const { resolveRefs, viewOf, searchOrders, findOrder } = require('./agentOrders');
+const { resolveRefs, viewOf, searchOrders, findOrder, daySummary } = require('./agentOrders');
 const pendingActions = require('./pendingActions.service');
 const { fn, runTool, searchParams } = require('./agentLoop');
 const driverTools = require('./merchantDriverTools');
@@ -12,11 +12,15 @@ const refs = { type: 'array', items: { type: 'string' }, description: 'Numéros 
 const ref = { type: 'string', description: 'Numéro de commande (6 caractères, ex. A1B2C3) ou id complet' };
 
 exports.definitions = [
-  fn('list_orders', "Cherche dans la base les commandes de la boutique, SANS limite de date (vue marchand), plus récentes d'abord, par pages. Par défaut : les commandes en cours. Si pageSuivante = true, rappelle avec page + 1 pour la suite.", {
-    statuts: { type: 'array', items: { type: 'string', enum: ['pending', 'processing', 'finished', 'delivering', 'delivered', 'cancelByFastFood', 'cancelByUser'] }, description: 'Filtre de statuts (absent = en cours)' },
-    ...searchParams,
+  fn(
+    'list_orders',
+    "Commandes EN COURS de la boutique (vue marchand), plus récentes d'abord, par pages. Page suivante (page + 1) seulement si le marchand demande la suite. Les commandes livrées ou annulées ne se listent pas ici : bilan avec day_summary, détail d'une commande avec get_order.",
+    searchParams
+  ),
+  fn('get_order', "Détail d'une commande par son numéro, cherchée en base si elle n'est pas dans le contexte (sans limite de date : litige, vérification).", { ref }, ['ref']),
+  fn('day_summary', "Bilan d'UN jour (aujourd'hui par défaut) : nombre de commandes par statut et montant encaissé par la boutique pour les livrées. À utiliser pour « faire le compte », à la place de la liste.", {
+    jour: { type: 'string', description: "AAAA-MM-JJ ; absent = aujourd'hui" },
   }),
-  fn('get_order', "Détail d'une commande, cherchée en base si elle n'est pas dans le contexte (sans limite de date).", { ref }, ['ref']),
   fn('list_menus', 'Plats de la boutique (nom, catégorie, statut, stock). Sans prix.'),
   fn(
     'propose_action',
@@ -37,10 +41,12 @@ const shopOf = (ctx, order) => ctx.shops.find(s => s.id === order.fastFoodId);
 const notFound = r => ({ error: `Commande « ${r} » introuvable parmi les commandes de la boutique.` });
 
 const handlers = {
-  list_orders: async (ctx, { statuts, depuis, jusquAu, page }) => {
-    const r = await searchOrders({ shops: ctx.shops, statuts, depuis, jusquAu, page, pageSize: ctx.pageSize });
+  list_orders: async (ctx, { statuts, page }) => {
+    const r = await searchOrders({ shops: ctx.shops, statuts, page, pageSize: ctx.pageSize });
     return { commandes: r.views, page: r.page, pageSuivante: r.pageSuivante };
   },
+
+  day_summary: async (ctx, { jour }) => ({ bilan: await daySummary({ shops: ctx.shops, jour }) }),
 
   get_order: async (ctx, { ref: r }) => {
     const found = await findOrder({ ref: r, loaded: ctx.orders, shops: ctx.shops });

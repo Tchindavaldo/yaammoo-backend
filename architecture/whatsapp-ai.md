@@ -21,8 +21,7 @@ boutique part sur le numéro Orange Money / MTN MoMo du livreur au scan du QR du
 | `settings_app` | `ai_timeout_ms` | délai max d'un appel (30000) |
 | `settings_app` | `ai_conversation_retention_days` | rétention de la conversation (30) |
 | `settings_app` | `ai_history_max_messages` | messages relus à chaque réponse (100) |
-| `settings_app` | `ai_orders_window_days` | commandes terminées remises d'office au modèle : ces N derniers jours (3, migration 094). Les commandes en cours le sont toutes |
-| `settings_app` | `ai_orders_page_size` | commandes par page de recherche, et commandes en cours montrées d'office (20, migration 094) |
+| `settings_app` | `ai_orders_page_size` | commandes en cours montrées d'office au modèle, et commandes par page de `list_orders` / `list_my_orders` (20, migration 094) |
 
 Tout se change à chaud : `PATCH /settings/<clé>` (ex. `ai_models` = `["…", "…"]`).
 Lecture : `settings.service.getAiSettings()` (IA coupée si `ai_models` est vide ou en cas d'échec).
@@ -53,8 +52,9 @@ Lecture : `settings.service.getAiSettings()` (IA coupée si `ai_models` est vide
 
 | Outil | Effet |
 |---|---|
-| `list_orders` | cherche **en base, sans limite de date** (`orders.searchForAgent`) : statuts (défaut : en cours), période `depuis` / `jusquAu` (AAAA-MM-JJ), `page` ; `ai_orders_page_size` par page, `pageSuivante` ; vue marchand, sans `pendingToBuy` |
-| `get_order` | détail d'une commande : parmi celles chargées, sinon cherchée en base par son n° (`orders.findByIdSuffix`), sans limite de date |
+| `list_orders` | commandes **en cours** seulement (`orders.searchForAgent`), filtre de statuts en cours, `page` ; `ai_orders_page_size` par page, `pageSuivante` ; vue marchand |
+| `get_order` | détail d'une commande : parmi celles chargées, sinon cherchée en base par son n° (`orders.findByIdSuffix`), sans limite de date (litige, vérification) |
+| `day_summary` | bilan d'un jour (aujourd'hui par défaut) : nombre de commandes passées ce jour-là par statut, somme vue marchand des livrées (`montantMarchandLivreesFcfa`) |
 | `list_menus` | plats (nom, catégorie, statut, stock), **sans prix** |
 | `propose_action` | crée une proposition et envoie les boutons Confirmer / Annuler |
 | `confirm_action` | exécute une proposition confirmée **par écrit** |
@@ -75,15 +75,17 @@ client, sur sa fiche. Une partie « messages boutique → client » (`/shop-mess
 
 ## Commandes vues par l'agent (décision du 17/11/2026)
 
-Une boutique à 100 commandes par jour en a environ 3 000 sur 30 jours : l'agent ne les
-charge plus toutes. À chaque message (`agentOrders.loadShopOrders` / `loadDriverOrders`) :
-toutes les commandes **en cours**, quel que soit leur âge, plus les terminées (livrées,
-annulées) des `ai_orders_window_days` derniers jours (3). Le modèle voit d'office les
-`ai_orders_page_size` (20) commandes en cours les plus récentes. Pour le reste, il cherche
-lui-même en base, sans limite de date : `get_order` par numéro, `list_orders` /
-`list_my_orders` par statut et période, 20 par page. Les actions (accepter, confier,
-partir…) ne portent que sur des commandes en cours, toujours chargées. La conversation
-garde 30 jours (`ai_conversation_retention_days`), au plus 100 messages relus.
+L'agent gère les commandes **en cours** ; il ne lit pas l'historique, pour ne pas dépenser
+de tokens sans besoin (une boutique à 100 commandes par jour en a environ 3 000 sur
+30 jours). À chaque message, le backend ne charge que les commandes en cours
+(`agentOrders.loadShopOrders` / `loadDriverOrders`). Le modèle en voit d'office les
+`ai_orders_page_size` (20) plus récentes et leur nombre total ; les autres par
+`list_orders` / `list_my_orders`, 20 par page, la suite seulement sur demande. Sur
+demande aussi : une commande par son numéro, même ancienne (`get_order`, litige), et le
+bilan d'un jour (`day_summary` : quelques lignes au lieu de la liste). Liste des commandes
+livrées ou annulées, historique, export : **pas sur WhatsApp**, l'agent renvoie vers
+l'application Yaammoo. La conversation garde 30 jours (`ai_conversation_retention_days`),
+au plus 100 messages relus.
 
 ## Confirmation obligatoire (`ai/pendingActions.service.js`, table `wa_ai_pending_actions`)
 
@@ -157,13 +159,13 @@ Un livreur est un user rattaché à la boutique (`driver_applications` `accepted
 
 Texte libre d'un numéro de livreur d'une boutique WhatsApp (pas d'un numéro de boutique,
 qui reste à l'agent du marchand). Même boucle et même journal que le marchand ; consignes
-`ai/driverPrompt.js`. Le modèle voit les commandes confiées (`agentOrders.loadDriverOrders`, même chargement que le marchand :
+`ai/driverPrompt.js`. Le modèle voit les commandes confiées en cours (`agentOrders.loadDriverOrders`, même règle que le marchand :
 statut, plats, zone et créneau, `partBoutiqueFcfa`), **jamais** les coordonnées du client
 ni le prix payé : `send_order_details` envoie la fiche directement.
 
 | Outil (`ai/driverTools.js`) | Effet |
 |---|---|
-| `list_my_orders` | commandes confiées, cherchées en base sans limite de date, par pages (mêmes filtres que `list_orders`), en cours par défaut |
+| `list_my_orders` | commandes confiées **en cours**, par pages (comme `list_orders`) |
 | `send_order_details` | envoie la fiche complète (coordonnées du client comprises) |
 | `start_delivery` | passe les commandes en livraison tout de suite, boutique prévenue |
 | `message_shop` | relaie un message à la boutique |
@@ -210,7 +212,7 @@ repositories/supabase/waConversations.repo.js
 repositories/supabase/waAiPendingActions.repo.js
 schema/migrations/090_whatsapp_ai.sql
 schema/migrations/093_whatsapp_drivers.sql
-schema/migrations/094_ai_orders_window.sql
+schema/migrations/094_ai_orders_page_size.sql
 ```
 
 ## À venir

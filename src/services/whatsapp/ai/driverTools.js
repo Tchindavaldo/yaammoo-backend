@@ -15,10 +15,7 @@ const dir = require('../driver/driverDirectory');
 const refs = { type: 'array', items: { type: 'string' }, description: 'Numéros de commande (6 caractères, ex. A1B2C3) ou ids complets' };
 
 exports.definitions = [
-  fn('list_my_orders', "Cherche dans la base les commandes confiées au livreur, SANS limite de date, plus récentes d'abord, par pages. Par défaut : celles en cours. Si pageSuivante = true, rappelle avec page + 1.", {
-    statuts: { type: 'array', items: { type: 'string', enum: ['pending', 'processing', 'finished', 'delivering', 'delivered', 'cancelByFastFood', 'cancelByUser'] } },
-    ...searchParams,
-  }),
+  fn('list_my_orders', "Commandes EN COURS confiées au livreur, plus récentes d'abord, par pages. Page suivante seulement s'il demande la suite. Ses commandes livrées ou annulées ne se listent pas ici.", searchParams),
   fn('send_order_details', 'Envoie au livreur la fiche complète des commandes : adresse (lien carte), nom et téléphone du client, note, part de la boutique.', { refs }, ['refs']),
   fn('start_delivery', 'Le livreur part avec ces commandes : elles passent en « livraison en cours » tout de suite, et la boutique est prévenue.', { refs }, ['refs']),
   fn(
@@ -47,8 +44,8 @@ const pick = (ctx, list) => {
 };
 
 const handlers = {
-  list_my_orders: async (ctx, { statuts, depuis, jusquAu, page }) => {
-    const r = await searchOrders({ shops: ctx.shops, driverId: ctx.uid, statuts, depuis, jusquAu, page, pageSize: ctx.pageSize });
+  list_my_orders: async (ctx, { statuts, page }) => {
+    const r = await searchOrders({ shops: ctx.shops, driverId: ctx.uid, statuts, page, pageSize: ctx.pageSize });
     return { commandes: r.views, page: r.page, pageSuivante: r.pageSuivante };
   },
 

@@ -61,10 +61,9 @@ exports.fn = (name, description, properties = {}, required = []) => ({
   function: { name, description, parameters: { type: 'object', properties, required, additionalProperties: false } },
 });
 
-// Filtres de recherche de commandes en base (list_orders, list_my_orders).
+// Paramètres des listes de commandes en cours (list_orders, list_my_orders).
 exports.searchParams = {
-  depuis: { type: 'string', description: 'Date de début incluse, AAAA-MM-JJ (commandes passées ce jour-là ou après)' },
-  jusquAu: { type: 'string', description: 'Date de fin incluse, AAAA-MM-JJ' },
+  statuts: { type: 'array', items: { type: 'string', enum: ['pending', 'processing', 'finished', 'delivering'] }, description: 'Filtre parmi les statuts en cours (absent = tous les en cours)' },
   page: { type: 'integer', description: 'Page (1 par défaut)' },
 };
 

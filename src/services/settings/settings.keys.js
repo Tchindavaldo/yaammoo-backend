@@ -108,7 +108,6 @@ const KEYS = {
   AI_TIMEOUT_MS: 'ai_timeout_ms',
   AI_CONVERSATION_RETENTION_DAYS: 'ai_conversation_retention_days',
   AI_HISTORY_MAX_MESSAGES: 'ai_history_max_messages',
-  AI_ORDERS_WINDOW_DAYS: 'ai_orders_window_days',
   AI_ORDERS_PAGE_SIZE: 'ai_orders_page_size',
   // Migration 092 : minutes sans réponse du marchand WhatsApp avant que le client
   // puisse RENVOYER sa demande d'annulation (cancelRequest.service).
@@ -202,7 +201,6 @@ const KEY_CATEGORY = {
   [KEYS.AI_TIMEOUT_MS]: 'app',
   [KEYS.AI_CONVERSATION_RETENTION_DAYS]: 'app',
   [KEYS.AI_HISTORY_MAX_MESSAGES]: 'app',
-  [KEYS.AI_ORDERS_WINDOW_DAYS]: 'app',
   [KEYS.AI_ORDERS_PAGE_SIZE]: 'app',
   [KEYS.CANCEL_REQUEST_RESEND_MINUTES]: 'app',
 
@@ -319,7 +317,6 @@ const FALLBACKS = {
   [KEYS.AI_TIMEOUT_MS]: 30000,
   [KEYS.AI_CONVERSATION_RETENTION_DAYS]: 30,
   [KEYS.AI_HISTORY_MAX_MESSAGES]: 100,
-  [KEYS.AI_ORDERS_WINDOW_DAYS]: 3,
   [KEYS.AI_ORDERS_PAGE_SIZE]: 20,
   [KEYS.CANCEL_REQUEST_RESEND_MINUTES]: 15,
   // Build de test : repli à « aucune ». Une clé absente ne doit JAMAIS servir

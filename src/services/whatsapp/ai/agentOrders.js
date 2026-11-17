@@ -1,8 +1,9 @@
 // Commandes vues par l'agent IA WhatsApp : celles des boutiques du numéro, en VUE MARCHAND
 // (`toMerchantView` : `total` = ce que le marchand encaisse, jamais le prix client ni la
-// marge). Chargées d'office : toutes les commandes en cours + les terminées des
-// `ai_orders_window_days` derniers jours ; au-delà, l'agent cherche lui-même en base
-// (searchOrders, findOrder). Résolution des références écrites par le marchand
+// marge). Chargées d'office : les commandes EN COURS seulement (décision du 17/11/2026 :
+// l'IA gère les commandes, elle ne lit pas l'historique ; détail : l'app). Sur demande :
+// les autres en cours par pages (searchOrders), une commande par son n° (findOrder, sans
+// limite de date : litige), le bilan d'un jour (daySummary). Résolution des références écrites par le marchand
 // (« A1B2C3 », « n°a1b2c3 », id complet). Doc : architecture/whatsapp-ai.md.
 const repos = require('../../../repositories');
 const msg = require('../merchantMessages');
@@ -10,7 +11,6 @@ const msg = require('../merchantMessages');
 // Statuts qu'un marchand peut voir : tout sauf le panier client non payé (`pendingToBuy`).
 const MERCHANT_STATUSES = ['pending', 'processing', 'finished', 'delivering', 'delivered', 'cancelByFastFood', 'cancelByUser'];
 const ACTIVE = ['pending', 'processing', 'finished', 'delivering'];
-const DONE = MERCHANT_STATUSES.filter(st => !ACTIVE.includes(st));
 
 const TZ = 'Africa/Douala';
 const fmt = new Intl.DateTimeFormat('fr-FR', { timeZone: TZ, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
@@ -38,13 +38,8 @@ const viewOf = (o, shopName, drivers = {}) => ({
   ...(o.cancelRequest?.status === 'refused' ? { demandeAnnulation: 'refusée' } : {}),
 });
 
-const sinceIso = days => new Date(Date.now() - days * 864e5).toISOString();
-
-/** En cours (tout âge) + terminées depuis `days` jours, plus récentes d'abord. */
-const loadRecent = async ({ fastFoodIds, driverId, days }) => {
-  const [active, done] = await Promise.all([repos.orders.searchForAgent({ fastFoodIds, driverId, status: ACTIVE }), repos.orders.searchForAgent({ fastFoodIds, driverId, status: DONE, createdAfter: sinceIso(days) })]);
-  return [...active.orders, ...done.orders].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
-};
+/** Commandes en cours (tout âge), plus récentes d'abord. */
+const loadActive = async ({ fastFoodIds, driverId }) => (await repos.orders.searchForAgent({ fastFoodIds, driverId, status: ACTIVE })).orders;
 
 /** Commandes (brutes) -> { raw: vue marchand, views: pour le modèle }. */
 const merchantViews = async (orders, shops) => {
@@ -56,10 +51,10 @@ const merchantViews = async (orders, shops) => {
 };
 
 /**
- * Commandes des boutiques chargées d'office (en cours + terminées des `days` derniers jours).
+ * Commandes en cours des boutiques, chargées d'office.
  * @returns {Promise<{ raw: object[], views: object[] }>} raw = commandes (vue marchand), views = pour le modèle
  */
-exports.loadShopOrders = async (shops, days) => merchantViews(await loadRecent({ fastFoodIds: shops.map(s => s.id), days }), shops);
+exports.loadShopOrders = async shops => merchantViews(await loadActive({ fastFoodIds: shops.map(s => s.id) }), shops);
 
 /** uid -> nom des livreurs assignés aux commandes. */
 const driverNames = async orders => {
@@ -86,35 +81,55 @@ const driverViews = async (raw, shops) => {
   return { raw, views };
 };
 
-/** Commandes confiées au livreur `uid` dans ses boutiques WhatsApp, chargées d'office. */
-exports.loadDriverOrders = async (uid, shops, days) => driverViews(await loadRecent({ fastFoodIds: shops.map(s => s.id), driverId: uid, days }), shops);
+/** Commandes en cours confiées au livreur `uid` dans ses boutiques WhatsApp, chargées d'office. */
+exports.loadDriverOrders = async (uid, shops) => driverViews(await loadActive({ fastFoodIds: shops.map(s => s.id), driverId: uid }), shops);
 
-/** « 2026-11-14 » -> ISO du début de ce jour à Douala (UTC+1) ; invalide -> null. */
-const dayStart = (d, plusDays = 0) => {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(d || ''))) return null;
-  const t = Date.parse(`${d}T00:00:00+01:00`);
-  return Number.isNaN(t) ? null : new Date(t + plusDays * 864e5).toISOString();
+const dayFmt = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
+/** `jour` valide (AAAA-MM-JJ) sinon aujourd'hui à Douala ; bornes ISO de ce jour (UTC+1, sans heure d'été). */
+const dayBounds = jour => {
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(String(jour || '')) && !Number.isNaN(Date.parse(`${jour}T00:00:00+01:00`)) ? jour : dayFmt.format(new Date());
+  const start = Date.parse(`${d}T00:00:00+01:00`);
+  return { jour: d, from: new Date(start).toISOString(), to: new Date(start + 864e5).toISOString() };
 };
 
 /**
- * Recherche en base, sans limite de date, pour l'outil list_orders / list_my_orders :
- * statuts (défaut : en cours), période `depuis` / `jusquAu` (AAAA-MM-JJ, inclus), page (1…).
- * `driverId` = vue livreur. Renvoie { views, page, pageSuivante }.
+ * Outils list_orders / list_my_orders : commandes EN COURS (tout âge) seulement, filtrées
+ * par `statuts` (parmi les en cours), `pageSize` par page (1…). Les terminées ne se listent
+ * pas sur WhatsApp (décision du 17/11/2026 : l'app pour l'historique). `driverId` = vue
+ * livreur. Renvoie { views, page, pageSuivante }.
  */
-exports.searchOrders = async ({ shops, driverId, statuts, depuis, jusquAu, page, pageSize }) => {
-  const wanted = (statuts || []).filter(st => MERCHANT_STATUSES.includes(st));
+exports.searchOrders = async ({ shops, driverId, statuts, page, pageSize }) => {
+  const wanted = (statuts || []).filter(st => ACTIVE.includes(st));
   const p = Math.max(1, Math.floor(Number(page) || 1));
   const { orders, hasMore } = await repos.orders.searchForAgent({
     fastFoodIds: shops.map(s => s.id),
     driverId,
     status: wanted.length ? wanted : ACTIVE,
-    createdAfter: dayStart(depuis),
-    createdBefore: dayStart(jusquAu, 1),
     limit: pageSize,
     offset: (p - 1) * pageSize,
   });
   const { views } = driverId ? await driverViews(orders, shops) : await merchantViews(orders, shops);
   return { views, page: p, pageSuivante: hasMore };
+};
+
+/**
+ * Bilan d'UN jour (aujourd'hui par défaut) : nombre de commandes passées ce jour-là par
+ * statut, et somme de ce que la boutique encaisse (vue marchand) pour les livrées. Quelques
+ * lignes au lieu de la liste : c'est ce que l'agent envoie pour « faire le compte ».
+ */
+exports.daySummary = async ({ shops, jour }) => {
+  const day = dayBounds(jour);
+  const { orders } = await repos.orders.searchForAgent({ fastFoodIds: shops.map(s => s.id), status: MERCHANT_STATUSES, createdAfter: day.from, createdBefore: day.to });
+  const { toMerchantView } = require('../../order/toMerchantView');
+  const merchant = orders.length ? await toMerchantView(orders) : [];
+  const parStatut = {};
+  let livrees = 0;
+  for (const o of merchant) {
+    const label = msg.statusLabel(o.status);
+    parStatut[label] = (parStatut[label] || 0) + 1;
+    if (o.status === 'delivered') livrees += Math.round(Number(o.total) || 0);
+  }
+  return { jour: day.jour, commandes: merchant.length, parStatut, montantMarchandLivreesFcfa: livrees };
 };
 
 /**
