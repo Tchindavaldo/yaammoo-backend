@@ -1704,11 +1704,53 @@ CREATE TABLE IF NOT EXISTS wa_ai_pending_actions (
   result       TEXT,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
   resolved_at  TIMESTAMPTZ,
+  payload      JSONB NOT NULL DEFAULT '{}'::jsonb,         -- migration 097 : détail des actions menu / push
   CONSTRAINT wa_ai_pending_actions_action_check
-    CHECK (action IN ('accept', 'refuse', 'finished', 'delivering', 'cancel_accept', 'cancel_refuse'))
+    CHECK (action IN ('accept', 'refuse', 'finished', 'delivering', 'cancel_accept', 'cancel_refuse', 'menu_availability', 'menu_create', 'push_customers'))
 );
 CREATE INDEX IF NOT EXISTS idx_wa_ai_pending_phone_status ON wa_ai_pending_actions (phone, status);
 ALTER TABLE wa_ai_pending_actions ENABLE ROW LEVEL SECURITY;
+
+-- Menu du jour des boutiques WhatsApp (migration 097, prod le 18/11/2026) : une ligne par
+-- boutique et par jour, prise avant l'envoi.
+CREATE TABLE IF NOT EXISTS wa_daily_menu_sends (
+  fastfood_id  TEXT NOT NULL,
+  day          DATE NOT NULL,
+  sent_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (fastfood_id, day)
+);
+ALTER TABLE wa_daily_menu_sends ENABLE ROW LEVEL SECURITY;
+
+-- Agent IA admin (migration 098, prod le 18/11/2026) : alertes aux super-administrateurs
+-- (settings_app.ai_admin_phones) et super-actions confirmées par boutons.
+CREATE TABLE IF NOT EXISTS wa_admin_alerts (
+  id            TEXT PRIMARY KEY,
+  source        TEXT NOT NULL CHECK (source IN ('merchant', 'driver', 'support')),
+  source_phone  TEXT,
+  fastfood_id   TEXT,
+  thread_id     TEXT,
+  summary       TEXT NOT NULL,
+  details       TEXT NOT NULL DEFAULT '',
+  status        TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'closed')),
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  closed_at     TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_wa_admin_alerts_status ON wa_admin_alerts (status, created_at DESC);
+ALTER TABLE wa_admin_alerts ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE IF NOT EXISTS wa_admin_actions (
+  id           TEXT PRIMARY KEY,
+  phone        TEXT NOT NULL,
+  action       TEXT NOT NULL,
+  params       JSONB NOT NULL DEFAULT '{}'::jsonb,
+  summary      TEXT NOT NULL DEFAULT '',
+  status       TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'done', 'cancelled', 'expired')),
+  result       TEXT,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  resolved_at  TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_wa_admin_actions_phone_status ON wa_admin_actions (phone, status);
+ALTER TABLE wa_admin_actions ENABLE ROW LEVEL SECURITY;
 
 -- Migration 093 (prod le 16/11/2026) : withdrawals.driver_id (livreur payé d'une
 -- commande) et whatsapp_numbers.source ('otp', 'login', 'inbound'), décrits plus haut.
@@ -1716,6 +1758,8 @@ ALTER TABLE wa_ai_pending_actions ENABLE ROW LEVEL SECURITY;
 -- cancel_request_min_app_version (prod 1.1.6, test 1.1.5), payout_number_whatsapp_min_app_version (1.1.6).
 -- Migration 094 (prod le 17/11/2026) : settings_app ai_orders_page_size (20), aucune table.
 -- Migration 095 (prod le 17/11/2026) : table cities (330 villes de livraison, communes du Cameroun), cf. 095_cities.sql et architecture/cities.md.
+-- Migrations 097, 098 (prod le 18/11/2026) : tables ci-dessus ; settings_app ai_daily_menu_hour (8),
+-- ai_default_menu_image_url (''), ai_admin_phones (numéros posés en base, jamais dans le dépôt).
 
 -- ============================================================================
 -- FIN DU SCHEMA
