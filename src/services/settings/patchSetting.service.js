@@ -52,6 +52,8 @@ const VALUE_TYPES = {
   [KEYS.AI_DAILY_MENU_HOUR]: 'hour',
   [KEYS.AI_DEFAULT_MENU_IMAGE_URL]: 'text',
   [KEYS.AI_ADMIN_PHONES]: 'ids',
+  // Migration 099 ; ai_audio_max_seconds reste un nombre positif (0 = non écoutées).
+  [KEYS.AI_AUDIO_MODELS]: 'ids',
 };
 
 /**

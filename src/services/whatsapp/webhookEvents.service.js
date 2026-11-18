@@ -48,6 +48,15 @@ exports.onText = fn => {
   textHandlers.push(fn);
 };
 
+/**
+ * Fait traiter un texte par les flux abonnés, comme s'il venait d'être écrit (note vocale
+ * transcrite puis confirmée, ai/voiceNotes.js). Renvoie true si un flux l'a pris.
+ */
+exports.dispatchText = async event => {
+  for (const fn of textHandlers) if (await fn(event)) return true;
+  return false;
+};
+
 // Messages non texte (note vocale, image…) : même principe que onText.
 const mediaHandlers = [];
 

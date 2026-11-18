@@ -361,6 +361,7 @@ async function getAiSettings() {
     const historyMax = Number(s[KEYS.AI_HISTORY_MAX_MESSAGES]);
     const ordersPageSize = Number(s[KEYS.AI_ORDERS_PAGE_SIZE]);
     const dailyMenuHour = Number(s[KEYS.AI_DAILY_MENU_HOUR]);
+    const audioMaxSeconds = Number(s[KEYS.AI_AUDIO_MAX_SECONDS]);
     return {
       enabled: s[KEYS.AI_ENABLED] === true && models.length > 0,
       models,
@@ -374,9 +375,12 @@ async function getAiSettings() {
       defaultMenuImageUrl: typeof s[KEYS.AI_DEFAULT_MENU_IMAGE_URL] === 'string' ? s[KEYS.AI_DEFAULT_MENU_IMAGE_URL].trim() : '',
       // Super-administrateurs joints sur WhatsApp (migration 098), numéros tels que saisis.
       adminPhones: Array.isArray(s[KEYS.AI_ADMIN_PHONES]) ? s[KEYS.AI_ADMIN_PHONES].filter(p => typeof p === 'string' && p.trim()) : [],
+      // Notes vocales (migration 099) : modèles qui écoutent, essayés un par un ; 0 s = non écoutées.
+      audioModels: Array.isArray(s[KEYS.AI_AUDIO_MODELS]) ? s[KEYS.AI_AUDIO_MODELS].filter(m => typeof m === 'string' && m) : [],
+      audioMaxSeconds: Number.isFinite(audioMaxSeconds) && audioMaxSeconds > 0 ? audioMaxSeconds : 0,
     };
   } catch {
-    return { enabled: false, models: [], timeoutMs: 30000, retentionDays: 30, historyMax: 100, ordersPageSize: 20, dailyMenuHour: -1, defaultMenuImageUrl: '', adminPhones: [] };
+    return { enabled: false, models: [], timeoutMs: 30000, retentionDays: 30, historyMax: 100, ordersPageSize: 20, dailyMenuHour: -1, defaultMenuImageUrl: '', adminPhones: [], audioModels: [], audioMaxSeconds: 0 };
   }
 }
 

@@ -16,7 +16,7 @@ const { systemPrompt, historyMessages } = require('./agentPrompt');
 const tools = require('./agentTools');
 const { converse, enqueue } = require('./agentLoop');
 const { registerAiButtons } = require('./pendingActions.service');
-const { onVoiceNote } = require('./voiceNotes');
+const { registerVoiceNotes } = require('./voiceNotes');
 const { storeImage, waitImages, attachRecentImages } = require('./merchantImages');
 
 const FALLBACK = "Je n'ai pas pu traiter votre message pour le moment. Utilisez les boutons des messages de commande, ou réessayez dans un instant.";
@@ -85,6 +85,6 @@ exports.registerMerchantAgent = () => {
   onInbound(logInbound);
   registerAiButtons();
   onText(onMerchantText);
-  onMedia(onVoiceNote); // note vocale du marchand ou du livreur : « écrivez » (voiceNotes.js)
+  registerVoiceNotes(); // note vocale (boutique, livreur, admin) : transcrite puis confirmée (voiceNotes.js)
   onMedia(onMerchantImage);
 };

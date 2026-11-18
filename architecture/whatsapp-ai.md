@@ -25,10 +25,12 @@ boutique part sur le numéro Orange Money / MTN MoMo du livreur au scan du QR du
 | `settings_app` | `ai_daily_menu_hour` | heure (Cameroun) du menu du jour envoyé aux boutiques, `-1` = coupé (8, migration 097) |
 | `settings_app` | `ai_default_menu_image_url` | image des plats créés par l'agent avant la photo du marchand ; vide = `<BACKEND_URL>/assets/menu-default.png` ; jamais une image du storage du projet (ignorée : la corbeille l'effacerait) |
 | `settings_app` | `ai_admin_phones` | numéros WhatsApp (E.164) des super-administrateurs : alertes, agent admin (`[]`, migration 098 ; posés en base, jamais dans le dépôt) |
+| `settings_app` | `ai_audio_models` | modèles OpenRouter qui **transcrivent** les notes vocales, essayés **un par un** dans l'ordre (migration 099) : `google/gemini-3.5-flash-lite`, `google/gemini-2.5-flash-lite`, `qwen/qwen3.8-omni-flash` (décision du 18/11/2026). `[]` = notes vocales non écoutées |
+| `settings_app` | `ai_audio_max_seconds` | durée maximale écoutée (60) ; au-delà, l'agent demande un message plus court. `0` = non écoutées |
 
 Tout se change à chaud : `PATCH /settings/<clé>` (ex. `ai_models` = `["…", "…"]`). Types
 vérifiés par `services/settings/patchSetting.service.js` : `ai_models` et `ai_admin_phones`
-tableaux de chaînes, `ai_enabled` booléen, `ai_daily_menu_hour` entier de -1 à 23,
+tableaux de chaînes (`ai_audio_models` aussi), `ai_enabled` booléen, `ai_daily_menu_hour` entier de -1 à 23,
 `ai_default_menu_image_url` texte. ⚠️ Corrigé le 18/11/2026 : `ai_models` et `ai_enabled`
 étaient validés comme des nombres, le PATCH annoncé ici était refusé.
 Lecture : `settings.service.getAiSettings()` (IA coupée si `ai_models` est vide ou en cas d'échec).
@@ -289,7 +291,9 @@ services/whatsapp/ai/merchantDriverTools.js      outils du marchand (livreurs)
 services/whatsapp/ai/agentOrders.js              commandes vue marchand / livreur, résolution des n°
 services/whatsapp/ai/pendingActions.service.js   propositions, boutons Confirmer / Annuler
 services/whatsapp/ai/driverAgent.service.js      texte libre du livreur -> agent
-services/whatsapp/ai/voiceNotes.js               note vocale (marchand, livreur) -> « écrivez »
+services/whatsapp/ai/voiceNotes.js               note vocale (boutique, livreur, admin) : transcrite, Confirmer / Corriger
+services/ai/transcribeAudio.js                   transcription OpenRouter, modèles un par un
+utils/oggOpusSeconds.js                          durée d'une note vocale Ogg Opus
 services/whatsapp/ai/driverPrompt.js             consignes livreur, état
 services/whatsapp/ai/driverTools.js              outils du livreur
 services/whatsapp/driver/driverDirectory.js      numéro -> livreur, livreurs d'une boutique
@@ -318,6 +322,7 @@ schema/migrations/093_whatsapp_drivers.sql
 schema/migrations/094_ai_orders_page_size.sql
 schema/migrations/097_wa_daily_menu.sql
 schema/migrations/098_wa_admin_agent.sql
+schema/migrations/099_ai_voice_notes.sql
 repositories/supabase/waDailyMenuSends.repo.js
 repositories/supabase/waAdminAlerts.repo.js
 repositories/supabase/waAdminActions.repo.js
@@ -329,13 +334,40 @@ L'IA prend le relais quand une action fixe échoue (« LIVRÉ » au code faux, c
 inconnue…) : tâche `todo/fastfood/feature/ia-relais-echec-action-fixe.md`.
 
 Images du livreur : journalisées seulement (`[image]`), pas envoyées au modèle (celles du
-marchand le sont, section « Menu du jour et plats »). Transcription des notes
-vocales : seulement si les marchands en envoient beaucoup (modèle audio le moins cher vu le
-17/11/2026 : `qwen/qwen3.8-omni-flash`).
+marchand le sont, section « Menu du jour et plats »).
 
-## Notes vocales
+## Notes vocales (décisions du 18/11/2026, migration 099)
 
-Les modèles de l'agent ne lisent pas l'audio. Une note vocale (`audio` / `voice`) d'un numéro
-de boutique WhatsApp ou d'un livreur reçoit tout de suite, sans appel au modèle : « Merci
-d'écrire votre message : les notes vocales ne sont pas lues. » (`ai/voiceNotes.js`, abonné
-par `onMedia` dans `webhookEvents.service`, IA active seulement). La note reste journalisée.
+Les modèles des agents (`ai_models`) n'écoutent pas l'audio : la note est **d'abord
+transcrite**, puis l'agent travaille sur le texte avec ses modèles habituels.
+
+1. **Qui** : numéro d'un super-administrateur, d'une boutique WhatsApp ou d'un de ses
+   livreurs, IA active (`ai/voiceNotes.js`, abonné `onMedia`). Traitement en arrière-plan.
+2. **Contrôles** : téléchargement (`downloadMedia`), type `audio/*`. Durée lue dans le
+   fichier Ogg Opus (format des notes WhatsApp, `utils/oggOpusSeconds.js`) ; autre format :
+   taille plafonnée à `ai_audio_max_seconds` × 32 ko. Trop longue : « Votre note vocale dure
+   … : j'écoute au plus 1 min », journal `[vocal trop long, non écouté]`.
+3. **Transcription** (`services/ai/transcribeAudio.js`) : `chat/completions` avec un
+   `input_audio` (base64, `ogg` / `mp3` / `m4a` / `aac` / `wav` / `flac`), modèles de
+   `ai_audio_models` **un par un** : le suivant si l'un échoue, refuse le format ou répond
+   vide. Mot pour mot, langue parlée gardée, langue locale traduite entre parenthèses,
+   `[inaudible]`. Rien de compris : « Je n'ai pas compris… », journal `[vocal non compris]`.
+   Tous en échec : « Je n'ai pas pu écouter… ».
+4. **Confirmation** : la ligne du journal devient `[vocal à confirmer] <texte>` et Yaammoo
+   envoie « J'ai compris : « … » C'est bien ça ? » avec **Confirmer** / **Corriger**
+   (payload `<id du message vocal>:vo_yes|vo_no`). Seul le numéro qui a envoyé la note peut
+   cliquer ; la ligne est changée sous condition (`swapBodyByMessageId`) : un double clic
+   n'agit qu'une fois.
+   - Confirmer : `[vocal] <texte>`, puis le texte part aux flux texte
+     (`webhookEvents.dispatchText`) : agent admin, boutique ou livreur, comme un message écrit.
+   - Corriger : `[vocal rejeté] …`, « Renvoyez votre note vocale, ou écrivez votre message ».
+5. **Consignes** (`agentPrompt.VOICE_RULE`, reprise par les trois agents) : `[vocal]` = message
+   confirmé ; `[vocal à confirmer]` : rien sans confirmation écrite ; les autres sont ignorées.
+
+`ai_audio_models` vide ou `ai_audio_max_seconds` à 0 : réponse fixe, sans appel au modèle,
+« Merci d'écrire votre message : les notes vocales ne sont pas lues. ».
+
+Coût estimé (prix OpenRouter du 18/11/2026, à revérifier) : pour 1 000 notes d'une minute,
+≈ 1,1 $ avec Gemini 3.5 Flash-Lite, ≈ 0,66 $ avec Gemini 2.5 Flash-Lite. Comparés et
+écartés : ElevenLabs Scribe v3 (≈ 3,3 $, clé à part), Groq Whisper (clé à part), GPT Audio
+(≈ 20 fois plus cher), Claude (n'écoute pas l'audio), Wispr Flow (API réservée aux entreprises).

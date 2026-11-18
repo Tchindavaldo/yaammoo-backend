@@ -41,6 +41,16 @@ exports.setBodyByMessageId = async (messageId, body) => {
   if (error) throw error;
 };
 
+/**
+ * Remplace le texte d'un message SEULEMENT s'il vaut encore `fromBody` (note vocale confirmée
+ * ou corrigée : un double clic ne la traite qu'une fois). Renvoie true si remplacé.
+ */
+exports.swapBodyByMessageId = async (messageId, fromBody, toBody) => {
+  const { data, error } = await supabase.from(TABLE).update({ body: toBody }).eq('message_id', messageId).eq('body', fromBody).select('id');
+  if (error) throw error;
+  return (data || []).length > 0;
+};
+
 /** Efface les messages plus anciens que `beforeIso`. Renvoie le nombre effacé. */
 exports.purgeBefore = async beforeIso => {
   const { data, error } = await supabase.from(TABLE).delete().lt('created_at', beforeIso).select('id');

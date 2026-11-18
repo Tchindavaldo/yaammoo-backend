@@ -116,6 +116,9 @@ const KEYS = {
   // Migration 098 : numéros WhatsApp des super-administrateurs (alertes de l'agent IA,
   // messages support, agent admin). [] = personne.
   AI_ADMIN_PHONES: 'ai_admin_phones',
+  // Migration 099 : notes vocales transcrites (modèles essayés un par un, durée max écoutée).
+  AI_AUDIO_MODELS: 'ai_audio_models',
+  AI_AUDIO_MAX_SECONDS: 'ai_audio_max_seconds',
   // Migration 092 : minutes sans réponse du marchand WhatsApp avant que le client
   // puisse RENVOYER sa demande d'annulation (cancelRequest.service).
   CANCEL_REQUEST_RESEND_MINUTES: 'cancel_request_resend_minutes',
@@ -212,6 +215,8 @@ const KEY_CATEGORY = {
   [KEYS.AI_DAILY_MENU_HOUR]: 'app',
   [KEYS.AI_DEFAULT_MENU_IMAGE_URL]: 'app',
   [KEYS.AI_ADMIN_PHONES]: 'app',
+  [KEYS.AI_AUDIO_MODELS]: 'app',
+  [KEYS.AI_AUDIO_MAX_SECONDS]: 'app',
   [KEYS.CANCEL_REQUEST_RESEND_MINUTES]: 'app',
 
   // test — build de test (sorties de `deployment` par la migration 055)
@@ -332,6 +337,9 @@ const FALLBACKS = {
   [KEYS.AI_DAILY_MENU_HOUR]: -1,
   [KEYS.AI_DEFAULT_MENU_IMAGE_URL]: '',
   [KEYS.AI_ADMIN_PHONES]: [],
+  // Clé absente : notes vocales non écoutées (réponse « écrivez »).
+  [KEYS.AI_AUDIO_MODELS]: [],
+  [KEYS.AI_AUDIO_MAX_SECONDS]: 0,
   [KEYS.CANCEL_REQUEST_RESEND_MINUTES]: 15,
   // Build de test : repli à « aucune ». Une clé absente ne doit JAMAIS servir
   // des données de test à une vraie app.
