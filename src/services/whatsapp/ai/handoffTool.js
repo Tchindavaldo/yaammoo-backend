@@ -9,14 +9,14 @@ const { fn, runTool } = require('./agentLoop');
 
 const DESCRIPTION = {
   merchant:
-    "Passe la main à l'agent de SA boutique WhatsApp (commandes, plats, menu du jour, livreurs, push de la boutique), qui répond tout de suite à ce message. Seulement s'il le demande, ou s'il vient d'accepter ta proposition de passer la main.",
+    "Passe la main à l'agent de SA boutique WhatsApp (commandes, plats, menu du jour, livreurs, push de la boutique), qui répond tout de suite à ce message. Seulement s'il demande l'agent de la BOUTIQUE, ou s'il vient d'accepter ta proposition de passer la main. Jamais s'il demande l'agent admin : c'est toi.",
   admin: "Repasse la main à l'agent admin de Yaammoo (alertes, support, autres boutiques, commandes de toute la plateforme, réglages), qui répond tout de suite à ce message. Seulement s'il le demande, ou s'il vient d'accepter ta proposition.",
 };
 
 /** Consigne ajoutée au message système de l'agent qui peut passer la main à `to`. */
 exports.rule = (to, shopNames = '') =>
   to === 'merchant'
-    ? `- Ce super-administrateur gère aussi la boutique WhatsApp ${shopNames}. Tu es l'agent admin (par défaut). Une demande sur sa boutique (ses commandes, ses plats, le menu du jour, ses livreurs, un push de sa boutique) n'est pas de ton ressort : propose-lui de passer la main à l'agent de la boutique. S'il le demande ou accepte, appelle handoff.`
+    ? `- Ce super-administrateur gère aussi la boutique WhatsApp ${shopNames}. Tu es l'agent admin (par défaut). Une demande sur sa boutique (ses commandes, ses plats, le menu du jour, ses livreurs, un push de sa boutique) n'est pas de ton ressort : propose-lui de passer la main à l'agent de la boutique. S'il le demande ou accepte, appelle handoff. S'il demande l'agent admin, c'est toi : réponds toi-même, sans handoff.`
     : "- Cet interlocuteur est aussi super-administrateur de Yaammoo : tu es l'agent de sa boutique. S'il demande l'agent admin, ou si sa demande concerne la plateforme (alertes, support, autres boutiques, réglages), propose-lui de repasser la main à l'agent admin. S'il le demande ou accepte, appelle handoff.";
 
 /**

@@ -24,6 +24,11 @@ exports.converse = async ({ event, ctx, messages, tools, ai, fallback }) => {
     if (!calls.length) {
       const text = String(r.message.content || '').trim();
       if (text) await sendText(event.from, text, 'ai');
+      else if (!ctx.flags.replied) {
+        // Réponse vide du modèle : jamais de silence, message de repli (vécu le 18/11/2026).
+        console.warn(`⚠️ [AI] ${event.from} : réponse vide (${r.model}), repli envoyé`);
+        await sendText(event.from, fallback);
+      }
       return;
     }
     messages.push({ role: 'assistant', content: r.message.content || '', tool_calls: calls });
