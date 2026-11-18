@@ -22,8 +22,15 @@ boutique part sur le numéro Orange Money / MTN MoMo du livreur au scan du QR du
 | `settings_app` | `ai_conversation_retention_days` | rétention de la conversation (30) |
 | `settings_app` | `ai_history_max_messages` | messages relus à chaque réponse (100) |
 | `settings_app` | `ai_orders_page_size` | commandes en cours montrées d'office au modèle, et commandes par page de `list_orders` / `list_my_orders` (20, migration 094) |
+| `settings_app` | `ai_daily_menu_hour` | heure (Cameroun) du menu du jour envoyé aux boutiques, `-1` = coupé (8, migration 097) |
+| `settings_app` | `ai_default_menu_image_url` | image des plats créés par l'agent avant la photo du marchand ; vide = `<BACKEND_URL>/assets/menu-default.png` ; jamais une image du storage du projet (ignorée : la corbeille l'effacerait) |
+| `settings_app` | `ai_admin_phones` | numéros WhatsApp (E.164) des super-administrateurs : alertes, agent admin (`[]`, migration 098 ; posés en base, jamais dans le dépôt) |
 
-Tout se change à chaud : `PATCH /settings/<clé>` (ex. `ai_models` = `["…", "…"]`).
+Tout se change à chaud : `PATCH /settings/<clé>` (ex. `ai_models` = `["…", "…"]`). Types
+vérifiés par `services/settings/patchSetting.service.js` : `ai_models` et `ai_admin_phones`
+tableaux de chaînes, `ai_enabled` booléen, `ai_daily_menu_hour` entier de -1 à 23,
+`ai_default_menu_image_url` texte. ⚠️ Corrigé le 18/11/2026 : `ai_models` et `ai_enabled`
+étaient validés comme des nombres, le PATCH annoncé ici était refusé.
 Lecture : `settings.service.getAiSettings()` (IA coupée si `ai_models` est vide ou en cas d'échec).
 
 ## Flux
@@ -55,7 +62,13 @@ Lecture : `settings.service.getAiSettings()` (IA coupée si `ai_models` est vide
 | `list_orders` | commandes **en cours** seulement (`orders.searchForAgent`), filtre de statuts en cours, `page` ; `ai_orders_page_size` par page, `pageSuivante` ; vue marchand |
 | `get_order` | détail d'une commande : parmi celles chargées, sinon cherchée en base par son n° (`orders.findByIdSuffix`), sans limite de date (litige, vérification) |
 | `day_summary` | bilan d'un jour (aujourd'hui par défaut) : nombre de commandes passées ce jour-là par statut, somme vue marchand des livrées (`montantMarchandLivreesFcfa`) |
-| `list_menus` | plats (nom, catégorie, statut, stock), **sans prix** |
+| `list_menus` | plats : id, nom, catégorie, **prix de la boutique** (`prices[]` brut, ce qu'elle encaisse), disponible, stock, photo `provisoire` / `ok` |
+| `send_menu_list` | envoie la liste des plats avec prix et disponibilité (comme le menu du jour) |
+| `propose_menu_availability` | proposition `menu_availability` (boutons) : plats disponibles / indisponibles, stock du jour |
+| `propose_menu_create` | proposition `menu_create` (boutons) : nom, prix (taille), stock, catégorie ; prix contrôlés AVANT (`validateMenuPrices`) |
+| `set_menu_photo` | pose une photo envoyée par CE numéro (3 derniers jours) sur un plat, tout de suite |
+| `propose_push` | proposition `push_customers` (boutons) : push aux clients ou à une ville desservie, plan et quota de la boutique |
+| `alert_admin` | alerte WhatsApp aux super-administrateurs (problème grave, décision Yaammoo) |
 | `propose_action` | crée une proposition et envoie les boutons Confirmer / Annuler |
 | `confirm_action` | exécute une proposition confirmée **par écrit** |
 | `cancel_action` | annule une proposition |
@@ -89,6 +102,76 @@ livrées ou annulées, historique, export : **pas sur WhatsApp**, l'agent renvoi
 l'application Yaammoo. La conversation garde 30 jours (`ai_conversation_retention_days`),
 au plus 100 messages relus.
 
+## Menu du jour et plats (décisions du 18/11/2026, migration 097)
+
+1. **Envoi quotidien** (`utils/whatsappDailyMenuJob.js`, toutes les 5 min) : à partir de
+   `ai_daily_menu_hour` (heure du Cameroun), chaque boutique WhatsApp est prise une fois par
+   jour (`wa_daily_menu_sends`, prise AVANT l'envoi) et reçoit
+   (`menu/dailyMenu.service.js`) :
+   - fenêtre de 24 h ouverte (dernier message reçu de son numéro < 24 h - 10 min) : la liste
+     de ses plats, **prix de la boutique** et stock, disponibles puis indisponibles, et la
+     question « qu'est-ce qui est disponible aujourd'hui ? » (découpée sous 3 500 caractères) ;
+   - fenêtre fermée : template `yam_menu_du_jour` (boutique ; bouton « Voir mon menu »,
+     payload `<fastFoodId>:menu_list`) ; le clic envoie la liste. Liste refusée par Meta
+     (131047, référence `menu_<id>`) : template à la place, une fois par 10 min.
+   - boutique sans plat : demande de ses plats, prix et quantités, par message ou photo de
+     sa carte.
+2. **Réponse** : l'agent compare avec `list_menus` et propose `menu_availability` (boutons) ;
+   après confirmation, `ai/menuActions.js` passe chaque plat en `available` / `unavailable`
+   par `updateMenuService` (stock forcé à 0 si indisponible ; un plat à stock 0 rendu
+   disponible exige le stock du jour) puis renvoie la liste à jour. Rien à changer : pas de
+   proposition. Sans réponse : rien ne change.
+3. **Création** : `menu_create` après confirmation, par `postMenuService` (contrôles de prix,
+   sockets) avec l'**image provisoire** (couverture + 3 images). Puis l'agent demande la
+   photo d'**un plat à la fois** en le nommant ; une photo reçue en réponse à une demande, ou
+   citée par le marchand avec le nom d'un plat (réponse à la photo), est posée par
+   `set_menu_photo`. Prix d'un plat existant, suppression : pas sur WhatsApp.
+4. **Photos reçues** (`ai/merchantImages.js`) : une image du numéro d'une boutique est
+   téléchargée (`GET /media/:id` du module, `downloadMedia`), rangée dans le storage
+   (`uploadImageToSupabase`), son adresse ajoutée à sa ligne du journal
+   (`[image https://…]`), puis l'agent répond : les photos reçues depuis la dernière réponse
+   (4 au plus) sont jointes au dernier message `user` (`image_url`). Carte du menu : l'agent
+   lit plats et prix et propose `menu_create` (n'invente aucun prix illisible).
+   Réponse à un message précis (`replyTo`) : le journal garde « (en réponse à : …) ».
+
+## Push d'une boutique WhatsApp (migration 098)
+
+`propose_push` -> `push_customers` (boutons) -> `ai/shopPushActions.js` ->
+`sendBroadcast` avec le plan et le quota de la boutique (forfait gratuit :
+[notifications-broadcast.md](./notifications-broadcast.md)), expéditeur = propriétaire.
+
+## Agent admin et alertes (décisions du 18/11/2026, migration 098)
+
+Super-administrateurs = numéros de `ai_admin_phones`. Code : `services/whatsapp/admin/`.
+
+1. **Alertes** (`adminAlerts.service.alertAdmins`, table `wa_admin_alerts`) :
+   - `alert_admin` des agents boutique et livreur (`ai/escalationTool.js`) : problème grave
+     ou décision Yaammoo ;
+   - message d'un utilisateur au support de la **plateforme** (fil sans boutique,
+     `support/notifySupportMessage.js`).
+   Fenêtre ouverte avec l'administrateur : détail en message libre ; sinon template
+   `yam_alerte_admin` (qui, problème ; bouton « Voir », payload `<alertId>:adm_alert`).
+2. **Agent admin** (`admin/adminAgent.service.js`, texte libre d'un numéro admin, AVANT
+   l'agent des boutiques) : outils de lecture (`list_alerts`, `close_alert`,
+   `support_threads`, `support_messages`, `support_stats` par catégorie, `find_shop`,
+   `find_order` sur toutes les boutiques, `list_settings`) et **super-actions toujours
+   confirmées** (`propose_admin_action` -> boutons `<id>:adm_yes|adm_no`, table
+   `wa_admin_actions`, close avant d'agir, 24 h max) :
+
+| Action | Exécution |
+|---|---|
+| `support_reply` | `postSupportMessageService` auteur `support` (push + socket à l'utilisateur) |
+| `reply_alert` | message libre au marchand / livreur de l'alerte, seulement si sa fenêtre est ouverte ; alerte close |
+| `push_shop_customers` | `sendBroadcast` au nom de la boutique, audience clients, **sans plan ni quota** (`admin: true`, plan `admin` enregistré) |
+| `push_city` | `broadcastFanout.fanOutPlatform` : au nom de **Yaammoo** (type `platform_broadcast`), utilisateurs de la ville, bilan renvoyé à l'admin |
+| `shop_visibility` | ajoute / retire la boutique de `hidden_fastfood_ids` (`patchSetting`) |
+| `shop_whatsapp` | `setWhatsappOrders` |
+| `order_status` | avance pas à pas (`pendingActions.advance`), jamais « livrée » |
+| `order_cancel` | `cancelByFastFood` : client remboursé en entier, frais réels débités de la boutique (décision du 18/11/2026) |
+| `setting` | `patchSetting(key, value)` (même contrôle de type que `PATCH /settings`) |
+
+Le journal de conversation garde aussi les messages des administrateurs (`author: 'admin'`).
+
 ## Confirmation obligatoire (`ai/pendingActions.service.js`, table `wa_ai_pending_actions`)
 
 Aucun statut ne change sans l'accord du marchand.
@@ -102,7 +185,9 @@ Aucun statut ne change sans l'accord du marchand.
 | `cancel_accept` | `pending` + demande d'annulation en attente | comme le bouton « Accepter annulation » (`cancelByUser`, client remboursé) |
 | `cancel_refuse` | idem | comme « Refuser annulation » (commande maintenue) |
 
-Contrainte `action` de `wa_ai_pending_actions` élargie à ces deux actions par la migration 091.
+Contrainte `action` de `wa_ai_pending_actions` élargie à ces deux actions par la migration 091,
+puis à `menu_availability`, `menu_create` (097, détail dans `payload`, `ai/menuActions.js`) et
+`push_customers` (098, `ai/shopPushActions.js`).
 
 « Livrée » est exclu : seul le QR du client la valide. Une proposition porte sur UNE
 boutique. Boutons `<id>:ai_yes` / `<id>:ai_no` ; une réponse écrite (« oui ») conduit
@@ -180,10 +265,13 @@ ni le prix payé : `send_order_details` envoie la fiche directement.
 |---|---|---|
 | `yam_livraison_livreur` | 1 boutique, 2 n°, 3 plats, 4 livraison | réponse rapide « Je pars en livraison » (payload `<id>:drv_go`) |
 | `yam_livreur_ajoute` | 1 boutique | aucun |
+| `yam_menu_du_jour` | 1 boutique | réponse rapide « Voir mon menu » (payload `<fastFoodId>:menu_list`) |
+| `yam_alerte_admin` | 1 qui, 2 problème | réponse rapide « Voir » (payload `<alertId>:adm_alert`) |
 
 ## Rétention (`utils/whatsappAiPurgeJob.js`, 1×/h)
 
-Conversation effacée au-delà de `ai_conversation_retention_days`.
+Conversation et alertes admin effacées au-delà de `ai_conversation_retention_days`.
+Actions admin : mêmes règles que les propositions (expirées à 24 h).
 Propositions ouvertes depuis plus de 24 h → `expired`. Propositions plus vieilles que la
 rétention → effacées.
 
@@ -208,13 +296,31 @@ services/whatsapp/driver/driverDirectory.js      numéro -> livreur, livreurs d'
 services/whatsapp/driver/driverAccounts.service.js  ajout, numéro OM / MoMo (direct ou code SMS)
 services/whatsapp/driver/driverDeliveries.service.js affectation, fiche, départ, relais
 services/whatsapp/driver/driverMessages.js       textes envoyés au livreur
+services/whatsapp/ai/merchantMenuTools.js       outils plats du marchand, push
+services/whatsapp/ai/menuActions.js              disponibilité, création (image provisoire)
+services/whatsapp/ai/shopPushActions.js          push de la boutique (plan, quota)
+services/whatsapp/ai/merchantImages.js           photos reçues : storage, journal, modèle
+services/whatsapp/ai/escalationTool.js           alert_admin (boutique, livreur)
+services/whatsapp/menu/dailyMenu.service.js      liste du jour, template, bouton Voir mon menu
+services/whatsapp/admin/adminAlerts.service.js   alertes, numéros admin, fenêtre de 24 h
+services/whatsapp/admin/adminAgent.service.js    agent admin (consignes, état)
+services/whatsapp/admin/adminTools.js            outils de l'agent admin
+services/whatsapp/admin/adminActions.service.js  super-actions confirmées
+services/settings/patchSetting.service.js        réglage à chaud (PATCH /settings, agent admin)
 utils/whatsappAiPurgeJob.js
+utils/whatsappDailyMenuJob.js
+public/assets/menu-default.png                   image provisoire (servie sous /assets)
 repositories/whatsappMappers.js
 repositories/supabase/waConversations.repo.js
 repositories/supabase/waAiPendingActions.repo.js
 schema/migrations/090_whatsapp_ai.sql
 schema/migrations/093_whatsapp_drivers.sql
 schema/migrations/094_ai_orders_page_size.sql
+schema/migrations/097_wa_daily_menu.sql
+schema/migrations/098_wa_admin_agent.sql
+repositories/supabase/waDailyMenuSends.repo.js
+repositories/supabase/waAdminAlerts.repo.js
+repositories/supabase/waAdminActions.repo.js
 ```
 
 ## À venir
@@ -222,8 +328,8 @@ schema/migrations/094_ai_orders_page_size.sql
 L'IA prend le relais quand une action fixe échoue (« LIVRÉ » au code faux, commande
 inconnue…) : tâche `todo/fastfood/feature/ia-relais-echec-action-fixe.md`.
 
-Images du marchand et du livreur : journalisées seulement (`[image]`), pas envoyées au
-modèle (les modèles actuels les lisent : à brancher si besoin). Transcription des notes
+Images du livreur : journalisées seulement (`[image]`), pas envoyées au modèle (celles du
+marchand le sont, section « Menu du jour et plats »). Transcription des notes
 vocales : seulement si les marchands en envoient beaucoup (modèle audio le moins cher vu le
 17/11/2026 : `qwen/qwen3.8-omni-flash`).
 

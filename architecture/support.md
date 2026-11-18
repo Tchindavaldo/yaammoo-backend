@@ -74,7 +74,7 @@ mais ne fait jamais echouer l'ecriture en base. Les fils sans boutique
 | Message de                | Destinataire                                                |
 | ------------------------- | ----------------------------------------------------------- |
 | `user`                    | proprietaire de la boutique concernee (`fastfoods.user_id`) |
-| `user`, fil sans boutique | personne cote app — le back-office traite ces fils          |
+| `user`, fil sans boutique | alerte WhatsApp aux super-administrateurs (`ai_admin_phones`, [whatsapp-ai.md](./whatsapp-ai.md)), qui repondent par l'agent admin |
 | `support`                 | le client proprietaire du fil                               |
 
 Type `Support`, route `support/<threadId>` pour le deep-linking. Une erreur

@@ -102,6 +102,19 @@ Réglage `broadcast_plans` (table `settings_notification`, modifiable à chaud) 
 L'expéditeur et le propriétaire sont exclus. Listes lues par pages de 1000
 (plafond PostgREST).
 
+## Envois d'un super-administrateur (migration 098)
+
+Ordonnés sur WhatsApp à l'agent admin ([whatsapp-ai.md](./whatsapp-ai.md)), après confirmation :
+
+- **au nom d'une boutique** : `sendBroadcast({ ..., admin: true })`, audience clients,
+  plan `admin` (ni plan de la boutique ni quota ; envoi enregistré, `sender_uid` =
+  `admin:<numéro>`) ;
+- **au nom de Yaammoo** : `fanOutPlatform({ id, title, body, city })` aux utilisateurs d'une
+  ville (`city_user_ids`), notification `type: 'platform_broadcast'`, route `/(tabs)`, sans
+  ligne dans `fastfood_broadcasts`.
+
+Une boutique WhatsApp envoie aussi par son agent IA (`propose_push`), avec son plan et son quota.
+
 ## Diffusion (`services/notification/broadcast/broadcastFanout.js`)
 
 Lancée par `setImmediate` après la réponse 201. Ne lève jamais.
