@@ -27,6 +27,7 @@ boutique part sur le numéro Orange Money / MTN MoMo du livreur au scan du QR du
 | `settings_app` | `ai_admin_phones` | numéros WhatsApp (E.164) des super-administrateurs : alertes, agent admin (`[]`, migration 098 ; posés en base, jamais dans le dépôt) |
 | `settings_app` | `ai_audio_models` | modèles OpenRouter qui **transcrivent** les notes vocales, essayés **un par un** dans l'ordre (migration 099) : `google/gemini-3.5-flash-lite`, `google/gemini-2.5-flash-lite`, `qwen/qwen3.8-omni-flash` (décision du 18/11/2026). `[]` = notes vocales non écoutées |
 | `settings_app` | `ai_audio_max_seconds` | durée maximale écoutée (60) ; au-delà, l'agent demande un message plus court. `0` = non écoutées |
+| `settings_app` | `wa_reserved_phones` | numéros des super-admins de l'AUTRE environnement (prod <-> test), refusés ici comme boutique WhatsApp ou livreur. Saisis en base seulement. `[]` = aucun |
 
 Tout se change à chaud : `PATCH /settings/<clé>` (ex. `ai_models` = `["…", "…"]`). Types
 vérifiés par `services/settings/patchSetting.service.js` : `ai_models` et `ai_admin_phones`
@@ -180,6 +181,11 @@ Le journal de conversation garde aussi les messages des administrateurs (`author
    sur la prod (ignoré). Chaque backend fixe donc ses `ai_admin_phones` sur SA clé du module
    (`PUT /contact-routes`, migration 007 de rauval-backend) au démarrage puis toutes les 15 min
    (`utils/whatsappContactRoutesJob.js`). Un clic de bouton reste au backend qui a envoyé le message.
+   Pour qu'aucun clic ne bascule d'une base à l'autre, un backend n'écrit jamais aux admins de
+   l'autre : `wa_reserved_phones` (migration 101, `whatsapp/reservedPhones.js`) les refuse comme
+   numéro WhatsApp de boutique (création, `PUT /fastfood`) et comme livreur (demande, acceptation,
+   recrutement, invitation acceptée), erreur 400 « Ce numéro est réservé à l'administration
+   Yaammoo… » (toast de l'app). Les clients ne reçoivent jamais de WhatsApp : rien à bloquer.
 4. **Admin qui a aussi une boutique WhatsApp** (migration 100, `ai/handoffTool.js`) : deux
    agents, **admin par défaut**. Outil `handoff` : à sa demande (« passe la main à la boutique »,
    « à l'admin »), ou après avoir proposé de passer la main pour une demande qui n'est pas de

@@ -119,6 +119,9 @@ const KEYS = {
   // Migration 099 : notes vocales transcrites (modèles essayés un par un, durée max écoutée).
   AI_AUDIO_MODELS: 'ai_audio_models',
   AI_AUDIO_MAX_SECONDS: 'ai_audio_max_seconds',
+  // Migration 101 : numéros réservés à l'AUTRE environnement (super-admins prod <-> test),
+  // refusés ici comme boutique WhatsApp ou livreur. Saisis en base seulement.
+  WA_RESERVED_PHONES: 'wa_reserved_phones',
   // Migration 092 : minutes sans réponse du marchand WhatsApp avant que le client
   // puisse RENVOYER sa demande d'annulation (cancelRequest.service).
   CANCEL_REQUEST_RESEND_MINUTES: 'cancel_request_resend_minutes',
@@ -215,6 +218,7 @@ const KEY_CATEGORY = {
   [KEYS.AI_DAILY_MENU_HOUR]: 'app',
   [KEYS.AI_DEFAULT_MENU_IMAGE_URL]: 'app',
   [KEYS.AI_ADMIN_PHONES]: 'app',
+  [KEYS.WA_RESERVED_PHONES]: 'app',
   [KEYS.AI_AUDIO_MODELS]: 'app',
   [KEYS.AI_AUDIO_MAX_SECONDS]: 'app',
   [KEYS.CANCEL_REQUEST_RESEND_MINUTES]: 'app',
@@ -337,6 +341,7 @@ const FALLBACKS = {
   [KEYS.AI_DAILY_MENU_HOUR]: -1,
   [KEYS.AI_DEFAULT_MENU_IMAGE_URL]: '',
   [KEYS.AI_ADMIN_PHONES]: [],
+  [KEYS.WA_RESERVED_PHONES]: [],
   // Clé absente : notes vocales non écoutées (réponse « écrivez »).
   [KEYS.AI_AUDIO_MODELS]: [],
   [KEYS.AI_AUDIO_MAX_SECONDS]: 0,

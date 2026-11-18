@@ -378,9 +378,11 @@ async function getAiSettings() {
       // Notes vocales (migration 099) : modèles qui écoutent, essayés un par un ; 0 s = non écoutées.
       audioModels: Array.isArray(s[KEYS.AI_AUDIO_MODELS]) ? s[KEYS.AI_AUDIO_MODELS].filter(m => typeof m === 'string' && m) : [],
       audioMaxSeconds: Number.isFinite(audioMaxSeconds) && audioMaxSeconds > 0 ? audioMaxSeconds : 0,
+      // Numéros de l'autre environnement (migration 101), refusés comme boutique WhatsApp ou livreur.
+      reservedPhones: Array.isArray(s[KEYS.WA_RESERVED_PHONES]) ? s[KEYS.WA_RESERVED_PHONES].filter(p => typeof p === 'string' && p.trim()) : [],
     };
   } catch {
-    return { enabled: false, models: [], timeoutMs: 30000, retentionDays: 30, historyMax: 100, ordersPageSize: 20, dailyMenuHour: -1, defaultMenuImageUrl: '', adminPhones: [], audioModels: [], audioMaxSeconds: 0 };
+    return { enabled: false, models: [], timeoutMs: 30000, retentionDays: 30, historyMax: 100, ordersPageSize: 20, dailyMenuHour: -1, defaultMenuImageUrl: '', adminPhones: [], audioModels: [], audioMaxSeconds: 0, reservedPhones: [] };
   }
 }
 

@@ -8,6 +8,7 @@ const { getPricingSettings } = require('../settings/settings.service');
 const { purgeUnusedImages } = require('../images/uploadImage.service');
 const { sanitizeShopDrinks } = require('../menu/shopDrinks');
 const { broadcastFastfoodViews } = require('./fastfoodsChanged');
+const { isReservedPhone, reservedError } = require('../whatsapp/reservedPhones');
 
 const badRequest = message => Object.assign(new Error(message), { code: 400 });
 
@@ -24,7 +25,10 @@ exports.updateFastFoodService = async (fastFoodId, data) => {
   if (data.name !== undefined) updateData.name = data.name;
   if (data.number !== undefined) updateData.number = data.number;
   if (data.momoNumber !== undefined) updateData.momoNumber = data.momoNumber;
-  if (data.whatsappNumber !== undefined) updateData.whatsappNumber = data.whatsappNumber;
+  if (data.whatsappNumber !== undefined) {
+    if (await isReservedPhone(data.whatsappNumber)) throw reservedError();
+    updateData.whatsappNumber = data.whatsappNumber;
+  }
   if (data.openTime !== undefined) updateData.openTime = data.openTime;
   if (data.closeTime !== undefined) updateData.closeTime = data.closeTime;
   if (data.image !== undefined) updateData.image = data.image;

@@ -22,6 +22,7 @@
 // ============================================================================
 
 const repos = require('../../repositories');
+const { isReservedPhone, isReservedUser, MESSAGE: RESERVED } = require('../whatsapp/reservedPhones');
 const { getIO } = require('../../socket');
 const { getFastFoodService } = require('../fastfood/getFastFood');
 const { notifyOrderEvent } = require('../notification/helpers/notifyOrderEvent');
@@ -104,6 +105,7 @@ exports.applyAsDriver = async ({ userId, fastFoodIds }) => {
 
   const user = await repos.users.getUserByIdSafe(userId);
   if (!user) return { success: false, code: 404, message: 'Utilisateur non trouvé' };
+  if (await isReservedUser(userId)) return { success: false, code: 400, message: RESERVED };
 
   // Idempotence par couple (userId, fastFoodId) : au plus une ligne par boutique.
   const existing = await repos.driverApplications.getByUser(userId);
@@ -244,6 +246,7 @@ exports.decideApplication = async (applicationId, decision) => {
     return { success: false, code: 409, message: `Demande déjà traitée (${application.status})` };
   }
 
+  if (decision === 'accepted' && (await isReservedUser(application.userId))) return { success: false, code: 400, message: RESERVED };
   if (decision === 'accepted') {
     // Marqueur isDriver : user.driverId = son propre uid (idempotent).
     await repos.users.updateUser(application.userId, { driverId: application.userId });

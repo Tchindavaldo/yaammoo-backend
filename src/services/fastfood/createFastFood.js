@@ -7,6 +7,7 @@ const { validateFastfood } = require('../../utils/validator/validateFastfood');
 const { validateDeliveryZones } = require('../pricing/menuPriceGuard');
 const { sanitizeDeliveryHours, sanitizeExpressZones } = require('../../utils/deliveryHoursSanitize');
 const { getPricingSettings } = require('../settings/settings.service');
+const { isReservedPhone, reservedError } = require('../whatsapp/reservedPhones');
 
 exports.createFastfoodService = async data => {
   const io = getIO();
@@ -17,6 +18,8 @@ exports.createFastfoodService = async data => {
     error.code = 400;
     throw error;
   }
+
+  if (await isReservedPhone(data.whatsappNumber)) throw reservedError();
 
   // Plafond des zones (`fastfood_min_covered_course`), comme a la mise a jour
   // (`updateFastFood.js`) : une course plus chere n'est plus couverte par le

@@ -18,6 +18,7 @@ const { normalizePhoneNumber, phoneVariants } = require('../../utils/validator/v
 const { resolveStaffAccount } = require('../staff/staffAccount.service');
 const { notifyOrderEvent } = require('../notification/helpers/notifyOrderEvent');
 const { RecruitDriverFields } = require('../../interface/driverFields');
+const { isReservedPhone, isReservedUser, MESSAGE: RESERVED } = require('../whatsapp/reservedPhones');
 
 const MODES = new Set(['create', 'add', 'invite']);
 const ko = (code, message) => ({ success: false, code, message });
@@ -61,6 +62,7 @@ exports.recruitDriver = async (fastFoodId, data = {}) => {
   const { defaultCountryCode } = await settingsService.getOtpSettings();
   const phoneNumber = hasPhone ? normalizePhoneNumber(data.phoneNumber, defaultCountryCode) : null;
   if (hasPhone && !phoneNumber) return ko(400, `Numéro de téléphone invalide : ${data.phoneNumber}`);
+  if (phoneNumber && (await isReservedPhone(phoneNumber))) return ko(400, RESERVED);
 
   const fastfood = await repos.fastfoods.getById(fastFoodId);
   if (!fastfood) return ko(404, "Cette boutique n'existe pas.");
@@ -86,6 +88,7 @@ exports.recruitDriver = async (fastFoodId, data = {}) => {
   }
   const userId = uidOf(user);
   if (userId === fastfood.userId) return ko(400, 'Le propriétaire ne peut pas être son propre livreur.');
+  if (await isReservedUser(userId)) return ko(400, RESERVED);
 
   const existing = (await repos.driverApplications.getByUser(userId)).find(a => a.fastFoodId === fastFoodId);
   if (existing?.status === 'accepted') return ko(409, 'Déjà livreur de cette boutique.');
@@ -116,6 +119,7 @@ exports.answerInvitation = async (applicationId, uid, decision) => {
   const fastfood = await repos.fastfoods.getById(application.fastFoodId);
   const user = await repos.users.getUserByIdSafe(uid);
   let updated;
+  if (decision === 'accepted' && (await isReservedUser(uid))) return ko(400, RESERVED);
   if (decision === 'accepted') {
     updated = await accept(fastfood, user, application);
   } else {
