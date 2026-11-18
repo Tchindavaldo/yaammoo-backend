@@ -4,8 +4,8 @@
 // Toutes les heures :
 //   - efface la conversation (wa_conversation_messages) plus vieille que
 //     `ai_conversation_retention_days` (settings_app, 30 par défaut) ;
-//   - expire les propositions de l'agent non confirmées depuis 24 h et efface les
-//     propositions plus vieilles que la rétention.
+//   - expire les propositions de l'agent (et de l'agent admin) non confirmées depuis
+//     24 h et efface les propositions et alertes admin plus vieilles que la rétention.
 // Démarré par src/server.js. Doc : architecture/whatsapp-ai.md.
 // ============================================================================
 const repos = require('../repositories');
@@ -20,6 +20,9 @@ async function runOnce() {
   const before = new Date(Date.now() - retentionDays * 864e5).toISOString();
   const removed = await repos.waConversations.purgeBefore(before);
   await repos.waAiPendingActions.expireAndPurge(new Date(Date.now() - PENDING_MAX_AGE_MS).toISOString(), before);
+  // Agent admin (migration 098) : mêmes règles pour ses actions, alertes gardées la rétention.
+  await repos.waAdminActions.expireAndPurge(new Date(Date.now() - PENDING_MAX_AGE_MS).toISOString(), before);
+  await repos.waAdminAlerts.purgeBefore(before);
   if (removed) console.log(`[whatsappAiPurge] ${removed} message(s) de conversation effacé(s) (> ${retentionDays} j)`);
 }
 

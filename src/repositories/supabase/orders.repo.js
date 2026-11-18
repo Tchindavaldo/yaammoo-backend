@@ -114,6 +114,18 @@ exports.findByIdSuffix = async (fastFoodIds, suffix) => {
   return (data || []).map(m.order.fromSupabase);
 };
 
+/** Commandes de TOUTES les boutiques dont l'id finit par `suffix` (agent admin, migration 098). */
+exports.findByIdSuffixAny = async suffix => {
+  const s = String(suffix || '').replace(/[^A-Za-z0-9_-]/g, '');
+  if (s.length < 4) return [];
+  const { data, error } = await alive(supabase.from(TABLE).select('*'))
+    .ilike('id', `%${s.replace(/_/g, '\\_')}`)
+    .order('created_at', { ascending: false })
+    .limit(5);
+  if (error) throw error;
+  return (data || []).map(m.order.fromSupabase);
+};
+
 /**
  * Création atomique de commande avec stock check + ranking.
  * Reproduit exactement la logique de createOrder.js Firestore.

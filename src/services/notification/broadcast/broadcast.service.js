@@ -17,6 +17,9 @@ const HISTORY_MIN = 30;
 
 const AUDIENCE_LABELS = { customers: 'vos clients', city: 'cette ville', all: 'tous les utilisateurs' };
 
+// Envoi d'un super-administrateur au nom d'une boutique : sans quota ni plan (migration 098).
+const ADMIN_PLAN = { key: 'admin', label: 'Administrateur', dayLimit: 1000000, weekLimit: 1000000, audiences: ['customers', 'city'], audienceLimits: {} };
+
 /** Vue publique d'un envoi : l'uid de l'expéditeur reste côté serveur. */
 const publicItem = ({ senderUid, ...item }) => item;
 
@@ -38,11 +41,15 @@ exports.getBroadcastState = async fastFoodId => {
  * @param {{ fastFoodId: string, senderUid: string, payload: object }} input
  *        `payload` déjà validé (`validateBroadcast`).
  */
-exports.sendBroadcast = async ({ fastFoodId, senderUid, payload }) => {
+/**
+ * `admin` : envoi ordonné par un super-administrateur (agent IA admin WhatsApp, migration
+ * 098) à la place de la boutique : plan et quota non appliqués, l'envoi reste enregistré.
+ */
+exports.sendBroadcast = async ({ fastFoodId, senderUid, payload, admin = false }) => {
   const fastFood = await repos.fastfoodBroadcasts.getFastfoodContext(fastFoodId);
   if (!fastFood) return { status: 404, message: 'Boutique introuvable.' };
 
-  const plan = await resolvePlan(fastFood.plan);
+  const plan = admin ? { ...ADMIN_PLAN } : await resolvePlan(fastFood.plan);
   if (!plan.audiences.includes(payload.audience)) {
     return {
       status: 403,
@@ -57,7 +64,7 @@ exports.sendBroadcast = async ({ fastFoodId, senderUid, payload }) => {
   }
 
   const city = payload.audience === 'city' ? payload.city.trim() : null;
-  if (city && !fastFood.cities.includes(city)) {
+  if (city && !admin && !fastFood.cities.includes(city)) {
     return { status: 400, message: `La boutique ne dessert pas ${city}.` };
   }
 

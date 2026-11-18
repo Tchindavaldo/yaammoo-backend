@@ -6,78 +6,9 @@
 // prend sur chaque commande.
 // ============================================================================
 const repos = require('../../repositories');
-const { getPricingSettings, getAppVersionGate, setSetting, KEYS } = require('../../services/settings/settings.service');
+const { getPricingSettings, getAppVersionGate } = require('../../services/settings/settings.service');
 const { paymentFeePercentOf } = require('../../services/pricing/paymentFees');
-const { categoryOf } = require('../../services/settings/settings.keys');
-const { notifyFastfoodsChanged } = require('../../services/fastfood/fastfoodsChanged');
-
-/** Clés modifiables via l'API. Toute autre clé est refusée. */
-const EDITABLE_KEYS = new Set(Object.values(KEYS));
-
-// ---------------------------------------------------------------------------
-// Type attendu, PAR CLÉ
-// ---------------------------------------------------------------------------
-// 'number'  : nombre fini >= 0 (montants, pourcentages, seuils, durées)
-// 'boolean' : booléen strict
-// 'version' : chaîne "x.y.z"
-// 'versions': tableau de chaînes "x.y.z", vide autorisé
-// 'ids'     : tableau de chaînes non vides (uid), vide autorisé
-// 'text'    : chaîne libre, vide autorisée (une version en review qu'on efface)
-// 'digits'  : chaîne de chiffres non vide (indicatif téléphonique)
-//
-// Toute clé absente de cette table est traitée en 'number' : c'est le cas de la
-// grande majorité des réglages (prix, frais, seuils).
-const VALUE_TYPES = {
-  [KEYS.DELIVERY_FREE_MODE]: 'boolean',
-  [KEYS.APPLE_REVIEW_MODE]: 'boolean',
-  [KEYS.MIN_APP_VERSION]: 'version',
-  [KEYS.LATEST_APP_VERSION]: 'version',
-  // Chaîne vide = aucune version en review : c'est la façon de désactiver le
-  // bypass, elle doit rester acceptée.
-  [KEYS.APPLE_VERSION_REVIEW_MODE]: 'text',
-  // Tableau de versions de test (migration 056) : [] = aucune.
-  [KEYS.TEST_APP_VERSION]: 'versions',
-  // Tableau d'uid de test (migration 057) : [] = aucun.
-  [KEYS.TEST_USER_IDS]: 'ids',
-  // Versions tolérées sans jeton (migration 058) : [] = aucune.
-  [KEYS.TEST_NO_AUTH_VERSIONS]: 'versions',
-  // Chaîne vide = images réelles gardées par le mode volume.
-  [KEYS.TEST_VOLUME_IMAGE_URL]: 'text',
-  [KEYS.OTP_DEFAULT_COUNTRY_CODE]: 'digits',
-  // Interrupteur global « tout livré par la plateforme » (migration 074).
-  [KEYS.PLATFORM_DELIVERY_ALL]: 'boolean',
-  // Boutiques masquées (tableau d'ID) : [] = aucune.
-  [KEYS.HIDDEN_FASTFOOD_IDS]: 'ids',
-};
-
-/**
- * Valide la valeur soumise pour une clé.
- * @returns {string|null} le message d'erreur, ou null si la valeur est bonne
- */
-function validateSettingValue(key, value) {
-  switch (VALUE_TYPES[key] || 'number') {
-    case 'boolean':
-      return typeof value === 'boolean' ? null : '`value` doit être un booléen.';
-
-    case 'version':
-      return typeof value === 'string' && /^\d+\.\d+\.\d+$/.test(value) ? null : '`value` doit être une version au format "x.y.z".';
-
-    case 'versions':
-      return Array.isArray(value) && value.every(v => typeof v === 'string' && /^\d+\.\d+\.\d+$/.test(v)) ? null : '`value` doit être un tableau de versions "x.y.z" (vide autorisé).';
-
-    case 'ids':
-      return Array.isArray(value) && value.every(v => typeof v === 'string' && v.trim() !== '') ? null : "`value` doit être un tableau d'ID (chaînes non vides, vide autorisé).";
-
-    case 'text':
-      return typeof value === 'string' ? null : '`value` doit être une chaîne.';
-
-    case 'digits':
-      return typeof value === 'string' && /^\d+$/.test(value) ? null : '`value` doit être une chaîne de chiffres (ex. "237").';
-
-    default:
-      return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? null : '`value` doit être un nombre positif.';
-  }
-}
+const { patchSetting } = require('../../services/settings/patchSetting.service');
 
 async function requireAdmin(req, res) {
   const viewer = await repos.users.getUserByIdSafe(req.user?.uid);
@@ -129,39 +60,15 @@ exports.getSettingsController = async (req, res) => {
   }
 };
 
-/** PATCH /settings/:key — admin. Bascule à chaud, sans redéploiement. */
+/** PATCH /settings/:key — admin. Bascule à chaud, sans redéploiement (services/settings/patchSetting.service.js). */
 exports.patchSettingController = async (req, res) => {
   try {
     if (!(await requireAdmin(req, res))) return;
-
-    const { key } = req.params;
-    if (!EDITABLE_KEYS.has(key)) {
-      return res.status(400).json({ success: false, message: `Réglage inconnu ou non modifiable : ${key}.` });
-    }
     if (!req.body || req.body.value === undefined) {
       return res.status(400).json({ success: false, message: 'Champ `value` requis.' });
     }
-
-    const { value } = req.body;
-
-    // Typage explicite : une valeur mal typée fausserait silencieusement les
-    // calculs de prix (ex. "100" concaténé au lieu d'être additionné).
-    //
-    // Le type est déclaré PAR CLÉ. Un défaut « nombre positif » ne convient pas :
-    // plusieurs réglages sont des booléens, des versions ou du texte libre, et
-    // les traiter en nombres les rendrait impossibles à modifier.
-    const typeError = validateSettingValue(key, value);
-    if (typeError) {
-      return res.status(400).json({ success: false, message: typeError });
-    }
-
-    const data = await setSetting(key, value);
-    // Réglage qui change le prix ou les zones affichés (frais, marges, course,
-    // interrupteur global, boutiques masquées) : toutes les apps rechargent.
-    if (['pricing', 'delivery', 'withdrawal'].includes(categoryOf(key)) || key === KEYS.PLATFORM_DELIVERY_ALL || key === KEYS.HIDDEN_FASTFOOD_IDS) {
-      notifyFastfoodsChanged(null, `setting:${key}`);
-    }
-    return res.status(200).json({ success: true, message: 'Réglage mis à jour.', data });
+    const r = await patchSetting(req.params.key, req.body.value);
+    return res.status(r.status).json(r.status === 200 ? { success: true, message: r.message, data: r.data } : { success: false, message: r.message });
   } catch (error) {
     console.error('Erreur mise à jour réglage :', error);
     return res.status(500).json({ success: false, message: error.message || 'Erreur serveur.' });

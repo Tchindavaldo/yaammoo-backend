@@ -372,9 +372,11 @@ async function getAiSettings() {
       // Menu du jour (migration 097) : heure du Cameroun, -1 = coupé.
       dailyMenuHour: Number.isInteger(dailyMenuHour) && dailyMenuHour >= 0 && dailyMenuHour <= 23 ? dailyMenuHour : -1,
       defaultMenuImageUrl: typeof s[KEYS.AI_DEFAULT_MENU_IMAGE_URL] === 'string' ? s[KEYS.AI_DEFAULT_MENU_IMAGE_URL].trim() : '',
+      // Super-administrateurs joints sur WhatsApp (migration 098), numéros tels que saisis.
+      adminPhones: Array.isArray(s[KEYS.AI_ADMIN_PHONES]) ? s[KEYS.AI_ADMIN_PHONES].filter(p => typeof p === 'string' && p.trim()) : [],
     };
   } catch {
-    return { enabled: false, models: [], timeoutMs: 30000, retentionDays: 30, historyMax: 100, ordersPageSize: 20, dailyMenuHour: -1, defaultMenuImageUrl: '' };
+    return { enabled: false, models: [], timeoutMs: 30000, retentionDays: 30, historyMax: 100, ordersPageSize: 20, dailyMenuHour: -1, defaultMenuImageUrl: '', adminPhones: [] };
   }
 }
 

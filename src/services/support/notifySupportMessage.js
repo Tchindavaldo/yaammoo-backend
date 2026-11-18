@@ -2,8 +2,8 @@
 // notifySupportMessage — push notification a l'autre partie du fil
 // ============================================================================
 // Message du CLIENT  -> notifie le proprietaire de la boutique concernee.
-//                       Fil sans boutique (plateforme yaammoo) : personne a
-//                       notifier cote app, le back-office traite ces fils.
+//                       Fil sans boutique (plateforme yaammoo) : alerte WhatsApp
+//                       aux super-administrateurs (admin/adminAlerts.service).
 // Message du SUPPORT -> notifie le client proprietaire du fil.
 // ============================================================================
 const repos = require('../../repositories');
@@ -35,6 +35,19 @@ const getFastFoodOwnerId = async fastFoodId => {
 exports.notifySupportMessage = async ({ thread, message }) => {
   try {
     const fromSupport = message.author === 'support';
+
+    // Message d'un utilisateur au support de la PLATEFORME (fil sans boutique) : les
+    // super-administrateurs sont prévenus sur WhatsApp (migration 098).
+    if (!fromSupport && !thread.fastFood) {
+      const { alertAdmins } = require('../whatsapp/admin/adminAlerts.service');
+      await alertAdmins({
+        source: 'support',
+        threadId: thread.id,
+        who: `${thread.client?.nom || 'Un utilisateur'} (support, ${thread.topic || 'message'})`,
+        summary: preview(message.text),
+        details: message.text,
+      });
+    }
 
     const targetUserId = fromSupport ? thread.userId : thread.fastFood ? await getFastFoodOwnerId(thread.fastFood.id) : null;
     if (!targetUserId) return;

@@ -113,6 +113,9 @@ const KEYS = {
   // plats créés par l'agent en attendant la photo du marchand.
   AI_DAILY_MENU_HOUR: 'ai_daily_menu_hour',
   AI_DEFAULT_MENU_IMAGE_URL: 'ai_default_menu_image_url',
+  // Migration 098 : numéros WhatsApp des super-administrateurs (alertes de l'agent IA,
+  // messages support, agent admin). [] = personne.
+  AI_ADMIN_PHONES: 'ai_admin_phones',
   // Migration 092 : minutes sans réponse du marchand WhatsApp avant que le client
   // puisse RENVOYER sa demande d'annulation (cancelRequest.service).
   CANCEL_REQUEST_RESEND_MINUTES: 'cancel_request_resend_minutes',
@@ -208,6 +211,7 @@ const KEY_CATEGORY = {
   [KEYS.AI_ORDERS_PAGE_SIZE]: 'app',
   [KEYS.AI_DAILY_MENU_HOUR]: 'app',
   [KEYS.AI_DEFAULT_MENU_IMAGE_URL]: 'app',
+  [KEYS.AI_ADMIN_PHONES]: 'app',
   [KEYS.CANCEL_REQUEST_RESEND_MINUTES]: 'app',
 
   // test — build de test (sorties de `deployment` par la migration 055)
@@ -327,6 +331,7 @@ const FALLBACKS = {
   // Clé absente : pas d'envoi quotidien (jamais de message non réglé).
   [KEYS.AI_DAILY_MENU_HOUR]: -1,
   [KEYS.AI_DEFAULT_MENU_IMAGE_URL]: '',
+  [KEYS.AI_ADMIN_PHONES]: [],
   [KEYS.CANCEL_REQUEST_RESEND_MINUTES]: 15,
   // Build de test : repli à « aucune ». Une clé absente ne doit JAMAIS servir
   // des données de test à une vraie app.

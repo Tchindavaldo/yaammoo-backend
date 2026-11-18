@@ -16,6 +16,7 @@ const TEMPLATE_LABEL = {
   yam_livraison_livreur: 'Course confiée au livreur (boutique, n°, plats, livraison ; bouton Je pars en livraison)',
   yam_livreur_ajoute: 'Livreur ajouté par la boutique (boutique)',
   yam_menu_du_jour: 'Menu du jour à confirmer (boutique ; bouton Voir mon menu)',
+  yam_alerte_admin: "Alerte aux administrateurs (qui, problème ; bouton Voir)",
 };
 
 /** Texte lisible d'un message envoyé (corps du module WhatsApp). */
@@ -63,14 +64,17 @@ const add = async row => {
 /** Message envoyé à une boutique. `author` : 'system' (flux automatiques) ou 'ai'. */
 exports.logOutbound = (body, { author = 'system', messageId = null } = {}) => add({ phone: body.to, direction: 'out', author, kind: body.type, body: outboundText(body), messageId });
 
-/** Message reçu : journalisé seulement s'il vient du numéro d'une boutique WhatsApp ou d'un de ses livreurs. */
+/** Message reçu : journalisé seulement s'il vient d'un super-administrateur, du numéro d'une boutique WhatsApp ou d'un de ses livreurs. */
 exports.logInbound = async event => {
   let author = null;
   try {
     // Chargés ici : merchantChannel charge ce fichier.
     const { shopsOfPhone } = require('./merchantChannel');
     const { driverOfPhone } = require('./driver/driverDirectory');
-    if ((await shopsOfPhone(event.from)).length) author = 'merchant';
+    const { isAdminPhone } = require('./admin/adminAlerts.service');
+    // Super-administrateur d'abord : son agent passe avant celui d'une boutique (migration 098).
+    if (await isAdminPhone(event.from)) author = 'admin';
+    else if ((await shopsOfPhone(event.from)).length) author = 'merchant';
     else if (await driverOfPhone(event.from)) author = 'driver';
   } catch (e) {
     return console.error(`❌ [WHATSAPP] journal de conversation (${event.from}) : ${e.message}`);

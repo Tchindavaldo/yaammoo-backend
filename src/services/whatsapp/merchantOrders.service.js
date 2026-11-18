@@ -166,6 +166,8 @@ exports.registerMerchantOrderButtons = () => {
   require('./driver/driverDeliveries.service').registerDriverDeliveryFlows();
   // Menu du jour : bouton « Voir mon menu », liste refusée hors fenêtre -> template.
   require('./menu/dailyMenu.service').registerDailyMenuFlows();
+  // Agent admin (super-administrateurs) AVANT l'agent des boutiques : son texte lui revient.
+  require('./admin/adminAgent.service').registerAdminAgent();
   require('./ai/merchantAgent.service').registerMerchantAgent();
   require('./ai/driverAgent.service').registerDriverAgent();
 };

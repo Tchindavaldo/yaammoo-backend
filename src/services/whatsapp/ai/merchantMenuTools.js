@@ -1,7 +1,8 @@
 // Outils de l'agent IA du MARCHAND WhatsApp sur les plats (migration 097) : liste avec les
 // prix de la boutique, liste envoyée au marchand, disponibilité et création (propositions
 // avec boutons Confirmer / Annuler, exécutées par menuActions.js), photo d'un plat (tout de
-// suite : photo envoyée par le marchand lui-même). `ctx` = { phone, shops, flags }.
+// suite : photo envoyée par le marchand lui-même), notification push à ses clients
+// (proposition, quota du forfait, shopPushActions.js). `ctx` = { phone, shops, flags }.
 // Doc : architecture/whatsapp-ai.md.
 const repos = require('../../../repositories');
 const pendingActions = require('./pendingActions.service');
@@ -67,6 +68,19 @@ exports.definitions = [
       message: { type: 'string', description: 'Texte de la demande de confirmation : liste des plats avec leurs prix' },
     },
     ['plats', 'message']
+  ),
+  fn(
+    'propose_push',
+    "Propose d'envoyer une notification push aux clients de la boutique (audience customers) ou aux utilisateurs d'une ville qu'elle dessert (audience city), dans le quota de son forfait. Boutons Confirmer / Annuler ; rien ne part avant.",
+    {
+      boutique,
+      audience: { type: 'string', enum: ['customers', 'city'] },
+      city: { type: 'string', description: 'Ville, seulement pour audience city' },
+      title: { type: 'string', description: '50 caractères max' },
+      body: { type: 'string', description: '150 caractères max' },
+      message: { type: 'string', description: 'Texte de la demande de confirmation (reprend le titre et le texte de la notification)' },
+    },
+    ['audience', 'title', 'message']
   ),
   fn(
     'set_menu_photo',
@@ -165,6 +179,22 @@ const handlers = {
     if (!list.length) return { error: 'Aucun plat à créer.' };
     const summary = `Créer : ${list.map(p => p.nom).join(', ')}`;
     const { pending, sent } = await pendingActions.proposeMenu({ phone: ctx.phone, fastFood: shop, action: 'menu_create', payload: { plats: list }, summary, message });
+    if (sent) ctx.flags.replied = true;
+    return sent ? { ok: true, pendingId: pending.id, info: 'Demande de confirmation envoyée au marchand avec les boutons.' } : { error: "L'envoi de la demande de confirmation a échoué." };
+  },
+
+  propose_push: async (ctx, { boutique: name, audience, city, title, body, message }) => {
+    const { shop, error } = pickShop(ctx, name);
+    if (error) return { error };
+    const t = String(title || '').trim();
+    const b = String(body || '').trim();
+    if (!t || t.length > 50) return { error: 'Titre requis, 50 caractères max.' };
+    if (b.length > 150) return { error: 'Texte : 150 caractères max.' };
+    if (!['customers', 'city'].includes(audience)) return { error: 'audience : customers ou city.' };
+    if (audience === 'city' && !String(city || '').trim()) return { error: 'Ville requise pour audience city.' };
+    const payload = { title: t, ...(b ? { body: b } : {}), audience, ...(audience === 'city' ? { city: String(city).trim() } : {}) };
+    const summary = `Push ${audience === 'city' ? `ville ${payload.city}` : 'clients'} : ${t}`;
+    const { pending, sent } = await pendingActions.proposeMenu({ phone: ctx.phone, fastFood: shop, action: 'push_customers', payload, summary, message });
     if (sent) ctx.flags.replied = true;
     return sent ? { ok: true, pendingId: pending.id, info: 'Demande de confirmation envoyée au marchand avec les boutons.' } : { error: "L'envoi de la demande de confirmation a échoué." };
   },

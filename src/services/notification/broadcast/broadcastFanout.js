@@ -189,3 +189,23 @@ exports.fanOutBroadcast = async ({ item, fastFood }) => {
     console.error(`[broadcast] diffusion ${item.id} :`, error);
   }
 };
+
+/**
+ * Notification au nom de YAAMMOO (sans boutique) aux utilisateurs d'une ville, ordonnée par
+ * un super-administrateur (agent IA admin WhatsApp, migration 098). Même chemin que les
+ * envois de boutique (fil personnel, push, socket), sans quota. Ne lève jamais.
+ * @returns {Promise<{ recipientsCount: number, pushedCount: number } | null>}
+ */
+exports.fanOutPlatform = async ({ id, title, body, city }) => {
+  try {
+    const notif = { id, title, body: body || '', type: 'platform_broadcast', route: '/(tabs)', isRead: [], createdAt: new Date().toISOString() };
+    const message = { title, body: body || '', data: { id, type: notif.type, route: notif.route } };
+    const ids = await readAllPages(from => repos.fastfoodBroadcasts.pageCityUserIds(city, from));
+    const result = await fanOutToUsers(ids.filter(Boolean), notif, message);
+    console.log(`[broadcast] Yaammoo ${id} (ville ${city}) : ${result.recipientsCount} destinataires, ${result.pushedCount} push aboutis`);
+    return result;
+  } catch (error) {
+    console.error(`[broadcast] diffusion Yaammoo ${id} :`, error);
+    return null;
+  }
+};

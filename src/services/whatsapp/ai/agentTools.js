@@ -9,6 +9,7 @@ const pendingActions = require('./pendingActions.service');
 const { fn, runTool, searchParams } = require('./agentLoop');
 const driverTools = require('./merchantDriverTools');
 const menuTools = require('./merchantMenuTools');
+const escalation = require('./escalationTool');
 const refs = { type: 'array', items: { type: 'string' }, description: 'Numéros de commande (6 caractères, ex. A1B2C3) ou ids complets' };
 const ref = { type: 'string', description: 'Numéro de commande (6 caractères, ex. A1B2C3) ou id complet' };
 
@@ -36,6 +37,7 @@ exports.definitions = [
   fn('cancel_action', 'Annule une proposition en attente que le marchand refuse.', { pendingId: { type: 'string' } }, ['pendingId']),
   ...driverTools.definitions,
   ...menuTools.definitions,
+  escalation.definition,
 ];
 
 const shopOf = (ctx, order) => ctx.shops.find(s => s.id === order.fastFoodId);
@@ -83,4 +85,4 @@ const handlers = {
 };
 
 /** Exécute un appel d'outil du modèle. Renvoie toujours un objet (erreur comprise). */
-exports.run = (ctx, name, rawArgs) => runTool({ ...handlers, ...driverTools.handlers, ...menuTools.handlers }, ctx, name, rawArgs);
+exports.run = (ctx, name, rawArgs) => runTool({ ...handlers, ...driverTools.handlers, ...menuTools.handlers, alert_admin: escalation.handler('merchant') }, ctx, name, rawArgs);

@@ -10,6 +10,7 @@ const deliveries = require('../driver/driverDeliveries.service');
 const accounts = require('../driver/driverAccounts.service');
 const msg = require('../merchantMessages');
 const text = require('../driver/driverMessages');
+const escalation = require('./escalationTool');
 const dir = require('../driver/driverDirectory');
 
 const refs = { type: 'array', items: { type: 'string' }, description: 'Numéros de commande (6 caractères, ex. A1B2C3) ou ids complets' };
@@ -32,6 +33,7 @@ exports.definitions = [
     }
   ),
   fn('verify_payout_number', 'Vérifie le code SMS que le livreur a reçu sur son numéro Orange Money / MTN MoMo, et valide ce numéro.', { telephone: { type: 'string' }, code: { type: 'string' } }, ['telephone', 'code']),
+  escalation.definition,
 ];
 
 // Frais du code SMS : à la boutique du livreur (la plus récente s'il en sert plusieurs).
@@ -98,4 +100,4 @@ const handlers = {
 };
 
 /** Exécute un appel d'outil du modèle. Renvoie toujours un objet (erreur comprise). */
-exports.run = (ctx, name, rawArgs) => runTool(handlers, ctx, name, rawArgs);
+exports.run = (ctx, name, rawArgs) => runTool({ ...handlers, alert_admin: escalation.handler('driver') }, ctx, name, rawArgs);
