@@ -34,6 +34,7 @@ exports.definitions = [
     ['action', 'params']
   ),
   fn('confirm_admin_action', "Exécute une action en attente que l'administrateur vient de confirmer PAR ÉCRIT (« oui », « vas-y »).", { actionId: { type: 'string' } }, ['actionId']),
+  fn('switch_env', "Bascule le super-administrateur sur l'AUTRE environnement Yaammoo (prod ou test) quand il le demande (« passe en test », « passe en prod ») : ses messages suivants y vont. Rien à confirmer.", { vers: { type: 'string', enum: ['prod', 'test'] } }, ['vers']),
   fn('cancel_admin_action', "Annule une action en attente que l'administrateur refuse.", { actionId: { type: 'string' } }, ['actionId']),
 ];
 
@@ -106,6 +107,18 @@ const handlers = {
   confirm_admin_action: async (ctx, { actionId }) => {
     const r = await actions.execute(actionId, ctx.phone);
     return r.ok ? { ok: true, resultat: r.message } : { error: r.message };
+  },
+
+  switch_env: async (ctx, { vers }) => {
+    const { getAiSettings } = require('../../settings/settings.service');
+    const { envName, siblingKeyName } = await getAiSettings();
+    if (vers === envName) return { ok: true, info: `Il est déjà sur ${envName} : dis-le-lui.` };
+    if (!siblingKeyName) return { error: "Bascule non configurée (wa_sibling_key_name vide)." };
+    const r = await require('../whatsappModule.client').handoverContact(ctx.phone, siblingKeyName);
+    if (!r.ok) return { error: `Bascule refusée par le module : ${r.data?.message || r.status}` };
+    await repos.waAdminAway.set(ctx.phone);
+    ctx.flags.switched = vers;
+    return { ok: true, info: `C'est fait : ses messages suivants vont sur ${vers}. Dis-le-lui en une phrase (pour revenir : « passe en ${envName || 'prod'} »). Ce qu'on lui envoie d'ici lui arrive toujours.` };
   },
 
   cancel_admin_action: async (ctx, { actionId }) => {

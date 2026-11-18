@@ -125,6 +125,9 @@ const KEYS = {
   // Migration 103 : fixer (ou non) les super-admins sur la clé de CE backend dans le module.
   // false quand un même numéro est admin en prod ET en test : seul un backend le fixe.
   WA_PIN_ADMIN_PHONES: 'wa_pin_admin_phones',
+  // Migration 104 : bascule prod <-> test du super-admin par message.
+  WA_ENV_NAME: 'wa_env_name',
+  WA_SIBLING_KEY_NAME: 'wa_sibling_key_name',
   // Migration 092 : minutes sans réponse du marchand WhatsApp avant que le client
   // puisse RENVOYER sa demande d'annulation (cancelRequest.service).
   CANCEL_REQUEST_RESEND_MINUTES: 'cancel_request_resend_minutes',
@@ -223,6 +226,8 @@ const KEY_CATEGORY = {
   [KEYS.AI_ADMIN_PHONES]: 'app',
   [KEYS.WA_RESERVED_PHONES]: 'app',
   [KEYS.WA_PIN_ADMIN_PHONES]: 'app',
+  [KEYS.WA_ENV_NAME]: 'app',
+  [KEYS.WA_SIBLING_KEY_NAME]: 'app',
   [KEYS.AI_AUDIO_MODELS]: 'app',
   [KEYS.AI_AUDIO_MAX_SECONDS]: 'app',
   [KEYS.CANCEL_REQUEST_RESEND_MINUTES]: 'app',
@@ -347,6 +352,8 @@ const FALLBACKS = {
   [KEYS.AI_ADMIN_PHONES]: [],
   [KEYS.WA_RESERVED_PHONES]: [],
   [KEYS.WA_PIN_ADMIN_PHONES]: true,
+  [KEYS.WA_ENV_NAME]: '',
+  [KEYS.WA_SIBLING_KEY_NAME]: '',
   // Clé absente : notes vocales non écoutées (réponse « écrivez »).
   [KEYS.AI_AUDIO_MODELS]: [],
   [KEYS.AI_AUDIO_MAX_SECONDS]: 0,

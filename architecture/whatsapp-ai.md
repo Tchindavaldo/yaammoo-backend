@@ -360,6 +360,23 @@ inconnue…) : tâche `todo/fastfood/feature/ia-relais-echec-action-fixe.md`.
 Images du livreur : journalisées seulement (`[image]`), pas envoyées au modèle (celles du
 marchand le sont, section « Menu du jour et plats »).
 
+## Bascule prod <-> test du super-admin (décision du 18/11/2026, migration 104)
+
+Le même numéro est super-admin en prod et en test (numéro Yaammoo bloqué par Meta, envois par
+le 698) ; il est fixé sur la prod (`wa_pin_admin_phones` = false en test).
+
+1. « Passe en test » / « passe en prod » : outil `switch_env` de l'agent admin
+   (`admin/adminTools.js`). Il fixe le numéro sur la clé de l'AUTRE backend
+   (`wa_sibling_key_name`, `POST /contact-routes/handover` du module) et note son départ
+   (`wa_admin_away`). Ses textes et vocaux vont alors à l'autre backend ; tout ce qu'on lui
+   envoie d'ici lui arrive toujours, et un clic sur un de nos boutons revient ici.
+2. **Retour** : son prochain message arrivé ici déclenche d'abord un bref récap de son absence
+   (alertes, support depuis `since`), puis la ligne est supprimée.
+3. Le job des numéros fixés ne reprend pas un admin parti, sauf s'il est déjà revenu (liste
+   `GET /contact-routes` du module).
+4. Réglages par base : `wa_env_name` ('prod' / 'test'), `wa_sibling_key_name` (prod : clé du
+   test, « backend de test » ; test : clé de la prod, « clé initiale »).
+
 ## Mode app seule (décision du 18/11/2026, migration 102)
 
 Marchand ou livreur WhatsApp : deux modes seulement, « les 2 » (WhatsApp + app, défaut, pas

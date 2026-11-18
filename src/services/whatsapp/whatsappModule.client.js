@@ -41,6 +41,12 @@ exports.sendMessage = body => call('POST', '/messages', body);
  */
 exports.setContactRoutes = contacts => call('PUT', '/contact-routes', { contacts });
 
+/** Numéros fixés sur la clé de CE backend (GET /contact-routes du module). */
+exports.listContactRoutes = () => call('GET', '/contact-routes');
+
+/** Fixe ce numéro sur une AUTRE clé de l'appli, par son nom (bascule prod <-> test, migration 104). */
+exports.handoverContact = (contact, to) => call('POST', '/contact-routes/handover', { contact, to });
+
 /** Coches bleues sur un message reçu (id Rauval ou wamid), `typing` = indicateur de saisie. */
 exports.markRead = (messageId, typing = false) => call('POST', `/messages/${encodeURIComponent(messageId)}/read`, { typing });
 

@@ -54,6 +54,8 @@ const VALUE_TYPES = {
   [KEYS.AI_ADMIN_PHONES]: 'ids',
   [KEYS.WA_RESERVED_PHONES]: 'ids',
   [KEYS.WA_PIN_ADMIN_PHONES]: 'boolean',
+  [KEYS.WA_ENV_NAME]: 'string',
+  [KEYS.WA_SIBLING_KEY_NAME]: 'string',
   // Migration 099 ; ai_audio_max_seconds reste un nombre positif (0 = non écoutées).
   [KEYS.AI_AUDIO_MODELS]: 'ids',
 };
