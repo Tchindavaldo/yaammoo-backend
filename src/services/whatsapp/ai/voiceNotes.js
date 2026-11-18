@@ -1,8 +1,9 @@
 // Notes vocales WhatsApp d'une boutique, d'un livreur ou d'un super-administrateur (migration
 // 099, décisions du 18/11/2026). La note est téléchargée, sa durée contrôlée
 // (`ai_audio_max_seconds`), puis transcrite par les modèles qui écoutent (`ai_audio_models`,
-// un par un, services/ai/transcribeAudio.js). Yaammoo renvoie « J'ai compris : … » avec
-// Confirmer / Corriger ; confirmée, la transcription est traitée par l'agent comme un message
+// un par un, services/ai/transcribeAudio.js). Bien entendue (le modèle répond « DOUTE: non »),
+// elle part tout de suite à l'agent. En cas de doute seulement (décision du 18/11/2026),
+// Yaammoo renvoie « J'ai compris : … » avec Confirmer / Corriger ; confirmée, la transcription est traitée par l'agent comme un message
 // écrit (webhookEvents.dispatchText). Journal : « [vocal à confirmer] … », puis « [vocal] … »
 // ou « [vocal rejeté] … ». Enregistré par merchantAgent.registerMerchantAgent.
 // Doc : architecture/whatsapp-ai.md (« Notes vocales »).
@@ -35,7 +36,8 @@ const PROMPT = `Tu transcris une note vocale WhatsApp envoyée à Yaammoo (comma
 - Noms de plats, quartiers, numéros de commande, montants et numéros de téléphone : tels qu'entendus, nombres en chiffres.
 - Passage dans une autre langue (langue locale) : transcris-le, puis ajoute sa traduction en français entre parenthèses.
 - Passage inaudible : [inaudible]. Rien de compréhensible : réponds seulement [inaudible].
-Réponds uniquement par la transcription.`;
+Réponds par la transcription seule, puis, sur une DERNIÈRE ligne à part, « DOUTE: oui » ou « DOUTE: non ».
+« DOUTE: oui » seulement si tu n'es pas sûr de ce qui a été dit : passage mal entendu ou [inaudible], ou un mot dont dépend le sens (nom de plat, quartier, numéro de commande, montant, téléphone, oui / non, annuler / valider) que tu as pu mal comprendre. Sinon « DOUTE: non ».`;
 
 const WRITE = "Merci d'écrire votre message : les notes vocales ne sont pas lues.";
 const UNHEARD = "Je n'ai pas compris votre note vocale. Renvoyez-la, ou écrivez votre message.";
@@ -82,13 +84,24 @@ const listen = async (event, ai) => {
     console.error(`❌ [AI] note vocale ${event.messageId} de ${event.from} : ${r.error}`);
     return sendText(event.from, FAILED);
   }
-  const text = r.text.replace(/\s+/g, ' ').trim();
+  // Dernière ligne « DOUTE: oui|non » (absente = doute) : confirmation seulement en cas de doute.
+  const doubtLine = r.text.match(/DOUTE\s*:\s*(oui|non)\s*$/i);
+  const doubt = !doubtLine || doubtLine[1].toLowerCase() === 'oui';
+  const text = (doubtLine ? r.text.slice(0, doubtLine.index) : r.text).replace(/\s+/g, ' ').trim();
   if (!text || /^\[?inaudible\]?\.?$/i.test(text)) {
     await retag(event, TAG.unheard);
     return sendText(event.from, UNHEARD);
   }
+  const unsure = doubt || /\[inaudible\]/i.test(text);
+  console.log(`[AI] note vocale ${event.messageId} de ${event.from} transcrite par ${r.model} (${exact != null ? `${exact.toFixed(1)} s` : 'durée inconnue'}, ${unsure ? 'doute : confirmation' : 'sûre'})`);
+  // Bien entendue : traitée tout de suite par l'agent, comme un message écrit.
+  if (!unsure) {
+    if (!(await retag(event, TAG.done, text))) return sendText(event.from, FAILED);
+    const handled = await dispatchText({ event: 'message', from: event.from, messageId: event.messageId, type: 'text', text, timestamp: event.timestamp });
+    if (!handled) console.warn(`⚠️ [AI] note vocale ${event.messageId} de ${event.from} : aucun agent ne l'a prise (IA coupée ?)`);
+    return null;
+  }
   if (!(await retag(event, TAG.pending, text))) return sendText(event.from, FAILED);
-  console.log(`[AI] note vocale ${event.messageId} de ${event.from} transcrite par ${r.model} (${exact != null ? `${exact.toFixed(1)} s` : 'durée inconnue'})`);
   const shown = text.length > MAX_SHOWN ? `${text.slice(0, MAX_SHOWN - 1)}…` : text;
   return send(
     {

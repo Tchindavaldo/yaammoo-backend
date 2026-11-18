@@ -311,7 +311,7 @@ services/whatsapp/ai/merchantDriverTools.js      outils du marchand (livreurs)
 services/whatsapp/ai/agentOrders.js              commandes vue marchand / livreur, résolution des n°
 services/whatsapp/ai/pendingActions.service.js   propositions, boutons Confirmer / Annuler
 services/whatsapp/ai/driverAgent.service.js      texte libre du livreur -> agent
-services/whatsapp/ai/voiceNotes.js               note vocale (boutique, livreur, admin) : transcrite, Confirmer / Corriger
+services/whatsapp/ai/voiceNotes.js               note vocale (boutique, livreur, admin) : transcrite, Confirmer / Corriger en cas de doute
 services/ai/transcribeAudio.js                   transcription OpenRouter, modèles un par un
 utils/oggOpusSeconds.js                          durée d'une note vocale Ogg Opus
 services/whatsapp/ai/driverPrompt.js             consignes livreur, état
@@ -412,7 +412,11 @@ transcrite**, puis l'agent travaille sur le texte avec ses modèles habituels.
    vide. Mot pour mot, langue parlée gardée, langue locale traduite entre parenthèses,
    `[inaudible]`. Rien de compris : « Je n'ai pas compris… », journal `[vocal non compris]`.
    Tous en échec : « Je n'ai pas pu écouter… ».
-4. **Confirmation** : la ligne du journal devient `[vocal à confirmer] <texte>` et Yaammoo
+4. **Confirmation seulement en cas de doute** (décision du 18/11/2026) : le modèle finit sa
+   transcription par « DOUTE: oui|non » (oui = passage mal entendu ou `[inaudible]`, ou un mot
+   dont dépend le sens : plat, quartier, n° de commande, montant, téléphone, oui / non). Sans
+   doute, journal `[vocal] <texte>` et le texte part tout de suite à l'agent, sans bouton.
+   Doute (ou ligne absente) : la ligne du journal devient `[vocal à confirmer] <texte>` et Yaammoo
    envoie « J'ai compris : « … » C'est bien ça ? » avec **Confirmer** / **Corriger**
    (payload `<id du message vocal>:vo_yes|vo_no`). Seul le numéro qui a envoyé la note peut
    cliquer ; la ligne est changée sous condition (`swapBodyByMessageId`) : un double clic
