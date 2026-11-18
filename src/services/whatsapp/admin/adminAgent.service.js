@@ -12,6 +12,8 @@ const { converse, enqueue } = require('../ai/agentLoop');
 const { isAdminPhone, registerAdminAlertFlows } = require('./adminAlerts.service');
 const { registerAdminActionButtons } = require('./adminActions.service');
 const tools = require('./adminTools');
+const { shopsOfPhone } = require('../merchantChannel');
+const handoff = require('../ai/handoffTool');
 
 const FALLBACK = "Je n'ai pas pu traiter votre message pour le moment. Réessayez dans un instant.";
 
@@ -48,19 +50,33 @@ const systemPrompt = async phone => {
   return `${RULES}\n\nÉtat actuel (JSON) :\n${JSON.stringify(state)}`;
 };
 
-/** Un message de l'administrateur : boucle modèle / outils, puis réponse finale sur WhatsApp. */
+/**
+ * Un message de l'administrateur : boucle modèle / outils, puis réponse finale sur WhatsApp.
+ * Admin qui a aussi une boutique WhatsApp : outil handoff vers l'agent de la boutique, qui
+ * répond alors au même message (migration 100, ai/handoffTool.js).
+ */
 const runAgent = async (event, ai) => {
   await wa.markRead(event.messageId, true);
+  const shops = await shopsOfPhone(event.from);
+  const canHandoff = shops.length > 0 && !event.handedOff;
   const sinceIso = new Date(Date.now() - ai.retentionDays * 864e5).toISOString();
   const history = await repos.waConversations.listByPhone(event.from, { sinceIso, limit: ai.historyMax });
-  const messages = [{ role: 'system', content: await systemPrompt(event.from) }, ...historyMessages(history)];
-  await converse({ event, ctx: { phone: event.from, flags: {} }, messages, tools, ai, fallback: FALLBACK });
+  const system = `${await systemPrompt(event.from)}${canHandoff ? `\n\n${handoff.rule('merchant', shops.map(s => s.name).join(', '))}` : ''}`;
+  const ctx = { phone: event.from, flags: {} };
+  await converse({ event, ctx, messages: [{ role: 'system', content: system }, ...historyMessages(history)], tools: canHandoff ? handoff.withHandoff(tools, 'merchant') : tools, ai, fallback: FALLBACK });
+  // Chargé ici : l'agent de la boutique charge lui aussi ce fichier (passage de main).
+  if (ctx.flags.handoff === 'merchant') await require('../ai/merchantAgent.service').runMerchantAgent({ ...event, handedOff: true }, shops, ai);
 };
+exports.runAdminAgent = runAgent;
 
-/** Texte libre d'un super-administrateur : pris par l'agent admin si l'IA est active. */
+/**
+ * Texte libre d'un super-administrateur : pris par l'agent admin si l'IA est active, sauf s'il
+ * a passé la main à l'agent de sa boutique (wa_agent_modes = 'merchant') : celui-ci le prend.
+ */
 const onAdminText = async event => {
   const ai = await getAiSettings();
   if (!ai.enabled || !(await isAdminPhone(event.from))) return false;
+  if ((await repos.waAgentModes.get(event.from)) === 'merchant' && (await shopsOfPhone(event.from)).length) return false;
   enqueue(event.from, event.messageId, () => runAgent(event, ai));
   return true;
 };

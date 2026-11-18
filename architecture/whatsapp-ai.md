@@ -174,6 +174,19 @@ Super-administrateurs = numéros de `ai_admin_phones`. Code : `services/whatsapp
 
 Le journal de conversation garde aussi les messages des administrateurs (`author: 'admin'`).
 
+3. **Numéros fixés** (18/11/2026) : Yaammoo prod et test partagent le même numéro WhatsApp,
+   et le module relaie un message reçu au backend qui a écrit en dernier au contact. Vécu : un
+   admin prévu en prod tombait sur le test (boutique de test), un admin prévu en test tombait
+   sur la prod (ignoré). Chaque backend fixe donc ses `ai_admin_phones` sur SA clé du module
+   (`PUT /contact-routes`, migration 007 de rauval-backend) au démarrage puis toutes les 15 min
+   (`utils/whatsappContactRoutesJob.js`). Un clic de bouton reste au backend qui a envoyé le message.
+4. **Admin qui a aussi une boutique WhatsApp** (migration 100, `ai/handoffTool.js`) : deux
+   agents, **admin par défaut**. Outil `handoff` : à sa demande (« passe la main à la boutique »,
+   « à l'admin »), ou après avoir proposé de passer la main pour une demande qui n'est pas de
+   son ressort, l'agent change l'agent actif (`wa_agent_modes`) et l'autre répond au même
+   message (`event.handedOff` : pas de second passage). Le choix reste jusqu'au prochain
+   changement ; sans ligne, agent admin.
+
 ## Confirmation obligatoire (`ai/pendingActions.service.js`, table `wa_ai_pending_actions`)
 
 Aucun statut ne change sans l'accord du marchand.
@@ -310,6 +323,10 @@ services/whatsapp/admin/adminAlerts.service.js   alertes, numéros admin, fenêt
 services/whatsapp/admin/adminAgent.service.js    agent admin (consignes, état)
 services/whatsapp/admin/adminTools.js            outils de l'agent admin
 services/whatsapp/admin/adminActions.service.js  super-actions confirmées
+services/whatsapp/ai/handoffTool.js              passage de main admin <-> boutique (admin qui a une boutique)
+utils/whatsappContactRoutesJob.js                numéros admin fixés sur la clé du backend (module)
+repositories/supabase/waAgentModes.repo.js       agent actif d'un admin qui a une boutique
+schema/migrations/100_wa_agent_modes.sql
 services/settings/patchSetting.service.js        réglage à chaud (PATCH /settings, agent admin)
 utils/whatsappAiPurgeJob.js
 utils/whatsappDailyMenuJob.js

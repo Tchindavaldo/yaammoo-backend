@@ -18,6 +18,8 @@ const { converse, enqueue } = require('./agentLoop');
 const { registerAiButtons } = require('./pendingActions.service');
 const { registerVoiceNotes } = require('./voiceNotes');
 const { storeImage, waitImages, attachRecentImages } = require('./merchantImages');
+const { isAdminPhone } = require('../admin/adminAlerts.service');
+const handoff = require('./handoffTool');
 
 const FALLBACK = "Je n'ai pas pu traiter votre message pour le moment. Utilisez les boutons des messages de commande, ou réessayez dans un instant.";
 
@@ -43,14 +45,23 @@ const buildMessages = async (ctx, ai) => {
   return attachRecentImages(messages, history);
 };
 
-/** Un message du marchand : boucle modèle / outils, puis réponse finale sur WhatsApp. */
+/**
+ * Un message du marchand : boucle modèle / outils, puis réponse finale sur WhatsApp.
+ * Marchand qui est aussi super-administrateur : outil handoff vers l'agent admin, qui répond
+ * alors au même message (migration 100, handoffTool.js).
+ */
 const runAgent = async (event, shops, ai) => {
   await wa.markRead(event.messageId, true); // coches bleues + « en train d'écrire »
   await waitImages(event.from); // photos en cours de rangement : leur adresse doit être au journal
+  const canHandoff = !event.handedOff && (await isAdminPhone(event.from));
   const ctx = await buildCtx(event.from, shops, ai);
   const messages = await buildMessages(ctx, ai);
-  await converse({ event, ctx, messages, tools, ai, fallback: FALLBACK });
+  if (canHandoff) messages[0].content += `\n\n${handoff.rule('admin')}`;
+  await converse({ event, ctx, messages, tools: canHandoff ? handoff.withHandoff(tools, 'admin') : tools, ai, fallback: FALLBACK });
+  // Chargé ici : l'agent admin charge lui aussi ce fichier (passage de main).
+  if (ctx.flags.handoff === 'admin') await require('../admin/adminAgent.service').runAdminAgent({ ...event, handedOff: true }, ai);
 };
+exports.runMerchantAgent = runAgent;
 
 /**
  * Texte libre reçu : pris par l'agent si l'IA est active et que le numéro est celui d'une

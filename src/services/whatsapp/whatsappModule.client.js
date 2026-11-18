@@ -34,6 +34,13 @@ async function call(method, path, body) {
  */
 exports.sendMessage = body => call('POST', '/messages', body);
 
+/**
+ * Fixe ces numéros (E.164) sur la clé de CE backend (PUT /contact-routes du module,
+ * migration 007 de rauval-backend) : leurs messages sans citation lui arrivent toujours,
+ * même si l'autre backend (prod / test, même numéro WhatsApp) leur a écrit en dernier.
+ */
+exports.setContactRoutes = contacts => call('PUT', '/contact-routes', { contacts });
+
 /** Coches bleues sur un message reçu (id Rauval ou wamid), `typing` = indicateur de saisie. */
 exports.markRead = (messageId, typing = false) => call('POST', `/messages/${encodeURIComponent(messageId)}/read`, { typing });
 

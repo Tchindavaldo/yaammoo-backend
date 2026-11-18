@@ -31,5 +31,7 @@ require('./utils/whatsappReminderJob').startWhatsappReminderJob();
 require('./utils/whatsappAiPurgeJob').startWhatsappAiPurgeJob();
 // Menu du jour des boutiques WhatsApp, à confirmer chaque matin (migration 097)
 require('./utils/whatsappDailyMenuJob').startWhatsappDailyMenuJob();
+// Numéros admin fixés sur la clé de CE backend dans le module WhatsApp (numéro partagé prod / test)
+require('./utils/whatsappContactRoutesJob').startWhatsappContactRoutesJob();
 
 server.listen(PORT, HOST, () => console.log(`Serveur lancé sur http://localhost:${PORT}`));
