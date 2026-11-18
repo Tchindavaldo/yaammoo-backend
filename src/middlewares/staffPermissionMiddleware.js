@@ -126,6 +126,12 @@ exports.orderDeliverFromParam = async req => {
   return order ? [{ fastFoodId: order.fastFoodId, permission: 'orders.deliver', selfUids: [order.driverId || null] }] : null;
 };
 
+/** POST /order/:orderId/cancel-request/accept|refuse : la boutique (droit d'annuler). */
+exports.orderCancelFromParam = async req => {
+  const order = await repos.orders.getById(req.params.orderId);
+  return order ? [{ fastFoodId: order.fastFoodId, permission: 'orders.cancel' }] : null;
+};
+
 /** PUT /order : assignation livreur (boutique), avance livreur, sinon mise à jour libre. */
 exports.orderFromBody = async req => {
   const order = req.body?.id ? await repos.orders.getById(req.body.id) : null;

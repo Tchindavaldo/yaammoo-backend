@@ -1,5 +1,6 @@
 // ============================================================================
-// cancelRequest.service — Annulation sur DEMANDE (boutique WhatsApp)
+// cancelRequest.service — Annulation sur DEMANDE (boutique WhatsApp, ou toutes si
+// `settings_app.cancel_request_all_shops` : le marchand répond alors dans l'app)
 // ============================================================================
 // Boutique normale : le client annule directement une commande en attente
 // (`cancelByUser`, orderCancel.service). Boutique WhatsApp (`whatsappOrders`) : le
@@ -37,8 +38,30 @@ const resendDelayMs = async () => {
 
 const CHANGED = 'Le restaurant a déjà accepté cette commande : elle ne peut plus être annulée.';
 
-/** Boutique dont le client DEMANDE l'annulation au lieu d'annuler (marchand WhatsApp). */
-exports.requiresCancelRequest = fastFood => fastFood?.whatsappOrders === true;
+/**
+ * Boutique dont le client DEMANDE l'annulation au lieu d'annuler : marchand WhatsApp,
+ * ou toute boutique si `settings_app.cancel_request_all_shops` (le marchand répond
+ * dans l'app, POST /order/:orderId/cancel-request/accept|refuse).
+ */
+exports.requiresCancelRequest = async fastFood => {
+  if (!fastFood) return false;
+  if (fastFood.whatsappOrders === true) return true;
+  return (await getSettings())[KEYS.CANCEL_REQUEST_ALL_SHOPS] === true;
+};
+
+/** Boutique gérée dans l'app : push au marchand (la commande à jour part par socket). */
+const notifyMerchantApp = async (order, fastFood) => {
+  if (!fastFood?.userId) return;
+  const relance = Number(order.cancelRequest?.sentCount) > 1;
+  await notifyOrderEvent({
+    targetUserId: fastFood.userId,
+    type: 'order_cancel_request',
+    title: relance ? "Relance : demande d'annulation" : "Demande d'annulation",
+    body: "Un client demande l'annulation de sa commande en attente. Acceptez ou refusez dans l'app.",
+    orderId: order.id,
+    route: '/(tabs)/boutique',
+  }).catch(e => console.warn('[cancelRequest] push marchand :', e.message));
+};
 
 /** Commande à jour poussée au client et au marchand (donnée complète, R24). */
 const emitOrder = async order => {
@@ -98,8 +121,12 @@ exports.requestCancel = async (order, fastFood) => {
   const updated = await repos.orders.update(order.id, { cancelRequest }, { expectedStatus: 'pending' });
   if (!updated) return { ok: false, message: CHANGED };
   await emitOrder(updated);
-  // Chargé ici : le flux WhatsApp charge ce fichier.
-  await require('../whatsapp/merchantCancelRequests.service').notifyCancelRequest(updated, fastFood);
+  if (fastFood?.whatsappOrders === true) {
+    // Chargé ici : le flux WhatsApp charge ce fichier.
+    await require('../whatsapp/merchantCancelRequests.service').notifyCancelRequest(updated, fastFood);
+  } else {
+    await notifyMerchantApp(updated, fastFood);
+  }
   return { ok: true, order: updated };
 };
 

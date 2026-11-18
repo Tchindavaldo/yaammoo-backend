@@ -134,11 +134,11 @@ exports.updateOrders = async (orders, userId, payment = null, opts = {}) => {
         continue;
       }
 
-      // Boutique WhatsApp : le client ne peut pas annuler seul une commande payée en
-      // attente, il le DEMANDE au marchand (qui accepte ou refuse sur WhatsApp).
+      // Boutique WhatsApp (ou toutes, `cancel_request_all_shops`) : le client ne peut pas
+      // annuler seul une commande payée en attente, il le DEMANDE au marchand.
       if (status === 'cancelByUser' && prevStatus === 'pending' && !opts.fromCancelRequest) {
         const shop = await repos.fastfoods.getById(prevData.fastFoodId);
-        if (requiresCancelRequest(shop)) {
+        if (await requiresCancelRequest(shop)) {
           const r = await requestCancel(prevData, shop);
           if (!r.ok) return { success: false, message: r.message, data: null };
           cancelRequested.push(r.order);

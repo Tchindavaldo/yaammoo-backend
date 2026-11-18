@@ -112,6 +112,10 @@ const KEYS = {
   // Migration 092 : minutes sans réponse du marchand WhatsApp avant que le client
   // puisse RENVOYER sa demande d'annulation (cancelRequest.service).
   CANCEL_REQUEST_RESEND_MINUTES: 'cancel_request_resend_minutes',
+  // Migration 096 : true = la demande d'annulation s'applique AUSSI aux boutiques
+  // gérées dans l'app (le marchand accepte / refuse dans l'app, app >= 1.1.7).
+  // false = seules les boutiques WhatsApp. À activer quand les marchands ont l'app 1.1.7.
+  CANCEL_REQUEST_ALL_SHOPS: 'cancel_request_all_shops',
   // Builds de TEST (migration 051, table `settings_test` depuis la 055, tableau
   // depuis la 056) : versions d'app exactes qui reçoivent les comportements de
   // test (mode volume de `GET /fastFood/all`, paiement gratuit). [] = aucune.
@@ -203,6 +207,7 @@ const KEY_CATEGORY = {
   [KEYS.AI_HISTORY_MAX_MESSAGES]: 'app',
   [KEYS.AI_ORDERS_PAGE_SIZE]: 'app',
   [KEYS.CANCEL_REQUEST_RESEND_MINUTES]: 'app',
+  [KEYS.CANCEL_REQUEST_ALL_SHOPS]: 'app',
 
   // test — build de test (sorties de `deployment` par la migration 055)
   [KEYS.TEST_APP_VERSION]: 'test',
@@ -319,6 +324,8 @@ const FALLBACKS = {
   [KEYS.AI_HISTORY_MAX_MESSAGES]: 100,
   [KEYS.AI_ORDERS_PAGE_SIZE]: 20,
   [KEYS.CANCEL_REQUEST_RESEND_MINUTES]: 15,
+  // Clé absente : boutiques WhatsApp seulement (comportement d'avant).
+  [KEYS.CANCEL_REQUEST_ALL_SHOPS]: false,
   // Build de test : repli à « aucune ». Une clé absente ne doit JAMAIS servir
   // des données de test à une vraie app.
   [KEYS.TEST_APP_VERSION]: [],

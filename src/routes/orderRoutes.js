@@ -10,8 +10,9 @@ const { getDriverOrders } = require('../controllers/order/getDriverOrders');
 const { getDeliveryGroup } = require('../controllers/order/getDeliveryGroup');
 const { getCancelQuote } = require('../controllers/order/getCancelQuote');
 const { getDeliveryCode, confirmDeliveryController } = require('../controllers/order/deliveryCode.controller');
+const { acceptCancelRequestController, refuseCancelRequestController } = require('../controllers/order/cancelRequest.controller');
 const firebaseAuth = require('../middlewares/authMiddleware');
-const { authorize, orderCreate, orderFromBody, ordersFromBody, ordersFromIds, fastfoodFromParam, selfFromParam, orderOwnerFromParam, orderDeliverFromParam } = require('../middlewares/staffPermissionMiddleware');
+const { authorize, orderCreate, orderFromBody, ordersFromBody, ordersFromIds, fastfoodFromParam, selfFromParam, orderOwnerFromParam, orderDeliverFromParam, orderCancelFromParam } = require('../middlewares/staffPermissionMiddleware');
 
 // Toutes les routes /order exigent le Bearer (elles étaient publiques) — cf. staff.md.
 
@@ -213,6 +214,25 @@ router.get('/:orderId/delivery-code', firebaseAuth, authorize(orderOwnerFromPara
  *       409: { description: Commande pas en livraison }
  */
 router.post('/:orderId/confirm-delivery', firebaseAuth, authorize(orderDeliverFromParam), confirmDeliveryController);
+
+/**
+ * @swagger
+ * /order/{orderId}/cancel-request/{decision}:
+ *   post:
+ *     summary: Le marchand répond dans l'app à la demande d'annulation (droit orders.cancel)
+ *     description: "accept : cancelByUser (remboursement règle client) ; refuse : reste pending, demande refused. Cf. order-cancel.md."
+ *     tags: [Orders]
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - { in: path, name: orderId, required: true, schema: { type: string } }
+ *       - { in: path, name: decision, required: true, schema: { type: string, enum: [accept, refuse] } }
+ *     responses:
+ *       200: { description: "{ success, data: Order }" }
+ *       403: { description: Pas la boutique de la commande }
+ *       409: { description: "Aucune demande en attente, ou commande changée entre-temps (message)" }
+ */
+router.post('/:orderId/cancel-request/accept', firebaseAuth, authorize(orderCancelFromParam), acceptCancelRequestController);
+router.post('/:orderId/cancel-request/refuse', firebaseAuth, authorize(orderCancelFromParam), refuseCancelRequestController);
 
 /**
  * @swagger
