@@ -1,6 +1,6 @@
 // ============================================================================
-// cancelRequest.service — Annulation sur DEMANDE (boutique WhatsApp, ou toutes si
-// `settings_app.cancel_request_all_shops` : le marchand répond alors dans l'app)
+// cancelRequest.service — Annulation sur DEMANDE, toutes les boutiques (le marchand
+// répond sur WhatsApp ou dans l'app)
 // ============================================================================
 // Boutique normale : le client annule directement une commande en attente
 // (`cancelByUser`, orderCancel.service). Boutique WhatsApp (`whatsappOrders`) : le
@@ -39,15 +39,11 @@ const resendDelayMs = async () => {
 const CHANGED = 'Le restaurant a déjà accepté cette commande : elle ne peut plus être annulée.';
 
 /**
- * Boutique dont le client DEMANDE l'annulation au lieu d'annuler : marchand WhatsApp,
- * ou toute boutique si `settings_app.cancel_request_all_shops` (le marchand répond
- * dans l'app, POST /order/:orderId/cancel-request/accept|refuse).
+ * Toute boutique : le client DEMANDE l'annulation au lieu d'annuler. Le marchand
+ * répond sur WhatsApp (boutique `whatsappOrders`) ou dans l'app
+ * (POST /order/:orderId/cancel-request/accept|refuse).
  */
-exports.requiresCancelRequest = async fastFood => {
-  if (!fastFood) return false;
-  if (fastFood.whatsappOrders === true) return true;
-  return (await getSettings())[KEYS.CANCEL_REQUEST_ALL_SHOPS] === true;
-};
+exports.requiresCancelRequest = async fastFood => !!fastFood;
 
 /** Boutique gérée dans l'app : push au marchand (la commande à jour part par socket). */
 const notifyMerchantApp = async (order, fastFood) => {

@@ -23,14 +23,13 @@ Boutique `whatsappOrders` : le marchand n'a pas l'app, il doit pouvoir suivre. U
 demande `order.cancelRequest` (dans `extra_data`), envoyée au marchand sur WhatsApp
 ([whatsapp.md](./whatsapp.md), « Demande d'annulation »).
 
-**Boutique gérée dans l'app** : même demande si `settings_app.cancel_request_all_shops`
-vaut `true` (migration 096, posé à `false` : à activer quand les marchands ont l'app
-1.1.7). Le marchand reçoit une push (`type: 'order_cancel_request'`, route
-`/(tabs)/boutique`) et la commande à jour, puis répond dans l'app :
+**Boutique gérée dans l'app** : même demande, par défaut (décision du 18/11/2026).
+Le marchand reçoit une push (`type: 'order_cancel_request'`, route
+`/(tabs)/boutique`) et la commande à jour, puis répond dans l'app (1.1.7) :
 `POST /order/:orderId/cancel-request/accept` ou `/refuse` (droit `orders.cancel`,
 mêmes services `acceptCancelRequest` / `refuseCancelRequest` que WhatsApp ; refus 409
-avec message si plus rien en attente). Réglage à `false` : le client annule
-directement tant que la commande est en attente (comportement d'avant).
+avec message si plus rien en attente). Plus aucune boutique n'est annulée directement
+par le client.
 
 ```
 cancelRequest = { status, requestedAt, sentAt, resendAt, sentCount, resolvedAt?, reason? }
