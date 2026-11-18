@@ -94,7 +94,11 @@ const handlers = {
 
   list_settings: async (ctx, { filtre }) => {
     const term = String(filtre || '').toLowerCase();
-    const rows = (await repos.settings.listDetailed()).filter(r => !term || r.key.toLowerCase().includes(term));
+    // listDetailed renvoie { categorie: [réglages] } (et non une liste) : à plat ici.
+    const byCategory = await repos.settings.listDetailed();
+    const rows = Object.entries(byCategory)
+      .flatMap(([category, list]) => (list || []).map(r => ({ ...r, category })))
+      .filter(r => !term || r.key.toLowerCase().includes(term) || String(r.description || '').toLowerCase().includes(term));
     return { reglages: rows.slice(0, 40).map(r => ({ cle: r.key, valeur: r.value, categorie: r.category, description: cut(r.description, 160) })), total: rows.length };
   },
 
