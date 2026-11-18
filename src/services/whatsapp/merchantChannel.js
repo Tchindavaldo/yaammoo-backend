@@ -42,8 +42,23 @@ const shopsOfPhone = async phone => {
   return directory.byPhone.get(phone) || [];
 };
 
+// Numéros en mode « app seule » (migration 102, channelMode.service) : plus aucun envoi,
+// sauf les messages du choix de mode (`force`). Gardé 1 min.
+let appOnly = { phones: null, at: 0 };
+const isAppOnlyPhone = async phone => {
+  if (!appOnly.phones || Date.now() - appOnly.at > 60000) appOnly = { phones: new Set(await repos.waAppOnly.listPhones()), at: Date.now() };
+  return appOnly.phones.has(phone);
+};
+const forgetAppOnly = () => {
+  appOnly = { phones: null, at: 0 };
+};
+
 /** Envoi au module + journal de la conversation (`author` : 'system' ou 'ai'). */
-const send = async (body, what, author = 'system') => {
+const send = async (body, what, author = 'system', { force = false } = {}) => {
+  if (!force && (await isAppOnlyPhone(body.to).catch(() => false))) {
+    console.log(`[WHATSAPP] ${what} vers ${body.to} non envoyé : mode app seule`);
+    return { ok: false, status: 0, data: { message: 'mode app seule' } };
+  }
   const r = await wa.sendMessage(body);
   if (!r.ok) console.error(`❌ [WHATSAPP] ${what} vers ${body.to} : ${r.data?.message || `HTTP ${r.status}`}`);
   else await logOutbound(body, { author, messageId: r.data?.messageId || null });
@@ -81,4 +96,4 @@ const replyRecap = async (to, orders) => {
   }
 };
 
-module.exports = { NEXT, QR_HINT, shopNumber, shopPhone, shopsOfPhone, send, sendText, sendStep, batchesOf, replyRecap };
+module.exports = { NEXT, QR_HINT, shopNumber, shopPhone, shopsOfPhone, isAppOnlyPhone, forgetAppOnly, send, sendText, sendStep, batchesOf, replyRecap };

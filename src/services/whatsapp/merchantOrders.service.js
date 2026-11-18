@@ -168,6 +168,8 @@ exports.registerMerchantOrderButtons = () => {
   require('./menu/dailyMenu.service').registerDailyMenuFlows();
   // Agent admin (super-administrateurs) AVANT l'agent des boutiques : son texte lui revient.
   require('./admin/adminAgent.service').registerAdminAgent();
+  // Mode « app seule » (migration 102) : propose de réactiver WhatsApp, avant les agents.
+  require('./channelMode.service').registerChannelModeFlows();
   require('./ai/merchantAgent.service').registerMerchantAgent();
   require('./ai/driverAgent.service').registerDriverAgent();
 };

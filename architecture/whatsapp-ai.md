@@ -359,6 +359,24 @@ inconnue…) : tâche `todo/fastfood/feature/ia-relais-echec-action-fixe.md`.
 Images du livreur : journalisées seulement (`[image]`), pas envoyées au modèle (celles du
 marchand le sont, section « Menu du jour et plats »).
 
+## Mode app seule (décision du 18/11/2026, migration 102)
+
+Marchand ou livreur WhatsApp : deux modes seulement, « les 2 » (WhatsApp + app, défaut, pas
+de ligne) ou « app seule » (`wa_app_only`). Pas de mode « WhatsApp seul » : le compte est le
+même partout (uid `ph_<numéro>`), l'app retrouve toutes ses données à la connexion.
+
+1. **À chaque connexion à l'app par code** (`verifyPhoneAuth`, pas un compte neuf, pas par
+   email donc pas quand l'admin pilote le compte), `channelMode.service.onAppLogin` écrit sur
+   WhatsApp « Nous avons détecté une connexion… Voulez-vous conserver le mode WhatsApp ? »
+   [Oui, garder les 2] / [Non, app seule]. Un seul message ; rien aux super-admins ni à un
+   compte déjà en app seule. Hors fenêtre de 24 h le message libre échoue (journalisé).
+2. **App seule** : marchand = boutique WhatsApp coupée (`setWhatsappOrders false`), livreur =
+   ligne seule ; dans les deux cas `merchantChannel.send` n'envoie plus rien à ce numéro
+   (sauf les messages de ce choix, `force`).
+3. **Il écrit sur WhatsApp** : réponse « Vous êtes en mode application seule… » avec
+   [Réactiver WhatsApp] (rien d'autre). Le clic rallume la boutique WhatsApp et supprime la
+   ligne. Chaque clic est vérifié : il doit venir du numéro du compte.
+
 ## Notes vocales (décisions du 18/11/2026, migration 099)
 
 Les modèles des agents (`ai_models`) n'écoutent pas l'audio : la note est **d'abord

@@ -294,6 +294,13 @@ exports.verifyPhoneAuth = async ({ phoneNumber, code, profile = {} }) => {
     return { success: false, message: 'Compte validé mais génération du token impossible' };
   }
 
+  // Marchand ou livreur WhatsApp : l'agent demande s'il garde le mode WhatsApp (migration 102).
+  if (!isNewUser) {
+    require('../whatsapp/channelMode.service')
+      .onAppLogin(authUid)
+      .catch(e => console.error(`❌ [PHONE-AUTH] Question du mode WhatsApp : ${e.message}`));
+  }
+
   return {
     success: true,
     message: isNewUser ? 'Compte créé' : 'Connexion réussie',
