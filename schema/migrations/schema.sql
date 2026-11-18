@@ -1752,6 +1752,15 @@ CREATE TABLE IF NOT EXISTS wa_admin_actions (
 CREATE INDEX IF NOT EXISTS idx_wa_admin_actions_phone_status ON wa_admin_actions (phone, status);
 ALTER TABLE wa_admin_actions ENABLE ROW LEVEL SECURITY;
 
+-- Agent actif d'un super-administrateur qui a aussi une boutique WhatsApp (migration 100,
+-- prod le 18/11/2026) : pas de ligne = agent admin.
+CREATE TABLE IF NOT EXISTS wa_agent_modes (
+  phone       TEXT PRIMARY KEY,
+  mode        TEXT NOT NULL CHECK (mode IN ('admin', 'merchant')),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE wa_agent_modes ENABLE ROW LEVEL SECURITY;
+
 -- Migration 093 (prod le 16/11/2026) : withdrawals.driver_id (livreur payé d'une
 -- commande) et whatsapp_numbers.source ('otp', 'login', 'inbound'), décrits plus haut.
 -- Réglages : settings_app ai_*, cancel_request_resend_minutes ; settings_deployment
@@ -1760,6 +1769,8 @@ ALTER TABLE wa_admin_actions ENABLE ROW LEVEL SECURITY;
 -- Migration 095 (prod le 17/11/2026) : table cities (330 villes de livraison, communes du Cameroun), cf. 095_cities.sql et architecture/cities.md.
 -- Migrations 097, 098 (prod le 18/11/2026) : tables ci-dessus ; settings_app ai_daily_menu_hour (8),
 -- ai_default_menu_image_url (''), ai_admin_phones (numéros posés en base, jamais dans le dépôt).
+-- Migrations 099, 100 (prod le 18/11/2026) : settings_app ai_audio_models, ai_audio_max_seconds (60) ;
+-- table wa_agent_modes ci-dessus.
 
 -- ============================================================================
 -- FIN DU SCHEMA
