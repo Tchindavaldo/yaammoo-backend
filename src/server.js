@@ -29,5 +29,7 @@ require('./utils/smsFeeJob').startSmsFeeJob();
 require('./utils/whatsappReminderJob').startWhatsappReminderJob();
 // Rétention des conversations de l'agent IA WhatsApp (migration 090)
 require('./utils/whatsappAiPurgeJob').startWhatsappAiPurgeJob();
+// Menu du jour des boutiques WhatsApp, à confirmer chaque matin (migration 097)
+require('./utils/whatsappDailyMenuJob').startWhatsappDailyMenuJob();
 
 server.listen(PORT, HOST, () => console.log(`Serveur lancé sur http://localhost:${PORT}`));

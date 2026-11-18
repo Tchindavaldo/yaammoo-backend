@@ -35,6 +35,7 @@ const waPendingActionFromSupabase = row =>
         fastFoodId: row.fastfood_id,
         action: row.action,
         orderIds: Array.isArray(row.order_ids) ? row.order_ids : [],
+        payload: row.payload && typeof row.payload === 'object' ? row.payload : {},
         summary: row.summary,
         status: row.status,
         result: row.result,
@@ -49,6 +50,7 @@ const waPendingActionToSupabase = d => ({
   fastfood_id: d.fastFoodId,
   action: d.action,
   order_ids: d.orderIds || [],
+  payload: d.payload || {},
   summary: d.summary || '',
 });
 

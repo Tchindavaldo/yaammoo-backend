@@ -23,6 +23,7 @@ const { buildRatingStats } = require('./fastfoodRatingStats');
 
 // Plat indisponible : `status: 'unavailable'` ou `disponibilite: false`.
 const isMenuAvailable = m => m.status !== 'unavailable' && m.disponibilite !== false;
+exports.isMenuAvailable = isMenuAvailable;
 
 // Filtre catégorie (home) : comparaison insensible à la casse, absent = tout.
 // `categoryNot` (tab « Autre ») : plats sans catégorie ou hors de la liste.

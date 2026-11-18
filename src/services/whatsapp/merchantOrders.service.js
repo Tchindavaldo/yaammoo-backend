@@ -164,6 +164,8 @@ exports.registerMerchantOrderButtons = () => {
   // Livreurs : bouton Je pars en livraison, templates hors fenêtre (bienvenue, course).
   require('./driver/driverAccounts.service').registerDriverAccountFlows();
   require('./driver/driverDeliveries.service').registerDriverDeliveryFlows();
+  // Menu du jour : bouton « Voir mon menu », liste refusée hors fenêtre -> template.
+  require('./menu/dailyMenu.service').registerDailyMenuFlows();
   require('./ai/merchantAgent.service').registerMerchantAgent();
   require('./ai/driverAgent.service').registerDriverAgent();
 };

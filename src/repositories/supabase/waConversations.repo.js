@@ -21,6 +21,26 @@ exports.listByPhone = async (phone, { sinceIso, limit }) => {
   return (data || []).reverse().map(m.waMessage.fromSupabase);
 };
 
+/** Date (ISO) du dernier message REÇU de ce numéro, null s'il n'y en a pas (fenêtre de 24 h). */
+exports.lastInboundAt = async phone => {
+  const { data, error } = await supabase.from(TABLE).select('created_at').eq('phone', phone).eq('direction', 'in').order('created_at', { ascending: false }).limit(1);
+  if (error) throw error;
+  return data?.[0]?.created_at || null;
+};
+
+/** Message par son id d'envoi ou de réception (message cité par une réponse). */
+exports.getByMessageId = async messageId => {
+  const { data, error } = await supabase.from(TABLE).select('*').eq('message_id', messageId).order('id', { ascending: false }).limit(1);
+  if (error) throw error;
+  return m.waMessage.fromSupabase(data?.[0] || null);
+};
+
+/** Remplace le texte d'un message déjà journalisé (photo reçue : adresse de l'image ajoutée). */
+exports.setBodyByMessageId = async (messageId, body) => {
+  const { error } = await supabase.from(TABLE).update({ body }).eq('message_id', messageId);
+  if (error) throw error;
+};
+
 /** Efface les messages plus anciens que `beforeIso`. Renvoie le nombre effacé. */
 exports.purgeBefore = async beforeIso => {
   const { data, error } = await supabase.from(TABLE).delete().lt('created_at', beforeIso).select('id');

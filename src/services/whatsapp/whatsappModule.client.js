@@ -1,4 +1,4 @@
-// Appels sortants vers le module WhatsApp de rauval-backend (envoi, accusé de lecture, numéro).
+// Appels sortants vers le module WhatsApp de rauval-backend (envoi, accusé de lecture, média reçu, numéro).
 // Utilisé par services/whatsapp/merchantOrders.service.js et services/order/deliveryLink.service.js.
 // Ne lève jamais : renvoie { ok, status, data } ; un échec est journalisé.
 const config = require('../../config/whatsapp');
@@ -36,6 +36,27 @@ exports.sendMessage = body => call('POST', '/messages', body);
 
 /** Coches bleues sur un message reçu (id Rauval ou wamid), `typing` = indicateur de saisie. */
 exports.markRead = (messageId, typing = false) => call('POST', `/messages/${encodeURIComponent(messageId)}/read`, { typing });
+
+/**
+ * Télécharge un média reçu par l'appli (GET /media/:id du module) : photo envoyée par un
+ * marchand (carte du menu, photo d'un plat). Ne lève jamais : { ok, buffer, mimeType }.
+ */
+exports.downloadMedia = async mediaId => {
+  const base = config.moduleUrl();
+  const key = config.apiKey();
+  if (!base || !key) return { ok: false, buffer: null, mimeType: null };
+  try {
+    const res = await fetch(`${base}/media/${encodeURIComponent(mediaId)}`, { headers: { 'x-api-key': key }, signal: AbortSignal.timeout(await getWhatsappTimeoutMs()) });
+    if (!res.ok) {
+      console.warn(`⚠️ [WHATSAPP] GET /media/${mediaId} : HTTP ${res.status}`);
+      return { ok: false, buffer: null, mimeType: null };
+    }
+    return { ok: true, buffer: Buffer.from(await res.arrayBuffer()), mimeType: res.headers.get('content-type') || 'application/octet-stream' };
+  } catch (e) {
+    console.error(`❌ [WHATSAPP] GET /media/${mediaId} : ${e.message}`);
+    return { ok: false, buffer: null, mimeType: null };
+  }
+};
 
 // Numéro WhatsApp de l'appli Yaammoo, gardé 1 h : il change seulement quand le module en attribue un autre.
 let myNumber = { phone: null, at: 0 };

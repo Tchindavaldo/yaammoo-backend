@@ -13,7 +13,7 @@ const MAX_ROUNDS = 6;
  * `ctx.flags.replied` : le message de repli n'est alors pas envoyé.
  */
 exports.converse = async ({ event, ctx, messages, tools, ai, fallback }) => {
-  if (messages[messages.length - 1]?.role !== 'user') messages.push({ role: 'user', content: event.text });
+  if (messages[messages.length - 1]?.role !== 'user') messages.push({ role: 'user', content: event.text || `[${event.type}]` });
   for (let round = 0; round < MAX_ROUNDS; round += 1) {
     const r = await chat({ models: ai.models, messages, tools: tools.definitions, timeoutMs: ai.timeoutMs });
     if (!r.ok) {

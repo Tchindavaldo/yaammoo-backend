@@ -360,6 +360,7 @@ async function getAiSettings() {
     const retentionDays = Number(s[KEYS.AI_CONVERSATION_RETENTION_DAYS]);
     const historyMax = Number(s[KEYS.AI_HISTORY_MAX_MESSAGES]);
     const ordersPageSize = Number(s[KEYS.AI_ORDERS_PAGE_SIZE]);
+    const dailyMenuHour = Number(s[KEYS.AI_DAILY_MENU_HOUR]);
     return {
       enabled: s[KEYS.AI_ENABLED] === true && models.length > 0,
       models,
@@ -368,9 +369,12 @@ async function getAiSettings() {
       historyMax: Number.isFinite(historyMax) && historyMax > 0 ? Math.floor(historyMax) : 100,
       // Commandes par page de recherche et en cours montrées d'office (migration 094).
       ordersPageSize: Number.isFinite(ordersPageSize) && ordersPageSize > 0 ? Math.floor(ordersPageSize) : 20,
+      // Menu du jour (migration 097) : heure du Cameroun, -1 = coupé.
+      dailyMenuHour: Number.isInteger(dailyMenuHour) && dailyMenuHour >= 0 && dailyMenuHour <= 23 ? dailyMenuHour : -1,
+      defaultMenuImageUrl: typeof s[KEYS.AI_DEFAULT_MENU_IMAGE_URL] === 'string' ? s[KEYS.AI_DEFAULT_MENU_IMAGE_URL].trim() : '',
     };
   } catch {
-    return { enabled: false, models: [], timeoutMs: 30000, retentionDays: 30, historyMax: 100, ordersPageSize: 20 };
+    return { enabled: false, models: [], timeoutMs: 30000, retentionDays: 30, historyMax: 100, ordersPageSize: 20, dailyMenuHour: -1, defaultMenuImageUrl: '' };
   }
 }
 

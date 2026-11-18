@@ -1,13 +1,14 @@
 // Outils (function calling) de l'agent IA du MARCHAND WhatsApp : définitions envoyées au
 // modèle et exécution. Chaque outil passe par les services existants ; aucune écriture de
 // statut sans confirmation du marchand (propose_action -> confirm_action ou bouton Confirmer).
-// Livreurs (lister, ajouter, confier, message) : merchantDriverTools.js.
+// Livreurs (lister, ajouter, confier, message) : merchantDriverTools.js. Plats (liste avec
+// prix, disponibilité, création, photo) : merchantMenuTools.js.
 // `ctx` = { phone, shops, orders (vue marchand), views, flags }. Doc : architecture/whatsapp-ai.md.
-const repos = require('../../../repositories');
 const { resolveRefs, viewOf, searchOrders, findOrder, daySummary } = require('./agentOrders');
 const pendingActions = require('./pendingActions.service');
 const { fn, runTool, searchParams } = require('./agentLoop');
 const driverTools = require('./merchantDriverTools');
+const menuTools = require('./merchantMenuTools');
 const refs = { type: 'array', items: { type: 'string' }, description: 'Numéros de commande (6 caractères, ex. A1B2C3) ou ids complets' };
 const ref = { type: 'string', description: 'Numéro de commande (6 caractères, ex. A1B2C3) ou id complet' };
 
@@ -21,7 +22,6 @@ exports.definitions = [
   fn('day_summary', "Bilan d'UN jour (aujourd'hui par défaut) : nombre de commandes par statut et montant encaissé par la boutique pour les livrées. À utiliser pour « faire le compte », à la place de la liste.", {
     jour: { type: 'string', description: "AAAA-MM-JJ ; absent = aujourd'hui" },
   }),
-  fn('list_menus', 'Plats de la boutique (nom, catégorie, statut, stock). Sans prix.'),
   fn(
     'propose_action',
     "Propose au marchand une action sur des commandes d'UNE boutique. Envoie lui-même le message avec les boutons Confirmer / Annuler ; RIEN n'est modifié avant sa confirmation. accept = accepter (en attente), refuse = refuser (en attente ; client remboursé), finished = passer en « terminée », delivering = passer en « livraison en cours » (les étapes intermédiaires sont faites dans l'ordre), cancel_accept / cancel_refuse = accepter / refuser la demande d'annulation du client (commande en attente avec demandeAnnulation).",
@@ -35,6 +35,7 @@ exports.definitions = [
   fn('confirm_action', 'Exécute une proposition en attente que le marchand vient de confirmer PAR ÉCRIT (« oui », « vas-y »…). Yaammoo envoie lui-même le récapitulatif.', { pendingId: { type: 'string' } }, ['pendingId']),
   fn('cancel_action', 'Annule une proposition en attente que le marchand refuse.', { pendingId: { type: 'string' } }, ['pendingId']),
   ...driverTools.definitions,
+  ...menuTools.definitions,
 ];
 
 const shopOf = (ctx, order) => ctx.shops.find(s => s.id === order.fastFoodId);
@@ -51,15 +52,6 @@ const handlers = {
   get_order: async (ctx, { ref: r }) => {
     const found = await findOrder({ ref: r, loaded: ctx.orders, shops: ctx.shops });
     return found ? { commande: found.view } : notFound(r);
-  },
-
-  list_menus: async ctx => {
-    const shops = [];
-    for (const s of ctx.shops) {
-      const menus = await repos.menus.getByFastFood(s.id);
-      shops.push({ boutique: s.name, plats: menus.map(mn => ({ nom: mn.name || mn.titre, categorie: mn.category, statut: mn.status, stock: mn.stock, disponibilite: mn.disponibilite })) });
-    }
-    return { boutiques: shops };
   },
 
   propose_action: async (ctx, { action, refs: list, message }) => {
@@ -91,4 +83,4 @@ const handlers = {
 };
 
 /** Exécute un appel d'outil du modèle. Renvoie toujours un objet (erreur comprise). */
-exports.run = (ctx, name, rawArgs) => runTool({ ...handlers, ...driverTools.handlers }, ctx, name, rawArgs);
+exports.run = (ctx, name, rawArgs) => runTool({ ...handlers, ...driverTools.handlers, ...menuTools.handlers }, ctx, name, rawArgs);

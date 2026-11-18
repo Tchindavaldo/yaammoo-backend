@@ -15,6 +15,7 @@ const TEMPLATE_LABEL = {
   yam_demande_annulation: "Demande d'annulation du client (n°, plats ; boutons Accepter / Refuser l'annulation)",
   yam_livraison_livreur: 'Course confiée au livreur (boutique, n°, plats, livraison ; bouton Je pars en livraison)',
   yam_livreur_ajoute: 'Livreur ajouté par la boutique (boutique)',
+  yam_menu_du_jour: 'Menu du jour à confirmer (boutique ; bouton Voir mon menu)',
 };
 
 /** Texte lisible d'un message envoyé (corps du module WhatsApp). */
@@ -31,12 +32,24 @@ const outboundText = body => {
   return `[${body.type}]`;
 };
 
-/** Texte lisible d'un message reçu (événement du module). */
-const inboundText = event => {
+/** Texte lisible d'un message reçu (événement du module). `quoted` : texte du message cité. */
+const inboundText = (event, quoted = null) => {
   if (event.button?.id) return `[Clic bouton « ${event.button.title || ''} »] (${event.button.id})`;
-  if (event.type === 'text') return event.text || '';
+  // Réponse à un message précis (ex. le nom d'un plat en réponse à sa photo).
+  const reply = quoted ? `(en réponse à : ${quoted.slice(0, 300)}) ` : '';
+  if (event.type === 'text') return `${reply}${event.text || ''}`;
   const caption = event.media?.caption ? ` ${event.media.caption}` : '';
-  return `[${event.type}]${caption}`;
+  return `${reply}[${event.type}]${caption}`;
+};
+
+/** Texte du message cité par `event.replyTo` (journal), null sinon. */
+const quotedText = async event => {
+  if (!event.replyTo?.messageId) return null;
+  try {
+    return (await repos.waConversations.getByMessageId(event.replyTo.messageId))?.body || null;
+  } catch {
+    return null;
+  }
 };
 
 const add = async row => {
@@ -63,5 +76,5 @@ exports.logInbound = async event => {
     return console.error(`❌ [WHATSAPP] journal de conversation (${event.from}) : ${e.message}`);
   }
   if (!author) return;
-  await add({ phone: event.from, direction: 'in', author, kind: event.button?.id ? 'button' : event.type, body: inboundText(event), messageId: event.messageId });
+  await add({ phone: event.from, direction: 'in', author, kind: event.button?.id ? 'button' : event.type, body: inboundText(event, await quotedText(event)), messageId: event.messageId });
 };

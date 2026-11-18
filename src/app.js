@@ -73,6 +73,9 @@ app.use('/banner', bannersRoutes);
 app.use('/staff', staffRoutes);
 app.use('/analytics', analyticsRoutes);
 app.use('/payment-page', paymentPageRoutes);
+// Fichiers publics du backend (ex. image des plats créés par l'agent IA WhatsApp,
+// /assets/menu-default.png, en attendant la photo du marchand).
+app.use('/assets', express.static(require('path').join(__dirname, '..', 'public', 'assets'), { maxAge: '7d' }));
 
 // Ajouter l'endpoint de diagnostic Firebase
 app.get('/debug-firebase', (req, res) => {

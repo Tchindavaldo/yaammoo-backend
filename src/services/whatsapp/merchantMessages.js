@@ -28,6 +28,9 @@ exports.plats = order => {
 const MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
 const TZ = 'Africa/Douala';
 const isoDay = date => new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(date); // AAAA-MM-JJ
+exports.isoDay = isoDay;
+/** Heure (0-23) au Cameroun. */
+exports.hourAt = date => Number(new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', hourCycle: 'h23' }).format(date));
 
 /** « aujourd'hui », « demain », sinon « 16 novembre » (heure du Cameroun). */
 const dayLabel = date => {

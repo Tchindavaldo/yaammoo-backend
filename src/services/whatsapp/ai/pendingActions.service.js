@@ -1,6 +1,7 @@
 // Actions proposées par l'agent IA au marchand WhatsApp (table wa_ai_pending_actions,
 // migrations 090 / 091) : accepter, refuser, passer en « terminée » ou « en livraison »,
-// accepter ou refuser la demande d'annulation du client (merchantCancelRequests.service).
+// accepter ou refuser la demande d'annulation du client (merchantCancelRequests.service),
+// changer la disponibilité des plats ou en créer (menuActions.js, migration 097).
 // RIEN ne change sans confirmation : l'agent propose (message + boutons Confirmer /
 // Annuler), le marchand clique ou répond par écrit (l'agent appelle alors confirm_action).
 // L'exécution passe par les services existants (updateOrders ; refus = cancelByFastFood,
@@ -24,6 +25,8 @@ const LABEL = {
   cancel_refuse: "Refuser l'annulation demandée par le client",
 };
 const CANCEL_REQUEST = ['cancel_accept', 'cancel_refuse'];
+// Actions sur les plats (migration 097), détail dans `payload`, exécutées par menuActions.js.
+const MENU_ACTIONS = ['menu_availability', 'menu_create'];
 // Une proposition non confirmée sous 24 h n'est plus exécutable (la fenêtre WhatsApp est close).
 const MAX_AGE_MS = 24 * 3600e3;
 
@@ -52,6 +55,18 @@ exports.propose = async ({ phone, fastFood, action, orders, message }) => {
     orderIds: orders.map(o => o.id),
     summary: `${LABEL[action]} : ${orders.map(o => `n°${msg.ref(o)}`).join(', ')}`,
   });
+  return { pending, sent: await sendProposal(pending, message, phone) };
+};
+
+/** Proposition sur les plats d'UNE boutique (`payload` : détail lu par menuActions.js). */
+exports.proposeMenu = async ({ phone, fastFood, action, payload, summary, message }) => {
+  if (!MENU_ACTIONS.includes(action)) throw new Error(`Action plats inconnue : ${action}`);
+  const pending = await repos.waAiPendingActions.create({ phone, fastFoodId: fastFood.id, action, orderIds: [], payload, summary: String(summary).slice(0, 500) });
+  return { pending, sent: await sendProposal(pending, message, phone) };
+};
+
+/** Message de la proposition avec les boutons Confirmer / Annuler. Renvoie true si envoyé. */
+const sendProposal = async (pending, message, phone) => {
   const body = String(message || pending.summary).slice(0, 1000);
   const r = await send(
     {
@@ -70,7 +85,7 @@ exports.propose = async ({ phone, fastFood, action, orders, message }) => {
     `Proposition IA ${pending.id}`,
     'ai'
   );
-  return { pending, sent: r.ok };
+  return r.ok;
 };
 
 /** Avance une commande pas à pas jusqu'au statut visé. Renvoie null ou le message d'échec. */
@@ -140,7 +155,7 @@ exports.execute = async (id, phone) => {
   if (!to || to !== phone) return { ok: false, message: 'Ce numéro ne pilote pas cette boutique.' };
   const claimed = await repos.waAiPendingActions.resolveIfOpen(id, 'done');
   if (!claimed) return { ok: false, message: 'Proposition déjà traitée.' };
-  const result = await apply(pending, fastFood, to);
+  const result = MENU_ACTIONS.includes(pending.action) ? await require('./menuActions').apply(pending, fastFood, to) : await apply(pending, fastFood, to);
   await repos.waAiPendingActions.setResult(id, result);
   return { ok: true, message: result };
 };

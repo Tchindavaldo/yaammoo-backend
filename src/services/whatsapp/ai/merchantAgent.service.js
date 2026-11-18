@@ -1,5 +1,5 @@
-// Agent IA des boutiques WhatsApp (OpenRouter). Un message texte libre du numéro d'une
-// boutique (fenêtre de 24 h ouverte par ce message) est traité par le modèle, qui voit
+// Agent IA des boutiques WhatsApp (OpenRouter). Un message texte libre ou une photo du numéro
+// d'une boutique (fenêtre de 24 h ouverte par ce message) est traité par le modèle, qui voit
 // toute la conversation récente, les commandes et les livreurs de la boutique, appelle les
 // outils (agentTools.js, merchantDriverTools.js) puis répond. Les boutons, « LIVRÉ <id>
 // <code> » et les templates restent gérés par merchantOrders / merchantTemplates : l'agent ne
@@ -17,6 +17,7 @@ const tools = require('./agentTools');
 const { converse, enqueue } = require('./agentLoop');
 const { registerAiButtons } = require('./pendingActions.service');
 const { onVoiceNote } = require('./voiceNotes');
+const { storeImage, waitImages, attachRecentImages } = require('./merchantImages');
 
 const FALLBACK = "Je n'ai pas pu traiter votre message pour le moment. Utilisez les boutons des messages de commande, ou réessayez dans un instant.";
 
@@ -37,12 +38,15 @@ const buildCtx = async (phone, shops, ai) => {
 const buildMessages = async (ctx, ai) => {
   const sinceIso = new Date(Date.now() - ai.retentionDays * 864e5).toISOString();
   const [history, pending] = await Promise.all([repos.waConversations.listByPhone(ctx.phone, { sinceIso, limit: ai.historyMax }), repos.waAiPendingActions.openByPhone(ctx.phone)]);
-  return [{ role: 'system', content: systemPrompt({ shops: ctx.shops, views: ctx.views, counts: ctx.counts, pending, pageSize: ctx.pageSize }) }, ...historyMessages(history)];
+  const messages = [{ role: 'system', content: systemPrompt({ shops: ctx.shops, views: ctx.views, counts: ctx.counts, pending, pageSize: ctx.pageSize }) }, ...historyMessages(history)];
+  // Photos reçues depuis la dernière réponse (carte du menu, photo d'un plat) : vues par le modèle.
+  return attachRecentImages(messages, history);
 };
 
 /** Un message du marchand : boucle modèle / outils, puis réponse finale sur WhatsApp. */
 const runAgent = async (event, shops, ai) => {
   await wa.markRead(event.messageId, true); // coches bleues + « en train d'écrire »
+  await waitImages(event.from); // photos en cours de rangement : leur adresse doit être au journal
   const ctx = await buildCtx(event.from, shops, ai);
   const messages = await buildMessages(ctx, ai);
   await converse({ event, ctx, messages, tools, ai, fallback: FALLBACK });
@@ -61,10 +65,26 @@ const onMerchantText = async event => {
   return true;
 };
 
-/** Journal de conversation, boutons Confirmer / Annuler, l'agent (avant celui du livreur), notes vocales. */
+/**
+ * Photo reçue du numéro d'une boutique (carte du menu, photo d'un plat) : rangée dans le
+ * storage (merchantImages.js) puis montrée à l'agent, comme un texte libre.
+ */
+const onMerchantImage = async event => {
+  if (event.type !== 'image' || !event.media?.id) return false;
+  const ai = await getAiSettings();
+  if (!ai.enabled) return false;
+  const shops = await shopsOfPhone(event.from);
+  if (!shops.length) return false;
+  storeImage(event);
+  enqueue(event.from, event.messageId, () => runAgent(event, shops, ai));
+  return true;
+};
+
+/** Journal de conversation, boutons Confirmer / Annuler, l'agent (avant celui du livreur), notes vocales, photos. */
 exports.registerMerchantAgent = () => {
   onInbound(logInbound);
   registerAiButtons();
   onText(onMerchantText);
   onMedia(onVoiceNote); // note vocale du marchand ou du livreur : « écrivez » (voiceNotes.js)
+  onMedia(onMerchantImage);
 };
