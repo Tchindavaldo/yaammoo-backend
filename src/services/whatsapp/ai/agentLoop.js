@@ -22,7 +22,8 @@ exports.converse = async ({ event, ctx, messages, tools, ai, fallback }) => {
     }
     const calls = r.message.tool_calls || [];
     if (!calls.length) {
-      const text = String(r.message.content || '').trim();
+      // Le modèle recopie parfois le format de l'historique « [18/11 21:33] » : retiré.
+      const text = String(r.message.content || '').replace(/^\s*(\[\d{1,2}\/\d{1,2}(\/\d{2,4})?,? \d{1,2}[:h]\d{2}\]\s*)+/, '').trim();
       if (text) await sendText(event.from, text, 'ai');
       else if (!ctx.flags.replied) {
         // Réponse vide du modèle : jamais de silence, message de repli (vécu le 18/11/2026).
