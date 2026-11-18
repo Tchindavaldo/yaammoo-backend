@@ -53,6 +53,7 @@ const VALUE_TYPES = {
   [KEYS.AI_DEFAULT_MENU_IMAGE_URL]: 'text',
   [KEYS.AI_ADMIN_PHONES]: 'ids',
   [KEYS.WA_RESERVED_PHONES]: 'ids',
+  [KEYS.WA_PIN_ADMIN_PHONES]: 'boolean',
   // Migration 099 ; ai_audio_max_seconds reste un nombre positif (0 = non écoutées).
   [KEYS.AI_AUDIO_MODELS]: 'ids',
 };

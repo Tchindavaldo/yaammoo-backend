@@ -28,6 +28,7 @@ boutique part sur le numéro Orange Money / MTN MoMo du livreur au scan du QR du
 | `settings_app` | `ai_audio_models` | modèles OpenRouter qui **transcrivent** les notes vocales, essayés **un par un** dans l'ordre (migration 099) : `google/gemini-3.5-flash-lite`, `google/gemini-2.5-flash-lite`, `qwen/qwen3.8-omni-flash` (décision du 18/11/2026). `[]` = notes vocales non écoutées |
 | `settings_app` | `ai_audio_max_seconds` | durée maximale écoutée (60) ; au-delà, l'agent demande un message plus court. `0` = non écoutées |
 | `settings_app` | `wa_reserved_phones` | numéros des super-admins de l'AUTRE environnement (prod <-> test), refusés ici comme boutique WhatsApp ou livreur. Saisis en base seulement. `[]` = aucun |
+| `settings_app` | `wa_pin_admin_phones` | `true` : ce backend fixe ses `ai_admin_phones` sur sa clé du module. `false` quand le même numéro est admin en prod et en test (seule la prod le fixe) |
 
 Tout se change à chaud : `PATCH /settings/<clé>` (ex. `ai_models` = `["…", "…"]`). Types
 vérifiés par `services/settings/patchSetting.service.js` : `ai_models` et `ai_admin_phones`

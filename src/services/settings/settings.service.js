@@ -379,10 +379,12 @@ async function getAiSettings() {
       audioModels: Array.isArray(s[KEYS.AI_AUDIO_MODELS]) ? s[KEYS.AI_AUDIO_MODELS].filter(m => typeof m === 'string' && m) : [],
       audioMaxSeconds: Number.isFinite(audioMaxSeconds) && audioMaxSeconds > 0 ? audioMaxSeconds : 0,
       // Numéros de l'autre environnement (migration 101), refusés comme boutique WhatsApp ou livreur.
+      // Super-admins fixés sur la clé de ce backend (migration 103) ; false = aucun.
+      pinAdminPhones: s[KEYS.WA_PIN_ADMIN_PHONES] !== false,
       reservedPhones: Array.isArray(s[KEYS.WA_RESERVED_PHONES]) ? s[KEYS.WA_RESERVED_PHONES].filter(p => typeof p === 'string' && p.trim()) : [],
     };
   } catch {
-    return { enabled: false, models: [], timeoutMs: 30000, retentionDays: 30, historyMax: 100, ordersPageSize: 20, dailyMenuHour: -1, defaultMenuImageUrl: '', adminPhones: [], audioModels: [], audioMaxSeconds: 0, reservedPhones: [] };
+    return { enabled: false, models: [], timeoutMs: 30000, retentionDays: 30, historyMax: 100, ordersPageSize: 20, dailyMenuHour: -1, defaultMenuImageUrl: '', adminPhones: [], audioModels: [], audioMaxSeconds: 0, reservedPhones: [], pinAdminPhones: true };
   }
 }
 
