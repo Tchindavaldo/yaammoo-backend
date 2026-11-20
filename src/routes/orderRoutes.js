@@ -8,6 +8,7 @@ const { updateOrdersField } = require('../controllers/order/updateOrdersField.co
 const { updateOrdersRankByDate } = require('../controllers/order/updateOrdersRankByDate');
 const { getDriverOrders } = require('../controllers/order/getDriverOrders');
 const { getDeliveryGroup } = require('../controllers/order/getDeliveryGroup');
+const { getMerchantCancelQuote } = require('../controllers/order/getMerchantCancelQuote');
 const { getCancelQuote } = require('../controllers/order/getCancelQuote');
 const { getDeliveryCode, confirmDeliveryController } = require('../controllers/order/deliveryCode.controller');
 const { acceptCancelRequestController, refuseCancelRequestController } = require('../controllers/order/cancelRequest.controller');
@@ -127,6 +128,24 @@ router.get('/delivery-group/:userId', firebaseAuth, authorize(selfFromParam('use
  *         description: Commande non annulable (code not_cancellable)
  */
 router.get('/cancel-quote/:userId/:orderId', firebaseAuth, authorize(selfFromParam('userId')), getCancelQuote);
+
+/**
+ * @swagger
+ * /order/{orderId}/merchant-cancel-quote:
+ *   get:
+ *     summary: Devis d'annulation par la boutique (rien n'est écrit)
+ *     description: Droit orders.cancel. Commande pending, processing ou finished. Le client reçoit la base complète, les frais réels sont débités du marchand (order-cancel.md).
+ *     tags:
+ *       - Orders
+ *     parameters:
+ *       - { in: path, name: orderId, required: true, schema: { type: string } }
+ *     responses:
+ *       200:
+ *         description: "{ success, data: { refund, fees, feesKept, paid, courseKept, manual, phone } }"
+ *       409:
+ *         description: Commande non annulable (code not_cancellable)
+ */
+router.get('/:orderId/merchant-cancel-quote', firebaseAuth, authorize(orderCancelFromParam), getMerchantCancelQuote);
 
 /**
  * @swagger

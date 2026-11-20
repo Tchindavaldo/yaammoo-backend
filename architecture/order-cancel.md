@@ -80,6 +80,13 @@ reçu     = items_real + withdrawal_fee (sauf si d'autres commandes de la boutiq
 - API Refund pawaPay : non utilisée (todo frontend `remboursement-pawapay-refund.md`).
 
 Devis avant confirmation : `GET /order/cancel-quote/:userId/:orderId`.
+
+Devis **boutique** : `GET /order/:orderId/merchant-cancel-quote` (droit `orders.cancel`,
+`orderCancelFromParam`) → `{ refund, fees, feesKept, paid, courseKept, manual, phone }`.
+Annulation par la boutique : `refund` = base complète rendue au client, `fees` = frais
+réels de l'annulation, **débités du marchand** (`feesKept` = 0). `fees` est aussi
+renvoyé par le devis client (égal à `feesKept`, retenu sur le remboursement).
+409 `not_cancellable` hors `pending` / `processing` / `finished`. Aucune formule changée.
 Socket au client : `order.refund { orderId, refundId, amount, feesKept, status }`.
 
 Non fait (à décider) : blocage d'une boutique au-delà d'un seuil de dette,

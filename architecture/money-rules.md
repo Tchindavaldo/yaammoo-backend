@@ -105,6 +105,8 @@ marchand annule (avant livraison): rendu = base ; frais réels débités du marc
 reprise marchand = merchant_debit (solde peut devenir négatif)
 ```
 
+Devis boutique (`GET /order/:orderId/merchant-cancel-quote`) : même calcul (`quoteCancel`), renvoie `refund` (base complète) et `fees` (débités du marchand).
+
 Devis client (`GET /order/cancel-quote`) : renvoie aussi `phone`, le numéro qui a
 payé, seul destinataire du remboursement. **Annulation d'office** : commande
 payée **par pawaPay** non livrée après `settings_app.order_auto_cancel_days` jours (anciennes commandes sans vrai paiement, commandes sans trace de paiement
