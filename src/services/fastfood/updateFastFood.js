@@ -51,7 +51,13 @@ exports.updateFastFoodService = async (fastFoodId, data) => {
     updateData.longitude = clear ? null : data.longitude;
   }
   // Boissons de la boutique (migration 062) : liste COMPLÈTE, remplace l'ancienne.
-  if (data.drinks !== undefined) updateData.drinks = sanitizeShopDrinks(data.drinks);
+  if (data.drinks !== undefined) {
+    updateData.drinks = sanitizeShopDrinks(data.drinks);
+    // Qui paie les frais de chaque boisson (money-rules.md §2 bis).
+    const { validateDrinkFeePayers } = require('../pricing/feePayer');
+    const drinkErrors = validateDrinkFeePayers(updateData.drinks, existing, await getPricingSettings(), existing.drinks);
+    if (drinkErrors.length > 0) throw badRequest(drinkErrors.map(e => e.message).join(' '));
+  }
   if (data.openDays !== undefined) {
     const valid = Array.isArray(data.openDays) && data.openDays.every(d => Number.isInteger(d) && d >= 0 && d <= 6);
     if (!valid) throw badRequest('openDays doit être un tableau d\'entiers 0 (dimanche) à 6 (samedi).');

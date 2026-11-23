@@ -33,6 +33,7 @@
 | Règlement (cascade, `order_settlements`) | `src/services/order/settleDelivery.service.js` |
 | Simulation avant USSD | `src/services/order/settlementPrecheck.service.js` |
 | Contrôle du montant payé | `src/utils/validator/validatePaymentAmount.js` |
+| Qui paie les frais (`feePayer`) | `src/services/pricing/feePayer.js` |
 | Crédit marchand / livreur | `src/services/transaction/creditMerchant.service.js`, `creditDriver.service.js` |
 | Solde, retrait, frais interréseau | `src/services/wallet/*`, `src/repositories/supabase/transactions.repo.js` |
 
@@ -118,9 +119,13 @@ sans trace : alerte `app_errors`) (7, migration
 (`merchant_debt`, 422) et pousse au marchand la raison, à chaque tentative
 (`merchantDebtGuard`). Pas de seuil de montant : c'est la cause du négatif.
 
-## 2 bis. Qui paie les frais (`feePayer`) — PROPOSITION, non codée
+## 2 bis. Qui paie les frais (`feePayer`)
 
-> ⚠️ Section en attente de validation du propriétaire : rien n'est codé.
+Validé par le propriétaire le 23/11/2026. Code : `src/services/pricing/feePayer.js`
+(règles, contrôle, `orderFeeSplit`), affichage `deliveryPricing.applyDisplayPricingToMenu`,
+panier/precheck `repriceCart.repriceOrder`, règlement `settleDelivery.service`,
+aperçu `menuPricePreview` (`?feePayer=` / `?feePayers=`). Le `feePayer` du
+règlement est relu EN BASE (menu, `fastfoods.drinks`), jamais sur la commande.
 
 Champ `feePayer` sur **chaque prix** d'un plat (`menu.prices[].feePayer`) et sur
 **chaque boisson** de la boutique (`fastfoods.drinks[].feePayer`). Les extras
@@ -164,7 +169,13 @@ platformMargin = net − itemsReal − driverAmount   (résidu, ≥ 0 : contrôl
 - **Marge négative** : toujours refusée (`negative_margin`, contrainte
   `order_settlements_margin_chk`), jamais assouplie.
 - **Garde-fou à l'enregistrement** : un prix `merchant*` est refusé si le
-  marchand recevrait ≤ 0 (brut − frais − marge).
+  marchand recevrait ≤ 0 (brut − frais − marge). `merchant_no_margin` ne peut
+  pas être posé par l'app (seulement conservé s'il l'était déjà en base).
+  Le contrôle `fastfood_min_covered_course` est sauté pour un prix `merchant*`
+  (aucun arrondi à exiger).
+- **Aperçu « Vous recevez »** (step prix, `merchant` seul) : brut − frais −
+  marge + course la MOINS chère de la boutique − ses frais. Mode `client` :
+  inchangé (brut + kiosque, hors course).
 
 ## 3. Les frais — ne jamais les confondre
 

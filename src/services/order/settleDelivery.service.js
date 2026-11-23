@@ -43,6 +43,9 @@ const { withdrawalFee } = require('../pricing/withdrawalFees');
 // courses qu'on a facturé au user.
 const { deliveryGroupKey } = require('../pricing/deliveryGroupKey');
 const { openPaidGroups } = require('./paidDeliveryGroups.service');
+// Qui paie les frais (money-rules.md §2 bis) : lu en BASE (menu, boissons de
+// la boutique), jamais sur la commande envoyée par l'app.
+const { orderFeeSplit, selectedPriceFeePayer, effectiveFeePayer, merchantPays } = require('../pricing/feePayer');
 
 /**
  * Frais de retrait dus sur un montant, pour l'opérateur de la commande.
@@ -201,8 +204,17 @@ exports.settleDeliveryService = async ({ orders, bonusCode, payment = null, dryR
         freeReason: grouped ? 'grouped' : (orderOffer?.reason ?? null),
       });
       const platformDelivered = isPlatformDelivered(fastfood);
-      const itemsReal = rawItemsOf(order);
-      prepById.set(order.id, { delivered, ffId, groupKey, grouped, fastfood, orderOffer, marginPerItem, amounts, platformDelivered, itemsReal });
+      // Qui paie les frais : prix choisi du menu EN BASE, boissons de la
+      // boutique EN BASE (régime plateforme => client). Sans menu lisible :
+      // client, comme avant la fonctionnalité.
+      const menuRow = order.menu?.id ? await repos.menus.getById(order.menu.id).catch(() => null) : null;
+      const pricePayer = selectedPriceFeePayer(menuRow?.prices, order.selectedPriceIndex, fastfood);
+      const shopDrinks = Array.isArray(fastfood?.drinks) ? fastfood.drinks : [];
+      const drinkPayerOf = name => effectiveFeePayer(shopDrinks.find(d => d?.name === name)?.feePayer, fastfood);
+      const split = orderFeeSplit(order, { pricePayer, drinkPayerOf, unitBrut, pricing, payment });
+      // `rawItemsOf` reste la référence quand tout est payé par le client.
+      const itemsReal = merchantPays(pricePayer) || split.merchantRaw > 0 ? split.itemsReal : rawItemsOf(order);
+      prepById.set(order.id, { delivered, ffId, groupKey, grouped, fastfood, orderOffer, marginPerItem, amounts, platformDelivered, itemsReal, pricePayer, clientRaw: split.clientRaw });
     }
 
     // ── Frais de retrait : UNE ponction par BOUTIQUE, pas par commande ──────
@@ -232,8 +244,11 @@ exports.settleDeliveryService = async ({ orders, bonusCode, payment = null, dryR
       // qu'elle livre (régime fastfood). Jamais le net encaissé, qui contient
       // encore la marge et l'arrondi plateforme.
       const p = prepById.get(order.id);
-      const courseToShop = !p.platformDelivered && p.amounts.courseBilled ? toNumber(p.amounts.realPrice) : 0;
-      netByKey[key] = (netByKey[key] || 0) + p.itemsReal + courseToShop;
+      // Part payée par le marchand (feePayer) : kiosque NON compensé, il le paie
+      // lui-même à l'agent. Base = bruts `client` + course d'une commande client.
+      const clientPays = !merchantPays(p.pricePayer);
+      const courseToShop = clientPays && !p.platformDelivered && p.amounts.courseBilled ? toNumber(p.amounts.realPrice) : 0;
+      netByKey[key] = (netByKey[key] || 0) + p.clientRaw + courseToShop;
       if (orderByKey[key] === undefined) orderByKey[key] = order;
     }
     const withdrawalByKey = {};
@@ -248,7 +263,7 @@ exports.settleDeliveryService = async ({ orders, bonusCode, payment = null, dryR
     }
 
     for (const order of list) {
-      const { delivered, ffId, groupKey, grouped, orderOffer, marginPerItem, amounts, platformDelivered, itemsReal } = prepById.get(order.id);
+      const { delivered, ffId, groupKey, grouped, orderOffer, marginPerItem, amounts, platformDelivered, itemsReal, pricePayer } = prepById.get(order.id);
 
       // `order.total` est déjà TTC : les frais y sont inclus, on les EXTRAIT.
       // On redescend la cascade dans l'ordre inverse de sa composition —
@@ -302,7 +317,12 @@ exports.settleDeliveryService = async ({ orders, bonusCode, payment = null, dryR
       // dans un même panier, une seule commande porte la course.
       // Fastfood : course versée seulement si elle a été facturée.
       const sameCartSibling = !amounts.courseBilled && !grouped;
-      const driverAmount = platformDelivered ? (sameCartSibling ? 0 : Math.min(amounts.realPrice, Math.max(0, net - itemsReal - marginDue))) : amounts.courseBilled ? amounts.realPrice : 0;
+      // Prix payé par le marchand (feePayer) : la course facturée ET encaissée
+      // porte ses frais de paiement au marchand. Course offerte / groupage :
+      // rien n'est encaissé, rien n'est retenu.
+      const courseCollected = amounts.courseBilled && !orderOffer && !grouped;
+      const courseFee = merchantPays(pricePayer) && courseCollected ? paymentFee_(toNumber(amounts.realPrice), pricing, payment) : 0;
+      const driverAmount = platformDelivered ? (sameCartSibling ? 0 : Math.min(amounts.realPrice, Math.max(0, net - itemsReal - marginDue))) : amounts.courseBilled ? Math.max(0, toNumber(amounts.realPrice) - courseFee) : 0;
 
       // ── 1. Le règlement : une ligne par commande, TOUJOURS ────────────────
       let settlementRow = null;

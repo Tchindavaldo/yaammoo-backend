@@ -29,7 +29,7 @@ exports.updateMenuService = async (menuId, updateData) => {
     // Contrôle des prix AVANT écriture. `updateData` peut ne porter aucun prix :
     // `validateMenuPrices` ne regarde alors rien, l'édition passe telle quelle.
     const fastFoodForPrices = await getFastFoodService(existing.fastFoodId);
-    const priceErrors = validateMenuPrices(updateData, fastFoodForPrices, await getPricingSettings());
+    const priceErrors = validateMenuPrices(updateData, fastFoodForPrices, await getPricingSettings(), existing);
     if (priceErrors.length > 0) {
       return { success: false, message: priceErrors.map(e => e.message).join(' ') };
     }

@@ -9,6 +9,8 @@ const isValid = n => Number.isFinite(n) && n > 0;
  * - `?price=2000`            → `{ data: preview }` (un prix) ;
  * - `?prices=2000,3500,1200` → `{ items: [preview, ...] }` dans l'ordre reçu
  *   (vérification de tous les prix du menu en une requête, bouton « Suivant »).
+ * `feePayer=merchant` (un prix) ou `feePayers=client,merchant,…` (même ordre que
+ * `prices`) : qui paie les frais de chaque prix (money-rules.md §2 bis).
  */
 exports.menuPricePreviewController = async (req, res) => {
   try {
@@ -24,7 +26,8 @@ exports.menuPricePreviewController = async (req, res) => {
     if (!fastfood) return res.status(404).json({ message: 'Boutique introuvable.' });
 
     const pricing = await getPricingSettings();
-    const items = list.map(p => previewMenuPrice(p, fastfood, pricing));
+    const payers = batch ? String(req.query.feePayers || '').split(',') : [req.query.feePayer];
+    const items = list.map((p, i) => previewMenuPrice(p, fastfood, pricing, payers[i] || 'client'));
     res.status(200).json(batch ? { items } : { data: items[0] });
   } catch (error) {
     console.error('Erreur aperçu prix menu :', error);

@@ -28,6 +28,9 @@ exports.menuFields = {
         // figer le prix de l'époque (vue marchand). Jamais utilisé dans un
         // calcul d'argent : le montant payé reste contrôlé sur `price`.
         rawPrice: { type: 'number', required: false },
+        // Qui paie les frais de CE prix : client (défaut) | merchant |
+        // merchant_no_margin (backend seul). Cf. money-rules.md §2 bis.
+        feePayer: { type: 'string', required: false, allowedValues: ['client', 'merchant', 'merchant_no_margin'] },
       },
     },
   },
@@ -58,6 +61,7 @@ exports.menuFields = {
         prix: { type: 'number', required: false },
         rawPrice: { type: 'number', required: false },
         quantite: { type: 'number', required: false },
+        feePayer: { type: 'string', required: false },
       },
     },
   },

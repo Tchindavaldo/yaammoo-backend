@@ -12,6 +12,7 @@
 // Une boutique sans boisson garde son ancien `menu.drink` (données legacy).
 // ============================================================================
 const crypto = require('crypto');
+const { FEE_PAYERS, FEE_PAYER_CLIENT } = require('../pricing/feePayer');
 
 const badRequest = message => Object.assign(new Error(message), { code: 400 });
 
@@ -33,19 +34,22 @@ function sanitizeShopDrinks(list) {
     if (d.menuIds != null && (!Array.isArray(d.menuIds) || d.menuIds.some(id => typeof id !== 'string'))) {
       throw badRequest(`drinks[${i}].menuIds doit être null (tous les plats) ou un tableau d'ids.`);
     }
+    if (d.feePayer != null && !FEE_PAYERS.includes(d.feePayer)) throw badRequest(`drinks[${i}].feePayer doit être l'un de [${FEE_PAYERS.join(', ')}].`);
     return {
       id: typeof d.id === 'string' && d.id ? d.id : crypto.randomUUID(),
       name,
       prix,
       status: d.status !== false,
       menuIds: Array.isArray(d.menuIds) ? [...new Set(d.menuIds)] : null,
+      // Qui paie les frais de la boisson (money-rules.md §2 bis). Défaut client.
+      feePayer: d.feePayer || FEE_PAYER_CLIENT,
     };
   });
 }
 
 /** Boissons de la boutique au format historique `menu.drink`, pour un plat. */
 const drinksForMenu = (drinks, menuId) =>
-  drinks.filter(d => drinkAppliesTo(d, menuId)).map(d => ({ id: d.id, name: d.name, prix: d.prix, status: d.status, quantite: 1 }));
+  drinks.filter(d => drinkAppliesTo(d, menuId)).map(d => ({ id: d.id, name: d.name, prix: d.prix, status: d.status, quantite: 1, feePayer: d.feePayer || FEE_PAYER_CLIENT }));
 
 /**
  * Reconstruit `menu.drink` de chaque plat depuis `fastfood.drinks`.

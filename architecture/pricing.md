@@ -331,7 +331,9 @@ src/
 ├── services/
 │   ├── settings/settings.service.js                 # cache + replis sûrs
 │   ├── pricing/
-│   │   ├── deliveryPricing.js                       # prix affiché, zones, frais, répartition
+│   │   ├── deliveryPricing.js                       # prix affiché, frais, répartition
+│   │   ├── deliveryZones.js                         # lecture des zones (périodique / express), course min/max
+│   │   ├── feePayer.js                              # qui paie les frais (client / marchand), règlement par ligne
 │   │   ├── withdrawalFees.js                        # barème de retrait par opérateur
 │   │   ├── deliveryGroupKey.js                      # clé « un départ »
 │   │   └── deliveryOfferResolver.js                 # arbitrage campagne / bonus
@@ -385,6 +387,12 @@ src/
 
 Forme groupée : `?prices=2000,3500` → `{ items: [...] }` (même ordre), pour vérifier
 tous les prix d'un menu en une requête.
+
+**Qui paie les frais** : `?feePayer=merchant` (ou `?feePayers=client,merchant`,
+même ordre que `prices`). Mode marchand : `displayedPrice` = brut,
+`merchantReceives` = brut − frais − marge + course la moins chère − ses frais,
+`withdrawalFee` = total retenu, `course` = course prise. Règles complètes :
+[money-rules.md §2 bis](./money-rules.md).
 
 Le front n'y recalcule rien : il appelle l'endpoint quand le marchand valide un prix
 (bouton ✓), puis la forme groupée au bouton « Suivant ».

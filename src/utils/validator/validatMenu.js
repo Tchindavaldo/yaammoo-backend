@@ -59,6 +59,13 @@ exports.validateMenu = (data, checkRequired = true, formatErrors = false) => {
             });
           }
 
+          if (item.feePayer != null && !['client', 'merchant', 'merchant_no_margin'].includes(item.feePayer)) {
+            errors.push({
+              field: `prices[${index}].feePayer`,
+              message: `"feePayer" doit être client, merchant ou merchant_no_margin`,
+            });
+          }
+
           if (item.description && typeof item.description !== 'string') {
             errors.push({
               field: `prices[${index}].description`,

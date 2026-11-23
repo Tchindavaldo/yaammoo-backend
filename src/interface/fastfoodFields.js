@@ -35,6 +35,8 @@ exports.FastfoodFields = {
         prix: { type: 'number', required: true },
         status: { type: 'bool', required: false }, // false = en rupture
         menuIds: { type: 'array', required: false }, // null = tous les plats
+        // Qui paie les frais : client (défaut) | merchant | merchant_no_margin (money-rules.md §2 bis).
+        feePayer: { type: 'string', required: false },
       },
     },
   },

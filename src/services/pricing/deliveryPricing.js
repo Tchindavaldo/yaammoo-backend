@@ -39,16 +39,16 @@
 // ============================================================================
 
 const { grossUpForPaymentFees, paymentFeePercentOf } = require('./paymentFees');
+const { toNumber } = require('../../utils/toNumber');
+// Lecture des zones (périodique / express) : sortie dans `deliveryZones.js` (R3).
+const { collectZones, maxDeliveryPrice, zoneDeliveryPrice, minDeliveryPrice } = require('./deliveryZones');
+const { normalizeFeePayer, merchantPays, FEE_PAYER_CLIENT } = require('./feePayer');
 
 // Emplacement RÉEL des prix d'un menu. Les colonnes `prix1/prix2/prix3` du
 // mapper sont NULL sur toute la base : c'est `prices[]` qui fait foi.
 const MENU_PRICES_FIELD = 'prices';
 
-/** Les prix de zone sont stockés en chaîne ("500") : on normalise sans jamais renvoyer NaN. */
-function toNumber(value) {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : 0;
-}
+// `toNumber` vit dans `utils/toNumber.js` (partagé, sans cycle de require).
 
 /**
  * Commission prélevée par l'agrégateur sur un montant encaissé.
@@ -71,85 +71,6 @@ function feeIncludedIn(ttcAmount, feePercent) {
   const percent = toNumber(feePercent);
   if (ttc <= 0 || percent <= 0) return 0;
   return Math.max(0, Math.ceil((ttc * percent) / 100));
-}
-
-// Type de livraison (orders.delivery.type). Un même lieu existe dans les DEUX
-// listes à des prix différents : l'express coûte plus cher. Confondre les deux
-// crédite le fastfood du mauvais montant.
-//
-// Les deux listes n'ont PAS la même forme (migration 073) :
-//   - PÉRIODIQUE : `deliveryHours[].periodicZones`, un prix par lieu ET par créneau ;
-//   - EXPRESS    : `expressZones`, une liste par boutique, SANS heure — la course
-//     part dès que la commande est prête. Un prix express par heure laissait
-//     l'app et le backend lire deux prix différents pour un même lieu.
-
-/** Zones périodiques, filtrées sur le créneau quand il est connu. */
-function collectPeriodicZones(fastfood, hour) {
-  const allHours = Array.isArray(fastfood?.deliveryHours) ? fastfood.deliveryHours : [];
-  // Créneau donné : seulement ses zones. Un même lieu peut valoir 500 à 09:12
-  // et 100 à 13:06 ; lire le premier trouvé versait le mauvais tarif.
-  // Créneau absent de la boutique (supprimé depuis) : toutes les heures.
-  const slot = hour ? allHours.filter(h => h && typeof h === 'object' && h.hour === hour) : [];
-  const hours = slot.length ? slot : allHours;
-  const zones = [];
-  for (const h of hours) {
-    // Le format legacy est un simple "HH:mm" : aucune zone à en tirer.
-    if (!h || typeof h !== 'object') continue;
-    if (Array.isArray(h.periodicZones)) zones.push(...h.periodicZones);
-  }
-  return zones;
-}
-
-/** Zones express de la boutique : l'heure n'y joue AUCUN rôle. */
-function collectExpressZones(fastfood) {
-  return Array.isArray(fastfood?.expressZones) ? fastfood.expressZones : [];
-}
-
-/**
- * Zones d'une boutique.
- * @param {string} [deliveryType] `express` | `time` — omis, les deux listes.
- * @param {string} [hour] créneau `HH:mm` — ne filtre que le PÉRIODIQUE.
- */
-function collectZones(fastfood, deliveryType, hour) {
-  let zones;
-  if (deliveryType === 'express') zones = collectExpressZones(fastfood);
-  else if (deliveryType === 'time') zones = collectPeriodicZones(fastfood, hour);
-  else zones = [...collectPeriodicZones(fastfood, hour), ...collectExpressZones(fastfood)];
-  return zones.filter(Boolean);
-}
-
-/**
- * Livraison la plus chère. Sans type précisé, le maximum est pris sur les DEUX
- * listes : au moment du home le user n'a pas encore choisi son mode de
- * livraison, le prix annoncé doit donc couvrir le cas le plus cher.
- */
-function maxDeliveryPrice(fastfood, deliveryType) {
-  // ⚠️ `pickupAllowed` n'entre PAS en jeu : il dit que le user peut venir
-  // récupérer sur place, pas que la boutique refuse de livrer. Une boutique qui
-  // ne livre pas ne déclare simplement aucune zone → 0 naturellement.
-  const zones = collectZones(fastfood, deliveryType);
-  if (zones.length === 0) return 0;
-  return zones.reduce((max, z) => Math.max(max, toNumber(z.prix)), 0);
-}
-
-/**
- * Prix réel de la zone choisie — ce que touche le fastfood.
- *
- * ⚠️ La recherche est filtrée par le TYPE de livraison : « Bonanjo » peut valoir
- * 500 en périodique et 900 en express. Sans ce filtre, une course express était
- * créditée au tarif périodique, et l'écart tombait dans la marge plateforme.
- *
- * ⚠️ Et, en PÉRIODIQUE, par le CRÉNEAU (`hour` = `delivery.time`) : le prix
- * d'un lieu dépend de l'heure de départ. L'express n'a pas d'heure : un seul
- * prix par lieu (`expressZones`, migration 073).
- *
- * Zone introuvable : on retombe sur la plus chère du même type, jamais sur 0,
- * pour ne pas créditer la plateforme d'une marge qu'elle n'a pas gagnée.
- */
-function zoneDeliveryPrice(fastfood, zoneName, deliveryType, hour) {
-  if (!zoneName) return maxDeliveryPrice(fastfood, deliveryType);
-  const zone = collectZones(fastfood, deliveryType, hour).find(z => z.lieu === zoneName);
-  return zone ? toNumber(zone.prix) : maxDeliveryPrice(fastfood, deliveryType);
 }
 
 /**
@@ -356,7 +277,7 @@ function roundToStep(amount, { step, amortizationMax }) {
  * Applique les prix affichés à un menu (copie, jamais en place).
  * Chaque prix porte ses frais, calculés une seule fois.
  */
-function applyDisplayPricingToMenu(menu, { surcharge, pricing, rounding, marginByBrut = false }) {
+function applyDisplayPricingToMenu(menu, { surcharge, pricing, rounding, marginByBrut = false, platformDelivered = false }) {
   if (!menu) return menu;
   const out = { ...menu };
 
@@ -378,10 +299,15 @@ function applyDisplayPricingToMenu(menu, { surcharge, pricing, rounding, marginB
   // Le front le renvoie tel quel dans la commande, ce qui fige le prix de
   // l'époque : le prix affiché n'est PAS inversible (arrondis successifs) et
   // relire le menu plus tard donnerait le prix courant, pas celui payé.
+  // `feePayer` (money-rules.md §2 bis) : prix payé par le MARCHAND = affiché
+  // au BRUT (ni marge, ni frais, ni arrondi). Régime plateforme : toujours client.
+  const payerOf = v => (platformDelivered ? FEE_PAYER_CLIENT : normalizeFeePayer(v));
   if (Array.isArray(menu[MENU_PRICES_FIELD])) {
     out[MENU_PRICES_FIELD] = menu[MENU_PRICES_FIELD].map(p => {
       const brut = toNumber(p?.price);
-      return { ...p, price: display(brut + surchargeFor(brut)), rawPrice: brut };
+      const feePayer = payerOf(p?.feePayer);
+      const price = merchantPays(feePayer) ? brut : display(brut + surchargeFor(brut));
+      return { ...p, price, rawPrice: brut, feePayer };
     });
   }
 
@@ -389,9 +315,20 @@ function applyDisplayPricingToMenu(menu, { surcharge, pricing, rounding, marginB
   // ajouté qu'une fois, par le plat — mais bien leurs propres frais, retrait
   // compris. Jamais d'arrondi au pas : c'est le PLAT qui porte le prix rond, et
   // caler chaque supplément dessus multiplierait les paliers.
+  // Extra : `prix` client + `rawPrice` ; la commande prend `rawPrice` quand le
+  // prix CHOISI est payé par le marchand (repriceCart, app). Boisson : son
+  // propre `feePayer` — payée par le marchand, affichée au brut.
   for (const field of ['extra', 'drink']) {
     if (!Array.isArray(menu[field])) continue;
-    out[field] = menu[field].map(i => (i?.prix == null ? i : { ...i, prix: withAllFees(i.prix, pricing), rawPrice: toNumber(i.prix) }));
+    out[field] = menu[field].map(i => {
+      if (i?.prix == null) return i;
+      const raw = toNumber(i.prix);
+      if (field === 'drink') {
+        const feePayer = payerOf(i?.feePayer);
+        return { ...i, prix: merchantPays(feePayer) ? raw : withAllFees(i.prix, pricing), rawPrice: raw, feePayer };
+      }
+      return { ...i, prix: withAllFees(i.prix, pricing), rawPrice: raw };
+    });
   }
 
   return out;
@@ -456,7 +393,7 @@ function applyDisplayPricing(fastfood, pricing, raw = false) {
 
   if (raw) return { ...fastfood, pricing: meta };
 
-  const opts = { surcharge, pricing, rounding, marginByBrut: !platformDelivered };
+  const opts = { surcharge, pricing, rounding, marginByBrut: !platformDelivered, platformDelivered };
   const menus = Array.isArray(fastfood.menus) ? fastfood.menus.map(m => applyDisplayPricingToMenu(m, opts)) : fastfood.menus;
 
   // Régime PLATEFORME uniquement : les zones express portent leurs frais. En
@@ -493,6 +430,7 @@ module.exports = {
   collectZones,
   maxDeliveryPrice,
   zoneDeliveryPrice,
+  minDeliveryPrice,
   displaySurcharge,
   applyExpressZonePricing,
   marginForBrut,

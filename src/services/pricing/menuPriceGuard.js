@@ -118,9 +118,15 @@ function nearestAcceptable(brut, pricing) {
  * @param {Object} menu     données du menu (au moins `prices[]`)
  * @param {Object} fastfood boutique — le contrôle est sauté en régime plateforme
  * @param {Object} pricing  réglages tarifaires
+ * @param {Object} [previous] menu en base (PUT), pour `feePayer` (feePayer.js)
  * @returns {Array<{field:string, message:string}>} erreurs, vide si tout passe
  */
-function validateMenuPrices(menu, fastfood, pricing) {
+function validateMenuPrices(menu, fastfood, pricing, previous = null) {
+  // Qui paie les frais (money-rules.md §2 bis) : contrôlé dans tous les cas.
+  const { validateMenuFeePayers, merchantPays, normalizeFeePayer } = require('./feePayer');
+  const feeErrors = validateMenuFeePayers(menu, fastfood, pricing, previous);
+  if (feeErrors.length) return feeErrors;
+
   const required = toNumber(pricing?.fastfoodMinCoveredCourse);
   if (required <= 0) return [];
   if (isPlatformDelivered(fastfood)) return [];
@@ -132,6 +138,9 @@ function validateMenuPrices(menu, fastfood, pricing) {
   prices.forEach((entry, index) => {
     const brut = toNumber(entry?.price);
     if (brut <= 0) return; // laissé au validateur de forme
+    // Prix payé par le marchand : pas d'arrondi, la course prend ses frais au
+    // marchand. Le surplus d'arrondi n'a plus rien à couvrir.
+    if (merchantPays(normalizeFeePayer(entry?.feePayer))) return;
 
     const { covered } = surplusOf(brut, pricing);
     if (covered >= required) return;

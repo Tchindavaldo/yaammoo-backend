@@ -23,6 +23,7 @@ const { getIO } = require('../../socket');
 const { reliableEmit } = require('../../utils/reliableEmit');
 const { toNumber, zoneDeliveryPrice, collectZones } = require('../pricing/deliveryPricing');
 const { openPaidGroups } = require('./paidDeliveryGroups.service');
+const { merchantPays } = require('../pricing/feePayer');
 
 const qtyOf = v => Math.max(1, toNumber(v) || 1);
 
@@ -71,16 +72,21 @@ function repriceOrder(order, view, { grouped = false } = {}) {
   // Extras / boissons : TOUS remis aux prix actuels (l'écran d'édition du
   // panier relit cette liste, cochés ou non). Disparu : seul un élément COCHÉ
   // rend la commande « à revoir ».
-  const sync = (list, current) =>
+  // Extras : prix CHOISI payé par le marchand (feePayer, money-rules.md §2 bis)
+  // => l'extra est facturé au BRUT (`rawPrice`). Boissons : leur propre
+  // `feePayer`, déjà appliqué dans la vue (prix brut si marchand).
+  const extrasAtRaw = merchantPays(menu.prices?.[idx]?.feePayer);
+  const sync = (list, current, atRaw = false) =>
     (list || []).map(it => {
       const cur = (current || []).find(c => (c?.type ?? c?.name) === it?.name);
       if (!cur || cur.prix == null) {
         if (it?.status === true) review = true;
         return it;
       }
-      return { ...it, prix: toNumber(cur.prix), ...(cur.rawPrice != null ? { rawPrice: toNumber(cur.rawPrice) } : {}) };
+      const prix = atRaw && cur.rawPrice != null ? toNumber(cur.rawPrice) : toNumber(cur.prix);
+      return { ...it, prix, ...(cur.rawPrice != null ? { rawPrice: toNumber(cur.rawPrice) } : {}), ...(cur.feePayer ? { feePayer: cur.feePayer } : {}) };
     });
-  next.extra = sync(order.extra, menu.extra);
+  next.extra = sync(order.extra, menu.extra, extrasAtRaw);
   next.drink = sync(order.drink, menu.drink);
 
   const delivered = order.delivery?.status === true && !!order.delivery?.type && order.delivery.type !== 'aucune';

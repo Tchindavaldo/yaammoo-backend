@@ -100,9 +100,17 @@ router.post('', firebaseAuth, authorize(menuFromBody), postMenuController);
  *         name: prices
  *         description: Plusieurs prix séparés par des virgules (réponse `{ items[] }`, même ordre).
  *         schema: { type: string, example: "2000,3500" }
+ *       - in: query
+ *         name: feePayer
+ *         description: "Qui paie les frais du prix (`price`) : client (défaut) | merchant."
+ *         schema: { type: string, enum: [client, merchant] }
+ *       - in: query
+ *         name: feePayers
+ *         description: "Qui paie les frais de chaque prix de `prices`, même ordre (ex. client,merchant)."
+ *         schema: { type: string, example: "client,merchant" }
  *     responses:
  *       200:
- *         description: "{ data: Preview } ou { items: Preview[] } ; Preview = { price, displayedPrice, withdrawalFee, merchantReceives, accepted, message }"
+ *         description: "{ data: Preview } ou { items: Preview[] } ; Preview = { price, displayedPrice, withdrawalFee, merchantReceives, accepted, message } (+ course, feePayer en mode merchant : withdrawalFee = total retenu, frais + marge)"
  */
 router.get('/price-preview/:fastFoodId', firebaseAuth, menuPricePreviewController);
 
