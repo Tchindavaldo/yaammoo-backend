@@ -66,7 +66,7 @@ exports.precheckSettlement = async ({ orders, userId, bonusCode, payment }) => {
   const ids = [...new Set(list.map(o => o?.fastFoodId).filter(Boolean).map(String))];
   if (ids.length) {
     const { getFastFoodsService } = require('../fastfood/getFastFoods');
-    const views = new Map((await getFastFoodsService(undefined, { ids })).map(v => [String(v.id), v]));
+    const views = new Map((await getFastFoodsService(undefined, { ids, allowFewMenus: true })).map(v => [String(v.id), v]));
     const { openPaidGroups } = require('./paidDeliveryGroups.service');
     const { deliveryGroupKey } = require('../pricing/deliveryGroupKey');
     const paidGroups = await openPaidGroups(userId, list).catch(() => new Map());

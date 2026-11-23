@@ -61,9 +61,10 @@ exports.updateMenuService = async (menuId, updateData) => {
       await reliableEmit(io, userId, 'fastFoodMenuUpdated', { message: 'Menu mis à jour', menuId, menu: updatedMenu });
     }
 
-    // Panier : articles non payés de la boutique recalculés (prix du plat,
-    // plat supprimé => « à revoir »), poussés au client. En arrière-plan.
-    require('../order/repriceCart.service').repriceCartsForShops([existing.fastFoodId]);
+    // Vue home de la boutique renvoyée à toutes les apps : le nombre de plats
+    // disponibles décide de sa présence au home (`home_min_available_menus`).
+    // Recalcule aussi le panier (broadcastFastfoodViews -> repriceCartsForShops).
+    require('../fastfood/fastfoodsChanged').broadcastFastfoodViews([existing.fastFoodId], 'menus_changed');
 
     return { success: true, message: 'Menu mis à jour avec succès', data: updatedMenu };
   } catch (error) {

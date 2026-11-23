@@ -97,6 +97,9 @@ const KEYS = {
   // Migration 076 : jours après lesquels une commande payée que le marchand n'a
   // pas livrée est annulée d'office (remboursement complet, frais au marchand).
   ORDER_AUTO_CANCEL_DAYS: 'order_auto_cancel_days',
+  // Migration 105 : plats DISPONIBLES minimum pour qu'une boutique paraisse au
+  // home et à la recherche (son propriétaire la voit toujours). 0 = aucun minimum.
+  HOME_MIN_AVAILABLE_MENUS: 'home_min_available_menus',
   // Module WhatsApp de rauval-backend (migration 085) : délai max d'un appel.
   WHATSAPP_TIMEOUT_MS: 'whatsapp_timeout_ms',
   // Migration 087 : minutes sans réponse avant le rappel WhatsApp d'une nouvelle commande.
@@ -213,6 +216,7 @@ const KEY_CATEGORY = {
   [KEYS.IMAGE_TRASH_RETENTION_DAYS]: 'app',
   [KEYS.PLATFORM_DELIVERY_ALL]: 'app',
   [KEYS.ORDER_AUTO_CANCEL_DAYS]: 'app',
+  [KEYS.HOME_MIN_AVAILABLE_MENUS]: 'app',
   [KEYS.WHATSAPP_TIMEOUT_MS]: 'app',
   [KEYS.WHATSAPP_REMINDER_MINUTES]: 'app',
   [KEYS.AI_MODELS]: 'app',
@@ -335,6 +339,8 @@ const FALLBACKS = {
   [KEYS.PLATFORM_DELIVERY_ALL]: false,
   // Une semaine (décision du 14/11/2026).
   [KEYS.ORDER_AUTO_CANCEL_DAYS]: 7,
+  // Décision du 23/11/2026 : une boutique paraît au home avec 3 plats disponibles.
+  [KEYS.HOME_MIN_AVAILABLE_MENUS]: 3,
   // Module WhatsApp : 15 s, comme le module lui-même.
   [KEYS.WHATSAPP_TIMEOUT_MS]: 15000,
   // Rappel d'une nouvelle commande sans réponse : 10 min (exemple du template).

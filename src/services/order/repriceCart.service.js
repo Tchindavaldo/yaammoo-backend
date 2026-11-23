@@ -141,7 +141,7 @@ async function repriceOrders(orders, { emit = true } = {}) {
   if (byShop.size === 0) return saved;
 
   const { getFastFoodsService } = require('../fastfood/getFastFoods');
-  const views = await getFastFoodsService(undefined, { ids: [...byShop.keys()] });
+  const views = await getFastFoodsService(undefined, { ids: [...byShop.keys()], allowFewMenus: true });
   const viewOf = new Map(views.map(v => [String(v.id), v]));
   const io = emit ? getIO() : null;
   for (const [shopId, list] of byShop) {

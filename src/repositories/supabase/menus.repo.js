@@ -46,6 +46,30 @@ exports.getByFastFood = async fastFoodId => {
   return (data || []).map(m.menu.fromSupabase);
 };
 
+/**
+ * Nombre de plats DISPONIBLES (vivants, non `unavailable`, `disponibilite` non
+ * false) par boutique : Map fastFoodId -> nombre. Lu par lots (limite 1000 de
+ * PostgREST). Sert au minimum de plats du home (getFastFoods).
+ */
+exports.availableCountByFastFood = async () => {
+  const counts = new Map();
+  const PAGE = 1000;
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from(TABLE)
+      .select('fastfood_id')
+      .is('deleted_at', null)
+      .or('status.is.null,status.neq.unavailable')
+      .or('disponibilite.is.null,disponibilite.eq.true')
+      .order('id', { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (error) throw error;
+    for (const row of data || []) counts.set(row.fastfood_id, (counts.get(row.fastfood_id) || 0) + 1);
+    if (!data || data.length < PAGE) break;
+  }
+  return counts;
+};
+
 exports.update = async (id, fields) => {
   const existing = await exports.getById(id);
   if (!existing) throw new Error(`Menu ${id} introuvable`);

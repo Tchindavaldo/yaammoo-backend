@@ -106,7 +106,7 @@ exports.patchSetting = async (key, value) => {
   if (typeError) return { status: 400, message: typeError };
 
   const data = await setSetting(key, value);
-  if (['pricing', 'delivery', 'withdrawal'].includes(categoryOf(key)) || key === KEYS.PLATFORM_DELIVERY_ALL || key === KEYS.HIDDEN_FASTFOOD_IDS) {
+  if (['pricing', 'delivery', 'withdrawal'].includes(categoryOf(key)) || key === KEYS.PLATFORM_DELIVERY_ALL || key === KEYS.HIDDEN_FASTFOOD_IDS || key === KEYS.HOME_MIN_AVAILABLE_MENUS) {
     notifyFastfoodsChanged(null, `setting:${key}`);
   }
   return { status: 200, message: 'Réglage mis à jour.', data };

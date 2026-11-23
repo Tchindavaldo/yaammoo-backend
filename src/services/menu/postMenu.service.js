@@ -43,6 +43,11 @@ exports.postMenuService = async data => {
       await reliableEmit(io, userId, 'newFastFoodMenu', { message: 'Nouveau menu', menu: menuAdded });
     }
 
+    // Vue home de la boutique renvoyée à toutes les apps : le nombre de plats
+    // disponibles décide de sa présence au home (`home_min_available_menus`).
+    // Recalcule aussi le panier (broadcastFastfoodViews -> repriceCartsForShops).
+    require('../fastfood/fastfoodsChanged').broadcastFastfoodViews([menuAdded.fastFoodId], 'menus_changed');
+
     return { success: true, message: 'Menu ajouté avec succès', data: menuAdded };
   } catch (error) {
     return {

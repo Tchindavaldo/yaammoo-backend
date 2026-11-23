@@ -127,7 +127,8 @@ const shopIdsWithMenuMatching = async term => {
   return [...new Set((data || []).map(r => r.fastfood_id))].slice(0, SEARCH_MENU_SHOPS);
 };
 
-exports.getPage = async ({ limit = 10, cursor, q, city, category, categoryNot = [] } = {}) => {
+exports.getPage = async ({ limit = 10, cursor, q, city, category, categoryNot = [], skip = null } = {}) => {
+  // `skip(row)` : ligne brute à écarter (décidé par le service, ex. minimum de plats).
   // Recherche : nom de la boutique OU nom d'un de ses plats. Caracteres
   // reserves de la syntaxe `or()` PostgREST retires de la saisie.
   const term = (q || '')
@@ -201,6 +202,7 @@ exports.getPage = async ({ limit = 10, cursor, q, city, category, categoryNot = 
     for (const row of batch) {
       if (seen.has(row.id)) continue;
       seen.add(row.id);
+      if (skip && skip(row)) continue;
       rows.push(row);
     }
 

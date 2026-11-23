@@ -13,7 +13,7 @@
 const repos = require('../../repositories');
 const { getMenuService } = require('../menu/getMenu.services');
 const { getArmedDeliveryOffers, pickOfferForFastFood } = require('../bonus/armBonus.service');
-const { getPricingSettings, getHiddenFastfoodIds } = require('../settings/settings.service');
+const { getPricingSettings, getHiddenFastfoodIds, getHomeMinAvailableMenus } = require('../settings/settings.service');
 const { applyDisplayPricing, isPlatformDelivered } = require('../pricing/deliveryPricing');
 const { withShopDrinks } = require('../menu/shopDrinks');
 const { withMenuThumbnails, withFastfoodThumbnail } = require('../images/thumbnailUrl');
@@ -47,6 +47,7 @@ const inCategory = (category, categoryNot = []) => {
  * @param {string} [page.category] catégorie de plat : seuls les plats de cette
  *   catégorie sont rendus (filtre du home, migration 088).
  * @param {string[]} [page.ids] boutiques à recharger (tableau, non paginé).
+ * @param {boolean} [page.allowFewMenus] interne : ignore le minimum de plats.
  * @returns {Promise<Object[]|{items: Object[], nextCursor: string|null}>}
  *   Un tableau en mode historique, un objet paginé sinon.
  */
@@ -59,13 +60,24 @@ exports.getFastFoodsService = async (userId, page) => {
     let fastfoods;
     let nextCursor = null;
 
+    // Minimum de plats DISPONIBLES (tous, hors filtre catégorie) pour paraître
+    // au home : `home_min_available_menus` (settings_app, migration 105). Le
+    // propriétaire voit toujours sa boutique (il prépare son catalogue).
+    // `allowFewMenus` : appel INTERNE (precheck, panier) qui doit voir la boutique
+    // pour contrôler les prix, même sous le minimum.
+    const minMenus = page?.allowFewMenus ? 0 : await getHomeMinAvailableMenus();
+    const menuCounts = minMenus > 0 ? await repos.menus.availableCountByFastFood() : null;
+    const tooFewMenus = f => !!menuCounts && (menuCounts.get(f.id) || 0) < minMenus && !(!!userId && f.userId === userId);
+
     if (Array.isArray(page?.ids)) {
       // Rechargement ciblé (signal `fastfoodsChanged`) : mêmes données que le
       // home, pour ces seules boutiques. Tableau, jamais paginé.
       const rows = await Promise.all(page.ids.map(id => repos.fastfoods.getById(id).catch(() => null)));
       fastfoods = rows.filter(Boolean);
     } else if (paginated) {
-      const res = await repos.fastfoods.getPage(page);
+      // Écartées DANS la lecture paginée (ligne brute), pour qu'une page rende
+      // `limit` boutiques. Même règle que `tooFewMenus`.
+      const res = await repos.fastfoods.getPage({ ...page, skip: menuCounts ? row => tooFewMenus({ id: row.id, userId: row.user_id }) : null });
       fastfoods = res.items;
       nextCursor = res.nextCursor;
     } else {
@@ -95,7 +107,7 @@ exports.getFastFoodsService = async (userId, page) => {
     // Boutiques masquées (`hidden_fastfood_ids`) : visibles de leur seul
     // propriétaire. Boutique de review Apple : le reviewer, connecté avec le
     // compte review, la voit ; les vrais clients jamais (home ni recherche).
-    const visible = f => f.available && (!hidden.has(f.id) || (!!userId && f.userId === userId));
+    const visible = f => f.available && !tooFewMenus(f) && (!hidden.has(f.id) || (!!userId && f.userId === userId));
     const fastfoodsWithMenus = await Promise.all(
       fastfoods.filter(visible).map(async fastfood => {
         const menus = (await getMenuService(fastfood.id)).filter(isMenuAvailable).filter(inCategory(page?.category, page?.categoryNot));

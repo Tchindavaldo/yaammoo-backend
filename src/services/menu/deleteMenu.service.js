@@ -41,9 +41,10 @@ exports.deleteMenuService = async menuId => {
       await reliableEmit(io, fastFood.userId, 'fastFoodMenuDeleted', { message: 'Menu supprimé', fastFood: finalData, menuId });
     }
 
-    // Panier : articles non payés de la boutique recalculés (prix du plat,
-    // plat supprimé => « à revoir »), poussés au client. En arrière-plan.
-    require('../order/repriceCart.service').repriceCartsForShops([fastFoodId]);
+    // Vue home de la boutique renvoyée à toutes les apps : le nombre de plats
+    // disponibles décide de sa présence au home (`home_min_available_menus`).
+    // Recalcule aussi le panier (broadcastFastfoodViews -> repriceCartsForShops).
+    require('../fastfood/fastfoodsChanged').broadcastFastfoodViews([fastFoodId], 'menus_changed');
 
     return { success: true, message: 'Menu supprimé', data: finalData };
   } catch (error) {

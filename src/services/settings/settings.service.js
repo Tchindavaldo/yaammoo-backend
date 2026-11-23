@@ -327,6 +327,17 @@ async function getHiddenFastfoodIds() {
   return new Set((Array.isArray(raw) ? raw : []).map(v => String(v ?? '').trim()).filter(Boolean));
 }
 
+/** Plats disponibles minimum pour paraître au home (migration 105). 0 = aucun. Ne lève jamais. */
+async function getHomeMinAvailableMenus() {
+  try {
+    const s = await getSettings();
+    const v = Number(s[KEYS.HOME_MIN_AVAILABLE_MENUS]);
+    return Number.isInteger(v) && v >= 0 ? v : 3;
+  } catch {
+    return 3;
+  }
+}
+
 /** Jours avant effacement d'une image en corbeille (migration 071). Jamais < 1. */
 async function getImageTrashRetentionDays() {
   const s = await getSettings();
@@ -411,6 +422,7 @@ module.exports = {
   getTestVolumeImageUrl,
   getClientSettings,
   getHiddenFastfoodIds,
+  getHomeMinAvailableMenus,
   getImageTrashRetentionDays,
   getWhatsappTimeoutMs,
   getAppVersionGate,

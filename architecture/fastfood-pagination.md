@@ -114,6 +114,20 @@ peut donc rendre une boutique de moins que `limit`).
 UPDATE settings_app SET value = '["8KqUta86xe9fvihWnkzd"]'::jsonb WHERE key = 'hidden_fastfood_ids';
 ```
 
+## Minimum de plats disponibles (migration 105)
+
+`home_min_available_menus` (`settings_app`, défaut **3**, `0` = aucun minimum) :
+une boutique qui a moins de N plats **disponibles** (tous, hors filtre de
+catégorie) est absente du home, de la recherche et du rechargement ciblé
+(`ids`), sauf pour son **propriétaire**. Comptage :
+`repos.menus.availableCountByFastFood()` (une lecture par appel du home).
+Mode paginé : la boutique est écartée DANS la lecture (`getPage({ skip })`),
+la page reste pleine. Appels internes (precheck, panier) : `allowFewMenus: true`,
+la boutique reste visible pour contrôler les prix. Toute création, modification
+ou suppression de plat renvoie la vue de la boutique (`broadcastFastfoodViews`,
+`fastfoodUpdated` ou `fastfoodsHidden`). Modifier le réglage diffuse
+`fastfoodsChanged { ids: null }`.
+
 ## Bannières
 
 Servies **uniquement** quand `cursor` est absent. Les renvoyer à chaque
