@@ -72,4 +72,7 @@ exports.DeliveryHourItemFields = {
 exports.DeliveryZoneFields = {
   lieu: { type: 'string', required: true },
   prix: { type: 'string', required: true }, // envoyé en string par le front ("500")
+  // Durée de livraison de la zone, en minutes (entier > 0). Facultative :
+  // affichée au home selon la zone du client. Normalisée par deliveryHoursSanitize.
+  duree: { type: 'number', required: false },
 };

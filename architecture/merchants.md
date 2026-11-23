@@ -82,6 +82,7 @@ DeliveryHour {
 Zone {
   lieu: string                 // Lieu/quartier (ex: "Bonanjo")
   prix: string                 // Prix de livraison (ex: "500")
+  duree?: number               // Durée de livraison en minutes (> 0), affichée au home selon la zone du client
 }
 ```
 

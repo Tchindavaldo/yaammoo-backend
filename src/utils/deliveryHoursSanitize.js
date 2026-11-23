@@ -30,8 +30,17 @@ const isValidZone = zone => {
   return Number.isFinite(prix) && prix > 0;
 };
 
-// Zones valides d'une liste, dans l'ordre d'origine.
-const keepValidZones = list => (Array.isArray(list) ? list.filter(isValidZone) : []);
+// Durée de livraison de la zone (minutes, entier > 0), affichée au home selon
+// la zone du client. Absente ou invalide : retirée (aucune durée annoncée).
+const withDuree = zone => {
+  // eslint-disable-next-line no-unused-vars
+  const { duree, ...rest } = zone;
+  const minutes = Math.round(Number(duree));
+  return Number.isFinite(minutes) && minutes > 0 ? { ...rest, duree: minutes } : rest;
+};
+
+// Zones valides d'une liste, dans l'ordre d'origine (durée normalisée).
+const keepValidZones = list => (Array.isArray(list) ? list.filter(isValidZone).map(withDuree) : []);
 
 // Vrai si le créneau a le mode périodique actif accompagné de zones valides.
 const hasUsableMode = hour => hour.periodic === true && keepValidZones(hour.periodicZones).length > 0;
@@ -69,10 +78,10 @@ const sanitizeDeliveryHours = deliveryHours => {
 
 /**
  * Nettoie la liste `expressZones` de la boutique : zones valides, un lieu une
- * seule fois (doublon repéré sans casse ni espaces de bord), `lieu`/`prix` seuls.
+ * seule fois (doublon repéré sans casse ni espaces de bord), `lieu`/`prix`/`duree` seuls.
  *
  * @param {unknown} expressZones Valeur brute issue du payload.
- * @returns {Array<{lieu:string, prix:string}>}
+ * @returns {Array<{lieu:string, prix:string, duree?:number}>}
  */
 const sanitizeExpressZones = expressZones => {
   const seen = new Set();
@@ -82,7 +91,7 @@ const sanitizeExpressZones = expressZones => {
     if (seen.has(key)) continue;
     seen.add(key);
     // `lieu` gardé tel quel : c'est la clé que porte `orders.delivery.zone`.
-    kept.push({ lieu: zone.lieu, prix: String(zone.prix) });
+    kept.push({ lieu: zone.lieu, prix: String(zone.prix), ...(zone.duree ? { duree: zone.duree } : {}) });
   }
   return kept;
 };
