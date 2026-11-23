@@ -118,6 +118,54 @@ sans trace : alerte `app_errors`) (7, migration
 (`merchant_debt`, 422) et pousse au marchand la raison, à chaque tentative
 (`merchantDebtGuard`). Pas de seuil de montant : c'est la cause du négatif.
 
+## 2 bis. Qui paie les frais (`feePayer`) — PROPOSITION, non codée
+
+> ⚠️ Section en attente de validation du propriétaire : rien n'est codé.
+
+Champ `feePayer` sur **chaque prix** d'un plat (`menu.prices[].feePayer`) et sur
+**chaque boisson** de la boutique (`fastfoods.drinks[].feePayer`). Les extras
+d'une commande suivent le `feePayer` du **prix choisi** (`selectedPriceIndex`).
+Absent = `client` (comportement actuel, aucune donnée existante ne change).
+
+| Valeur | Qui le propose | Prix affiché | Marchand crédité |
+|---|---|---|---|
+| `client` | app (défaut) | inchangé : `withAllFees(brut + marge)` ↑ pas | brut + kiosque (inchangé) |
+| `merchant` | app | **brut**, sans marge, sans frais, sans arrondi | brut − frais de paiement − marge |
+| `merchant_no_margin` | backend seul (paiement au restaurant, plus tard) | **brut** | brut − frais de paiement ; marge = 0 |
+
+- **Régime plateforme** : `merchant*` refusé à l'enregistrement, et lu comme
+  `client` si la boutique bascule en plateforme (régime effectif).
+- **Course facturée à part** (régime fastfood) d'une commande dont le prix est
+  `merchant*` : ses frais de paiement sont aussi pris au marchand
+  (course versée = tarif − frais de paiement sur ce tarif). Course offerte
+  (bonus, campagne, groupage) : rien n'est encaissé, rien n'est retenu.
+- **Kiosque** : la part `merchant*` n'est pas compensée (le marchand paie
+  lui-même l'agent quand il retire en espèces). Le kiosque crédité est
+  calculé sur la seule part `client` (+ course d'une commande `client`).
+- **Frais de paiement d'une ligne `merchant*`** : `paymentFeeOf(brut)`, au
+  barème du paiement réel (réseau le plus cher pour l'affichage). Chaque
+  composante arrondie à l'excès séparément, donc la somme des parts est ≥ au
+  frais réel sur le total : l'écart (≤ quelques F) reste à la plateforme.
+
+Règlement d'une commande (A = lignes `client`, B = lignes `merchant*`) :
+
+```
+itemsCharged = Σ affichés(A) + Σ bruts(B) + course facturée
+itemsReal    = Σ bruts(A) + Σ [ brut(B) − frais(brut B) − marge(B) ]
+driverAmount = course                         (prix client)
+             = course − frais(course)          (prix merchant*)
+withdrawalFee = kiosque( bruts(A) + course d'une commande client )
+platformMargin = net − itemsReal − driverAmount   (résidu, ≥ 0 : contrôle inchangé)
+```
+
+`marge(B)` = `marginForBrut(brut) × qté` pour `merchant`, 0 pour
+`merchant_no_margin` ; extras et boissons ne portent jamais de marge.
+
+- **Marge négative** : toujours refusée (`negative_margin`, contrainte
+  `order_settlements_margin_chk`), jamais assouplie.
+- **Garde-fou à l'enregistrement** : un prix `merchant*` est refusé si le
+  marchand recevrait ≤ 0 (brut − frais − marge).
+
 ## 3. Les frais — ne jamais les confondre
 
 | Frais | Quand | Formule (P = montant payé) |
