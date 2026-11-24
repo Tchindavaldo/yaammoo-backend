@@ -64,16 +64,3 @@ Réservées à l'admin : `GET /user`, `/user/email/:email`, `/user/phone/:phone`
 
 Voir `yaammoo/architecture/auth.md` pour le détail des flows Email/Password et Google Sign-In côté client.
 
-## Inscription e-mail avec code (Bird Verify, canal e-mail)
-
-`services/auth/emailAuth.service.js` · `controllers/auth/emailAuth.controller.js` · champs `interface/emailAuthFields.js`.
-
-| Route | Corps | Réponse (à plat) |
-|---|---|---|
-| `POST /auth/email/request` | `{ email }` | `200 { email, expiresIn }` · `409` déjà inscrit · `429 { retryAfter }` |
-| `POST /auth/email/verify` | `{ email, code, password }` | `200 { customToken, isNewUser, user }` · `401 { reason, attemptsRemaining }` · `409` |
-
-- Le code ne sert qu'à l'INSCRIPTION ; la connexion reste e-mail + mot de passe (Firebase côté app).
-- `verify` crée le compte Firebase (`emailVerified: true`) + le profil `users`, puis un custom token.
-- Compte Firebase sans profil `users` (ancien flux interrompu) : repris, mot de passe remplacé.
-- Verrou de renvoi en mémoire, réglage partagé `otp_resend_cooldown_seconds`.
