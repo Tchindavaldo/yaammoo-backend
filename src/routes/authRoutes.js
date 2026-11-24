@@ -1,6 +1,7 @@
 const express = require('express');
 const { signUpController } = require('../controllers/auth/register.controller');
 const { requestPhoneAuthController, verifyPhoneAuthController, getOtpCostSummaryController, getVerificationDetailsController } = require('../controllers/auth/phoneAuth.controller');
+const { requestEmailCodeController, verifyEmailRegisterController } = require('../controllers/auth/emailAuth.controller');
 const firebaseAuth = require('../middlewares/authMiddleware');
 const adminGuard = require('../middlewares/adminMiddleware');
 
@@ -293,5 +294,52 @@ router.get('/phone/costs/summary', firebaseAuth, adminGuard, getOtpCostSummaryCo
  *         description: Identifiant de vérification inconnu
  */
 router.get('/phone/verification/:id', firebaseAuth, adminGuard, getVerificationDetailsController);
+
+/**
+ * @swagger
+ * /auth/email/request:
+ *   post:
+ *     summary: Inscription e-mail, etape 1 - envoyer un code a 6 chiffres a l'adresse
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email]
+ *             properties:
+ *               email: { type: string, format: email }
+ *     responses:
+ *       200: { description: "Code envoye : { success, message, email, expiresIn }" }
+ *       400: { description: Adresse invalide ou envoi Bird echoue }
+ *       409: { description: Adresse deja inscrite }
+ *       429: { description: "Renvoi trop rapproche : { retryAfter }" }
+ */
+router.post('/email/request', requestEmailCodeController);
+
+/**
+ * @swagger
+ * /auth/email/verify:
+ *   post:
+ *     summary: Inscription e-mail, etape 2 - valider le code, creer le compte, renvoyer un custom token
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email, code, password]
+ *             properties:
+ *               email: { type: string, format: email }
+ *               code: { type: string, example: '123456' }
+ *               password: { type: string, minLength: 6 }
+ *     responses:
+ *       200: { description: "Compte cree : { success, message, customToken, isNewUser, user }" }
+ *       401: { description: "Code refuse : { reason, attemptsRemaining }" }
+ *       409: { description: Adresse deja inscrite }
+ */
+router.post('/email/verify', verifyEmailRegisterController);
 
 module.exports = router;
