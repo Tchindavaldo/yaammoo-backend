@@ -29,6 +29,9 @@ exports.normalizePhoneNumber = (phoneNumber, countryCode) => {
 
   if (cleaned.startsWith('00')) {
     cleaned = `+${cleaned.slice(2)}`;
+  } else if (!cleaned.startsWith('+') && cleaned.startsWith(prefix) && cleaned.length - prefix.length >= 8) {
+    // Déjà indicatif sans '+' (ex. "237696080087") : ne pas le doubler
+    cleaned = `+${cleaned}`;
   } else if (!cleaned.startsWith('+')) {
     // Numéro local : on préfixe avec l'indicatif
     cleaned = `+${prefix}${cleaned}`;
