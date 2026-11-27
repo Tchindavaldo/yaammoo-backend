@@ -3,7 +3,7 @@
 Ce fichier est **versionné** : ses règles s'appliquent automatiquement sur tout
 PC où le projet est cloné/pull, dans n'importe quelle session Claude Code.
 
-> **25 règles numérotées R1 → R25.** Toute nouvelle règle ajoutée à ce fichier
+> **26 règles numérotées R1 → R26.** Toute nouvelle règle ajoutée à ce fichier
 > DOIT recevoir le numéro suivant (R20, R21, …) et le total ci-dessus doit être
 > mis à jour. On cite une règle par son numéro (ex. « R1 » pour le style de réponse).
 
@@ -596,3 +596,15 @@ branche de session), on **ne s'arrête pas** sur cette branche en silence :
 **Appliqué par le harness** : `.claude/hooks/ask-merge-before-stop.sh` (hook
 `Stop`) bloque la fin du tour tant que la branche a des commits absents de
 `origin/dev`, et exige la demande `AskUserQuestion`. Règle identique côté frontend (R29).
+
+## R26 — Déploiement Fly : TOUJOURS via GitHub Actions (OBLIGATOIRE)
+
+Un déploiement se fait **uniquement** par les workflows GitHub Actions, jamais par
+`flyctl deploy` en local ou depuis une session cloud (le builder distant y échoue) :
+
+- **Test** : `.github/workflows/fly-deploy-dev.yml` (`workflow_dispatch`, ref `dev`).
+- **Prod** : `.github/workflows/fly-deploy.yml` (`workflow_dispatch`, ref `main`,
+  input `machine_mode` à demander, R21).
+
+Pousser la branche d'abord, puis déclencher le workflow (outil GitHub
+`actions_run_trigger`) et suivre le run jusqu'au verdict.
